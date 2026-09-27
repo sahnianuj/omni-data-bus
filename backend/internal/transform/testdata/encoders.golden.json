@@ -1,0 +1,43 @@
+{
+  "at": "2024-01-01T21:34:05.12Z",
+  "big_max": "9223372036854775807",
+  "big_safe": 1099511627776,
+  "blob": "iVBORw==",
+  "born": "1990-02-03",
+  "code": "AB",
+  "doc": {
+    "big": 12345678901234567890,
+    "list": [
+      1,
+      "a",
+      null
+    ],
+    "nested": {
+      "b": true
+    }
+  },
+  "empty_blob": "",
+  "flag": true,
+  "id": 1,
+  "ip": "10.0.0.5",
+  "local_ts": "2024-06-01T12:00:00.5",
+  "mac": "08:00:2b:01:02:03",
+  "money": 5,
+  "nan": null,
+  "net": "10.0.0.0/16",
+  "nothing": null,
+  "opens": "09:00:00",
+  "precise": "12345678901234567890.0000000001",
+  "price": 1234.5,
+  "real": 0.1,
+  "ref": "0f8fad5b-d9cb-469f-a165-70867728950e",
+  "sizes": [
+    1,
+    null,
+    3
+  ],
+  "small": -7,
+  "status": "paid",
+  "vector": "'a':1",
+  "warranty": "P1Y2M3DT1H"
+}

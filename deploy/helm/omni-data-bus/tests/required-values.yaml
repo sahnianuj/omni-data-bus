@@ -1,0 +1,6 @@
+metadata:
+  connStr: couchbases://cb.test.cloud.couchbase.com
+  username: omnidb
+secrets:
+  masterKey: dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdC0=
+  metaPassword: test-password

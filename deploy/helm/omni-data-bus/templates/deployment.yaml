@@ -1,0 +1,102 @@
+{{- range $component := splitList " " (include "odb.components" .) }}
+{{- $v := index $.Values $component }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "odb.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "odb.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  {{- if not $v.autoscaling.enabled }}
+  replicas: {{ $v.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "odb.selector" (list $ $component) | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels:
+        {{- include "odb.selector" (list $ $component) | nindent 8 }}
+      annotations:
+        {{- with $.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        # Rolls the pods when chart-managed secrets change.
+        checksum/secret: {{ printf "%s/%s/%s" $.Values.secrets.existingSecret $.Values.secrets.masterKey $.Values.secrets.metaPassword | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "odb.serviceAccountName" $ }}
+      automountServiceAccountToken: false
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ if eq $component "api" }}30{{ else }}{{ max 45 ($v.terminationGracePeriodSeconds | default 45) }}{{ end }}
+      containers:
+        - name: odb
+          image: {{ include "odb.image" $ }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - name: OC_ROLE
+              value: {{ $component }}
+            - name: OC_META_AUTO_PROVISION
+              value: {{ not $.Values.migrations.enabled | quote }}
+            {{- if ne $component "api" }}
+            - name: OC_WORKER_MAX_JOBS
+              value: {{ $.Values.worker.maxJobs | quote }}
+            - name: OC_WORKER_MEMORY_BUDGET_MB
+              value: {{ $.Values.worker.memoryBudgetMB | quote }}
+            {{- end }}
+            {{- include "odb.env" $ | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8080, protocol: TCP }
+            - { name: metrics, containerPort: 9090, protocol: TCP }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 60
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - { name: secrets, mountPath: /etc/odb/secrets, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: secrets
+          secret:
+            secretName: {{ include "odb.secretName" $ }}
+            defaultMode: 0400
+            items:
+              - { key: master-key, path: master-key }
+              - { key: meta-password, path: meta-password }
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

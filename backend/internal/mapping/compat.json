@@ -1,0 +1,274 @@
+{
+ "_comment": "Source jsonType \u2192 target field type. Shared by internal/mapping/compat.go and web/src/features/mapping/canConnect.ts (OC-017 step 3, OC-019).",
+ "types": [
+  "string",
+  "integer",
+  "number",
+  "boolean",
+  "datetime",
+  "any",
+  "object",
+  "array"
+ ],
+ "matrix": {
+  "string": {
+   "string": {
+    "class": "exact"
+   },
+   "integer": {
+    "class": "lossy",
+    "transform": {
+     "op": "parseInteger"
+    }
+   },
+   "number": {
+    "class": "lossy",
+    "transform": {
+     "op": "parseNumber"
+    }
+   },
+   "boolean": {
+    "class": "lossy",
+    "transform": {
+     "op": "parseBoolean"
+    }
+   },
+   "datetime": {
+    "class": "lossy",
+    "transform": {
+     "op": "toDatetime"
+    }
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "incompatible"
+   },
+   "array": {
+    "class": "incompatible"
+   }
+  },
+  "integer": {
+   "string": {
+    "class": "lossless",
+    "transform": {
+     "op": "toString"
+    }
+   },
+   "integer": {
+    "class": "exact"
+   },
+   "number": {
+    "class": "exact"
+   },
+   "boolean": {
+    "class": "lossy",
+    "transform": {
+     "op": "parseBoolean"
+    }
+   },
+   "datetime": {
+    "class": "lossy",
+    "transform": {
+     "op": "toDatetime"
+    }
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "incompatible"
+   },
+   "array": {
+    "class": "incompatible"
+   }
+  },
+  "number": {
+   "string": {
+    "class": "lossless",
+    "transform": {
+     "op": "toString"
+    }
+   },
+   "integer": {
+    "class": "lossy",
+    "transform": {
+     "op": "parseInteger"
+    }
+   },
+   "number": {
+    "class": "exact"
+   },
+   "boolean": {
+    "class": "incompatible"
+   },
+   "datetime": {
+    "class": "lossy",
+    "transform": {
+     "op": "toDatetime"
+    }
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "incompatible"
+   },
+   "array": {
+    "class": "incompatible"
+   }
+  },
+  "boolean": {
+   "string": {
+    "class": "lossless",
+    "transform": {
+     "op": "toString"
+    }
+   },
+   "integer": {
+    "class": "incompatible"
+   },
+   "number": {
+    "class": "incompatible"
+   },
+   "boolean": {
+    "class": "exact"
+   },
+   "datetime": {
+    "class": "incompatible"
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "incompatible"
+   },
+   "array": {
+    "class": "incompatible"
+   }
+  },
+  "datetime": {
+   "string": {
+    "class": "lossless",
+    "transform": {
+     "op": "toString"
+    }
+   },
+   "integer": {
+    "class": "lossy",
+    "transform": {
+     "op": "formatDatetime",
+     "args": {
+      "format": "epoch_ms"
+     }
+    }
+   },
+   "number": {
+    "class": "lossy",
+    "transform": {
+     "op": "formatDatetime",
+     "args": {
+      "format": "epoch_ms"
+     }
+    }
+   },
+   "boolean": {
+    "class": "incompatible"
+   },
+   "datetime": {
+    "class": "exact"
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "incompatible"
+   },
+   "array": {
+    "class": "incompatible"
+   }
+  },
+  "any": {
+   "string": {
+    "class": "lossless",
+    "transform": {
+     "op": "toString"
+    }
+   },
+   "integer": {
+    "class": "lossy"
+   },
+   "number": {
+    "class": "lossy"
+   },
+   "boolean": {
+    "class": "lossy"
+   },
+   "datetime": {
+    "class": "lossy"
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "exact"
+   },
+   "array": {
+    "class": "exact"
+   }
+  },
+  "object": {
+   "string": {
+    "class": "incompatible"
+   },
+   "integer": {
+    "class": "incompatible"
+   },
+   "number": {
+    "class": "incompatible"
+   },
+   "boolean": {
+    "class": "incompatible"
+   },
+   "datetime": {
+    "class": "incompatible"
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "exact"
+   },
+   "array": {
+    "class": "incompatible"
+   }
+  },
+  "array": {
+   "string": {
+    "class": "incompatible"
+   },
+   "integer": {
+    "class": "incompatible"
+   },
+   "number": {
+    "class": "incompatible"
+   },
+   "boolean": {
+    "class": "incompatible"
+   },
+   "datetime": {
+    "class": "incompatible"
+   },
+   "any": {
+    "class": "exact"
+   },
+   "object": {
+    "class": "incompatible"
+   },
+   "array": {
+    "class": "exact"
+   }
+  }
+ }
+}

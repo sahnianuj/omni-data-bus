@@ -1,0 +1,111 @@
+{
+ "table": "customer",
+ "columns": [
+  {
+   "name": "customer_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "first_name",
+   "jsonType": "string"
+  },
+  {
+   "name": "last_name",
+   "jsonType": "string"
+  },
+  {
+   "name": "email_address",
+   "jsonType": "string"
+  },
+  {
+   "name": "phone",
+   "jsonType": "string"
+  },
+  {
+   "name": "address_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "is_active",
+   "jsonType": "boolean"
+  },
+  {
+   "name": "tags",
+   "jsonType": "array"
+  },
+  {
+   "name": "external_ref",
+   "jsonType": "string"
+  },
+  {
+   "name": "birth_date",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "created_on",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "updated_at",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "preferences",
+   "jsonType": "any"
+  },
+  {
+   "name": "notes",
+   "jsonType": "string"
+  },
+  {
+   "name": "sync_token",
+   "jsonType": "string"
+  }
+ ],
+ "fields": [
+  {
+   "name": "email",
+   "type": "string"
+  },
+  {
+   "name": "externalRef",
+   "type": "string"
+  },
+  {
+   "name": "remarks",
+   "type": "string"
+  },
+  {
+   "name": "preferences",
+   "type": "any"
+  },
+  {
+   "name": "mobile",
+   "type": "string"
+  },
+  {
+   "name": "updatedAt",
+   "type": "datetime"
+  },
+  {
+   "name": "customerId",
+   "type": "string"
+  },
+  {
+   "name": "givenNameOld",
+   "type": "string"
+  },
+  {
+   "name": "addressId",
+   "type": "integer"
+  },
+  {
+   "name": "dateOfBirth",
+   "type": "string"
+  },
+  {
+   "name": "tags",
+   "type": "array"
+  }
+ ]
+}

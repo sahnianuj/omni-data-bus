@@ -1,0 +1,95 @@
+{
+ "table": "product",
+ "columns": [
+  {
+   "name": "product_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "category_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "sku",
+   "jsonType": "string"
+  },
+  {
+   "name": "title",
+   "jsonType": "string"
+  },
+  {
+   "name": "price",
+   "jsonType": "number"
+  },
+  {
+   "name": "list_price",
+   "jsonType": "number"
+  },
+  {
+   "name": "weight_kg",
+   "jsonType": "number"
+  },
+  {
+   "name": "rating",
+   "jsonType": "number"
+  },
+  {
+   "name": "attributes",
+   "jsonType": "any"
+  },
+  {
+   "name": "warranty",
+   "jsonType": "string"
+  },
+  {
+   "name": "created_at",
+   "jsonType": "datetime"
+  }
+ ],
+ "fields": [
+  {
+   "name": "createdAt",
+   "type": "datetime"
+  },
+  {
+   "name": "attributes",
+   "type": "string"
+  },
+  {
+   "name": "productId",
+   "type": "integer"
+  },
+  {
+   "name": "weightKg",
+   "type": "number"
+  },
+  {
+   "name": "rating",
+   "type": "number"
+  },
+  {
+   "name": "price",
+   "type": "number"
+  },
+  {
+   "name": "msrp",
+   "type": "number"
+  },
+  {
+   "name": "skuOld",
+   "type": "string"
+  },
+  {
+   "name": "warrantyOld",
+   "type": "string"
+  },
+  {
+   "name": "categoryId",
+   "type": "integer"
+  },
+  {
+   "name": "name",
+   "type": "string"
+  }
+ ]
+}

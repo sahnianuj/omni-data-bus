@@ -1,0 +1,156 @@
+name: Release
+# On a v* tag: test, build and push a signed multi-arch image with an SBOM, scan it, push the Helm
+# chart, and publish a GitHub release. On a PR labelled release-check: the same steps as a dry
+# run (nothing is pushed, signed or published).
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    types: [labeled, synchronize, opened, reopened]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: omni-data-bus
+
+jobs:
+  meta:
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'release-check')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      registry: ${{ steps.v.outputs.registry }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - id: v
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"; echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-pr${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"; echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd web && npm ci
+      - run: make test-backend test-web helm-test
+
+  image:
+    needs: [meta, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # keyless cosign signing
+    env:
+      REF: ${{ needs.meta.outputs.registry }}/omni-data-bus:${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - if: needs.meta.outputs.publish == 'true'
+        uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - name: Build (linux/amd64, linux/arm64) and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ needs.meta.outputs.publish == 'true' }}
+          tags: ${{ env.REF }}
+          build-args: |
+            VERSION=${{ needs.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build a local amd64 copy to scan
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          load: true
+          tags: odb-scan:local
+          build-args: VERSION=${{ needs.meta.outputs.version }}
+          cache-from: type=gha
+      - name: Vulnerability scan (fails on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: odb-scan:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: SBOM (SPDX, syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: odb-scan:local
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: true
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the image and attach the SBOM
+        if: needs.meta.outputs.publish == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REPO: ${{ needs.meta.outputs.registry }}/omni-data-bus
+        run: |
+          cosign sign --yes "$REPO@$DIGEST"
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "$REPO@$DIGEST"
+
+  chart:
+    needs: [meta, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with: { version: v3.18.4 }
+      - name: Package
+        run: |
+          helm package deploy/helm/omni-data-bus \
+            --version "${{ needs.meta.outputs.version }}" --app-version "${{ needs.meta.outputs.version }}" -d dist
+      - name: Push (OCI)
+        if: needs.meta.outputs.publish == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push dist/omni-data-bus-*.tgz "oci://${{ needs.meta.outputs.registry }}/charts"
+      - uses: actions/upload-artifact@v4
+        with: { name: helm-chart, path: dist/ }
+
+  release:
+    needs: [meta, image, chart]
+    if: needs.meta.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Changelog from Conventional Commits
+        uses: orhun/git-cliff-action@v4
+        id: cliff
+        with:
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+      - uses: actions/download-artifact@v4
+        with: { name: helm-chart, path: dist }
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.tgz \
+            --title "Omni-Data-Bus ${{ needs.meta.outputs.version }}" --notes-file CHANGELOG.md

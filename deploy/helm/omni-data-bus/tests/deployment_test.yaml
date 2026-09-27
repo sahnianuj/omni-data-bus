@@ -1,0 +1,99 @@
+suite: deployments
+templates:
+  - templates/deployment.yaml
+values:
+  - required-values.yaml
+tests:
+  - it: "AC4: split mode renders two deployments"
+    asserts:
+      - hasDocuments: { count: 2 }
+      - equal: { path: metadata.name, value: RELEASE-NAME-omni-data-bus-api }
+        documentIndex: 0
+      - equal: { path: metadata.name, value: RELEASE-NAME-omni-data-bus-worker }
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_ROLE, value: api }
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_ROLE, value: worker }
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_WORKER_MAX_JOBS, value: "2" }
+        documentIndex: 1
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_WORKER_MAX_JOBS, value: "2" }
+        documentIndex: 0
+
+  - it: "AC4: all mode renders one deployment"
+    set: { mode: all }
+    asserts:
+      - hasDocuments: { count: 1 }
+      - equal: { path: metadata.name, value: RELEASE-NAME-omni-data-bus-all }
+      - equal: { path: spec.replicas, value: 1 }
+
+  - it: "AC4: securityContext hardened"
+    asserts:
+      - equal: { path: spec.template.spec.securityContext.runAsNonRoot, value: true }
+      - equal: { path: spec.template.spec.securityContext.seccompProfile.type, value: RuntimeDefault }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation', value: false }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.capabilities.drop', value: [ALL] }
+      - equal: { path: spec.template.spec.automountServiceAccountToken, value: false }
+
+  - it: "AC4: probes and a worker grace period of at least 45 s"
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.httpGet.path', value: /healthz }
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', value: /readyz }
+      - equal: { path: spec.template.spec.terminationGracePeriodSeconds, value: 45 }
+        documentIndex: 1
+
+  - it: "AC4: a shorter configured grace period is raised to 45 s"
+    set: { worker.terminationGracePeriodSeconds: 10 }
+    documentIndex: 1
+    asserts:
+      - equal: { path: spec.template.spec.terminationGracePeriodSeconds, value: 45 }
+
+  - it: secrets are mounted as files, not environment values
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_MASTER_KEY_FILE, value: /etc/odb/secrets/master-key }
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_MASTER_KEY, value: dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdC0= }
+      - equal: { path: 'spec.template.spec.volumes[0].secret.secretName', value: RELEASE-NAME-omni-data-bus }
+
+  - it: an existing secret replaces the chart's
+    set: { secrets: { existingSecret: odb-secrets, masterKey: "", metaPassword: "" } }
+    asserts:
+      - equal: { path: 'spec.template.spec.volumes[0].secret.secretName', value: odb-secrets }
+
+  - it: egress settings reach the pods
+    set: { config.egress.allowPrivateNetworks: false, config.egress.denyCidrs: "10.0.0.0/8" }
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: OC_ALLOW_PRIVATE_NETWORKS, value: "false" }
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: { name: OC_EGRESS_DENY_CIDRS, value: 10.0.0.0/8 }
+
+  - it: pods don't provision when the migration hook does
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_META_AUTO_PROVISION, value: "false" }
+
+  - it: autoscaled deployments leave replicas to the HPA
+    set: { worker.autoscaling.enabled: true }
+    asserts:
+      - notExists: { path: spec.replicas }
+
+  - it: required settings fail clearly
+    set: { metadata.connStr: "" }
+    asserts:
+      - failedTemplate: { errorMessage: metadata.connStr is required }

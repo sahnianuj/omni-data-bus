@@ -1,0 +1,135 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: golangci/golangci-lint-action@v8
+        with: { version: v2.14.0, working-directory: backend }
+
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: make test-backend
+
+  backend-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: make test-integration
+
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
+      - name: govulncheck (fails on vulnerabilities reachable from our code)
+        run: cd backend && go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: npm audit (production dependencies, high severity fails)
+        run: cd web && npm audit --omit=dev --audit-level=high
+
+  observability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check rules
+        run: docker run --rm -v "$PWD/deploy/observability:/w" --entrypoint promtool prom/prometheus:v3.5.0 check rules /w/alerts.yml
+
+  image-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          load: true
+          tags: omni-data-bus:ci
+          build-args: |
+            VERSION=ci
+            COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Structure test and size (< 40 MB)
+        run: make image-test IMAGE=omni-data-bus:ci VERSION=ci
+      - name: Vulnerability scan (fails on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: omni-data-bus:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Save image for the smoke test
+        run: docker save omni-data-bus:ci -o /tmp/odb-image.tar
+      - uses: actions/upload-artifact@v4
+        with: { name: odb-image, path: /tmp/odb-image.tar, retention-days: 1 }
+
+  compose-smoke:
+    needs: image-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: odb-image, path: /tmp }
+      - run: docker load -i /tmp/odb-image.tar
+      - run: make dev-stack
+      - name: Start the production stack against the dev Couchbase
+        run: |
+          mkdir -p deploy/compose/secrets-ci
+          docker run --rm omni-data-bus:ci admin gen-key > deploy/compose/secrets-ci/master_key
+          printf password > deploy/compose/secrets-ci/meta_password
+          docker compose -f deploy/compose/prod.yml -f deploy/compose/ci.yml --env-file deploy/compose/ci.env up -d --wait
+      - run: curl -fsS localhost:18080/readyz && curl -fsS localhost:19090/metrics | grep -q '^oc_'
+      - if: failure()
+        run: docker compose -f deploy/compose/prod.yml -f deploy/compose/ci.yml --env-file deploy/compose/ci.env logs
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make helm-test
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd web && npm ci
+      - run: cd web && npm run lint && npm run typecheck
+      - run: cd web && npm run test:coverage
+      - run: cd web && npm run build
+
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd web && npm ci
+      - run: make check-gen

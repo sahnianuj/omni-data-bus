@@ -1,0 +1,87 @@
+{
+ "table": "product",
+ "columns": [
+  {
+   "name": "product_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "category_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "sku",
+   "jsonType": "string"
+  },
+  {
+   "name": "title",
+   "jsonType": "string"
+  },
+  {
+   "name": "price",
+   "jsonType": "number"
+  },
+  {
+   "name": "list_price",
+   "jsonType": "number"
+  },
+  {
+   "name": "weight_kg",
+   "jsonType": "number"
+  },
+  {
+   "name": "rating",
+   "jsonType": "number"
+  },
+  {
+   "name": "attributes",
+   "jsonType": "any"
+  },
+  {
+   "name": "warranty",
+   "jsonType": "string"
+  },
+  {
+   "name": "created_at",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "row_version",
+   "jsonType": "integer"
+  }
+ ],
+ "fields": [
+  {
+   "name": "categoryId",
+   "type": "integer"
+  },
+  {
+   "name": "sku",
+   "type": "string"
+  },
+  {
+   "name": "weightKg",
+   "type": "number"
+  },
+  {
+   "name": "createdAt",
+   "type": "datetime"
+  },
+  {
+   "name": "listPrice",
+   "type": "number"
+  },
+  {
+   "name": "price",
+   "type": "number"
+  },
+  {
+   "name": "warranty",
+   "type": "string"
+  },
+  {
+   "name": "title",
+   "type": "string"
+  }
+ ]
+}

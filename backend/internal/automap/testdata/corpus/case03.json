@@ -1,0 +1,83 @@
+{
+ "table": "employee",
+ "columns": [
+  {
+   "name": "emp_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "fname",
+   "jsonType": "string"
+  },
+  {
+   "name": "lname",
+   "jsonType": "string"
+  },
+  {
+   "name": "dob",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "dept_cd",
+   "jsonType": "string"
+  },
+  {
+   "name": "mgr_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "tel",
+   "jsonType": "string"
+  },
+  {
+   "name": "email",
+   "jsonType": "string"
+  },
+  {
+   "name": "hire_dt",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "salary_amt",
+   "jsonType": "number"
+  },
+  {
+   "name": "legacy_flag",
+   "jsonType": "boolean"
+  },
+  {
+   "name": "row_version",
+   "jsonType": "integer"
+  }
+ ],
+ "fields": [
+  {
+   "name": "firstName",
+   "type": "string"
+  },
+  {
+   "name": "empId",
+   "type": "integer"
+  },
+  {
+   "name": "departmentCode",
+   "type": "string"
+  },
+  {
+   "name": "lastName",
+   "type": "string"
+  },
+  {
+   "name": "hireDt",
+   "type": "datetime"
+  },
+  {
+   "name": "salaryAmount",
+   "type": "number"
+  },
+  {
+   "name": "phone",
+   "type": "string"
+  }
+ ]
+}

@@ -1,0 +1,69 @@
+# ─── Secrets & local configuration (never commit) ─────────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+# Certificates and private keys (e.g. a downloaded Capella CA). Test fixtures are allowed.
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+!**/testdata/**
+secrets/
+**/secrets/
+
+# ─── Go ───────────────────────────────────────────────────────────────────────
+/backend/bin/
+/backend/coverage/
+/backend/internal/httpapi/webdist/
+*.test
+*.out
+*.coverprofile
+*.prof
+*.pprof
+/backend/tmp/
+__debug_bin*
+
+# ─── Node / web ───────────────────────────────────────────────────────────────
+node_modules/
+/web/dist/
+/web/coverage/
+/web/playwright-report/
+/web/test-results/
+/web/blob-report/
+/web/storybook-static/
+/web/.vite/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── Benchmarks & infrastructure state ───────────────────────────────────────
+/bench/results/*.pprof
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# ─── Logs, caches, temp ───────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+.cache/
+
+# ─── Editors & OS ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Compose smoke-test secrets (generated)
+/deploy/compose/secrets-ci/

@@ -1,0 +1,813 @@
+{
+ "_comment": "Shared by stats_test.go and web/src/features/mapping/computeStats.test.ts (OC-018 AC3).",
+ "cases": [
+  {
+   "name": "OC-017 AC6: 23 columns, 1 ignored, 10 auto, 4 suggested, 1 manual",
+   "columns": [
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6",
+    "c7",
+    "c8",
+    "c9",
+    "c10",
+    "c11",
+    "c12",
+    "c13",
+    "c14",
+    "c15",
+    "c16",
+    "c17",
+    "c18",
+    "c19",
+    "c20",
+    "c21",
+    "c22",
+    "c23"
+   ],
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f1",
+        "name": "t1",
+        "type": "string"
+       },
+       {
+        "id": "f2",
+        "name": "t2",
+        "type": "string"
+       },
+       {
+        "id": "f3",
+        "name": "t3",
+        "type": "string"
+       },
+       {
+        "id": "f4",
+        "name": "t4",
+        "type": "string"
+       },
+       {
+        "id": "f5",
+        "name": "t5",
+        "type": "string"
+       },
+       {
+        "id": "f6",
+        "name": "t6",
+        "type": "string"
+       },
+       {
+        "id": "f7",
+        "name": "t7",
+        "type": "string"
+       },
+       {
+        "id": "f8",
+        "name": "t8",
+        "type": "string"
+       },
+       {
+        "id": "f9",
+        "name": "t9",
+        "type": "string"
+       },
+       {
+        "id": "f10",
+        "name": "t10",
+        "type": "string"
+       },
+       {
+        "id": "f11",
+        "name": "t11",
+        "type": "string"
+       },
+       {
+        "id": "f12",
+        "name": "t12",
+        "type": "string"
+       },
+       {
+        "id": "f13",
+        "name": "t13",
+        "type": "string"
+       },
+       {
+        "id": "f14",
+        "name": "t14",
+        "type": "string"
+       },
+       {
+        "id": "f15",
+        "name": "t15",
+        "type": "string"
+       },
+       {
+        "id": "f16",
+        "name": "t16",
+        "type": "string"
+       },
+       {
+        "id": "f17",
+        "name": "t17",
+        "type": "string"
+       },
+       {
+        "id": "f18",
+        "name": "t18",
+        "type": "string"
+       },
+       {
+        "id": "f19",
+        "name": "t19",
+        "type": "string"
+       },
+       {
+        "id": "f20",
+        "name": "t20",
+        "type": "string"
+       },
+       {
+        "id": "f21",
+        "name": "t21",
+        "type": "string",
+        "required": true
+       },
+       {
+        "id": "f22",
+        "name": "t22",
+        "type": "string",
+        "required": true
+       }
+      ]
+     },
+     "source": "generated"
+    },
+    "key": {
+     "template": "t::{c1}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "fieldMappings": [
+     {
+      "id": "m1",
+      "targetFieldId": "f1",
+      "sources": [
+       {
+        "column": "c1"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.91
+     },
+     {
+      "id": "m2",
+      "targetFieldId": "f2",
+      "sources": [
+       {
+        "column": "c2"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.92
+     },
+     {
+      "id": "m3",
+      "targetFieldId": "f3",
+      "sources": [
+       {
+        "column": "c3"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.93
+     },
+     {
+      "id": "m4",
+      "targetFieldId": "f4",
+      "sources": [
+       {
+        "column": "c4"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9400000000000001
+     },
+     {
+      "id": "m5",
+      "targetFieldId": "f5",
+      "sources": [
+       {
+        "column": "c5"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     },
+     {
+      "id": "m6",
+      "targetFieldId": "f6",
+      "sources": [
+       {
+        "column": "c6"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.91
+     },
+     {
+      "id": "m7",
+      "targetFieldId": "f7",
+      "sources": [
+       {
+        "column": "c7"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.92
+     },
+     {
+      "id": "m8",
+      "targetFieldId": "f8",
+      "sources": [
+       {
+        "column": "c8"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.93
+     },
+     {
+      "id": "m9",
+      "targetFieldId": "f9",
+      "sources": [
+       {
+        "column": "c9"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9400000000000001
+     },
+     {
+      "id": "m10",
+      "targetFieldId": "f10",
+      "sources": [
+       {
+        "column": "c10"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     },
+     {
+      "id": "m11",
+      "targetFieldId": "f11",
+      "sources": [
+       {
+        "column": "c11"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.7
+     },
+     {
+      "id": "m12",
+      "targetFieldId": "f12",
+      "sources": [
+       {
+        "column": "c12"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.7
+     },
+     {
+      "id": "m13",
+      "targetFieldId": "f13",
+      "sources": [
+       {
+        "column": "c13"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.7
+     },
+     {
+      "id": "m14",
+      "targetFieldId": "f14",
+      "sources": [
+       {
+        "column": "c14"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.7
+     },
+     {
+      "id": "m20",
+      "targetFieldId": "f15",
+      "sources": [
+       {
+        "column": "c15"
+       }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+     },
+     {
+      "id": "m21",
+      "targetFieldId": "f16",
+      "sources": [
+       {
+        "column": "c16"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "rejected",
+      "confidence": 0.65
+     }
+    ],
+    "embeds": [],
+    "ignoredColumns": [
+     "c23"
+    ]
+   },
+   "expected": {
+    "totalSourceColumns": 22,
+    "autoMapped": 10,
+    "suggested": 4,
+    "manuallyMapped": 1,
+    "unmappedSource": 7,
+    "ignored": 1,
+    "totalTargetLeaves": 22,
+    "mappedTargetLeaves": 11,
+    "requiredTargetUnmapped": 2,
+    "autoMapRatio": 0.45454545454545453,
+    "coverageRatio": 0.5,
+    "averageConfidence": 0.9200000000000002
+   }
+  },
+  {
+   "name": "accepted suggestion counts as manual",
+   "columns": [
+    "a"
+   ],
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f1",
+        "name": "x",
+        "type": "string"
+       }
+      ]
+     },
+     "source": "manual"
+    },
+    "key": {
+     "template": "t::{c1}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "fieldMappings": [
+     {
+      "id": "m1",
+      "targetFieldId": "f1",
+      "sources": [
+       {
+        "column": "a"
+       }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active",
+      "reason": "accepted-suggestion",
+      "confidence": 0.7
+     }
+    ],
+    "embeds": [],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 1,
+    "autoMapped": 0,
+    "suggested": 0,
+    "manuallyMapped": 1,
+    "unmappedSource": 0,
+    "ignored": 0,
+    "totalTargetLeaves": 1,
+    "mappedTargetLeaves": 1,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0,
+    "coverageRatio": 1,
+    "averageConfidence": 0
+   }
+  },
+  {
+   "name": "no columns",
+   "columns": [],
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": []
+     },
+     "source": "manual"
+    },
+    "key": {
+     "template": "t::{c1}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "fieldMappings": [],
+    "embeds": [],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 0,
+    "autoMapped": 0,
+    "suggested": 0,
+    "manuallyMapped": 0,
+    "unmappedSource": 0,
+    "ignored": 0,
+    "totalTargetLeaves": 0,
+    "mappedTargetLeaves": 0,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0,
+    "coverageRatio": 0,
+    "averageConfidence": 0
+   }
+  },
+  {
+   "name": "embedded columns count separately; a parent column named like an embedded one stays unmapped",
+   "columns": [
+    "customer_id",
+    "total"
+   ],
+   "embedded": {
+    "emb_o": [
+     "order_id",
+     "customer_id",
+     "total",
+     "note"
+    ]
+   },
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f_id",
+        "name": "customerId",
+        "type": "integer"
+       },
+       {
+        "id": "f_orders",
+        "name": "orders",
+        "type": "array",
+        "items": {
+         "id": "f_item",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "f_total",
+           "name": "total",
+           "type": "number"
+          },
+          {
+           "id": "f_note",
+           "name": "note",
+           "type": "string"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "source": "generated"
+    },
+    "key": {
+     "template": "customer::{customer_id}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "embeds": [
+     {
+      "id": "emb_o",
+      "kind": "one-to-many",
+      "table": {
+       "schema": "shop",
+       "name": "orders"
+      },
+      "join": [
+       {
+        "parent": "customer_id",
+        "child": "customer_id"
+       }
+      ],
+      "targetFieldId": "f_orders"
+     }
+    ],
+    "fieldMappings": [
+     {
+      "id": "m1",
+      "targetFieldId": "f_id",
+      "sources": [
+       {
+        "column": "customer_id"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m2",
+      "targetFieldId": "f_total",
+      "sources": [
+       {
+        "column": "total",
+        "embed": "emb_o"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     },
+     {
+      "id": "m3",
+      "targetFieldId": "f_note",
+      "sources": [
+       {
+        "column": "note",
+        "embed": "emb_o"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.7
+     }
+    ],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 2,
+    "autoMapped": 1,
+    "suggested": 0,
+    "manuallyMapped": 0,
+    "unmappedSource": 1,
+    "ignored": 0,
+    "totalTargetLeaves": 1,
+    "mappedTargetLeaves": 1,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0.5,
+    "coverageRatio": 0.5,
+    "averageConfidence": 0.95,
+    "embedded": {
+     "tables": 1,
+     "totalColumns": 3,
+     "autoMapped": 1,
+     "manuallyMapped": 0,
+     "suggested": 1,
+     "unmappedSource": 1
+    }
+   }
+  },
+  {
+   "name": "many-to-one embed: the unmapped foreign key isn't counted; the embedded primary key counts once mapped",
+   "columns": [
+    "order_id",
+    "customer_id",
+    "total"
+   ],
+   "embedded": {
+    "emb_c": [
+     "customer_id",
+     "name",
+     "email"
+    ]
+   },
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f_oid",
+        "name": "orderId",
+        "type": "integer"
+       },
+       {
+        "id": "f_fk",
+        "name": "customerId",
+        "type": "integer"
+       },
+       {
+        "id": "f_total",
+        "name": "total",
+        "type": "number"
+       },
+       {
+        "id": "f_cust",
+        "name": "customer",
+        "type": "object",
+        "children": [
+         {
+          "id": "f_cid",
+          "name": "customerId",
+          "type": "integer"
+         },
+         {
+          "id": "f_name",
+          "name": "name",
+          "type": "string"
+         },
+         {
+          "id": "f_email",
+          "name": "email",
+          "type": "string"
+         }
+        ]
+       }
+      ]
+     },
+     "source": "generated"
+    },
+    "key": {
+     "template": "order::{order_id}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "embeds": [
+     {
+      "id": "emb_c",
+      "kind": "many-to-one",
+      "table": {
+       "schema": "shop",
+       "name": "customer"
+      },
+      "join": [
+       {
+        "parent": "customer_id",
+        "child": "customer_id"
+       }
+      ],
+      "targetFieldId": "f_cust"
+     }
+    ],
+    "fieldMappings": [
+     {
+      "id": "m1",
+      "targetFieldId": "f_oid",
+      "sources": [
+       {
+        "column": "order_id"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m2",
+      "targetFieldId": "f_total",
+      "sources": [
+       {
+        "column": "total"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.8
+     },
+     {
+      "id": "m3",
+      "targetFieldId": "f_cid",
+      "sources": [
+       {
+        "column": "customer_id",
+        "embed": "emb_c"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m4",
+      "targetFieldId": "f_name",
+      "sources": [
+       {
+        "column": "name",
+        "embed": "emb_c"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     }
+    ],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 2,
+    "autoMapped": 2,
+    "suggested": 0,
+    "manuallyMapped": 0,
+    "unmappedSource": 0,
+    "ignored": 0,
+    "totalTargetLeaves": 6,
+    "mappedTargetLeaves": 4,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 1,
+    "coverageRatio": 1,
+    "averageConfidence": 0.925,
+    "embedded": {
+     "tables": 1,
+     "totalColumns": 3,
+     "autoMapped": 2,
+     "manuallyMapped": 0,
+     "suggested": 0,
+     "unmappedSource": 1
+    }
+   }
+  }
+ ]
+}

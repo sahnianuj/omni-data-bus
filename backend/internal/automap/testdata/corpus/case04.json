@@ -1,0 +1,59 @@
+{
+ "table": "address",
+ "columns": [
+  {
+   "name": "address_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "street",
+   "jsonType": "string"
+  },
+  {
+   "name": "city",
+   "jsonType": "string"
+  },
+  {
+   "name": "postal_code",
+   "jsonType": "string"
+  },
+  {
+   "name": "country_code",
+   "jsonType": "string"
+  },
+  {
+   "name": "location_ip",
+   "jsonType": "string"
+  },
+  {
+   "name": "row_version",
+   "jsonType": "integer"
+  }
+ ],
+ "fields": [
+  {
+   "name": "addressLineOld",
+   "type": "string"
+  },
+  {
+   "name": "postalCode",
+   "type": "string"
+  },
+  {
+   "name": "countryCode",
+   "type": "string"
+  },
+  {
+   "name": "addressId",
+   "type": "integer"
+  },
+  {
+   "name": "city",
+   "type": "string"
+  },
+  {
+   "name": "locationIp",
+   "type": "string"
+  }
+ ]
+}

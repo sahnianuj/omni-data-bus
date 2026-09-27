@@ -1,0 +1,43 @@
+{{- if and (eq .Values.mode "split") .Values.api.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "odb.fullname" . }}-api
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ include "odb.fullname" . }}-api }
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.api.autoscaling.targetCPUUtilizationPercentage }} }
+{{- end }}
+{{- $w := .Values.worker.autoscaling }}
+{{- if and (eq .Values.mode "split") $w.enabled (eq $w.type "hpa") }}
+---
+# Needs prometheus-adapter exposing the per-pod metric oc_worker_active_jobs (see README.md).
+# Active jobs per pod ÷ maxJobs is the utilization; the target is maxJobs × targetUtilization.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "odb.fullname" . }}-worker
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ include "odb.fullname" . }}-worker }
+  minReplicas: {{ $w.minReplicas }}
+  maxReplicas: {{ $w.maxReplicas }}
+  metrics:
+    - type: Pods
+      pods:
+        metric: { name: oc_worker_active_jobs }
+        target: { type: AverageValue, averageValue: {{ $w.targetAverageActiveJobs | quote }} }
+  behavior:
+    # Scale down slowly: a removed worker drains and requeues its jobs.
+    scaleDown: { stabilizationWindowSeconds: 600, policies: [{ type: Pods, value: 1, periodSeconds: 300 }] }
+{{- end }}

@@ -1,0 +1,38 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - gosec
+    - revive
+    - gocritic
+    - bodyclose
+    - contextcheck
+    - ineffassign
+    - unused
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    gosec:
+      excludes:
+        - G104 # duplicated by errcheck
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck]
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      module-path: omnidatabus
+    goimports:
+      local-prefixes:
+        - omnidatabus

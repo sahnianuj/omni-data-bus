@@ -1,0 +1,26 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+values:
+  - required-values.yaml
+tests:
+  - it: is off by default
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: "AC4: ingress SSE annotations"
+    set:
+      ingress: { enabled: true, host: odb.example.com, tlsSecretName: odb-tls }
+    asserts:
+      - equal: { path: 'metadata.annotations["nginx.ingress.kubernetes.io/proxy-buffering"]', value: "off" }
+      - equal: { path: 'metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]', value: "3600" }
+      - equal: { path: 'spec.rules[0].host', value: odb.example.com }
+      - equal: { path: 'spec.rules[0].http.paths[0].backend.service.name', value: RELEASE-NAME-omni-data-bus }
+      - equal: { path: 'spec.tls[0].secretName', value: odb-tls }
+
+  - it: extra annotations are added next to the SSE ones
+    set:
+      ingress: { enabled: true, annotations: { cert-manager.io/cluster-issuer: letsencrypt } }
+    asserts:
+      - equal: { path: 'metadata.annotations["cert-manager.io/cluster-issuer"]', value: letsencrypt }
+      - equal: { path: 'metadata.annotations["nginx.ingress.kubernetes.io/proxy-buffering"]', value: "off" }

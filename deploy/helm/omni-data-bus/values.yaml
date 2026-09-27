@@ -1,0 +1,155 @@
+# Omni-Data-Bus Helm values. Its metadata lives in Couchbase Capella (metadata.*); there is
+# no database in the chart.
+
+# split: separate api and worker Deployments (production). all: one Deployment runs both.
+mode: split
+
+image:
+  repository: ghcr.io/sahnianuj/omni-data-bus
+  tag: ""          # defaults to the chart's appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Public https origin users open (CSRF origin check).
+publicUrl: https://odb.example.com
+
+metadata:
+  connStr: ""      # couchbases://cb.xxxx.cloud.couchbase.com (required)
+  username: ""     # Capella database credential (required)
+  bucket: omniconnect
+  scope: meta
+  capella: true
+
+# The master key and the metadata password. Prefer existingSecret (keys: master-key,
+# meta-password; optionally master-keys for rotation), created by your secret manager.
+secrets:
+  existingSecret: ""
+  masterKey: ""      # base64 32-byte key: `odb admin gen-key`
+  metaPassword: ""
+
+config:
+  logLevel: info
+  signupEnabled: false
+  otel:
+    endpoint: ""     # OTLP/HTTP collector, e.g. http://otel-collector.observability:4318
+    sampleRatio: "0.1"
+  # Which database addresses users may connect to (cloud metadata is always refused). Set
+  # allowPrivateNetworks: false for a multi-tenant install; see also networkPolicy below.
+  egress:
+    allowPrivateNetworks: true
+    allowCidrs: ""
+    denyCidrs: ""
+  auditRetentionDays: 365
+  # Extra OC_* settings, e.g. OC_JOB_ERRORS_MAX_ROWS: "200000"
+  extraEnv: {}
+
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    minAvailable: 1
+
+worker:
+  replicas: 2
+  maxJobs: 2                 # OC_WORKER_MAX_JOBS: jobs one pod runs at once
+  memoryBudgetMB: 256        # OC_WORKER_MEMORY_BUDGET_MB
+  # Running jobs drain for up to 30 s on shutdown, then checkpoint (OC-023): keep this > 30.
+  terminationGracePeriodSeconds: 45
+  resources:
+    requests: { cpu: "1", memory: 512Mi }
+    limits: { memory: 1Gi }
+  autoscaling:
+    enabled: false
+    # hpa: a Pods metric oc_worker_active_jobs served by prometheus-adapter (see README.md).
+    # keda: a KEDA ScaledObject on sum(oc_worker_active_jobs) / sum(oc_worker_capacity).
+    type: hpa
+    minReplicas: 1
+    maxReplicas: 8
+    targetUtilization: "0.8"          # keda: active / capacity
+    targetAverageActiveJobs: "1600m"  # hpa: maxJobs × targetUtilization per pod
+    prometheusServerAddress: http://prometheus-server.monitoring.svc
+  pdb:
+    maxUnavailable: 1
+
+# mode: all
+all:
+  replicas: 1
+  autoscaling:
+    enabled: false   # one pod runs the API and a worker; scale with mode: split
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { memory: 1Gi }
+  pdb:
+    maxUnavailable: 1
+
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 9090
+
+ingress:
+  enabled: false
+  className: nginx
+  host: odb.example.com
+  tlsSecretName: ""
+  annotations: {}
+  # Live progress is Server-Sent Events: no buffering, long reads (nginx ingress).
+  sseAnnotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: 8m
+
+# Creates/upgrades the metadata collections and indexes in a pre-install/pre-upgrade Job
+# (`odb admin migrate`); pods then start with OC_META_AUTO_PROVISION=false.
+migrations:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+
+# Restricts pod egress: DNS, the metadata cluster, and the source/target databases (defense in
+# depth next to the server's own egress guard).
+networkPolicy:
+  enabled: false
+  metadataCidrs: ["0.0.0.0/0"]       # Capella node IPs change: narrow only with a stable egress
+  metadataPorts: [443, 11207, 18091, 18092, 18093, 18094, 18095, 18096, 18097]
+  sourceCidrs: []                    # PostgreSQL sources
+  sourcePorts: [5432, 6432]
+  targetCidrs: []                    # Couchbase targets
+  targetPorts: [8091, 8092, 8093, 8094, 8095, 8096, 8097, 11207, 11210, 18091, 18092, 18093, 18094, 18095, 18096, 18097]
+  otelCidrs: []                      # tracing collector
+  ingressFromNamespaces: []          # namespaces (by name) allowed to reach the pods; empty = any
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: /metrics
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities: { drop: [ALL] }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

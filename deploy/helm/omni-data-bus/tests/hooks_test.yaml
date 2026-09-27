@@ -1,0 +1,42 @@
+suite: migration hook
+templates:
+  - templates/hooks.yaml
+values:
+  - required-values.yaml
+tests:
+  - it: "AC4: migration hook job"
+    asserts:
+      - hasDocuments: { count: 2 }
+      - isKind: { of: Job }
+        documentIndex: 1
+      - equal: { path: 'metadata.annotations["helm.sh/hook"]', value: "pre-install,pre-upgrade" }
+        documentIndex: 1
+      - equal: { path: 'spec.template.spec.containers[0].args', value: [admin, migrate] }
+        documentIndex: 1
+      - equal: { path: spec.template.spec.restartPolicy, value: Never }
+        documentIndex: 1
+      # Hooks run before the release's ServiceAccount exists.
+      - notExists: { path: spec.template.spec.serviceAccountName }
+        documentIndex: 1
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true }
+        documentIndex: 1
+
+  - it: a chart-managed secret gets a hook-only copy created first
+    asserts:
+      - isKind: { of: Secret }
+        documentIndex: 0
+      - equal: { path: 'metadata.annotations["helm.sh/hook-weight"]', value: "-10" }
+        documentIndex: 0
+      - equal: { path: 'spec.template.spec.volumes[0].secret.secretName', value: RELEASE-NAME-omni-data-bus-migrate }
+        documentIndex: 1
+
+  - it: an existing secret is used directly
+    set: { secrets: { existingSecret: odb-secrets, masterKey: "", metaPassword: "" } }
+    asserts:
+      - hasDocuments: { count: 1 }
+      - equal: { path: 'spec.template.spec.volumes[0].secret.secretName', value: odb-secrets }
+
+  - it: can be turned off
+    set: { migrations.enabled: false }
+    asserts:
+      - hasDocuments: { count: 0 }

@@ -1,0 +1,81 @@
+/* Design tokens (OC-004). Light values on :root, dark values on .dark.
+   Components use the Tailwind names from @theme below (bg-surface, text-muted, …). */
+:root {
+  --background: #f7f7f8;
+  --surface: #ffffff;
+  --surface-muted: #f4f4f5;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --foreground: #18181b;
+  --muted-foreground: #52525b;
+  --subtle-foreground: #71717a;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-foreground: #ffffff;
+  --primary-soft: #eef2ff;
+  --primary-soft-foreground: #3730a3;
+  --success: #047857;
+  --success-soft: #ecfdf5;
+  --success-dot: #059669;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --warning-dot: #f59e0b;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-solid: #dc2626;
+  --danger-solid-foreground: #ffffff;
+  --ring: #6366f1;
+  --map-auto: #10b981;
+  --map-suggested: #f59e0b;
+  --map-manual: #6366f1;
+  --map-unmapped: #a1a1aa;
+  --map-error: #dc2626;
+  /* One accent per embedded table, kept clear of the mapping-state colors above. */
+  --embed-1: #0284c7;
+  --embed-2: #c026d3;
+  --embed-3: #ea580c;
+  --embed-4: #0d9488;
+  --embed-5: #db2777;
+  --embed-6: #7c3aed;
+  /* Mapping edges of an embed use its color darkened by this much (none on dark backgrounds). */
+  --embed-edge-shade: 25%;
+}
+
+.dark {
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-muted: #1f1f23;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --foreground: #fafafa;
+  --muted-foreground: #a1a1aa;
+  --subtle-foreground: #a1a1aa;
+  --primary: #5d56f0;
+  --primary-hover: #6059ee;
+  --primary-foreground: #ffffff;
+  --primary-soft: #1e1b4b;
+  --primary-soft-foreground: #c7d2fe;
+  --success: #34d399;
+  --success-soft: #052e24;
+  --success-dot: #34d399;
+  --warning: #fcd34d;
+  --warning-soft: #292524;
+  --warning-dot: #fbbf24;
+  --danger: #fca5a5;
+  --danger-soft: #2a1215;
+  --danger-solid: #dc2626;
+  --danger-solid-foreground: #ffffff;
+  --ring: #818cf8;
+  --map-auto: #34d399;
+  --map-suggested: #fbbf24;
+  --map-manual: #818cf8;
+  --map-unmapped: #71717a;
+  --map-error: #f87171;
+  --embed-1: #38bdf8;
+  --embed-2: #e879f9;
+  --embed-3: #fb923c;
+  --embed-4: #2dd4bf;
+  --embed-5: #f472b6;
+  --embed-6: #a78bfa;
+  --embed-edge-shade: 0%;
+}

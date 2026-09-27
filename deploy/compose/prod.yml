@@ -1,0 +1,75 @@
+# Omni-Data-Bus production stack for a single VM. Its metadata lives in Couchbase Capella,
+# so there is no database container here. See README.md in this directory.
+#
+#   cp prod.env.example .env.prod          # fill in OC_META_* and OC_PUBLIC_URL
+#   mkdir -p secrets && docker run --rm $ODB_IMAGE admin gen-key > secrets/master_key
+#   printf '%s' '<capella password>' > secrets/meta_password && chmod 600 secrets/*
+#   docker compose -f prod.yml --env-file .env.prod up -d --wait
+#   docker compose -f prod.yml --env-file .env.prod --profile tls up -d --wait   # + Caddy (automatic TLS)
+name: omni-data-bus
+
+x-app: &app
+  image: ${ODB_IMAGE:-ghcr.io/sahnianuj/omni-data-bus:latest}
+  restart: unless-stopped
+  env_file: ["${ODB_ENV_FILE:-.env.prod}"]
+  environment:
+    OC_ROLE: all
+    OC_HTTP_ADDR: ":8080"
+    OC_METRICS_ADDR: ":9090"
+    OC_LOG_FORMAT: json
+    # Secrets come from files, never from the environment or this file.
+    OC_MASTER_KEY_FILE: /run/secrets/master_key
+    OC_META_PASSWORD_FILE: /run/secrets/meta_password
+  secrets: [master_key, meta_password]
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  # Workers drain running jobs for up to 30 s on shutdown (OC-023), then checkpoint.
+  stop_grace_period: 45s
+  healthcheck:
+    test: ["CMD", "/usr/local/bin/odb", "healthcheck"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 60s
+  logging:
+    driver: json-file
+    options: { max-size: "50m", max-file: "5" }
+
+services:
+  omni-data-bus:
+    <<: *app
+    ports:
+      - "${ODB_HTTP_BIND:-127.0.0.1}:${ODB_HTTP_PORT:-8080}:8080"
+      - "${ODB_METRICS_BIND:-127.0.0.1}:${ODB_METRICS_PORT:-9090}:9090"
+
+  # Optional HTTPS front door with automatic certificates: --profile tls, and set ODB_DOMAIN.
+  caddy:
+    image: caddy:2.10-alpine
+    profiles: [tls]
+    restart: unless-stopped
+    depends_on:
+      omni-data-bus: { condition: service_healthy }
+    environment:
+      ODB_DOMAIN: ${ODB_DOMAIN:-localhost}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+secrets:
+  master_key:
+    file: ${ODB_SECRETS_DIR:-./secrets}/master_key
+  meta_password:
+    file: ${ODB_SECRETS_DIR:-./secrets}/meta_password
+
+volumes:
+  caddy-data:
+  caddy-config:

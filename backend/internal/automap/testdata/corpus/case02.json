@@ -1,0 +1,75 @@
+{
+ "table": "orders",
+ "columns": [
+  {
+   "name": "order_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "customer_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "status",
+   "jsonType": "string"
+  },
+  {
+   "name": "order_date",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "total",
+   "jsonType": "number"
+  },
+  {
+   "name": "ship_addr",
+   "jsonType": "string"
+  },
+  {
+   "name": "ship_city",
+   "jsonType": "string"
+  },
+  {
+   "name": "ship_zip",
+   "jsonType": "string"
+  },
+  {
+   "name": "notes",
+   "jsonType": "string"
+  }
+ ],
+ "fields": [
+  {
+   "name": "status",
+   "type": "string"
+  },
+  {
+   "name": "orderDate",
+   "type": "datetime"
+  },
+  {
+   "name": "shipAddr",
+   "type": "string"
+  },
+  {
+   "name": "remarks",
+   "type": "string"
+  },
+  {
+   "name": "shipCity",
+   "type": "string"
+  },
+  {
+   "name": "customerId",
+   "type": "integer"
+  },
+  {
+   "name": "totalOld",
+   "type": "number"
+  },
+  {
+   "name": "orderId",
+   "type": "integer"
+  }
+ ]
+}

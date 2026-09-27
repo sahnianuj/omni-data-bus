@@ -1,0 +1,29 @@
+-- name: FirstMembershipForUser
+-- Scoped by user, not workspace: finds the workspace to sign a user into.
+SELECT RAW m
+FROM #{members} AS m
+WHERE m.userId = $userId
+ORDER BY m.workspaceId
+LIMIT 1
+
+-- name: ListAudit
+-- tenant
+SELECT RAW a
+FROM #{audit} AS a
+WHERE a.workspaceId = $workspaceId
+ORDER BY a.createdAt DESC
+LIMIT $limit
+
+-- name: SearchAudit
+-- tenant
+-- Newest first, keyset-paged; empty filters match everything. $prefix filters by action prefix.
+SELECT RAW a
+FROM #{audit} AS a
+WHERE a.workspaceId = $workspaceId
+  AND ($action = '' OR a.action = $action)
+  AND ($prefix = '' OR (a.action >= $prefix AND a.action < $prefixEnd))
+  AND ($entityType = '' OR a.entityType = $entityType)
+  AND ($userId = '' OR a.userId = $userId)
+  AND (a.createdAt < $cursorAt OR (a.createdAt = $cursorAt AND a.id < $cursorId))
+ORDER BY a.createdAt DESC, a.id DESC
+LIMIT $limit

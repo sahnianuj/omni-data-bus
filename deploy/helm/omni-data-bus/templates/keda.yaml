@@ -1,0 +1,24 @@
+{{- $w := .Values.worker.autoscaling }}
+{{- if and (eq .Values.mode "split") $w.enabled (eq $w.type "keda") }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "odb.fullname" . }}-worker
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef: { name: {{ include "odb.fullname" . }}-worker }
+  minReplicaCount: {{ $w.minReplicas }}
+  maxReplicaCount: {{ $w.maxReplicas }}
+  cooldownPeriod: 600
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $w.prometheusServerAddress | quote }}
+        # Worker utilization across the fleet, plus queued jobs waiting for a slot.
+        query: |
+          (sum(oc_worker_active_jobs{namespace="{{ .Release.Namespace }}"}) + max(oc_jobs{status="queued"}))
+            / clamp_min(sum(oc_worker_capacity{namespace="{{ .Release.Namespace }}"}), 1)
+        threshold: {{ $w.targetUtilization | quote }}
+{{- end }}

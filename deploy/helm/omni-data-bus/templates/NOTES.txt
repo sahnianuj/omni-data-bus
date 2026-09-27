@@ -1,0 +1,17 @@
+Omni-Data-Bus {{ .Chart.AppVersion }} ({{ .Values.mode }} mode) is deploying.
+
+{{- if .Values.ingress.enabled }}
+Open {{ .Values.publicUrl }} once the pods are ready.
+{{- else }}
+Reach it with:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "odb.fullname" . }} 8080:{{ .Values.service.port }}
+(then set publicUrl to the address users will open, and enable the ingress).
+{{- end }}
+
+Readiness:  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+Metrics:    every pod serves /metrics on :9090 (service {{ include "odb.fullname" . }}-metrics).
+{{- if not .Values.secrets.existingSecret }}
+
+The master key is stored in secret {{ include "odb.fullname" . }}. Back it up: without it, stored
+database passwords can't be decrypted. Prefer secrets.existingSecret in production.
+{{- end }}

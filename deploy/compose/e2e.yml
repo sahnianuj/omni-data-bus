@@ -1,0 +1,46 @@
+# End-to-end test stack (OC-034): the built image as separate api and worker containers, next to
+# the dev stack's Couchbase and sample PostgreSQL. Metadata lives in its own scope (e2e), which
+# scripts/e2e.sh drops before each run. Not for production: secrets are fixed test values.
+#
+#   ./scripts/e2e.sh            # build, start, run Playwright, stop
+name: omni-data-bus-e2e
+
+x-app: &app
+  image: ${ODB_IMAGE:-omni-data-bus:e2e}
+  environment:
+    OC_META_CONNSTR: couchbase://couchbase
+    OC_META_USERNAME: Administrator
+    OC_META_PASSWORD: password
+    OC_META_BUCKET: omniconnect
+    OC_META_SCOPE: e2e
+    # Fixed test key (base64 of 32 bytes); e2e data is thrown away.
+    OC_MASTER_KEY: ZTJlLW9ubHktbWFzdGVyLWtleS1ub3QtZm9yLXByb2Q=
+    OC_PUBLIC_URL: http://localhost:18081
+    OC_SESSION_COOKIE_SECURE: "false"
+    OC_SIGNUP_ENABLED: "true"
+    OC_ALLOW_PRIVATE_NETWORKS: "true"
+    OC_LOG_LEVEL: info
+  networks: [devstack]
+  healthcheck:
+    test: ["CMD", "/usr/local/bin/odb", "healthcheck"]
+    interval: 3s
+    timeout: 3s
+    retries: 40
+    start_period: 10s
+
+services:
+  api:
+    <<: *app
+    command: ["--role", "api"]
+    ports: ["18081:8080", "19091:9090"]
+  worker:
+    <<: *app
+    command: ["--role", "worker"]
+    # Killed mid-run by the resilience spec; restarted by the spec, not by Docker.
+    restart: "no"
+    ports: ["19092:9090"]
+
+networks:
+  devstack:
+    name: omni-connect-dev_default
+    external: true

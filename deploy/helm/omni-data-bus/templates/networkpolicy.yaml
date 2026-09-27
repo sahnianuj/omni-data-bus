@@ -1,0 +1,55 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "odb.fullname" . }}
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "odb.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports:
+        - { port: 8080, protocol: TCP }
+        - { port: 9090, protocol: TCP }
+      {{- with $np.ingressFromNamespaces }}
+      from:
+        {{- range . }}
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ . | quote }} }
+        {{- end }}
+      {{- end }}
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    {{- range $rule := list (list $np.metadataCidrs $np.metadataPorts) (list $np.sourceCidrs $np.sourcePorts) (list $np.targetCidrs $np.targetPorts) }}
+    {{- if index $rule 0 }}
+    - to:
+        {{- range index $rule 0 }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+      ports:
+        {{- range index $rule 1 }}
+        - { port: {{ . }}, protocol: TCP }
+        {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- with $np.otelCidrs }}
+    - to:
+        {{- range . }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+      ports:
+        - { port: 4318, protocol: TCP }
+    {{- end }}
+{{- end }}

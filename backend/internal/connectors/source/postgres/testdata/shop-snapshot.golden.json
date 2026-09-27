@@ -1,0 +1,1415 @@
+{
+  "database": "shop",
+  "serverVersion": "",
+  "schemas": [
+    {
+      "name": "billing",
+      "tables": [
+        {
+          "name": "invoice",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": false,
+          "columns": [
+            {
+              "name": "invoice_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "order_id",
+              "ordinal": 2,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "amount",
+              "ordinal": 3,
+              "dataType": "numeric(12,2)",
+              "udtName": "numeric",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 12,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            }
+          ],
+          "primaryKey": [
+            "invoice_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "invoice_pkey",
+              "columns": [
+                "invoice_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "payment",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": false,
+          "columns": [
+            {
+              "name": "payment_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "invoice_id",
+              "ordinal": 2,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "paid_at",
+              "ordinal": 3,
+              "dataType": "timestamp with time zone",
+              "udtName": "timestamptz",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            }
+          ],
+          "primaryKey": [
+            "payment_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "payment_pkey",
+              "columns": [
+                "payment_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "refund",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": false,
+          "columns": [
+            {
+              "name": "refund_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "payment_id",
+              "ordinal": 2,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "amount",
+              "ordinal": 3,
+              "dataType": "numeric(12,2)",
+              "udtName": "numeric",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 12,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            }
+          ],
+          "primaryKey": [
+            "refund_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "refund_pkey",
+              "columns": [
+                "refund_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "shop",
+      "tables": [
+        {
+          "name": "Order Details",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "order_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "line_no",
+              "ordinal": 2,
+              "dataType": "smallint",
+              "udtName": "int2",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 16,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "product_id",
+              "ordinal": 3,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "quantity",
+              "ordinal": 4,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            }
+          ],
+          "primaryKey": [
+            "order_id",
+            "line_no"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [
+            {
+              "name": "Order Details_order_id_fkey",
+              "columns": [
+                "order_id"
+              ],
+              "refSchema": "shop",
+              "refTable": "orders",
+              "refColumns": [
+                "order_id"
+              ]
+            },
+            {
+              "name": "Order Details_product_id_fkey",
+              "columns": [
+                "product_id"
+              ],
+              "refSchema": "shop",
+              "refTable": "product",
+              "refColumns": [
+                "product_id"
+              ]
+            }
+          ],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "Order Details_pkey",
+              "columns": [
+                "order_id",
+                "line_no"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "address",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "address_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "street",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "city",
+              "ordinal": 3,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "postal_code",
+              "ordinal": 4,
+              "dataType": "character varying(16)",
+              "udtName": "varchar",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": 16,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "country_code",
+              "ordinal": 5,
+              "dataType": "character(2)",
+              "udtName": "bpchar",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": 2,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "location_ip",
+              "ordinal": 6,
+              "dataType": "inet",
+              "udtName": "inet",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "network",
+              "ordinal": 7,
+              "dataType": "cidr",
+              "udtName": "cidr",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "device_mac",
+              "ordinal": 8,
+              "dataType": "macaddr",
+              "udtName": "macaddr",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "address_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [
+            {
+              "schema": "shop",
+              "table": "customer",
+              "name": "customer_address_id_fkey",
+              "columns": [
+                "address_id"
+              ],
+              "refColumns": [
+                "address_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "address_pkey",
+              "columns": [
+                "address_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "category",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "category_id",
+              "ordinal": 1,
+              "dataType": "smallint",
+              "udtName": "int2",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 16,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "name",
+              "ordinal": 2,
+              "dataType": "character varying(80)",
+              "udtName": "varchar",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": 80,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "code",
+              "ordinal": 3,
+              "dataType": "character(4)",
+              "udtName": "bpchar",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": 4,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "category_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [
+            {
+              "schema": "shop",
+              "table": "product",
+              "name": "product_category_id_fkey",
+              "columns": [
+                "category_id"
+              ],
+              "refColumns": [
+                "category_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "category_pkey",
+              "columns": [
+                "category_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "customer",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "customer_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "first_name",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "last_name",
+              "ordinal": 3,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "email_address",
+              "ordinal": 4,
+              "dataType": "citext",
+              "udtName": "citext",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "phone",
+              "ordinal": 5,
+              "dataType": "character varying(32)",
+              "udtName": "varchar",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": 32,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "address_id",
+              "ordinal": 6,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "is_active",
+              "ordinal": 7,
+              "dataType": "boolean",
+              "udtName": "bool",
+              "nullable": false,
+              "default": "true",
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "boolean"
+            },
+            {
+              "name": "tags",
+              "ordinal": 8,
+              "dataType": "text[]",
+              "udtName": "_text",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": true,
+              "elementType": "string",
+              "enumValues": null,
+              "jsonType": "array"
+            },
+            {
+              "name": "external_ref",
+              "ordinal": 9,
+              "dataType": "uuid",
+              "udtName": "uuid",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "birth_date",
+              "ordinal": 10,
+              "dataType": "date",
+              "udtName": "date",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            },
+            {
+              "name": "created_on",
+              "ordinal": 11,
+              "dataType": "timestamp with time zone",
+              "udtName": "timestamptz",
+              "nullable": false,
+              "default": "now()",
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            },
+            {
+              "name": "updated_at",
+              "ordinal": 12,
+              "dataType": "timestamp without time zone",
+              "udtName": "timestamp",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            },
+            {
+              "name": "preferences",
+              "ordinal": 13,
+              "dataType": "jsonb",
+              "udtName": "jsonb",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "any"
+            },
+            {
+              "name": "avatar",
+              "ordinal": 14,
+              "dataType": "bytea",
+              "udtName": "bytea",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "notes",
+              "ordinal": 15,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "customer_id"
+          ],
+          "uniqueConstraints": [
+            [
+              "email_address"
+            ]
+          ],
+          "foreignKeys": [
+            {
+              "name": "customer_address_id_fkey",
+              "columns": [
+                "address_id"
+              ],
+              "refSchema": "shop",
+              "refTable": "address",
+              "refColumns": [
+                "address_id"
+              ]
+            }
+          ],
+          "referencedBy": [
+            {
+              "schema": "shop",
+              "table": "orders",
+              "name": "orders_customer_id_fkey",
+              "columns": [
+                "customer_id"
+              ],
+              "refColumns": [
+                "customer_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "customer_email_address_key",
+              "columns": [
+                "email_address"
+              ],
+              "unique": true
+            },
+            {
+              "name": "customer_pkey",
+              "columns": [
+                "customer_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "orders",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "order_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "customer_id",
+              "ordinal": 2,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "status",
+              "ordinal": 3,
+              "dataType": "shop.order_status",
+              "udtName": "order_status",
+              "nullable": false,
+              "default": "'pending'::shop.order_status",
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": [
+                "pending",
+                "paid",
+                "shipped",
+                "cancelled"
+              ],
+              "jsonType": "string"
+            },
+            {
+              "name": "order_date",
+              "ordinal": 4,
+              "dataType": "timestamp with time zone",
+              "udtName": "timestamptz",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            },
+            {
+              "name": "total",
+              "ordinal": 5,
+              "dataType": "numeric(12,2)",
+              "udtName": "numeric",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 12,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            }
+          ],
+          "primaryKey": [
+            "order_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [
+            {
+              "name": "orders_customer_id_fkey",
+              "columns": [
+                "customer_id"
+              ],
+              "refSchema": "shop",
+              "refTable": "customer",
+              "refColumns": [
+                "customer_id"
+              ]
+            }
+          ],
+          "referencedBy": [
+            {
+              "schema": "shop",
+              "table": "Order Details",
+              "name": "Order Details_order_id_fkey",
+              "columns": [
+                "order_id"
+              ],
+              "refColumns": [
+                "order_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "orders_pkey",
+              "columns": [
+                "order_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "page_view",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "viewed_at",
+              "ordinal": 1,
+              "dataType": "timestamp with time zone",
+              "udtName": "timestamptz",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            },
+            {
+              "name": "path",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "session_id",
+              "ordinal": 3,
+              "dataType": "uuid",
+              "udtName": "uuid",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [],
+          "indexes": []
+        },
+        {
+          "name": "product",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "product_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "category_id",
+              "ordinal": 2,
+              "dataType": "smallint",
+              "udtName": "int2",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 16,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "sku",
+              "ordinal": 3,
+              "dataType": "character varying(32)",
+              "udtName": "varchar",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": true,
+              "maxLength": 32,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "title",
+              "ordinal": 4,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "price",
+              "ordinal": 5,
+              "dataType": "numeric(12,2)",
+              "udtName": "numeric",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 12,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "list_price",
+              "ordinal": 6,
+              "dataType": "money",
+              "udtName": "money",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "weight_kg",
+              "ordinal": 7,
+              "dataType": "real",
+              "udtName": "float4",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 24,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "rating",
+              "ordinal": 8,
+              "dataType": "double precision",
+              "udtName": "float8",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 53,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "precise_cost",
+              "ordinal": 9,
+              "dataType": "numeric(38,10)",
+              "udtName": "numeric",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 38,
+              "numericScale": 10,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "attributes",
+              "ordinal": 10,
+              "dataType": "json",
+              "udtName": "json",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "any"
+            },
+            {
+              "name": "spec_sheet",
+              "ordinal": 11,
+              "dataType": "xml",
+              "udtName": "xml",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string",
+              "warning": "UNSUPPORTED_TYPE_AS_TEXT"
+            },
+            {
+              "name": "search_vector",
+              "ordinal": 12,
+              "dataType": "tsvector",
+              "udtName": "tsvector",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string",
+              "warning": "UNSUPPORTED_TYPE_AS_TEXT"
+            },
+            {
+              "name": "open_from",
+              "ordinal": 13,
+              "dataType": "time without time zone",
+              "udtName": "time",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "open_until",
+              "ordinal": 14,
+              "dataType": "time with time zone",
+              "udtName": "timetz",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "warranty",
+              "ordinal": 15,
+              "dataType": "interval",
+              "udtName": "interval",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "size_matrix",
+              "ordinal": 16,
+              "dataType": "integer[]",
+              "udtName": "_int4",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": true,
+              "elementType": "integer",
+              "enumValues": null,
+              "jsonType": "array"
+            }
+          ],
+          "primaryKey": [
+            "product_id"
+          ],
+          "uniqueConstraints": [
+            [
+              "sku"
+            ]
+          ],
+          "foreignKeys": [
+            {
+              "name": "product_category_id_fkey",
+              "columns": [
+                "category_id"
+              ],
+              "refSchema": "shop",
+              "refTable": "category",
+              "refColumns": [
+                "category_id"
+              ]
+            }
+          ],
+          "referencedBy": [
+            {
+              "schema": "shop",
+              "table": "Order Details",
+              "name": "Order Details_product_id_fkey",
+              "columns": [
+                "product_id"
+              ],
+              "refColumns": [
+                "product_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "product_pkey",
+              "columns": [
+                "product_id"
+              ],
+              "unique": true,
+              "primary": true
+            },
+            {
+              "name": "product_sku_key",
+              "columns": [
+                "sku"
+              ],
+              "unique": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

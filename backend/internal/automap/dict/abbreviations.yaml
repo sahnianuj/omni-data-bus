@@ -1,0 +1,114 @@
+# Abbreviation → expansion, applied per token during normalization (OC-017 step 1).
+# Expansions may be several words. Keys are lowercase single tokens.
+addr: address
+adr: address
+amt: amount
+qty: quantity
+quant: quantity
+desc: description
+descr: description
+dt: date
+ts: timestamp
+tstamp: timestamp
+num: number
+no: number
+nbr: number
+nr: number
+cust: customer
+custs: customers
+acct: account
+acc: account
+tel: phone
+ph: phone
+phn: phone
+mob: mobile
+pwd: password
+pw: password
+cnt: count
+fname: first name
+lname: last name
+mname: middle name
+dob: birth date
+bdate: birth date
+zip: postal code
+zipcode: postal code
+postcode: postal code
+pc: postal code
+cty: city
+cntry: country
+ctry: country
+emp: employee
+empl: employee
+mgr: manager
+dept: department
+org: organization
+comp: company
+prod: product
+prd: product
+categ: category
+inv: invoice
+ord: order
+txn: transaction
+trx: transaction
+trans: transaction
+pmt: payment
+pymt: payment
+bal: balance
+curr: currency
+ccy: currency
+pct: percent
+perc: percent
+avg: average
+tot: total
+ttl: total
+disc: discount
+prc: price
+img: image
+pic: picture
+msg: message
+usr: user
+uid: user id
+pid: product id
+oid: order id
+cid: customer id
+ref: reference
+seq: sequence
+idx: index
+cd: code
+nm: name
+val: value
+lvl: level
+stat: status
+sts: status
+typ: type
+tp: type
+upd: updated
+mod: modified
+cre: created
+crt: created
+dur: duration
+lat: latitude
+lng: longitude
+lon: longitude
+loc: location
+geo: geography
+hr: hour
+hrs: hours
+mins: minutes
+secs: seconds
+wk: week
+yr: year
+yrs: years
+misc: miscellaneous
+attr: attribute
+attrs: attributes
+param: parameter
+params: parameters
+config: configuration
+cfg: configuration
+env: environment
+auth: authentication
+ssn: social security number
+tin: tax id
+lang: language
+tz: timezone

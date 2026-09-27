@@ -1,0 +1,41 @@
+# Prometheus alert rules for Omni-Data-Bus (OC-031). Validate with:
+#   promtool check rules deploy/observability/alerts.yml
+groups:
+  - name: omni-data-bus
+    rules:
+      - alert: OmniDataBusHighErrorRate
+        expr: |
+          sum(rate(oc_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(oc_http_requests_total[5m])), 1e-9) > 0.02
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: More than 2% of API requests fail with 5xx
+          description: '{{ $value | humanizePercentage }} of requests failed over the last 5 minutes. Search the logs for level=ERROR "request failed"; the problem instance is the trace ID.'
+
+      - alert: OmniDataBusJobStalled
+        # The gauge exists only while a job runs; paused and finished jobs have none.
+        expr: max by (job_id) (oc_job_throughput_docs_per_second) == 0
+        for: 5m
+        labels: { severity: warn }
+        annotations:
+          summary: 'Migration job {{ $labels.job_id }} has written nothing for 5 minutes'
+          description: Check the job's monitor and log for source read retries or an unreachable cluster.
+
+      - alert: OmniDataBusWriterThrottled
+        expr: |
+          max by (job_id) (oc_writer_effective_concurrency)
+            < 0.25 * max by (job_id) (oc_writer_configured_concurrency)
+        for: 10m
+        labels: { severity: warn }
+        annotations:
+          summary: 'Couchbase is throttling job {{ $labels.job_id }}'
+          description: Adaptive concurrency has stayed below 25% of the configured value for 10 minutes; the cluster is busy (temporary failures or timeouts).
+
+      - alert: OmniDataBusProgressPollFailing
+        expr: sum(increase(oc_events_poll_errors_total[5m])) > 0
+        for: 10m
+        labels: { severity: warn }
+        annotations:
+          summary: Live progress can't be read from the metadata store
+          description: The event hub keeps failing to read job progress documents; monitors stop updating. Check metadata store connectivity (/readyz).

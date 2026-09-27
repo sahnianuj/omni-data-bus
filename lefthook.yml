@@ -1,0 +1,13 @@
+pre-commit:
+  parallel: true
+  commands:
+    go-fmt:
+      glob: "backend/**/*.go"
+      run: cd backend && gofmt -l -w {staged_files} && git add {staged_files}
+    web-lint:
+      glob: "web/**/*.{ts,tsx}"
+      run: cd web && npx eslint --fix {staged_files} && npx prettier --write {staged_files}
+commit-msg:
+  commands:
+    conventional:
+      run: grep -qE '^(feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert)(\(.+\))?!?: .+' {1}

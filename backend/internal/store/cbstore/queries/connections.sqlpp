@@ -1,0 +1,7 @@
+-- name: ListConnectionsForRewrap
+-- Admin-only and deliberately cross-workspace: used by `odb admin rotate-secrets`.
+SELECT RAW c
+FROM #{connections} AS c
+WHERE c.secret.keyId != $keyId AND c.id > $afterId
+ORDER BY c.id
+LIMIT $limit

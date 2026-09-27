@@ -1,0 +1,75 @@
+{
+ "table": "orders",
+ "columns": [
+  {
+   "name": "order_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "customer_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "status",
+   "jsonType": "string"
+  },
+  {
+   "name": "order_date",
+   "jsonType": "datetime"
+  },
+  {
+   "name": "total",
+   "jsonType": "number"
+  },
+  {
+   "name": "ship_addr",
+   "jsonType": "string"
+  },
+  {
+   "name": "ship_city",
+   "jsonType": "string"
+  },
+  {
+   "name": "ship_zip",
+   "jsonType": "string"
+  },
+  {
+   "name": "notes",
+   "jsonType": "string"
+  },
+  {
+   "name": "row_version",
+   "jsonType": "integer"
+  }
+ ],
+ "fields": [
+  {
+   "name": "shipCity",
+   "type": "string"
+  },
+  {
+   "name": "shipAddr",
+   "type": "string"
+  },
+  {
+   "name": "orderId",
+   "type": "integer"
+  },
+  {
+   "name": "orderDate",
+   "type": "datetime"
+  },
+  {
+   "name": "grandTotal",
+   "type": "string"
+  },
+  {
+   "name": "shipZip",
+   "type": "string"
+  },
+  {
+   "name": "remarksOld",
+   "type": "string"
+  }
+ ]
+}

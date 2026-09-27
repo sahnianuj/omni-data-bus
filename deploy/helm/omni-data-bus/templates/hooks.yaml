@@ -1,0 +1,73 @@
+{{- if .Values.migrations.enabled }}
+{{- /* A pre-install hook runs before the release's own Secret exists, so a chart-managed
+       secret gets a hook-only copy that is deleted when the Job succeeds. */}}
+{{- $hookSecret := printf "%s-migrate" (include "odb.fullname" .) }}
+{{- if not .Values.secrets.existingSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $hookSecret }}
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+type: Opaque
+data:
+  master-key: {{ required "secrets.masterKey (or secrets.existingSecret) is required" .Values.secrets.masterKey | b64enc | quote }}
+  meta-password: {{ required "secrets.metaPassword (or secrets.existingSecret) is required" .Values.secrets.metaPassword | b64enc | quote }}
+---
+{{- end }}
+# Creates or upgrades the metadata scope, collections and indexes before pods roll.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "odb.fullname" . }}-migrate
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "odb.selector" (list . "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      # The chart's ServiceAccount doesn't exist yet at pre-install; the Job needs no API access.
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "odb.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["admin", "migrate"]
+          env:
+            {{- include "odb.env" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - { name: secrets, mountPath: /etc/odb/secrets, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: secrets
+          secret:
+            secretName: {{ default $hookSecret .Values.secrets.existingSecret }}
+            defaultMode: 0400
+            items:
+              - { key: master-key, path: master-key }
+              - { key: meta-password, path: meta-password }
+        - name: tmp
+          emptyDir: { sizeLimit: 16Mi }
+{{- end }}

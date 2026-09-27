@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "odb.fullname" . }}
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "odb.selector" (list . (include "odb.webComponent" .)) | nindent 4 }}
+  ports:
+    - { name: http, port: {{ .Values.service.port }}, targetPort: http, protocol: TCP }
+---
+# Every pod's /metrics (api and workers), for Prometheus service discovery.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "odb.fullname" . }}-metrics
+  labels:
+    {{- include "odb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: {{ include "odb.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - { name: metrics, port: {{ .Values.service.metricsPort }}, targetPort: metrics, protocol: TCP }

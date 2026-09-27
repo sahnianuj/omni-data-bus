@@ -1,0 +1,2380 @@
+openapi: 3.1.0
+info:
+  title: Omni-Data-Bus API
+  version: 1.0.0
+  description: >
+    REST API for Omni-Data-Bus. Errors use RFC 9457 problem+json. Mutating requests require the
+    X-CSRF-Token header (see /api/v1/auth/me).
+servers:
+  - url: /
+tags:
+  - name: system
+  - name: auth
+  - name: projects
+  - name: connections
+  - name: discovery
+  - name: keyspaces
+  - name: mappings
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      operationId: healthz
+      summary: Liveness
+      responses:
+        '200':
+          description: The process is serving
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+  /metrics:
+    get:
+      tags: [system]
+      operationId: metrics
+      summary: Prometheus metrics (404 here when OC_METRICS_ADDR serves them on a separate listener)
+      responses:
+        '200':
+          description: Metrics in the Prometheus text exposition format
+          content:
+            text/plain:
+              schema: { type: string }
+        '404':
+          description: Metrics are served on OC_METRICS_ADDR instead
+  /readyz:
+    get:
+      tags: [system]
+      operationId: readyz
+      summary: Readiness (metadata store reachable)
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Readiness' }
+        '503':
+          description: A dependency is unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Readiness' }
+  /api/v1/version:
+    get:
+      tags: [system]
+      operationId: getVersion
+      summary: Build version
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Version' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      summary: Create an account, a personal workspace and a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: Signed up and signed in (sets the oc_session cookie)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Sign in (sets the oc_session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Sign out (revokes the session)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Signed out }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      operationId: me
+      summary: The signed-in user, workspace, role and CSRF token
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/dashboard:
+    get:
+      tags: [projects]
+      operationId: getDashboard
+      summary: Workspace aggregates and recent projects
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Dashboard
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects:
+    get:
+      tags: [projects]
+      operationId: listProjects
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: One page of projects, newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectList' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [projects]
+      operationId: createProject
+      summary: Create an empty project (editor or owner)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [projects]
+      operationId: getProject
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: The project
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        default: { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [projects]
+      operationId: updateProject
+      summary: Rename or re-describe; send the version you read (412 if it changed)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProjectRequest' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [projects]
+      operationId: deleteProject
+      summary: Delete the project with its repositories and stored credentials
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/connections:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [projects]
+      operationId: getProjectConnections
+      summary: The project's source and target repositories (never includes secrets)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Repositories
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectConnections' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connectors:
+    get:
+      tags: [connections]
+      operationId: listConnectors
+      summary: Supported source and target database types
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Connector catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConnectorCatalog' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/test:
+    post:
+      tags: [connections]
+      operationId: testConnection
+      summary: Test unsaved connection settings (nothing is stored)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TestConnectionRequest' }
+      responses:
+        '200':
+          description: Step-by-step result (check `ok`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TestResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [connections]
+      operationId: getConnection
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: The repository (never includes secrets)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Connection' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/test:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [connections]
+      operationId: testStoredConnection
+      summary: Re-test a saved repository with its stored credentials and record the result
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Step-by-step result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TestResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/connections/{role}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: role, in: path, required: true, schema: { type: string, enum: [source, target] } }
+    put:
+      tags: [connections]
+      operationId: saveProjectConnection
+      summary: Create or replace the project's source/target (omitted secrets keep the stored ones)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveConnectionRequest' }
+      responses:
+        '200':
+          description: Replaced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Connection' }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Connection' }
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [connections]
+      operationId: deleteProjectConnection
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Deleted with its stored credentials }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/discover:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [discovery]
+      operationId: discoverSchema
+      summary: Discover the source repository's schema (sync up to 2,000 relations, otherwise 202 and poll)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscoverRequest' }
+      responses:
+        '200':
+          description: Discovery finished; the snapshot is stored as the latest
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscoveryStatus' }
+        '202':
+          description: Discovery is running (large catalog, or joined an in-flight run); poll discoveries/{did}
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscoveryStatus' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/discoveries/{did}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: did, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [discovery]
+      operationId: getDiscovery
+      summary: Poll a discovery run
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Run status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscoveryStatus' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/schema:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [discovery]
+      operationId: getSchema
+      summary: The latest discovered schema (ETag = snapshot; summary=true omits columns, keys and indexes)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: summary, in: query, required: false, schema: { type: boolean } }
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Latest snapshot
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchemaResponse' }
+        '304': { description: Unchanged since the given ETag }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/schema/{schema}/{table}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: schema, in: path, required: true, schema: { type: string } }
+      - { name: table, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [discovery]
+      operationId: getSchemaTable
+      summary: One table from the latest snapshot, with columns, keys, relationships and indexes
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Table detail
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SourceTable' }
+        '304': { description: Unchanged since the given ETag }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/tables/{schema}/{table}/preview:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: schema, in: path, required: true, schema: { type: string } }
+      - { name: table, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [discovery]
+      operationId: previewTable
+      summary: First rows of a table, encoded like a migration encodes them (not cached)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, default: 50 }, description: 'Capped at 200' }
+        - { name: orderBy, in: query, required: false, schema: { type: string }, description: 'A column name; defaults to the primary key' }
+      responses:
+        '200':
+          description: Preview rows
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreviewResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/buckets:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [keyspaces]
+      operationId: listBuckets
+      summary: Buckets of the target (partial when the credential can't list them)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Buckets and the credential's capabilities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BucketList' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [keyspaces]
+      operationId: createBucket
+      summary: Create a bucket (not on Capella) and wait until it is ready
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBucketRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/KeyspaceCreated' }
+        '202': { $ref: '#/components/responses/KeyspacePending' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/buckets/{bucket}/scopes:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: bucket, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [keyspaces]
+      operationId: listScopes
+      summary: Scopes and collections of a bucket (_system hidden, _default first)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Scopes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scopes]
+                properties:
+                  scopes: { type: array, items: { $ref: '#/components/schemas/ScopeInfo' } }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [keyspaces]
+      operationId: createScope
+      summary: Create a scope and wait until the cluster lists it
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/KeyspaceCreated' }
+        '202': { $ref: '#/components/responses/KeyspacePending' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/buckets/{bucket}/scopes/{scope}/collections:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: bucket, in: path, required: true, schema: { type: string } }
+      - { name: scope, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [keyspaces]
+      operationId: createCollection
+      summary: Create a collection and wait until it is usable
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                maxExpirySec: { type: integer, format: int64, description: '0 = bucket default' }
+      responses:
+        '201': { $ref: '#/components/responses/KeyspaceCreated' }
+        '202': { $ref: '#/components/responses/KeyspacePending' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/buckets/{bucket}/scopes/{scope}/collections/{collection}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: bucket, in: path, required: true, schema: { type: string } }
+      - { name: scope, in: path, required: true, schema: { type: string } }
+      - { name: collection, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [keyspaces]
+      operationId: getCollection
+      summary: One collection with a best-effort document count
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Collection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CollectionInfo' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [mappings]
+      operationId: listMappings
+      summary: Mappings of the project with live stats and status
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingList' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [mappings]
+      operationId: createMapping
+      summary: Create a mapping with a generated design and auto-map applied
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMappingRequest' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingView' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings:bulk:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: bulkCreateMappings
+      summary: Create a mapping per table (one failure does not stop the others)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkCreateMappingsRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkCreateMappingsResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [mappings]
+      operationId: getMapping
+      summary: A mapping with spec, stats, issues and explanations (ETag = version)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingView' }
+        default: { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [mappings]
+      operationId: updateMapping
+      summary: Save the spec (and target); If-Match required for concurrency (412 on conflict)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: If-Match, in: header, required: false, schema: { type: string }, description: 'The mapping version, e.g. "3"' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMappingRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingView' }
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [mappings]
+      operationId: deleteMapping
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/automap:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: automapMapping
+      summary: Re-run auto-mapping (fill gaps, or reset auto and suggested mappings)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: If-Match, in: header, required: false, schema: { type: string }, description: 'The mapping version, e.g. "3"' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AutomapRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingView' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/embeds:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: addMappingEmbed
+      summary: Embed a related table as a nested object (many-to-one) or array (one-to-many), optionally generating and auto-mapping its fields
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: If-Match, in: header, required: false, schema: { type: string }, description: 'The mapping version, e.g. "3"' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddEmbedRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingView' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/design:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: replaceMappingDesign
+      summary: Replace or merge the document design; mappings re-attach by path
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: If-Match, in: header, required: false, schema: { type: string }, description: 'The mapping version, e.g. "3"' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DesignRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/validate:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: validateMapping
+      summary: Every validation rule, including target keyspace existence and transform compilation
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/preview:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: previewMapping
+      summary: Documents for sample rows via the compiled pipeline program (never writes)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MappingPreviewRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MappingPreview' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/doc-schemas/infer:
+    post:
+      tags: [mappings]
+      operationId: inferDocSchema
+      summary: A design from a JSON sample (object, array or NDJSON) or a JSON Schema
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InferRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InferResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/doc-schemas/export:
+    post:
+      tags: [mappings]
+      operationId: exportDocSchema
+      summary: The design as a draft 2020-12 JSON Schema
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [docSchema]
+              properties:
+                docSchema: { $ref: '#/components/schemas/DocSchema' }
+      responses:
+        '200':
+          description: JSON Schema
+          content:
+            application/schema+json:
+              schema: { type: object }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/buckets/{bucket}/scopes/{scope}/collections/{collection}/infer-schema:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: bucket, in: path, required: true, schema: { type: string } }
+      - { name: scope, in: path, required: true, schema: { type: string } }
+      - { name: collection, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: inferSchemaFromCollection
+      summary: A design sampled from existing documents (range scan on 7.6+, else Query)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InferResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/jobs/preflight:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [jobs]
+      operationId: preflightJob
+      summary: Run the pre-flight checks without creating a job
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobOptions' }
+      responses:
+        '200':
+          description: The checklist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreflightResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/jobs:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: listProjectJobs
+      summary: The project's jobs, newest first
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobList' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [jobs]
+      operationId: createJob
+      summary: Run the pre-flight again and queue a migration (422 PREFLIGHT_FAILED with the checklist; 409 PROJECT_HAS_RUNNING_JOB)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobOptions' }
+      responses:
+        '201':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateJobResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/audit:
+    get:
+      tags: [audit]
+      operationId: listAudit
+      summary: The workspace's audit log, newest first (owners only; kept OC_AUDIT_RETENTION_DAYS)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: action, in: query, description: 'An action ("job.create") or a prefix ending in "." ("job.")', schema: { type: string } }
+        - { name: entityType, in: query, schema: { type: string } }
+        - { name: userId, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditPage' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs:
+    get:
+      tags: [jobs]
+      operationId: listJobs
+      summary: Every job in the workspace, newest first
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobList' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: getJob
+      summary: Status, options and the latest progress snapshot
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/report:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+      - { name: download, in: query, required: false, schema: { type: string }, description: Any value asks the browser to save the file }
+    get:
+      tags: [jobs]
+      operationId: getJobReport
+      summary: The job report (metadata, per-table counts and verification, errors, frozen specs); never contains credentials
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JobReport' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/report.csv:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+      - { name: download, in: query, required: false, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: getJobReportCsv
+      summary: The job report as CSV, one row per table
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: OK, content: { text/csv: { schema: { type: string } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/report.html:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+      - { name: download, in: query, required: false, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: getJobReportHtml
+      summary: The job report as a standalone, print-friendly HTML page
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: OK, content: { text/html: { schema: { type: string } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/pause:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [jobs]
+      operationId: pauseJob
+      summary: running → pausing (the worker drains, checkpoints and sets paused)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/resume:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [jobs]
+      operationId: resumeJob
+      summary: paused (or resumable failed) → queued, keeping the checkpoint and the frozen specs; mode "restart" cancels it and returns a new job with the current mappings
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [original, restart] }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/cancel:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [jobs]
+      operationId: cancelJob
+      summary: Cancel (at once when queued or paused, else via the worker)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/retry:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [jobs]
+      operationId: retryJob
+      summary: New job that re-reads only the failed rows, with the current mapping (422 RETRY_NOT_POSSIBLE)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                onlyCodes: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateJobResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/events/log:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: getJobLog
+      summary: The job's timeline
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/JobEvent' } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/errors:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: listJobErrors
+      summary: Page through the job's stored row errors
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: stage, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: mappingId, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobErrorList' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/errors/summary:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: summarizeJobErrors
+      summary: Stored errors grouped by stage and code, with an example each
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, truncated]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/JobErrorCount' } }
+                  truncated: { type: boolean }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/errors/export:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: exportJobErrors
+      summary: Download every stored error (CSV or NDJSON)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: format, in: query, schema: { type: string, enum: [csv, ndjson] } }
+      responses:
+        '200':
+          description: The file
+          content:
+            text/csv: { schema: { type: string } }
+            application/x-ndjson: { schema: { type: string } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/events:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: streamJobEvents
+      summary: 'Server-Sent Events: the current snapshot, then progress, status, error-sample and completed events (heartbeat comment every 15 s)'
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: Last-Event-ID, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: 'An event stream: "id: <seq>\nevent: progress|status|error-sample|completed\ndata: <ProgressSnapshot JSON>"'
+          content:
+            text/event-stream: { schema: { type: string } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/events:
+    get:
+      tags: [jobs]
+      operationId: streamManyJobEvents
+      summary: One Server-Sent Events stream for up to 20 jobs (the Dashboard and Jobs list)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: jobs, in: query, required: true, schema: { type: string }, description: Comma-separated job IDs (max 20) }
+      responses:
+        '200':
+          description: An event stream; each event's data carries its jobId
+          content:
+            text/event-stream: { schema: { type: string } }
+        default: { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: oc_session
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    KeyspaceCreated:
+      description: Created and ready to use
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/KeyspaceCreateResult' }
+    KeyspacePending:
+      description: Created; the cluster is still making it available
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/KeyspaceCreateResult' }
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status: { type: string, enum: [ok, unavailable] }
+        checks:
+          type: object
+          additionalProperties: { type: string }
+    Version:
+      type: object
+      required: [version, commit]
+      properties:
+        version: { type: string }
+        commit: { type: string }
+    SignupRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 256 }
+        displayName: { type: string, maxLength: 80 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+    SessionResponse:
+      type: object
+      required: [user, workspace, role, csrfToken]
+      properties:
+        user:
+          type: object
+          required: [id, email, displayName]
+          properties:
+            id: { type: string }
+            email: { type: string }
+            displayName: { type: string }
+        workspace:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        role: { type: string, enum: [owner, editor, viewer] }
+        csrfToken: { type: string }
+    RepoSummary:
+      type: object
+      required: [id, type, name, lastTestStatus]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [postgres, couchbase] }
+        name: { type: string }
+        lastTestStatus: { type: string, enum: [ok, warn, failed, untested] }
+        lastTestedAt: { type: string, format: date-time }
+    Project:
+      type: object
+      required: [id, name, description, status, version, createdAt, updatedAt, source, target]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [draft, configured, ready, running, completed, failed] }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        source: { oneOf: [{ $ref: '#/components/schemas/RepoSummary' }, { type: 'null' }] }
+        target: { oneOf: [{ $ref: '#/components/schemas/RepoSummary' }, { type: 'null' }] }
+        mappings: { type: integer }
+        readyMappings: { type: integer }
+        latestJob:
+          oneOf:
+            - type: object
+              required: [id, status]
+              properties:
+                id: { type: string }
+                status: { $ref: '#/components/schemas/JobStatus' }
+            - { type: 'null' }
+    ProjectList:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Project' } }
+        nextCursor: { type: string }
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+    UpdateProjectRequest:
+      type: object
+      required: [version]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        version: { type: integer, format: int64 }
+    SecretMeta:
+      type: object
+      required: [passwordSet, caCertSet, clientCertSet]
+      properties:
+        passwordSet: { type: boolean }
+        caCertSet: { type: boolean }
+        caCertFingerprint: { type: string }
+        clientCertSet: { type: boolean }
+    Connection:
+      type: object
+      required: [id, projectId, role, type, name, config, secrets, lastTestStatus, createdAt, updatedAt, version]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        role: { type: string, enum: [source, target] }
+        type: { type: string, enum: [postgres, couchbase] }
+        name: { type: string }
+        config: { type: object, additionalProperties: true }
+        secrets: { $ref: '#/components/schemas/SecretMeta' }
+        lastTestStatus: { type: string, enum: [ok, warn, failed, untested] }
+        lastTestedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, format: int64 }
+    ProjectConnections:
+      type: object
+      required: [source, target]
+      properties:
+        source: { oneOf: [{ $ref: '#/components/schemas/Connection' }, { type: 'null' }] }
+        target: { oneOf: [{ $ref: '#/components/schemas/Connection' }, { type: 'null' }] }
+    Dashboard:
+      type: object
+      required: [stats, recent]
+      properties:
+        stats:
+          type: object
+          required: [projects, runningJobs, docsMigrated30d, repositoriesHealthy, repositoriesTotal, configuredProjects]
+          properties:
+            projects: { type: integer }
+            runningJobs: { type: integer }
+            docsMigrated30d: { type: integer }
+            repositoriesHealthy: { type: integer }
+            repositoriesTotal: { type: integer }
+            configuredProjects: { type: integer }
+        recent: { type: array, items: { $ref: '#/components/schemas/Project' } }
+    ConnectorDescriptor:
+      type: object
+      required: [type, role, displayName, icon, capabilities]
+      properties:
+        type: { type: string }
+        role: { type: string, enum: [source, target] }
+        displayName: { type: string }
+        icon: { type: string }
+        capabilities: { type: object, additionalProperties: { type: boolean } }
+    ConnectorCatalog:
+      type: object
+      required: [sources, targets]
+      properties:
+        sources: { type: array, items: { $ref: '#/components/schemas/ConnectorDescriptor' } }
+        targets: { type: array, items: { $ref: '#/components/schemas/ConnectorDescriptor' } }
+    SecretsPatch:
+      type: object
+      description: Write-only. Omit a field to keep the stored value.
+      properties:
+        password: { type: string, minLength: 1 }
+        caCertPem: { type: string }
+        clearCaCert: { type: boolean }
+        clientCertPem: { type: string }
+        clientKeyPem: { type: string }
+        clearClientCert: { type: boolean }
+    TestConnectionRequest:
+      type: object
+      required: [role, type, config]
+      properties:
+        role: { type: string, enum: [source, target] }
+        type: { type: string }
+        config: { type: object, additionalProperties: true }
+        secrets: { $ref: '#/components/schemas/SecretsPatch' }
+    SaveConnectionRequest:
+      type: object
+      required: [type, config]
+      properties:
+        type: { type: string }
+        name: { type: string, maxLength: 100 }
+        config: { type: object, additionalProperties: true }
+        secrets: { $ref: '#/components/schemas/SecretsPatch' }
+    TestStep:
+      type: object
+      required: [id, label, status]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        status: { type: string, enum: [ok, warn, fail, skipped] }
+        ms: { type: integer }
+        detail: { type: string }
+        hint: { type: string }
+        code: { type: string }
+    TestResult:
+      type: object
+      required: [ok, latencyMs, steps]
+      properties:
+        ok: { type: boolean }
+        latencyMs: { type: integer }
+        steps: { type: array, items: { $ref: '#/components/schemas/TestStep' } }
+        capabilities: { type: object, additionalProperties: true }
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        instance: { type: string }
+        fieldErrors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldError' }
+    DiscoverRequest:
+      type: object
+      properties:
+        schemas: { type: array, items: { type: string }, description: 'Include list; empty = every non-system schema' }
+        exclude: { type: array, items: { type: string }, description: 'Globs matched against "table" and "schema.table"' }
+    DiscoveryStatus:
+      type: object
+      required: [discoveryId, connectionId, status, startedAt]
+      properties:
+        discoveryId: { type: string }
+        connectionId: { type: string }
+        status: { type: string, enum: [running, completed, failed] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        snapshotId: { type: string }
+        tableCount: { type: integer }
+        durationMs: { type: integer, format: int64 }
+        diff: { $ref: '#/components/schemas/SchemaDiff' }
+        error: { $ref: '#/components/schemas/Problem' }
+    SchemaDiff:
+      type: object
+      required: [addedTables, removedTables, changedTables]
+      properties:
+        addedTables: { type: array, items: { type: string } }
+        removedTables: { type: array, items: { type: string } }
+        changedTables:
+          type: array
+          items:
+            type: object
+            required: [table, addedColumns, removedColumns, typeChanged]
+            properties:
+              table: { type: string }
+              addedColumns: { type: array, items: { type: string } }
+              removedColumns: { type: array, items: { type: string } }
+              typeChanged:
+                type: array
+                items:
+                  type: object
+                  required: [column, from, to]
+                  properties:
+                    column: { type: string }
+                    from: { type: string }
+                    to: { type: string }
+    SchemaResponse:
+      type: object
+      required: [snapshotId, capturedAt, durationMs, tableCount, database, serverVersion, schemas]
+      properties:
+        snapshotId: { type: string }
+        capturedAt: { type: string, format: date-time }
+        durationMs: { type: integer, format: int64 }
+        tableCount: { type: integer }
+        database: { type: string }
+        serverVersion: { type: string }
+        schemas:
+          type: array
+          items:
+            type: object
+            required: [name, tables]
+            properties:
+              name: { type: string }
+              tables:
+                type: array
+                description: TableSummary items when summary=true, otherwise SourceTable items
+                items:
+                  oneOf:
+                    - { $ref: '#/components/schemas/TableSummary' }
+                    - { $ref: '#/components/schemas/SourceTable' }
+    TableKind:
+      type: string
+      enum: [table, partitioned_table, view, materialized_view, foreign_table]
+    TableSummary:
+      type: object
+      required: [name, kind, rowEstimate, sizeBytes, columnCount, hasPrimaryKey, readable]
+      properties:
+        name: { type: string }
+        kind: { $ref: '#/components/schemas/TableKind' }
+        rowEstimate: { type: [integer, 'null'], format: int64 }
+        statsStale: { type: boolean }
+        sizeBytes: { type: integer, format: int64 }
+        columnCount: { type: integer }
+        hasPrimaryKey: { type: boolean }
+        readable: { type: boolean }
+    SourceTable:
+      type: object
+      required: [name, kind, rowEstimate, sizeBytes, readable, columns, primaryKey, uniqueConstraints, foreignKeys, referencedBy, indexes]
+      properties:
+        name: { type: string }
+        kind: { $ref: '#/components/schemas/TableKind' }
+        rowEstimate: { type: [integer, 'null'], format: int64 }
+        statsStale: { type: boolean }
+        sizeBytes: { type: integer, format: int64 }
+        comment: { type: string }
+        readable: { type: boolean }
+        partitions: { type: array, items: { type: string } }
+        columns: { type: array, items: { $ref: '#/components/schemas/SourceColumn' } }
+        primaryKey: { type: array, items: { type: string } }
+        uniqueConstraints: { type: array, items: { type: array, items: { type: string } } }
+        foreignKeys:
+          type: array
+          items:
+            type: object
+            required: [name, columns, refSchema, refTable, refColumns]
+            properties:
+              name: { type: string }
+              columns: { type: array, items: { type: string } }
+              refSchema: { type: string }
+              refTable: { type: string }
+              refColumns: { type: array, items: { type: string } }
+        referencedBy:
+          type: array
+          items:
+            type: object
+            required: [schema, table, name, columns, refColumns]
+            properties:
+              schema: { type: string }
+              table: { type: string }
+              name: { type: string }
+              columns: { type: array, items: { type: string } }
+              refColumns: { type: array, items: { type: string } }
+        indexes:
+          type: array
+          items:
+            type: object
+            required: [name, columns, unique]
+            properties:
+              name: { type: string }
+              columns: { type: array, items: { type: string } }
+              unique: { type: boolean }
+              primary: { type: boolean }
+    JsonType:
+      type: string
+      enum: [integer, number, boolean, string, datetime, any, array]
+    SourceColumn:
+      type: object
+      required: [name, ordinal, dataType, udtName, nullable, default, isPrimaryKey, isUnique, maxLength, numericPrecision, numericScale, isArray, enumValues, jsonType]
+      properties:
+        name: { type: string }
+        ordinal: { type: integer }
+        dataType: { type: string }
+        udtName: { type: string }
+        nullable: { type: boolean }
+        default: { type: [string, 'null'] }
+        isPrimaryKey: { type: boolean }
+        isUnique: { type: boolean }
+        isIdentity: { type: boolean }
+        isGenerated: { type: boolean }
+        maxLength: { type: [integer, 'null'] }
+        numericPrecision: { type: [integer, 'null'] }
+        numericScale: { type: [integer, 'null'] }
+        isArray: { type: boolean }
+        elementType: { $ref: '#/components/schemas/JsonType' }
+        enumValues: { type: [array, 'null'], items: { type: string } }
+        comment: { type: string }
+        jsonType: { $ref: '#/components/schemas/JsonType' }
+        warning: { type: string }
+    PreviewResult:
+      type: object
+      required: [schema, table, snapshotId, columns, orderBy, limit, rows]
+      properties:
+        schema: { type: string }
+        table: { type: string }
+        snapshotId: { type: string }
+        columns:
+          type: array
+          items:
+            type: object
+            required: [name, dataType, jsonType]
+            properties:
+              name: { type: string }
+              dataType: { type: string }
+              jsonType: { $ref: '#/components/schemas/JsonType' }
+        orderBy: { type: array, items: { type: string } }
+        limit: { type: integer }
+        rows:
+          type: array
+          items:
+            type: array
+            items: { $ref: '#/components/schemas/PreviewCell' }
+    PreviewCell:
+      type: object
+      required: [v, t]
+      properties:
+        v: { description: 'The encoded value (null, boolean, number, string, array or JSON)' }
+        t: { $ref: '#/components/schemas/JsonType' }
+        truncated: { type: boolean, description: 'Longer than the display limit (1 KB text, 256 B binary); v holds up to 64 KB' }
+    BucketList:
+      type: object
+      required: [buckets, partial, capabilities]
+      properties:
+        buckets: { type: array, items: { $ref: '#/components/schemas/BucketInfo' } }
+        partial: { type: boolean, description: 'The credential cannot list buckets; the list comes from its roles (may be empty)' }
+        capabilities: { $ref: '#/components/schemas/TargetCapabilities' }
+    BucketInfo:
+      type: object
+      required: [name, numReplicas, canManage]
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [couchbase, ephemeral] }
+        ramQuotaMB: { type: integer }
+        numReplicas: { type: integer }
+        storageBackend: { type: string }
+        canManage: { type: boolean }
+    TargetCapabilities:
+      type: object
+      required: [canListBuckets, canCreateBucket, canManageScopes, canWriteDocs, rangeScan, queryService, deployment, allBuckets]
+      properties:
+        canListBuckets: { type: boolean }
+        canCreateBucket: { type: boolean }
+        canManageScopes: { type: boolean }
+        canWriteDocs: { type: boolean }
+        rangeScan: { type: boolean }
+        queryService: { type: boolean }
+        deployment: { type: string }
+        bucketsAllowed: { type: array, items: { type: string } }
+        allBuckets: { type: boolean }
+        reasons: { type: array, items: { type: string } }
+    ScopeInfo:
+      type: object
+      required: [name, collections]
+      properties:
+        name: { type: string }
+        collections: { type: array, items: { $ref: '#/components/schemas/CollectionInfo' } }
+    CollectionInfo:
+      type: object
+      required: [name, maxExpirySec]
+      properties:
+        name: { type: string }
+        maxExpirySec: { type: integer, format: int64 }
+        history: { type: boolean }
+        docCountEstimate: { type: integer, format: int64 }
+    CreateBucketRequest:
+      type: object
+      required: [name, ramQuotaMB, bucketType]
+      properties:
+        name: { type: string }
+        ramQuotaMB: { type: integer }
+        bucketType: { type: string, enum: [couchbase, ephemeral] }
+        numReplicas: { type: integer, minimum: 0, maximum: 3 }
+        storageBackend: { type: string, enum: [couchstore, magma] }
+        flushEnabled: { type: boolean }
+    KeyspaceCreateResult:
+      type: object
+      required: [status, bucket]
+      properties:
+        status: { type: string, enum: [ready, pending] }
+        bucket: { type: string }
+        scope: { type: string }
+        collection: { type: string }
+    FieldType:
+      type: string
+      enum: [string, integer, number, boolean, datetime, object, array, any]
+    DocField:
+      type: object
+      required: [id, name, type]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/FieldType' }
+        required: { type: boolean }
+        description: { type: string }
+        children: { type: array, items: { $ref: '#/components/schemas/DocField' } }
+        items: { $ref: '#/components/schemas/DocField' }
+        format: { type: string }
+    DocSchema:
+      type: object
+      required: [root, source]
+      properties:
+        root: { $ref: '#/components/schemas/DocField' }
+        source: { type: string, enum: [generated, json-sample, json-schema, collection-sample, manual] }
+    TransformStep:
+      type: object
+      required: [op]
+      properties:
+        op: { type: string }
+        args: { type: object, additionalProperties: true }
+    FieldMapping:
+      type: object
+      required: [id, targetFieldId, sources, transforms, origin, state]
+      properties:
+        id: { type: string }
+        targetFieldId: { type: string }
+        sources:
+          type: array
+          items:
+            type: object
+            required: [column]
+            properties:
+              column: { type: string }
+              embed: { type: string, description: The embed whose table the column belongs to }
+        transforms: { type: array, items: { $ref: '#/components/schemas/TransformStep' } }
+        origin: { type: string, enum: [auto, suggested, manual] }
+        state: { type: string, enum: [active, pending, rejected] }
+        confidence: { type: number }
+        reason: { type: string }
+        needsReview: { type: boolean }
+        nullHandling: { type: string, enum: [include, omit] }
+    MappingSpec:
+      type: object
+      required: [docSchema, key, typeField, nullHandling, fieldMappings, embeds, ignoredColumns]
+      properties:
+        docSchema: { $ref: '#/components/schemas/DocSchema' }
+        key:
+          type: object
+          required: [template]
+          properties:
+            template: { type: string }
+        typeField:
+          type: object
+          required: [enabled, name, value]
+          properties:
+            enabled: { type: boolean }
+            name: { type: string }
+            value: { type: string }
+        nullHandling: { type: string, enum: [include, omit] }
+        omitUnmapped:
+          type: boolean
+          description: Leave designed fields without an active mapping out of the document (default false writes them as null).
+        expirySec: { type: integer, format: int64 }
+        fieldMappings: { type: array, items: { $ref: '#/components/schemas/FieldMapping' } }
+        embeds: { type: array, items: { $ref: '#/components/schemas/Embed' } }
+        ignoredColumns: { type: array, items: { type: string } }
+    TableRef:
+      type: object
+      required: [schema, name]
+      properties:
+        schema: { type: string }
+        name: { type: string }
+    JoinPair:
+      type: object
+      required: [parent, child]
+      properties:
+        parent: { type: string }
+        child: { type: string }
+    EmbedOrder:
+      type: object
+      required: [column]
+      properties:
+        column: { type: string }
+        desc: { type: boolean }
+    EmbedKind:
+      type: string
+      enum: [many-to-one, one-to-many]
+    Embed:
+      type: object
+      required: [id, kind, table, join, targetFieldId]
+      properties:
+        id: { type: string }
+        kind: { $ref: '#/components/schemas/EmbedKind' }
+        table: { $ref: '#/components/schemas/TableRef' }
+        join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        orderBy: { type: array, items: { $ref: '#/components/schemas/EmbedOrder' } }
+        limit: { type: integer, minimum: 0, maximum: 100000 }
+        targetFieldId: { type: string }
+        empty: { type: string, enum: [array, omit] }
+    EmbedCandidate:
+      type: object
+      required: [kind, table, join, constraint]
+      properties:
+        kind: { $ref: '#/components/schemas/EmbedKind' }
+        table: { $ref: '#/components/schemas/TableRef' }
+        join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        constraint: { type: string }
+        rowEstimate: { type: [integer, 'null'], format: int64 }
+        rowsPerParent: { type: number }
+        embedId: { type: string }
+    EmbedTable:
+      type: object
+      required: [table, columns]
+      properties:
+        table: { $ref: '#/components/schemas/TableRef' }
+        columns: { type: array, items: { $ref: '#/components/schemas/SourceColumn' } }
+    AddEmbedRequest:
+      type: object
+      required: [kind, table, join]
+      properties:
+        kind: { $ref: '#/components/schemas/EmbedKind' }
+        table: { $ref: '#/components/schemas/TableRef' }
+        join: { type: array, minItems: 1, items: { $ref: '#/components/schemas/JoinPair' } }
+        targetName: { type: string }
+        orderBy: { type: array, items: { $ref: '#/components/schemas/EmbedOrder' } }
+        limit: { type: integer, minimum: 0, maximum: 100000 }
+        empty: { type: string, enum: [array, omit] }
+        generate: { type: boolean }
+        includeJoinColumns: { type: boolean }
+    MappingTarget:
+      type: object
+      required: [bucket, scope, collection]
+      properties:
+        bucket: { type: string }
+        scope: { type: string }
+        collection: { type: string }
+        createIfMissing: { type: boolean }
+    MappingStats:
+      type: object
+      required: [totalSourceColumns, autoMapped, suggested, manuallyMapped, unmappedSource, ignored, totalTargetLeaves, mappedTargetLeaves, requiredTargetUnmapped, autoMapRatio, coverageRatio, averageConfidence]
+      properties:
+        totalSourceColumns: { type: integer }
+        autoMapped: { type: integer }
+        suggested: { type: integer }
+        manuallyMapped: { type: integer }
+        unmappedSource: { type: integer }
+        ignored: { type: integer }
+        totalTargetLeaves: { type: integer }
+        mappedTargetLeaves: { type: integer }
+        requiredTargetUnmapped: { type: integer }
+        autoMapRatio: { type: number }
+        coverageRatio: { type: number }
+        averageConfidence: { type: number }
+        embedded:
+          type: object
+          description: Columns of embedded tables, counted separately
+          required: [tables, totalColumns, autoMapped, manuallyMapped, suggested, unmappedSource]
+          properties:
+            tables: { type: integer }
+            totalColumns: { type: integer }
+            autoMapped: { type: integer }
+            manuallyMapped: { type: integer }
+            suggested: { type: integer }
+            unmappedSource: { type: integer }
+    MappingIssue:
+      type: object
+      required: [severity, code, path, message]
+      properties:
+        severity: { type: string, enum: [error, warning, info] }
+        code: { type: string }
+        path: { type: string }
+        message: { type: string }
+        fieldId: { type: string }
+        fieldMappingId: { type: string }
+        fix:
+          type: object
+          required: [kind, label]
+          properties:
+            kind: { type: string, enum: [mark-optional, accept-suggestions, add-transform, enable-create] }
+            label: { type: string }
+            step: { $ref: '#/components/schemas/TransformStep' }
+        op: { type: string }
+        opIndex: { type: integer }
+        line: { type: integer }
+        column: { type: integer }
+    Explanation:
+      type: object
+      required: [score, nameScore, typeScore, typeClass, signals, reason]
+      properties:
+        score: { type: number }
+        nameScore: { type: number }
+        typeScore: { type: number }
+        typeClass: { type: string }
+        reason: { type: string }
+        signals:
+          type: array
+          items:
+            type: object
+            required: [name, score]
+            properties:
+              name: { type: string }
+              score: { type: number }
+              sourceVariant: { type: string }
+              targetVariant: { type: string }
+              details: { type: string }
+    MappingStatus:
+      type: string
+      enum: [draft, ready, stale]
+    MappingView:
+      type: object
+      required: [id, projectId, sourceSchema, sourceTable, target, spec, status, stats, issues, explain, version, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        sourceSchema: { type: string }
+        sourceTable: { type: string }
+        target: { $ref: '#/components/schemas/MappingTarget' }
+        spec: { $ref: '#/components/schemas/MappingSpec' }
+        status: { $ref: '#/components/schemas/MappingStatus' }
+        automapStats: { $ref: '#/components/schemas/MappingStats' }
+        stats: { $ref: '#/components/schemas/MappingStats' }
+        issues: { type: array, items: { $ref: '#/components/schemas/MappingIssue' } }
+        explain: { type: object, additionalProperties: { $ref: '#/components/schemas/Explanation' } }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        embedTables: { type: object, additionalProperties: { $ref: '#/components/schemas/EmbedTable' } }
+        embedCandidates: { type: array, items: { $ref: '#/components/schemas/EmbedCandidate' } }
+    MappingSummary:
+      type: object
+      required: [id, sourceSchema, sourceTable, target, status, stats, version, updatedAt]
+      properties:
+        id: { type: string }
+        sourceSchema: { type: string }
+        sourceTable: { type: string }
+        target: { $ref: '#/components/schemas/MappingTarget' }
+        status: { $ref: '#/components/schemas/MappingStatus' }
+        automapStats: { $ref: '#/components/schemas/MappingStats' }
+        stats: { $ref: '#/components/schemas/MappingStats' }
+        version: { type: integer, format: int64 }
+        updatedAt: { type: string, format: date-time }
+    MappingList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/MappingSummary' } }
+    CreateMappingRequest:
+      type: object
+      required: [sourceSchema, sourceTable, target]
+      properties:
+        sourceSchema: { type: string }
+        sourceTable: { type: string }
+        target: { $ref: '#/components/schemas/MappingTarget' }
+        generate:
+          type: object
+          properties:
+            naming: { type: string, enum: [camelCase, snake_case, preserve] }
+            nestByPrefix: { type: boolean }
+    BulkCreateMappingsRequest:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/CreateMappingRequest' } }
+    BulkCreateMappingsResult:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            required: [sourceSchema, sourceTable]
+            properties:
+              sourceSchema: { type: string }
+              sourceTable: { type: string }
+              mapping: { $ref: '#/components/schemas/MappingSummary' }
+              error: { $ref: '#/components/schemas/Problem' }
+    UpdateMappingRequest:
+      type: object
+      required: [spec]
+      properties:
+        spec: { $ref: '#/components/schemas/MappingSpec' }
+        target: { $ref: '#/components/schemas/MappingTarget' }
+    AutomapRequest:
+      type: object
+      properties:
+        mode: { type: string, enum: [fill, reset] }
+        includeManual: { type: boolean }
+    DesignRequest:
+      type: object
+      required: [docSchema, strategy]
+      properties:
+        docSchema: { $ref: '#/components/schemas/DocSchema' }
+        strategy: { type: string, enum: [replace, merge] }
+    DesignResult:
+      type: object
+      required: [mapping, orphans]
+      properties:
+        mapping: { $ref: '#/components/schemas/MappingView' }
+        orphans: { type: array, items: { $ref: '#/components/schemas/FieldMapping' } }
+    ValidationResult:
+      type: object
+      required: [issues, status, ready]
+      properties:
+        issues: { type: array, items: { $ref: '#/components/schemas/MappingIssue' } }
+        status: { $ref: '#/components/schemas/MappingStatus' }
+        ready: { type: boolean }
+    MappingPreviewRequest:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 50 }
+        sampleMode: { type: string, enum: [first, random] }
+        fieldMappingId: { type: string }
+        specOverride: { $ref: '#/components/schemas/MappingSpec' }
+        checkKeys: { type: boolean }
+        writeMode: { type: string, enum: [upsert, insert] }
+    RowError:
+      type: object
+      required: [code, message]
+      properties:
+        fieldPath: { type: string }
+        op: { type: string }
+        code: { type: string }
+        message: { type: string }
+    TraceStep:
+      type: object
+      required: [step, value]
+      properties:
+        step: { type: string }
+        value: {}
+    MappingPreview:
+      type: object
+      required: [writeMode]
+      properties:
+        writeMode: { type: string, enum: [upsert, insert] }
+        items:
+          type: array
+          items:
+            type: object
+            required: [sourceRow, sizeBytes, warnings, error]
+            properties:
+              sourceRow: { type: object, additionalProperties: true }
+              key: { type: string }
+              document: { type: object, additionalProperties: true }
+              sizeBytes: { type: integer }
+              warnings: { type: array, items: { $ref: '#/components/schemas/RowError' } }
+              error: { oneOf: [{ $ref: '#/components/schemas/RowError' }, { type: 'null' }] }
+              trace: { type: object, additionalProperties: { type: array, items: { $ref: '#/components/schemas/TraceStep' } } }
+              keyExists: { type: boolean }
+        summary:
+          type: object
+          required: [ok, errors, avgSizeBytes, maxSizeBytes, collisions]
+          properties:
+            ok: { type: integer }
+            errors: { type: integer }
+            avgSizeBytes: { type: integer }
+            maxSizeBytes: { type: integer }
+            collisions: { type: integer }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [before, after, steps]
+            properties:
+              before: {}
+              after: {}
+              error: { $ref: '#/components/schemas/RowError' }
+              steps: { type: array, items: { $ref: '#/components/schemas/TraceStep' } }
+    InferRequest:
+      type: object
+      required: [kind, content]
+      properties:
+        kind: { type: string, enum: [json-sample, json-schema] }
+        content: { type: string }
+    InferResult:
+      type: object
+      required: [docSchema, warnings]
+      properties:
+        docSchema: { $ref: '#/components/schemas/DocSchema' }
+        warnings: { type: array, items: { type: string } }
+        method: { type: string }
+    JobStatus:
+      type: string
+      enum: [queued, running, pausing, paused, cancelling, cancelled, completed, completed_with_errors, failed]
+    JobOptions:
+      type: object
+      properties:
+        mappingIds: { type: array, items: { type: string } }
+        writeMode: { type: string, enum: [upsert, insert, replace] }
+        batchSize: { type: integer, minimum: 100, maximum: 10000 }
+        readParallelism: { type: string, description: '"auto" or "1".."16"' }
+        writeConcurrency: { type: integer, minimum: 1, maximum: 512 }
+        tableConcurrency: { type: integer, minimum: 1, maximum: 4 }
+        maxDocsPerSecond: { type: [integer, 'null'], minimum: 1 }
+        durability: { type: string, enum: [none, majority, majorityAndPersistActive, persistToMajority] }
+        errorPolicy:
+          type: object
+          properties:
+            maxErrors: { type: integer, minimum: -1 }
+            maxErrorRatio: { type: number, minimum: 0, maximum: 1 }
+            minRowsForRatio: { type: integer, minimum: 0 }
+        exactCount: { type: string, enum: [auto, always, never] }
+        verifySampleSize: { type: integer, minimum: 0, maximum: 10000 }
+        retryOf: { type: string }
+        keyFilter: { type: string }
+        onlyCodes: { type: array, items: { type: string } }
+        mappingVersions:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+          description: Each mapping's version when the job was created (its spec is frozen server-side)
+    MappingRef:
+      type: object
+      required: [mappingId, table]
+      properties:
+        mappingId: { type: string }
+        table: { type: string }
+    ResumeInfo:
+      type: object
+      required: [rowsDone, changed, restart]
+      properties:
+        rowsDone: { type: integer, format: int64, description: Rows the checkpoint covers }
+        changed: { type: array, items: { $ref: '#/components/schemas/MappingRef' }, description: Mappings edited since the job started }
+        restart: { type: array, items: { $ref: '#/components/schemas/MappingRef' }, description: Unfinished tables without a primary key (re-read from the start) }
+    PreflightCheck:
+      type: object
+      required: [id, label, status]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        status: { type: string, enum: [ok, warn, fail, skipped] }
+        detail: { type: string }
+        hint: { type: string }
+        code: { type: string }
+        mappingId: { type: string }
+    PlannedMapping:
+      type: object
+      required: [mappingId, table, target, rowEstimate]
+      properties:
+        mappingId: { type: string }
+        table: { type: string }
+        target: { $ref: '#/components/schemas/MappingTarget' }
+        rowEstimate: { type: integer, format: int64 }
+    PreflightResult:
+      type: object
+      required: [ok, checks, mappings, totalRows]
+      properties:
+        ok: { type: boolean }
+        checks: { type: array, items: { $ref: '#/components/schemas/PreflightCheck' } }
+        mappings: { type: array, items: { $ref: '#/components/schemas/PlannedMapping' } }
+        totalRows: { type: integer, format: int64 }
+    MappingProgress:
+      type: object
+      required: [mappingId, table, target, phase, processed, total, totalKind, percent, written, skipped, failed]
+      properties:
+        mappingId: { type: string }
+        table: { type: string }
+        target: { type: string }
+        phase: { type: string, enum: [queued, preparing, migrating, verifying, done, failed] }
+        processed: { type: integer, format: int64 }
+        total: { type: integer, format: int64 }
+        totalKind: { type: string, enum: [estimate, exact] }
+        percent: { type: number }
+        written: { type: integer, format: int64 }
+        skipped: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+    ErrorSample:
+      type: object
+      required: [at, mappingId, table, stage, code, message]
+      properties:
+        at: { type: string, format: date-time }
+        mappingId: { type: string }
+        table: { type: string }
+        stage: { type: string }
+        code: { type: string }
+        message: { type: string }
+        fieldPath: { type: string }
+        sourceKey: {}
+    ProgressSnapshot:
+      type: object
+      required: [jobId, status, seq, ts, total, totalKind, processed, percent, written, skipped, failed, rowsRead, bytesWritten, throughput, peakThroughput, etaSeconds, elapsedSeconds, mappings, errorsByCode]
+      properties:
+        jobId: { type: string }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        seq: { type: integer, format: int64 }
+        ts: { type: string, format: date-time }
+        total: { type: integer, format: int64 }
+        totalKind: { type: string, enum: [estimate, exact] }
+        processed: { type: integer, format: int64 }
+        percent: { type: number }
+        written: { type: integer, format: int64 }
+        skipped: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+        rowsRead: { type: integer, format: int64 }
+        bytesWritten: { type: integer, format: int64 }
+        throughput: { type: number }
+        peakThroughput: { type: number }
+        etaSeconds: { type: [integer, 'null'] }
+        elapsedSeconds: { type: integer, format: int64 }
+        mappings: { type: array, items: { $ref: '#/components/schemas/MappingProgress' } }
+        errorsByCode:
+          type: array
+          items:
+            type: object
+            required: [code, count]
+            properties:
+              code: { type: string }
+              count: { type: integer, format: int64 }
+        errorSamples: { type: array, items: { $ref: '#/components/schemas/ErrorSample' } }
+    Job:
+      type: object
+      required: [id, projectId, status, options, mappingIds, createdBy, createdAt, updatedAt, version, progress, resumable, retryable]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        reason: { type: string }
+        reasonDetail: { type: string }
+        options: { $ref: '#/components/schemas/JobOptions' }
+        mappingIds: { type: array, items: { type: string } }
+        errorsTruncated: { type: boolean }
+        claimedBy: { type: string }
+        heartbeatAt: { type: string, format: date-time }
+        retryOf: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        version: { type: integer, format: int64 }
+        progress: { $ref: '#/components/schemas/ProgressSnapshot' }
+        resumable: { type: boolean }
+        retryable: { type: boolean }
+        resumeInfo: { $ref: '#/components/schemas/ResumeInfo' }
+    VerifyDiff:
+      type: object
+      required: [path, expected, actual]
+      properties:
+        path: { type: string }
+        expected: {}
+        actual: {}
+    VerifyMismatch:
+      type: object
+      required: [key, expected, actual, diffs]
+      properties:
+        key: { type: string }
+        sourceKey: {}
+        expected: {}
+        actual: {}
+        diffs: { type: array, items: { $ref: '#/components/schemas/VerifyDiff' } }
+    VerifySample:
+      type: object
+      required: [checked, matched, mismatched, missing, sourceChanged, missingKeys, mismatches]
+      properties:
+        checked: { type: integer }
+        matched: { type: integer }
+        mismatched: { type: integer }
+        missing: { type: integer }
+        sourceChanged: { type: integer }
+        missingKeys: { type: array, items: { type: string } }
+        mismatches: { type: array, items: { $ref: '#/components/schemas/VerifyMismatch' } }
+    VerifyCounts:
+      type: object
+      required: [sourceRows, written, skipped, failed, duplicateKeys, expectedDocs, reconciled, warnings, messages]
+      properties:
+        sourceRows: { type: integer, format: int64 }
+        written: { type: integer, format: int64 }
+        skipped: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+        distinctKeysEstimate: { type: integer, format: int64 }
+        duplicateKeys: { type: integer, format: int64 }
+        expectedDocs: { type: integer, format: int64 }
+        targetCount: { type: integer, format: int64 }
+        targetCountMatch: { type: boolean }
+        reconciled: { type: boolean }
+        warnings: { type: array, items: { type: string } }
+        messages: { type: array, items: { type: string } }
+    VerificationResult:
+      type: object
+      required: [mappingId, result, counts, avgDocBytes, throughputAvg, throughputPeak, durationSeconds]
+      properties:
+        mappingId: { type: string }
+        result: { type: string, enum: [passed, passed_with_warnings, failed, skipped] }
+        counts: { $ref: '#/components/schemas/VerifyCounts' }
+        sample: { $ref: '#/components/schemas/VerifySample' }
+        error: { type: string }
+        avgDocBytes: { type: integer, format: int64 }
+        throughputAvg: { type: number }
+        throughputPeak: { type: number }
+        durationSeconds: { type: number }
+    ReportEndpoint:
+      type: object
+      required: [type, host]
+      properties:
+        type: { type: string }
+        host: { type: string }
+        database: { type: string }
+    JobReport:
+      type: object
+      required: [generatedAt, job, mappings, errors, specs]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        job:
+          type: object
+          required: [id, status, projectId, projectName, source, target, keyspaces, startedBy, durationSeconds, options]
+          properties:
+            id: { type: string }
+            status: { $ref: '#/components/schemas/JobStatus' }
+            projectId: { type: string }
+            projectName: { type: string }
+            source: { $ref: '#/components/schemas/ReportEndpoint' }
+            target: { $ref: '#/components/schemas/ReportEndpoint' }
+            keyspaces: { type: array, items: { type: string } }
+            startedBy: { type: string }
+            startedAt: { type: string, format: date-time }
+            finishedAt: { type: string, format: date-time }
+            durationSeconds: { type: number }
+            options: {}
+        mappings:
+          type: array
+          items:
+            type: object
+            required: [mappingId, table, target, keyTemplate, rowsRead, written, skipped, failed]
+            properties:
+              mappingId: { type: string }
+              table: { type: string }
+              target: { type: string }
+              keyTemplate: { type: string }
+              rowsRead: { type: integer, format: int64 }
+              written: { type: integer, format: int64 }
+              skipped: { type: integer, format: int64 }
+              failed: { type: integer, format: int64 }
+              verification: { $ref: '#/components/schemas/VerificationResult' }
+        errors:
+          type: object
+          required: [total, byCode, exportUrl]
+          properties:
+            total: { type: integer, format: int64 }
+            byCode:
+              type: array
+              items:
+                type: object
+                required: [stage, code, count]
+                properties:
+                  stage: { type: string }
+                  code: { type: string }
+                  count: { type: integer, format: int64 }
+            exportUrl: { type: string }
+        specs: { type: object, additionalProperties: {} }
+    AuditEvent:
+      type: object
+      required: [id, workspaceId, userId, action, entityType, entityId, createdAt]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        userId: { type: string }
+        action: { type: string, example: job.create }
+        entityType: { type: string, example: job }
+        entityId: { type: string }
+        metadata: { type: object, additionalProperties: true, description: Non-secret details (IP, project, mode…) }
+        createdAt: { type: string, format: date-time }
+    AuditPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }
+        nextCursor: { type: string }
+    JobList:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Job' } }
+        nextCursor: { type: string }
+    CreateJobResult:
+      type: object
+      required: [job, preflight]
+      properties:
+        job: { $ref: '#/components/schemas/Job' }
+        preflight: { $ref: '#/components/schemas/PreflightResult' }
+    JobEvent:
+      type: object
+      required: [at, kind, message]
+      properties:
+        at: { type: string, format: date-time }
+        kind: { type: string }
+        message: { type: string }
+        data: {}
+    JobError:
+      type: object
+      required: [jobId, seq, mappingId, stage, code, message, at]
+      properties:
+        jobId: { type: string }
+        seq: { type: integer, format: int64 }
+        mappingId: { type: string }
+        stage: { type: string, enum: [read, transform, write] }
+        code: { $ref: '#/components/schemas/RowErrorCode' }
+        message: { type: string }
+        fieldPath: { type: string }
+        sourceKey: {}
+        sample: {}
+        at: { type: string, format: date-time }
+    JobErrorList:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/JobError' } }
+        nextCursor: { type: string }
+    JobErrorCount:
+      type: object
+      required: [stage, code, count, example]
+      properties:
+        stage: { type: string }
+        code: { type: string }
+        count: { type: integer, format: int64 }
+        example: { $ref: '#/components/schemas/JobError' }
+    RowErrorCode:
+      description: Codes of dead-lettered rows (OC-026); the web error catalog covers each one.
+      type: string
+      enum: [PARSE_FAILED, TYPE_MISMATCH, EXPR_ERROR, NON_FINITE_NUMBER, TRANSFORM_INVALID, KEY_TEMPLATE_INVALID, KEY_NULL_COMPONENT, KEY_TOO_LONG, KEY_INVALID, DOC_TOO_LARGE, TEMPORARY_FAILURE_EXHAUSTED, WRITE_FAILED, DECODE_FAILED]
+    ErrorCode:
+      type: string
+      enum:
+        - INTERNAL
+        - VALIDATION_FAILED
+        - NOT_FOUND
+        - BAD_REQUEST
+        - CONFLICT
+        - VERSION_CONFLICT
+        - UNAVAILABLE
+        - UNAUTHENTICATED
+        - SESSION_EXPIRED
+        - INVALID_CREDENTIALS
+        - EMAIL_TAKEN
+        - SIGNUP_DISABLED
+        - CSRF_FAILED
+        - FORBIDDEN_ROLE
+        - RATE_LIMITED
+        - INVALID_CURSOR
+        - PROJECT_NAME_TAKEN
+        - PROJECT_HAS_RUNNING_JOB
+        - SOURCE_TYPE_UNSUPPORTED
+        - TARGET_TYPE_UNSUPPORTED
+        - SCHEMA_NOT_DISCOVERED
+        - KEYSPACE_EXISTS
+        - CAPELLA_BUCKET_CREATE_UNSUPPORTED
+        - PROJECT_REPOSITORIES_INCOMPLETE
+        - MAPPING_EXISTS
+        - MAPPING_VERSION_CONFLICT
+        - PREVIEW_TIMEOUT
+        - MAPPING_INVALID
+        - INVALID_SAMPLE
+        - SCHEMA_REF_CYCLE
+        - SAMPLING_UNAVAILABLE
+        - JOB_INVALID_TRANSITION
+        - PREFLIGHT_FAILED
+        - NO_READY_MAPPINGS
+        - RETRY_NOT_POSSIBLE
+        - SOURCE_UNREACHABLE
+        - SOURCE_DNS
+        - SOURCE_TIMEOUT
+        - SOURCE_TLS
+        - SOURCE_AUTH_FAILED
+        - SOURCE_DB_NOT_FOUND
+        - SOURCE_PERMISSION_DENIED
+        - SOURCE_UNKNOWN
+        - TARGET_UNREACHABLE
+        - TARGET_DNS
+        - TARGET_TIMEOUT
+        - TARGET_TLS
+        - TARGET_AUTH_FAILED
+        - TARGET_DB_NOT_FOUND
+        - TARGET_PERMISSION_DENIED
+        - TARGET_UNKNOWN
+        - EGRESS_DENIED
+        - PAYLOAD_TOO_LARGE
+        - TOO_MANY_CONCURRENT_OPERATIONS

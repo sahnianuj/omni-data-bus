@@ -1,0 +1,8 @@
+apiVersion: v2
+name: omni-data-bus
+description: Omni-Data-Bus — migrate PostgreSQL tables into Couchbase documents (API, workers and web app)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.25.0-0"
+keywords: [couchbase, postgresql, migration]

@@ -1,0 +1,11 @@
+package postgres
+
+import "fmt"
+
+type tbl struct{ Schema, Table, Name string }
+
+func unsafeConcat(t tbl) string { return "SELECT * FROM " + t.Schema + "." + t.Table }
+
+func unsafeSprintf(t tbl) string { return fmt.Sprintf("SELECT %s FROM x", t.Name) }
+
+func safe(t tbl) string { return "SELECT * FROM " + quoteIdent(t.Table) }

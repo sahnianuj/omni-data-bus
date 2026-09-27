@@ -1,0 +1,20 @@
+{{- range $component := splitList " " (include "odb.components" .) }}
+{{- $pdb := (index $.Values $component).pdb }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "odb.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "odb.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  {{- if hasKey $pdb "minAvailable" }}
+  minAvailable: {{ $pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "odb.selector" (list $ $component) | nindent 6 }}
+{{- end }}

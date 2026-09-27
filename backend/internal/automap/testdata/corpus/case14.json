@@ -1,0 +1,47 @@
+{
+ "table": "address",
+ "columns": [
+  {
+   "name": "address_id",
+   "jsonType": "integer"
+  },
+  {
+   "name": "street",
+   "jsonType": "string"
+  },
+  {
+   "name": "city",
+   "jsonType": "string"
+  },
+  {
+   "name": "postal_code",
+   "jsonType": "string"
+  },
+  {
+   "name": "country_code",
+   "jsonType": "string"
+  },
+  {
+   "name": "location_ip",
+   "jsonType": "string"
+  }
+ ],
+ "fields": [
+  {
+   "name": "zipCode",
+   "type": "string"
+  },
+  {
+   "name": "locationIp",
+   "type": "string"
+  },
+  {
+   "name": "addressLine",
+   "type": "string"
+  },
+  {
+   "name": "city",
+   "type": "string"
+  }
+ ]
+}

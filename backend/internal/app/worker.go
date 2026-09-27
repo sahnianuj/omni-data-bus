@@ -1,0 +1,44 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+
+	"omnidatabus/internal/config"
+	"omnidatabus/internal/connections"
+	"omnidatabus/internal/connectors/source"
+	"omnidatabus/internal/connectors/target"
+	"omnidatabus/internal/crypto"
+	"omnidatabus/internal/discovery"
+	"omnidatabus/internal/jobs"
+	"omnidatabus/internal/pipeline"
+	"omnidatabus/internal/store"
+)
+
+// NewWorker wires the job worker to the migration pipeline (OC-023, OC-025).
+func NewWorker(cfg config.Config, st store.Store, sealer crypto.Sealer, sources *source.Registry, targets *target.Registry, logger *slog.Logger) *jobs.Worker {
+	conns := connections.NewService(st, sealer, sources, targets, jobs.Guard{Store: st}, nil)
+	disc := discovery.NewService(st, conns.OpenSource, nil)
+	runner := pipeline.NewRunner(pipeline.Deps{
+		Store: st, OpenSource: conns.OpenSource, OpenWriter: conns.OpenWriter, Latest: disc.Latest, Log: logger,
+		MemoryBudgetBytes: int64(cfg.Worker.MemoryBudgetMB) << 20, MaxStoredErrors: cfg.Worker.ErrorsMaxRows,
+		ErrorRetention: cfg.Worker.ErrorRetention,
+		// Verification's collection count (OC-030): best effort, via the Query service.
+		CountTarget: func(ctx context.Context, ws store.WorkspaceID, connID string, t store.MappingTarget) (int64, error) {
+			ks, _, err := conns.OpenKeyspaces(ctx, ws, connID)
+			if err != nil {
+				return 0, err
+			}
+			info, err := ks.Collection(ctx, t.Bucket, t.Scope, t.Collection)
+			if err != nil {
+				return 0, err
+			}
+			if info.DocCountEstimate == nil {
+				return 0, errors.New("the document count isn't available")
+			}
+			return *info.DocCountEstimate, nil
+		},
+	})
+	return jobs.NewWorker(jobs.WorkerConfig{MaxJobs: cfg.Worker.MaxJobs, ShutdownBudget: cfg.ShutdownTimeout * 5 / 6}, st, runner, nil, logger)
+}

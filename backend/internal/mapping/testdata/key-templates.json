@@ -1,0 +1,164 @@
+{
+ "_comment": "Shared by keytemplate_test.go and web/src/features/mapping/renderKey.test.ts (OC-016 AC6).",
+ "cases": [
+  {
+   "name": "tokens, filters and literals",
+   "template": "order::{customer_id}::{order_no|pad:8}",
+   "columns": [
+    "customer_id",
+    "order_no"
+   ],
+   "values": [
+    42,
+    17
+   ],
+   "expected": "order::42::00000017"
+  },
+  {
+   "name": "string, lower and trim",
+   "template": "u::{email|trim|lower}",
+   "columns": [
+    "email"
+   ],
+   "values": [
+    "  Ada@Example.COM "
+   ],
+   "expected": "u::ada@example.com"
+  },
+  {
+   "name": "upper",
+   "template": "{code|upper}",
+   "columns": [
+    "code"
+   ],
+   "values": [
+    "book"
+   ],
+   "expected": "BOOK"
+  },
+  {
+   "name": "uuid and timestamp strings",
+   "template": "{id}@{at}",
+   "columns": [
+    "id",
+    "at"
+   ],
+   "values": [
+    "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "2024-01-01T00:00:00Z"
+   ],
+   "expected": "0f8fad5b-d9cb-469f-a165-70867728950e@2024-01-01T00:00:00Z"
+  },
+  {
+   "name": "boolean",
+   "template": "flag::{active}",
+   "columns": [
+    "active"
+   ],
+   "values": [
+    true
+   ],
+   "expected": "flag::true"
+  },
+  {
+   "name": "escaped braces",
+   "template": "{{literal}}::{id}",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    1
+   ],
+   "expected": "{literal}::1"
+  },
+  {
+   "name": "hash",
+   "template": "h::{name|hash}",
+   "columns": [
+    "name"
+   ],
+   "values": [
+    "ann"
+   ],
+   "expected": "h::744cb9a9fb3d5583744ea3ece9b4d819d90bdee2"
+  },
+  {
+   "name": "table token",
+   "template": "{$table}::{id}",
+   "table": "customer",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    7
+   ],
+   "expected": "customer::7"
+  },
+  {
+   "name": "pad keeps longer values",
+   "template": "{n|pad:2}",
+   "columns": [
+    "n"
+   ],
+   "values": [
+    12345
+   ],
+   "expected": "12345"
+  },
+  {
+   "name": "null component",
+   "template": "c::{id}",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    null
+   ],
+   "error": "KEY_NULL_COMPONENT"
+  },
+  {
+   "name": "unknown filter",
+   "template": "c::{id|reverse}",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    1
+   ],
+   "parseErrorPos": 7
+  },
+  {
+   "name": "unclosed brace",
+   "template": "c::{id",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    1
+   ],
+   "parseErrorPos": 3
+  },
+  {
+   "name": "stray closing brace",
+   "template": "c::id}",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    1
+   ],
+   "parseErrorPos": 5
+  },
+  {
+   "name": "bad pad",
+   "template": "{id|pad:x}",
+   "columns": [
+    "id"
+   ],
+   "values": [
+    1
+   ],
+   "parseErrorPos": 4
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+-- name: ListProjects
+-- tenant
+SELECT RAW p
+FROM #{projects} AS p
+WHERE p.workspaceId = $workspaceId
+  AND (p.createdAt < $cursorAt OR (p.createdAt = $cursorAt AND p.id < $cursorId))
+ORDER BY p.createdAt DESC, p.id DESC
+LIMIT $limit

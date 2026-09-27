@@ -1,0 +1,305 @@
+{
+ "_comment": "Shared by transform/opargs_test.go and web/src/features/mapping/opSchemas.test.ts (OC-020 AC8). Multi-source ops are compiled with two sources.",
+ "cases": [
+  {
+   "op": "toString",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "parseInteger",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "parseInteger",
+   "args": {
+    "strict": true
+   },
+   "valid": true
+  },
+  {
+   "op": "parseNumber",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "parseBoolean",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "toDatetime",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "toDatetime",
+   "args": {
+    "inputFormat": "dd/MM/yyyy HH:mm"
+   },
+   "valid": true
+  },
+  {
+   "op": "toDatetime",
+   "args": {
+    "inputFormat": "yyyy-QQ"
+   },
+   "valid": false
+  },
+  {
+   "op": "toDatetime",
+   "args": {
+    "timezone": "Mars/Base"
+   },
+   "valid": false
+  },
+  {
+   "op": "toDatetime",
+   "args": {
+    "timezone": "Asia/Kolkata"
+   },
+   "valid": true
+  },
+  {
+   "op": "formatDatetime",
+   "args": {
+    "format": "epoch_ms"
+   },
+   "valid": true
+  },
+  {
+   "op": "formatDatetime",
+   "args": {
+    "format": "custom"
+   },
+   "valid": false
+  },
+  {
+   "op": "formatDatetime",
+   "args": {
+    "format": "custom",
+    "pattern": "yyyy-MM-dd"
+   },
+   "valid": true
+  },
+  {
+   "op": "formatDatetime",
+   "args": {
+    "format": "weird"
+   },
+   "valid": false
+  },
+  {
+   "op": "trim",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "lower",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "upper",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "substring",
+   "args": {
+    "start": 1,
+    "length": 3
+   },
+   "valid": true
+  },
+  {
+   "op": "substring",
+   "args": {
+    "start": -1
+   },
+   "valid": false
+  },
+  {
+   "op": "replace",
+   "args": {
+    "pattern": "-",
+    "replacement": ""
+   },
+   "valid": true
+  },
+  {
+   "op": "replace",
+   "args": {
+    "pattern": "(",
+    "regex": true
+   },
+   "valid": false
+  },
+  {
+   "op": "replace",
+   "args": {},
+   "valid": false
+  },
+  {
+   "op": "concat",
+   "args": {
+    "separator": " "
+   },
+   "valid": true
+  },
+  {
+   "op": "split",
+   "args": {
+    "separator": ","
+   },
+   "valid": true
+  },
+  {
+   "op": "split",
+   "args": {},
+   "valid": false
+  },
+  {
+   "op": "default",
+   "args": {
+    "value": "n/a"
+   },
+   "valid": true
+  },
+  {
+   "op": "default",
+   "args": {},
+   "valid": false
+  },
+  {
+   "op": "nullIf",
+   "args": {
+    "value": ""
+   },
+   "valid": true
+  },
+  {
+   "op": "nullIf",
+   "args": {},
+   "valid": false
+  },
+  {
+   "op": "constant",
+   "args": {
+    "value": 1
+   },
+   "valid": true
+  },
+  {
+   "op": "constant",
+   "args": {},
+   "valid": false
+  },
+  {
+   "op": "lookup",
+   "args": {
+    "map": {
+     "A": "Active"
+    }
+   },
+   "valid": true
+  },
+  {
+   "op": "lookup",
+   "args": {},
+   "valid": false
+  },
+  {
+   "op": "lookup",
+   "args": {
+    "map": {
+     "A": "B"
+    },
+    "fallback": "explode"
+   },
+   "valid": false
+  },
+  {
+   "op": "lookup",
+   "args": {
+    "map": {
+     "A": "B"
+    },
+    "fallback": "value",
+    "value": "x"
+   },
+   "valid": true
+  },
+  {
+   "op": "round",
+   "args": {
+    "digits": 2
+   },
+   "valid": true
+  },
+  {
+   "op": "round",
+   "args": {
+    "digits": 99
+   },
+   "valid": false
+  },
+  {
+   "op": "round",
+   "args": {
+    "digits": 1.5
+   },
+   "valid": false
+  },
+  {
+   "op": "jsonParse",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "mask",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "mask",
+   "args": {
+    "keepLast": 2,
+    "char": "#"
+   },
+   "valid": true
+  },
+  {
+   "op": "hash",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "hash",
+   "args": {
+    "algo": "md5"
+   },
+   "valid": false
+  },
+  {
+   "op": "hash",
+   "args": {
+    "algo": "sha1"
+   },
+   "valid": true
+  },
+  {
+   "op": "expression",
+   "args": {
+    "expr": "value * 2"
+   },
+   "valid": true
+  },
+  {
+   "op": "expression",
+   "args": {},
+   "valid": false
+  }
+ ]
+}

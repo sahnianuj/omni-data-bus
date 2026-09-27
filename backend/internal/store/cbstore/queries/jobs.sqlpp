@@ -1,0 +1,43 @@
+-- name: ListJobs
+-- tenant
+SELECT RAW j
+FROM #{jobs} AS j
+WHERE j.type = 'job' AND j.workspaceId = $workspaceId
+  AND (j.createdAt < $cursorAt OR (j.createdAt = $cursorAt AND j.id < $cursorId))
+ORDER BY j.createdAt DESC, j.id DESC
+LIMIT $limit
+
+-- name: ListProjectJobs
+-- tenant
+SELECT RAW j
+FROM #{jobs} AS j
+WHERE j.type = 'job' AND j.workspaceId = $workspaceId AND j.projectId = $projectId
+  AND (j.createdAt < $cursorAt OR (j.createdAt = $cursorAt AND j.id < $cursorId))
+ORDER BY j.createdAt DESC, j.id DESC
+LIMIT $limit
+
+-- name: ListJobsByStatus
+-- Worker-only and deliberately cross-workspace: the claim loop and the reaper (OC-023).
+SELECT RAW j
+FROM #{jobs} AS j
+WHERE j.type = 'job' AND j.status IN $statuses
+ORDER BY j.createdAt, j.id
+LIMIT $limit
+
+-- name: ListJobErrors
+-- tenant
+SELECT e.*
+FROM #{job_errors} AS e
+WHERE e.type = 'job_error' AND e.jobId = $jobId AND e.workspaceId = $workspaceId AND e.seq > $after
+  AND ($stage = '' OR e.stage = $stage) AND ($code = '' OR e.code = $code)
+  AND ($mappingId = '' OR e.mappingId = $mappingId)
+ORDER BY e.seq
+LIMIT $limit
+
+-- name: SummarizeJobErrors
+-- tenant
+SELECT e.stage, e.code, COUNT(*) AS count, MIN([e.seq, e])[1] AS example
+FROM #{job_errors} AS e
+WHERE e.type = 'job_error' AND e.jobId = $jobId AND e.workspaceId = $workspaceId
+GROUP BY e.stage, e.code
+ORDER BY count DESC, e.code

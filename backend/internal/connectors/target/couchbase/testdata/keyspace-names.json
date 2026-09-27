@@ -1,0 +1,52 @@
+{
+  "_comment": "Shared by names_test.go and web/src/features/targets/names.test.ts so server and client validation stay identical (OC-014 AC1).",
+  "bucket": [
+    { "name": "travel-sample", "valid": true },
+    { "name": "my.bucket_1%x", "valid": true },
+    { "name": "A", "valid": true },
+    { "name": "", "valid": false },
+    { "name": ".hidden", "valid": false },
+    { "name": "has space", "valid": false },
+    { "name": "back`tick", "valid": false },
+    { "name": "slash/y", "valid": false },
+    { "name": "ümlaut", "valid": false },
+    { "name": "b100xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "valid": true },
+    { "name": "b101xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "valid": false }
+  ],
+  "scope": [
+    { "name": "inventory", "valid": true },
+    { "name": "tenant-1%a", "valid": true },
+    { "name": "_default", "valid": false },
+    { "name": "_system", "valid": false },
+    { "name": "%start", "valid": false },
+    { "name": "dot.ted", "valid": false },
+    { "name": "", "valid": false },
+    { "name": "s`q", "valid": false }
+  ],
+  "collection": [
+    { "name": "airline", "valid": true },
+    { "name": "order_details", "valid": true },
+    { "name": "Order-Details%2", "valid": true },
+    { "name": "_default", "valid": false },
+    { "name": "Order Details", "valid": false },
+    { "name": "a.b", "valid": false }
+  ],
+  "bucketSpec": [
+    { "spec": { "name": "orders", "ramQuotaMB": 256, "bucketType": "couchbase", "numReplicas": 1, "storageBackend": "couchstore" }, "valid": true },
+    { "spec": { "name": "orders", "ramQuotaMB": 99, "bucketType": "couchbase", "numReplicas": 1, "storageBackend": "couchstore" }, "valid": false, "field": "ramQuotaMB" },
+    { "spec": { "name": "orders", "ramQuotaMB": 512, "bucketType": "couchbase", "numReplicas": 1, "storageBackend": "magma" }, "valid": false, "field": "ramQuotaMB" },
+    { "spec": { "name": "orders", "ramQuotaMB": 1024, "bucketType": "couchbase", "numReplicas": 1, "storageBackend": "magma" }, "valid": true },
+    { "spec": { "name": "orders", "ramQuotaMB": 256, "bucketType": "couchbase", "numReplicas": 4, "storageBackend": "couchstore" }, "valid": false, "field": "numReplicas" },
+    { "spec": { "name": "orders", "ramQuotaMB": 256, "bucketType": "memcached", "numReplicas": 0, "storageBackend": "couchstore" }, "valid": false, "field": "bucketType" },
+    { "spec": { "name": "orders", "ramQuotaMB": 256, "bucketType": "ephemeral", "numReplicas": 0, "storageBackend": "" }, "valid": true },
+    { "spec": { "name": "orders", "ramQuotaMB": 256, "bucketType": "couchbase", "numReplicas": 0, "storageBackend": "rocks" }, "valid": false, "field": "storageBackend" },
+    { "spec": { "name": ".bad", "ramQuotaMB": 256, "bucketType": "couchbase", "numReplicas": 0, "storageBackend": "couchstore" }, "valid": false, "field": "name" }
+  ],
+  "maxExpirySec": [
+    { "value": 0, "valid": true },
+    { "value": 1, "valid": true },
+    { "value": 2147483647, "valid": true },
+    { "value": 2147483648, "valid": false },
+    { "value": -1, "valid": false }
+  ]
+}
