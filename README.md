@@ -251,6 +251,7 @@ cp .env.example .env     # then edit .env
 | `OC_SESSION_COOKIE_SECURE` | `true` | Forced `false` in dev (plain http) |
 | `OC_SHUTDOWN_TIMEOUT` | `30s` | Graceful shutdown budget |
 | `OC_METRICS_ADDR` | — | Serve Prometheus `/metrics` on its own listener (e.g. `:9090`); empty = on the public port |
+| `OC_PPROF_ADDR` | — | Serve Go `net/http/pprof` on its own listener (e.g. `127.0.0.1:6060`) for benchmark profiling; never expose it publicly |
 | `OC_OTEL_EXPORTER_OTLP_ENDPOINT` | — | OTLP/HTTP collector URL (e.g. `http://otel-collector:4318`); empty = tracing off |
 | `OC_OTEL_SAMPLE_RATIO` | `0.1` | Parent-based trace ID ratio sampling |
 | `OC_ALLOW_PRIVATE_NETWORKS` | `true` | Allow connections to private/loopback addresses (set `false` for a multi-tenant service) |

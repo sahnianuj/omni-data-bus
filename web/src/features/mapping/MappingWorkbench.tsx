@@ -267,9 +267,10 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col overflow-x-auto">
+        {/* Not a <main>: the app shell already has the page's one main landmark. */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-auto">
           {mode === 'canvas' ? <MappingCanvas /> : mode === 'table' ? <MappingTable /> : <DocDesigner projectId={project.id} targetConnId={project.target?.id ?? ''} header={<KeyPanel projectId={project.id} />} />}
-        </main>
+        </div>
         <aside aria-label={t('workbench.side')} hidden={!sideOpen} className="flex w-80 shrink-0 flex-col border-l border-border">
           <Tabs value={side} onValueChange={setSideTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="px-2">

@@ -1993,9 +1993,9 @@ components:
         mappingIds: { type: array, items: { type: string } }
         writeMode: { type: string, enum: [upsert, insert, replace] }
         batchSize: { type: integer, minimum: 100, maximum: 10000 }
-        readParallelism: { type: string, description: '"auto" or "1".."16"' }
+        readParallelism: { type: string, description: '"auto" or "1".."8"' }
         writeConcurrency: { type: integer, minimum: 1, maximum: 512 }
-        tableConcurrency: { type: integer, minimum: 1, maximum: 4 }
+        tableConcurrency: { type: integer, minimum: 1, maximum: 6 }
         maxDocsPerSecond: { type: [integer, 'null'], minimum: 1 }
         durability: { type: string, enum: [none, majority, majorityAndPersistActive, persistToMajority] }
         errorPolicy:

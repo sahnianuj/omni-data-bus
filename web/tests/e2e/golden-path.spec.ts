@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
-import { docCount, rowCount } from './support/db'
+import { docCount, dropScope, rowCount } from './support/db'
 import { uid } from './support/env'
-import { Projects, ProjectWizard, SignIn } from './support/pages'
+import { Monitor, Projects, ProjectWizard, Review, SignIn } from './support/pages'
 
 test('AC1: project → repos → map → migrate → verify', async ({ page }) => {
   await new SignIn(page).signUp()
@@ -32,10 +32,21 @@ test('AC1: project → repos → map → migrate → verify', async ({ page }) =
   expect(Number(auto)).toBeGreaterThan(0)
   expect(Number(auto)).toBeLessThanOrEqual(Number(total))
 
+  // Nothing is left to map by hand here (every column auto-maps); preview a few documents.
   await page.getByRole('button', { name: 'Preview' }).click()
-  await page.waitForTimeout(2500)
-  await page.screenshot({ path: 'test-results/golden-preview.png', fullPage: true })
-  expect(projectId).toBeTruthy()
-  expect(rowCount('shop.customer')).toBeGreaterThan(0)
-  expect(docCount).toBeDefined()
+  await expect(page.getByText(/✓ \d+ valid/).first()).toBeVisible()
+
+  const jobId = await new Review(page).migrate(projectId)
+  const monitor = new Monitor(page)
+  await monitor.waitFinished()
+  await expect(monitor.progress()).toHaveAttribute('aria-valuenow', '100')
+  await expect(monitor.summary().getByRole('heading', { name: /^Migrated [\d,]+ documents/ })).toBeVisible()
+  // Verification (OC-030) runs after the last write.
+  await expect(monitor.summary().getByText('Passed', { exact: true })).toBeVisible({ timeout: 60_000 })
+
+  const rows = rowCount('shop.customer')
+  expect(rows).toBeGreaterThan(0)
+  expect(await docCount(scope, 'customer')).toBe(rows)
+  expect(jobId).toBeTruthy()
+  await dropScope(scope)
 })

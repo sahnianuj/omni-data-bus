@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"time"
 
@@ -106,8 +107,31 @@ func MetricsServer(cfg config.Config) *Server {
 	}
 }
 
+// PprofServer serves net/http/pprof on OC_PPROF_ADDR (benchmark profiling, OC-034); nil when off.
+func PprofServer(cfg config.Config) *Server {
+	if cfg.Observe.PprofAddr == "" {
+		return nil
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	return &Server{
+		// No write timeout: a CPU profile streams for as long as ?seconds= asks.
+		HTTP:            &http.Server{Addr: cfg.Observe.PprofAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second},
+		ShutdownTimeout: 5 * time.Second,
+	}
+}
+
 // Run wires every component and serves until ctx is cancelled.
 func Run(ctx context.Context, cfg config.Config, logger *slog.Logger, build BuildInfo) error {
+	return run(ctx, cfg, logger, build, CouchbaseOpener)
+}
+
+// run is Run with the metadata store's opener (tests substitute a fake).
+func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build BuildInfo, open Opener) error {
 	keyring, err := crypto.ParseKeyring(cfg.MasterKey, cfg.MasterKeys, cfg.MasterKeyActive)
 	if err != nil {
 		return err
@@ -132,7 +156,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 	if cfg.Observe.OTLPEndpoint != "" {
 		logger.Info("tracing enabled", "endpoint", cfg.Observe.OTLPEndpoint, "sample_ratio", cfg.Observe.SampleRatio)
 	}
-	meta, err := OpenMetadata(ctx, cfg, logger, CouchbaseOpener)
+	meta, err := OpenMetadata(ctx, cfg, logger, open)
 	if err != nil {
 		return err
 	}
@@ -185,6 +209,14 @@ func Serve(ctx context.Context, cfg config.Config, logger *slog.Logger, build Bu
 			}
 		}()
 		logger.Info("serving metrics", "addr", cfg.Observe.MetricsAddr)
+	}
+	if ps := PprofServer(cfg); ps != nil {
+		go func() {
+			if err := ps.Run(ctx, nil); err != nil {
+				logger.Error("pprof server stopped", "addr", cfg.Observe.PprofAddr, "error", err.Error())
+			}
+		}()
+		logger.Warn("serving pprof: for benchmarks only, never expose it", "addr", cfg.Observe.PprofAddr)
 	}
 	logger.Info("listening", "addr", cfg.HTTPAddr, "role", cfg.Role, "version", build.Version)
 	return srv.Run(ctx, nil)

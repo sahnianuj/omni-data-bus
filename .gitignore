@@ -67,3 +67,6 @@ Thumbs.db
 
 # Compose smoke-test secrets (generated)
 /deploy/compose/secrets-ci/
+
+# Benchmark runs outside the release results (nightly history, local tries)
+/bench/history/

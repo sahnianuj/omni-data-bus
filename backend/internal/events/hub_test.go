@@ -136,3 +136,36 @@ func TestHub_AC5_SlowSubscriberKeepsLatestOnly(t *testing.T) {
 	require.Len(t, progress, 1, "only the latest progress is kept")
 	require.EqualValues(t, 20, seqOf(progress[0]))
 }
+
+func TestHub_LateSubscriberGetsTheLatestProgress(t *testing.T) {
+	docs := newFakeDocs()
+	docs.put("a", "paused", 7)
+	h := NewHub(docs, time.Hour) // one read only: nothing changes afterwards
+	first := h.Subscribe("a")
+	defer first.Close()
+	require.EqualValues(t, 7, seqOf(next(t, first)[0]))
+
+	late := h.Subscribe("a")
+	defer late.Close()
+	evs := next(t, late)
+	require.Len(t, evs, 1)
+	require.Equal(t, TypeProgress, evs[0].Type)
+	require.EqualValues(t, 7, seqOf(evs[0]))
+}
+
+func TestHub_LateSubscriberToAFinishedJobIsCompleted(t *testing.T) {
+	docs := newFakeDocs()
+	docs.put("a", "completed", 9)
+	h := NewHub(docs, time.Hour)
+	first := h.Subscribe("a")
+	defer first.Close()
+	_ = next(t, first)
+
+	late := h.Subscribe("a")
+	defer late.Close()
+	var types []string
+	for _, e := range next(t, late) {
+		types = append(types, e.Type)
+	}
+	require.Equal(t, []string{TypeProgress, TypeCompleted}, types)
+}

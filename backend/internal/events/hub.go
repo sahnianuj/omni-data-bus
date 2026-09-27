@@ -93,6 +93,9 @@ func (s *Subscription) Close() { s.hub.unsubscribe(s) }
 type poller struct {
 	subs   map[*Subscription]bool
 	cancel context.CancelFunc
+	// replay is the latest progress (and completed, once terminal), sent to subscribers who
+	// join after the poller has read the document: it only pushes on a new revision.
+	replay []Event
 }
 
 // Hub runs one poller per job that has subscribers on this node.
@@ -131,6 +134,9 @@ func (h *Hub) SubscribeWith(jobID string, notify chan struct{}) *Subscription {
 		go h.poll(ctx, jobID)
 	}
 	p.subs[s] = true
+	for _, e := range p.replay {
+		s.push(e)
+	}
 	return s
 }
 
@@ -194,8 +200,13 @@ func (h *Hub) poll(ctx context.Context, jobID string) {
 			if store.JobTerminal(head.Status) {
 				evs = append(evs, Event{ID: head.Seq, Type: TypeCompleted, Data: raw})
 			}
+			replay := []Event{evs[len(evs)-1]}
+			if store.JobTerminal(head.Status) {
+				replay = evs[len(evs)-2:]
+			}
 			h.mu.Lock()
 			if p := h.jobs[jobID]; p != nil {
+				p.replay = replay
 				for s := range p.subs {
 					for _, e := range evs {
 						s.push(e)

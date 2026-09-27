@@ -9,17 +9,17 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | Metric | Stories | Story points |
 |---|---|---|
 | **Total** | **35** | **232** |
-| ✅ Implemented | 34 | 224 |
-| 🚧 In progress | 1 | 8 |
+| ✅ Implemented | 35 | 232 |
+| 🚧 In progress | 0 | 0 |
 | ⬜ Not started | 0 | 0 |
-| Not yet implemented (in progress + not started) | 1 | 8 |
-| **Completion** | 97% | 97% |
+| Not yet implemented (in progress + not started) | 0 | 0 |
+| **Completion** | 100% | 100% |
 
 ### By priority
 
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
-| P0 | Must have — release blocker | 32 | 214 | 31 / 206 |
+| P0 | Must have — release blocker | 32 | 214 | 32 / 214 |
 | P1 | Should have — ships in 1.0 unless explicitly descoped | 3 | 18 | 3 / 18 |
 
 ### By epic
@@ -31,7 +31,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | E3 Target | 3 | 18 | 3 / 18 |
 | E4 Design & Map | 9 | 68 | 9 / 68 |
 | E5 Migration | 8 | 55 | 8 / 55 |
-| E6 Operate & Harden | 4 | 23 | 3 / 15 |
+| E6 Operate & Harden | 4 | 23 | 4 / 23 |
 
 ## Stories by priority
 
@@ -69,7 +69,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 28 | ~~[OC-029](OC-029-checkpointing-resume-recovery.md)~~ | ~~Checkpointing, pause/resume & crash recovery~~ | ~~E5 Migration~~ | ~~8~~ | ✅ Implemented |
 | 29 | ~~[OC-032](OC-032-packaging-deployment.md)~~ | ~~Packaging & deployment~~ | ~~E6 Operate & Harden~~ | ~~5~~ | ✅ Implemented |
 | 30 | ~~[OC-033](OC-033-security-hardening.md)~~ | ~~Security hardening (egress control, headers, limits, audit)~~ | ~~E6 Operate & Harden~~ | ~~5~~ | ✅ Implemented |
-| 31 | [OC-034](OC-034-e2e-suite-performance-benchmark.md) | End-to-end test suite & performance benchmark (release gate) | E6 Operate & Harden | 8 | 🚧 In progress |
+| 31 | ~~[OC-034](OC-034-e2e-suite-performance-benchmark.md)~~ | ~~End-to-end test suite & performance benchmark (release gate)~~ | ~~E6 Operate & Harden~~ | ~~8~~ | ✅ Implemented |
 | 32 | ~~[OC-035](OC-035-project-mappings-tables-step.md)~~ | ~~Project mappings API & Tables step~~ | ~~E4 Design & Map~~ | ~~5~~ | ✅ Implemented |
 
 ### P1 — Should have — ships in 1.0 unless explicitly descoped (3 stories, 18 points)
@@ -90,7 +90,7 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase 1 — Explore both sides | ~~OC-010~~, ~~OC-011~~, ~~OC-013~~, ~~OC-014~~ | 26 | 4/4 (26 pts) | ✅ Done | Discover and browse the source schema with data preview; browse and create target buckets, scopes and collections |
 | Phase 2 — Design & map | ~~OC-015~~, ~~OC-016~~, ~~OC-017~~, ~~OC-035~~, ~~OC-018~~, ~~OC-020~~, ~~OC-019~~, ~~OC-022~~ | 60 | 8/8 (60 pts) | ✅ Done | Pick tables, design target documents and keys, auto-map with a score, map the rest on the canvas, preview documents |
 | Phase 3 — Migrate | ~~OC-023~~, ~~OC-024~~, ~~OC-025~~, ~~OC-026~~, ~~OC-027~~, ~~OC-028~~ | 42 | 6/6 (42 pts) | ✅ Done | Run a migration end to end: streaming reader, transform and writer, error handling, live progress bar |
-| Phase 4 — Harden & ship | ~~OC-029~~, ~~OC-021~~, ~~OC-030~~, ~~OC-031~~, ~~OC-032~~, ~~OC-033~~, OC-034 | 44 | 6/7 (36 pts) | 🚧 Current | Resume after crashes, embedded tables, verification report, observability, packaging, security, E2E and benchmark |
+| Phase 4 — Harden & ship | ~~OC-029~~, ~~OC-021~~, ~~OC-030~~, ~~OC-031~~, ~~OC-032~~, ~~OC-033~~, ~~OC-034~~ | 44 | 7/7 (44 pts) | ✅ Done | Resume after crashes, embedded tables, verification report, observability, packaging, security, E2E and benchmark |
 
 ## Stories by phase
 
@@ -152,7 +152,7 @@ _Run a migration end to end: streaming reader, transform and writer, error handl
 | 5 | [OC-027](OC-027-progress-tracking-realtime-events.md) | Progress tracking & real-time events (SSE) | P0 | E5 Migration | 5 | OC-023, OC-025 | ✅ Implemented |
 | 6 | [OC-028](OC-028-migration-monitor-ui.md) | Migration monitor UI (live progress) | P0 | E5 Migration | 8 | OC-004, OC-023, OC-026, OC-027 | ✅ Implemented |
 
-### Phase 4 — Harden & ship — 🚧 Current (6/7 stories, 36/44 points)
+### Phase 4 — Harden & ship — ✅ Done (7/7 stories, 44/44 points)
 
 _Resume after crashes, embedded tables, verification report, observability, packaging, security, E2E and benchmark._
 
@@ -164,7 +164,7 @@ _Resume after crashes, embedded tables, verification report, observability, pack
 | 4 | [OC-031](OC-031-observability.md) | Observability: metrics, tracing & structured logs | P1 | E6 Operate & Harden | 5 | OC-002, OC-025, OC-027 | ✅ Implemented |
 | 5 | [OC-032](OC-032-packaging-deployment.md) | Packaging & deployment | P0 | E6 Operate & Harden | 5 | OC-001, OC-002 | ✅ Implemented |
 | 6 | [OC-033](OC-033-security-hardening.md) | Security hardening (egress control, headers, limits, audit) | P0 | E6 Operate & Harden | 5 | OC-005, OC-006, OC-009, OC-012 | ✅ Implemented |
-| 7 | [OC-034](OC-034-e2e-suite-performance-benchmark.md) | End-to-end test suite & performance benchmark (release gate) | P0 | E6 Operate & Harden | 8 | All P0 stories | 🚧 In progress |
+| 7 | [OC-034](OC-034-e2e-suite-performance-benchmark.md) | End-to-end test suite & performance benchmark (release gate) | P0 | E6 Operate & Harden | 8 | All P0 stories | ✅ Implemented |
 
 ## Release checklist
 

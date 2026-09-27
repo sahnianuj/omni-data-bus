@@ -38,7 +38,7 @@ type Options struct {
 	MappingIDs []string `json:"mappingIds,omitempty"`
 	WriteMode  string   `json:"writeMode"`
 	BatchSize  int      `json:"batchSize"`
-	// ReadParallelism is "auto" or "1".."16" partitions per table (OC-024).
+	// ReadParallelism is "auto" or "1".."8" partitions per table (OC-024); 8 is pipeline.MaxPartitions.
 	ReadParallelism  string      `json:"readParallelism"`
 	WriteConcurrency int         `json:"writeConcurrency"`
 	TableConcurrency int         `json:"tableConcurrency"`
@@ -65,7 +65,7 @@ type Options struct {
 // DefaultOptions returns the defaults shown in the Review step's advanced options.
 func DefaultOptions() Options {
 	return Options{
-		WriteMode: WriteUpsert, BatchSize: 1000, ReadParallelism: "auto", WriteConcurrency: 64, TableConcurrency: 1,
+		WriteMode: WriteUpsert, BatchSize: 1000, ReadParallelism: "auto", WriteConcurrency: 64, TableConcurrency: 3,
 		Durability:  DurabilityNone,
 		ErrorPolicy: ErrorPolicy{MaxErrors: 1000, MaxErrorRatio: 0.01, MinRowsForRatio: 10000},
 		ExactCount:  "auto", VerifySampleSize: 100,
@@ -94,15 +94,16 @@ func (o Options) Validate() error {
 		bad("batchSize", "must be between 100 and 10000")
 	}
 	if o.ReadParallelism != "auto" {
-		if n := o.Parallelism(); n < 1 || n > 16 {
-			bad("readParallelism", `must be "auto" or 1 to 16`)
+		// Each partition holds its own PostgreSQL connection; the engine uses at most 8 per table.
+		if n := o.Parallelism(); n < 1 || n > 8 {
+			bad("readParallelism", `must be "auto" or 1 to 8`)
 		}
 	}
 	if o.WriteConcurrency < 1 || o.WriteConcurrency > 512 {
 		bad("writeConcurrency", "must be between 1 and 512")
 	}
-	if o.TableConcurrency < 1 || o.TableConcurrency > 4 {
-		bad("tableConcurrency", "must be between 1 and 4")
+	if o.TableConcurrency < 1 || o.TableConcurrency > 6 {
+		bad("tableConcurrency", "must be between 1 and 6")
 	}
 	if o.MaxDocsPerSecond != nil && *o.MaxDocsPerSecond < 1 {
 		bad("maxDocsPerSecond", "must be at least 1, or empty for no limit")

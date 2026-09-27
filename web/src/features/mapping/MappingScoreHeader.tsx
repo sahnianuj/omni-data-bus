@@ -89,31 +89,34 @@ export function MappingScoreHeader({ automap, live, onFilter, onRerun, rerunning
           ) : null}
         </p>
       </div>
-      <Can role="editor">
-        <div className="flex">
+      {/* Each control is wrapped on its own: Can disables its direct child, and a div can't be disabled. */}
+      <div className="flex">
+        <Can role="editor">
           <Button variant="secondary" size="sm" className="rounded-r-none" loading={rerunning} onClick={() => onRerun('fill')}>
             <RefreshCw aria-hidden />
             {t('mapping.rerun')}
           </Button>
-          <DropdownMenu.Root>
+        </Can>
+        <DropdownMenu.Root>
+          <Can role="editor">
             <DropdownMenu.Trigger asChild>
               <Button variant="secondary" size="sm" className="rounded-l-none border-l-0 px-2" aria-label={t('mapping.rerunOptions')}>
                 <ChevronDown aria-hidden />
               </Button>
             </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content align="end" className="z-50 min-w-48 rounded-md border border-border bg-surface p-1 shadow-lg">
-                <DropdownMenu.Item className="cursor-default rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-muted" onSelect={() => onRerun('fill')}>
-                  {t('mapping.fillGaps')}
-                </DropdownMenu.Item>
-                <DropdownMenu.Item className="cursor-default rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-muted" onSelect={() => setConfirmReset(true)}>
-                  {t('mapping.resetAuto')}
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
-        </div>
-      </Can>
+          </Can>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="end" className="z-50 min-w-48 rounded-md border border-border bg-surface p-1 shadow-lg">
+              <DropdownMenu.Item className="cursor-default rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-muted" onSelect={() => onRerun('fill')}>
+                {t('mapping.fillGaps')}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item className="cursor-default rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-muted" onSelect={() => setConfirmReset(true)}>
+                {t('mapping.resetAuto')}
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
       <ConfirmDialog
         open={confirmReset}
         onOpenChange={setConfirmReset}

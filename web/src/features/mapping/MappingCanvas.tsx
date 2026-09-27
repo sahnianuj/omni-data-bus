@@ -232,7 +232,14 @@ export function MappingCanvas() {
       {/* Source panel */}
       <div className="flex w-[300px] min-w-[200px] shrink flex-col border-r border-border">
         <div className="flex h-9 items-center border-b border-border bg-surface-muted px-3 text-xs font-medium text-muted">{t('mapping.sourcePanel', { count: srcRows.filter((r) => r.kind === 'column').length })}</div>
-        <div ref={srcRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={(e: UIEvent<HTMLDivElement>) => { const top = e.currentTarget.scrollTop; setScroll((s) => ({ ...s, src: top })) }}>
+        {/* Focusable so keyboard users can scroll it (axe: scrollable-region-focusable). */}
+        <div
+          ref={srcRef}
+          role="region"
+          aria-label={t('mapping.sourcePanel', { count: srcRows.filter((r) => r.kind === 'column').length })}
+          tabIndex={0}
+          className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+          onScroll={(e: UIEvent<HTMLDivElement>) => { const top = e.currentTarget.scrollTop; setScroll((s) => ({ ...s, src: top })) }}>
           <div style={{ height: sv.getTotalSize(), position: 'relative' }}>
             {sv.getVirtualItems().map((v) => {
               const row = srcRows[v.index]
@@ -293,7 +300,7 @@ export function MappingCanvas() {
                   <span className={cn('truncate font-mono text-xs', c.embed && 'pl-2')}>{c.column ?? c.name}</span>
                   <span className="ml-auto truncate font-mono text-[11px] text-subtle">{c.udtName}</span>
                   {st === 'ignored' ? <EyeOff className="size-3 text-subtle" aria-label={t('mapping.ignored')} /> : null}
-                  <span className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} />
+                  <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} />
                 </div>
               )
             })}
@@ -356,7 +363,13 @@ export function MappingCanvas() {
         }}
       >
         <div className="flex h-9 items-center border-b border-border bg-surface-muted px-3 text-xs font-medium text-muted">{t('mapping.targetPanel')}</div>
-        <div ref={tgtRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={(e: UIEvent<HTMLDivElement>) => { const top = e.currentTarget.scrollTop; setScroll((s) => ({ ...s, tgt: top })) }}>
+        <div
+          ref={tgtRef}
+          role="region"
+          aria-label={t('mapping.targetPanel')}
+          tabIndex={0}
+          className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+          onScroll={(e: UIEvent<HTMLDivElement>) => { const top = e.currentTarget.scrollTop; setScroll((s) => ({ ...s, tgt: top })) }}>
           <div style={{ height: tv.getTotalSize(), position: 'relative' }}>
             {tv.getVirtualItems().map((v) => {
               const r = tRows[v.index]
@@ -394,7 +407,7 @@ export function MappingCanvas() {
                   )}
                   style={{ top: v.start, height: ROW, paddingLeft: 12 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || (selection?.kind === 'field' && selection.id === r.field.id))) }}
                 >
-                  {st ? <span className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} /> : <span className="size-2.5" />}
+                  {st ? <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} /> : <span className="size-2.5" />}
                   {!r.leaf ? (
                     <button
                       type="button"

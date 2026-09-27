@@ -1,0 +1,30 @@
+#!/bin/bash
+# Couchbase node ${index}: Docker + Couchbase Server. Node 0 builds the 3-node cluster once all
+# nodes answer, then creates the target bucket (sandbox) and the metadata bucket (omniconnect).
+set -euxo pipefail
+apt-get update -y && apt-get install -y docker.io curl
+sysctl -w vm.swappiness=1
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+docker run -d --name couchbase --restart unless-stopped --network host --ulimit nofile=200000:200000 \
+  -v /opt/couchbase/var:/opt/couchbase/var ${image}
+
+%{ if index == 0 ~}
+NODES="${join(" ", nodes)}"
+for n in $NODES; do
+  until curl -fsS "http://$n:8091/ui/index.html" >/dev/null; do sleep 5; done
+done
+cli() { docker exec couchbase couchbase-cli "$@"; }
+cli cluster-init -c 127.0.0.1 --cluster-username Administrator --cluster-password '${password}' \
+  --services data,index,query --cluster-ramsize 24576 --cluster-index-ramsize 2048
+%{ for i, n in nodes ~}
+%{ if i > 0 ~}
+cli server-add -c 127.0.0.1 -u Administrator -p '${password}' --server-add "http://${n}:8091" \
+  --server-add-username Administrator --server-add-password '${password}' --services data,index,query
+%{ endif ~}
+%{ endfor ~}
+cli rebalance -c 127.0.0.1 -u Administrator -p '${password}'
+cli bucket-create -c 127.0.0.1 -u Administrator -p '${password}' --bucket sandbox --bucket-type couchbase \
+  --bucket-ramsize ${sandbox_ram_mb} --bucket-replica 1 --wait
+cli bucket-create -c 127.0.0.1 -u Administrator -p '${password}' --bucket omniconnect --bucket-type couchbase \
+  --bucket-ramsize 1024 --bucket-replica 1 --wait
+%{ endif ~}

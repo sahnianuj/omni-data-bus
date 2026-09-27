@@ -100,18 +100,21 @@ export function ReviewStep() {
       {preflight.error ? <ErrorState error={preflight.error} /> : null}
       {create.error ? <ErrorState error={create.error} /> : null}
       {result ? <PreflightChecklist result={result} /> : null}
-      <Can role="editor">
-        <footer className="sticky bottom-0 flex h-16 items-center justify-end gap-2 border-t border-border bg-surface px-1">
+      {/* Each action is wrapped on its own: Can disables its direct child, and a footer can't be disabled. */}
+      <footer className="sticky bottom-0 flex h-16 items-center justify-end gap-2 border-t border-border bg-surface px-1">
+        <Can role="editor">
           <Button variant="secondary" disabled={!options} loading={preflight.isPending && !confirm} onClick={check}>
             <ShieldCheck aria-hidden />
             {t('review.runChecks')}
           </Button>
+        </Can>
+        <Can role="editor">
           <Button disabled={!options || !!active || (result ? !result.ok : false)} loading={preflight.isPending || create.isPending} onClick={migrate}>
             <Play aria-hidden />
             {t('review.migrate')}
           </Button>
-        </footer>
-      </Can>
+        </Can>
+      </footer>
 
       <Dialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
         <DialogContent>

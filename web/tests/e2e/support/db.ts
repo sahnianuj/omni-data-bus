@@ -43,3 +43,28 @@ export async function dropScope(scope: string) {
     headers: { Authorization: 'Basic ' + Buffer.from('Administrator:password').toString('base64') },
   })
 }
+
+/** Makes user a member of workspace with role, replacing their own workspace (they sign in there next time). */
+export async function moveMembership(userId: string, workspaceId: string, role: 'owner' | 'editor' | 'viewer') {
+  const ks = '`omniconnect`.`e2e`.`members`'
+  await n1ql(`DELETE FROM ${ks} WHERE userId = ${JSON.stringify(userId)}`)
+  await n1ql(`INSERT INTO ${ks} (KEY, VALUE) VALUES (${JSON.stringify(`${workspaceId}::${userId}`)},
+    ${JSON.stringify({ type: 'member', workspaceId, userId, role })})`)
+}
+
+/** Creates a Couchbase user with its own password (so tests can look for it in responses). */
+export async function couchbaseUser(name: string, password: string) {
+  const res = await fetch(`${env.couchbaseMgmt}/settings/rbac/users/local/${name}`, {
+    method: 'PUT',
+    headers: { Authorization: 'Basic ' + Buffer.from('Administrator:password').toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ password, roles: 'admin' }).toString(),
+  })
+  if (!res.ok) throw new Error(`create couchbase user ${name}: ${res.status} ${await res.text()}`)
+}
+
+export async function dropCouchbaseUser(name: string) {
+  await fetch(`${env.couchbaseMgmt}/settings/rbac/users/local/${name}`, {
+    method: 'DELETE',
+    headers: { Authorization: 'Basic ' + Buffer.from('Administrator:password').toString('base64') },
+  })
+}

@@ -66,6 +66,9 @@ type WorkerConfig struct {
 type ObservabilityConfig struct {
 	// MetricsAddr serves /metrics on its own listener (e.g. ":9090") instead of the public port.
 	MetricsAddr string `env:"OC_METRICS_ADDR"`
+	// PprofAddr serves net/http/pprof on its own listener (e.g. "127.0.0.1:6060") for benchmark
+	// runs (OC-034); empty turns profiling off. Never expose it publicly.
+	PprofAddr string `env:"OC_PPROF_ADDR"`
 	// OTLPEndpoint is the OTLP/HTTP collector URL; empty turns tracing off.
 	OTLPEndpoint string  `env:"OC_OTEL_EXPORTER_OTLP_ENDPOINT" validate:"omitempty,url"`
 	SampleRatio  float64 `env:"OC_OTEL_SAMPLE_RATIO" envDefault:"0.1" validate:"min=0,max=1"`

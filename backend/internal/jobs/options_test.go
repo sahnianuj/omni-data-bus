@@ -45,3 +45,29 @@ func TestOptions_AC3_ValidateAndDefaults(t *testing.T) {
 	_, err = ParseOptions(json.RawMessage(`{"batchSize":"lots"}`))
 	require.Equal(t, 400, problem.From(err).Status)
 }
+
+func TestOptions_TableConcurrency_DefaultThreeRangeOneToSix(t *testing.T) {
+	require.Equal(t, 3, DefaultOptions().TableConcurrency, "three mappings migrate at the same time by default")
+	for n, ok := range map[int]bool{0: false, 1: true, 3: true, 6: true, 7: false} {
+		o := DefaultOptions()
+		o.TableConcurrency = n
+		if ok {
+			require.NoError(t, o.Validate(), n)
+		} else {
+			require.Error(t, o.Validate(), n)
+			require.Equal(t, "tableConcurrency", problem.From(o.Validate()).FieldErrors[0].Field)
+		}
+	}
+}
+
+func TestOptions_ReadParallelism_AutoOrOneToEight(t *testing.T) {
+	for v, ok := range map[string]bool{"auto": true, "1": true, "8": true, "0": false, "9": false, "16": false} {
+		o := DefaultOptions()
+		o.ReadParallelism = v
+		if ok {
+			require.NoError(t, o.Validate(), v)
+		} else {
+			require.Error(t, o.Validate(), v)
+		}
+	}
+}

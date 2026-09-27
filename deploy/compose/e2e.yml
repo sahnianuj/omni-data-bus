@@ -5,21 +5,23 @@
 #   ./scripts/e2e.sh            # build, start, run Playwright, stop
 name: omni-data-bus-e2e
 
+x-env: &env
+  OC_META_CONNSTR: couchbase://couchbase
+  OC_META_USERNAME: Administrator
+  OC_META_PASSWORD: password
+  OC_META_BUCKET: omniconnect
+  OC_META_SCOPE: e2e
+  # Fixed test key (base64 of 32 bytes); e2e data is thrown away.
+  OC_MASTER_KEY: ZTJlLW9ubHktbWFzdGVyLWtleS1ub3QtZm9yLXByb2Q=
+  OC_PUBLIC_URL: http://localhost:18081
+  OC_SESSION_COOKIE_SECURE: "false"
+  OC_SIGNUP_ENABLED: "true"
+  OC_ALLOW_PRIVATE_NETWORKS: "true"
+  OC_LOG_LEVEL: info
+
 x-app: &app
   image: ${ODB_IMAGE:-omni-data-bus:e2e}
-  environment:
-    OC_META_CONNSTR: couchbase://couchbase
-    OC_META_USERNAME: Administrator
-    OC_META_PASSWORD: password
-    OC_META_BUCKET: omniconnect
-    OC_META_SCOPE: e2e
-    # Fixed test key (base64 of 32 bytes); e2e data is thrown away.
-    OC_MASTER_KEY: ZTJlLW9ubHktbWFzdGVyLWtleS1ub3QtZm9yLXByb2Q=
-    OC_PUBLIC_URL: http://localhost:18081
-    OC_SESSION_COOKIE_SECURE: "false"
-    OC_SIGNUP_ENABLED: "true"
-    OC_ALLOW_PRIVATE_NETWORKS: "true"
-    OC_LOG_LEVEL: info
+  environment: *env
   networks: [devstack]
   healthcheck:
     test: ["CMD", "/usr/local/bin/odb", "healthcheck"]
@@ -38,7 +40,11 @@ services:
     command: ["--role", "worker"]
     # Killed mid-run by the resilience spec; restarted by the spec, not by Docker.
     restart: "no"
-    ports: ["19092:9090"]
+    environment:
+      <<: *env
+      # Profiles for the benchmark harness (bench/, OC-034); published on localhost only.
+      OC_PPROF_ADDR: ":6060"
+    ports: ["19092:9090", "127.0.0.1:16060:6060"]
 
 networks:
   devstack:

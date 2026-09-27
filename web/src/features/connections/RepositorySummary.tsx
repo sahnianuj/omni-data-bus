@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Can } from '@/features/auth/Can'
 import { TypeTile } from '@/features/projects/RepoRow'
 import { relativeTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { ConnectionUI } from './registry'
 import type { Connection } from './types'
 
@@ -49,9 +50,11 @@ export function RepositorySummary({
       </div>
       <dl className="grid grid-cols-2 gap-4 px-5 pb-5 sm:grid-cols-4">
         {ui.fields(conn).map((f) => (
-          <div key={f.labelKey} className="flex flex-col gap-1">
+          // min-w-0 + break-all: a long value (a generated username, a host) wraps inside its column
+          // instead of running into the next one.
+          <div key={f.labelKey} className="flex min-w-0 flex-col gap-1">
             <dt className="text-xs text-subtle">{t(f.labelKey)}</dt>
-            <dd className={f.mono ? 'font-mono text-[13px]' : 'text-[13px]'}>{f.valueKey ? t(f.valueKey) : f.value}</dd>
+            <dd className={cn('break-all text-[13px]', f.mono && 'font-mono')}>{f.valueKey ? t(f.valueKey) : f.value}</dd>
           </div>
         ))}
         <div className="flex flex-col gap-1">

@@ -67,3 +67,37 @@ export class ProjectWizard {
     await p.getByRole('button', { name: 'Save to project' }).click()
   }
 }
+
+/** Review & migrate (the project's last step): starts a migration and opens its monitor. */
+export class Review {
+  constructor(private page: Page) {}
+  async migrate(projectId: string): Promise<string> {
+    const p = this.page
+    await p.goto(`/projects/${projectId}/review`)
+    await p.getByRole('button', { name: 'Migrate', exact: true }).click()
+    await p.getByRole('dialog', { name: 'Start the migration?' }).getByRole('button', { name: 'Start migration' }).click()
+    await expect(p).toHaveURL(/\/jobs\/[^/]+$/, { timeout: 60_000 })
+    return p.url().split('/jobs/')[1]!
+  }
+}
+
+/** The job monitor. */
+export class Monitor {
+  constructor(private page: Page) {}
+  open(projectId: string, jobId: string) {
+    return this.page.goto(`/projects/${projectId}/jobs/${jobId}`)
+  }
+  /** The status badge next to the heading. */
+  status(text: string | RegExp) {
+    return this.page.locator('main').getByText(text, { exact: typeof text === 'string' }).first()
+  }
+  summary() {
+    return this.page.getByRole('region', { name: 'Migration summary' })
+  }
+  progress() {
+    return this.page.getByRole('progressbar', { name: 'Migration progress' })
+  }
+  async waitFinished(timeout = 120_000) {
+    await expect(this.summary()).toBeVisible({ timeout })
+  }
+}

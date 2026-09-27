@@ -180,7 +180,7 @@ func TestCheckpointer_AC2_ErrorsFlushedBeforePersist(t *testing.T) {
 	f.runner.d.PersistBatches = 2
 	checked := 0
 	var mu sync.Mutex
-	f.w.onWrite = func(int) {
+	check := func() {
 		mu.Lock()
 		defer mu.Unlock()
 		j, _ := f.st.Jobs().GetAny(context.Background(), f.job.ID)
@@ -193,8 +193,11 @@ func TestCheckpointer_AC2_ErrorsFlushedBeforePersist(t *testing.T) {
 		require.GreaterOrEqual(t, int64(len(errs)), cp.ErrorSeq, "every numbered error the checkpoint covers is stored")
 		checked++
 	}
+	f.w.onWrite = func(int) { check() }
 	o := f.run(jobs.Control{})
 	require.True(t, o.Finished)
+	// Under load every write can finish before a checkpoint is stored; the final one is checked too.
+	check()
 	require.Positive(t, checked)
 }
 

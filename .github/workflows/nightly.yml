@@ -1,0 +1,64 @@
+name: Nightly
+# OC-034: the full E2E suite in every browser, and the smoke benchmark with relative regression
+# detection (fails when throughput is 20% below the median of the last 7 nightly runs).
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  e2e-all-browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd web && npm ci && npx playwright install --with-deps
+      - name: Playwright (Chromium, Firefox, WebKit) against a fresh image
+        run: E2E_BROWSERS=all ./scripts/e2e.sh
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+
+  smoke-bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: bench/go.mod, cache: false }
+      - run: make dev-stack
+      - run: make image IMAGE=omni-data-bus:e2e
+      - name: Start the api + worker stack
+        run: |
+          curl -fsS -u Administrator:password -X DELETE http://localhost:8091/pools/default/buckets/omniconnect/scopes/e2e || true
+          docker compose -f deploy/compose/e2e.yml up -d --wait
+      - name: Restore earlier results (rolling baseline)
+        uses: actions/cache/restore@v4
+        with:
+          path: bench/history
+          key: smoke-bench-${{ github.run_id }}
+          restore-keys: smoke-bench-
+      - name: Smoke benchmark (500k rows)
+        id: bench
+        run: make bench-smoke BENCH_OUT=history BENCH_ARGS="--env runner=github-ubuntu-latest"
+      - name: Keep this run in the baseline
+        if: always() && steps.bench.outcome != 'skipped' && steps.bench.outcome != 'cancelled'
+        uses: actions/cache/save@v4
+        with:
+          path: bench/history
+          key: smoke-bench-${{ github.run_id }}
+      - if: always()
+        # Result names start with their UTC timestamp, so the last in sort order is this run.
+        run: cat "$(find bench/history -name '*-smoke.md' | sort | tail -1)" >> "$GITHUB_STEP_SUMMARY" || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: smoke-bench, path: bench/history, retention-days: 30 }
+      - if: failure()
+        run: docker compose -f deploy/compose/e2e.yml logs --tail 200

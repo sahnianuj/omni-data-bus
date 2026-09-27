@@ -440,8 +440,18 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
           </Button>
         </div>
       ) : (
-        <div ref={scrollRef} role="tree" aria-label={t('designer.tree')} aria-multiselectable tabIndex={0} onKeyDown={onKeyDown} className="min-h-0 flex-1 overflow-y-auto outline-none">
-          <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+        // The tree holds only its rows (ARIA: a tree owns treeitems); "Add field" follows it in the
+        // same scroll area.
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            role="tree"
+            aria-label={t('designer.tree')}
+            aria-multiselectable
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            className="relative outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
             {virtualizer.getVirtualItems().map((v) => {
               const r = rows[v.index]!
               return (

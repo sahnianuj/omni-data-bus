@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E6 Operate & Harden | P0 | 8 | All P0 stories | In progress |
+| E6 Operate & Harden | P0 | 8 | All P0 stories | Implemented |
 
 ## User story
 As the **release owner**, I want automated end-to-end tests of the real user journeys and a repeatable performance benchmark with pass/fail gates, so that we only ship 1.0.0 when the product works end-to-end and meets its performance targets.
@@ -27,7 +27,7 @@ As the **release owner**, I want automated end-to-end tests of the real user jou
 8. Accessibility sweep: axe on every main screen in light and dark themes.
 
 ### Performance benchmark (`bench/`)
-- **Harness:** `go run ./bench/cmd/ocbench` provisions the scenario, starts a job through the API, samples `/metrics` and job progress every second, and writes `bench/results/<date>-<sha>.json` plus a markdown summary.
+- **Harness:** `go run ./cmd/odbbench` (in `bench/`) provisions the scenario, starts a job through the API, samples `/metrics` and job progress every second, and writes `bench/results/<date>-<sha>.json` plus a markdown summary.
 - **Datasets** (generated in the source PG with `generate_series`, deterministic seeds):
   - `narrow`: 10M rows, 8 columns (~200 B docs).
   - `standard`: 5M rows, 20 columns (~1 KB docs) — the **gating dataset** for the NFR.
@@ -108,4 +108,31 @@ As the **release owner**, I want automated end-to-end tests of the real user jou
 
 | Test | Location |
 |---|---|
-| Manual release checklist item with `ocbench --dataset standard --gate` exit code 0 | `bench/README.md`, `docs/release-1.0.0/INDEX.md` (release checklist) |
+| Manual release checklist item with `odbbench --dataset standard --gate release` exit code 0 | `bench/README.md`, `docs/release-1.0.0/INDEX.md` (release checklist) |
+
+## Implementation notes
+- **E2E (`web/tests/e2e`, 8 specs, 10 tests):** they run against the e2e compose stack (`deploy/compose/e2e.yml`: the built image as separate api and worker containers, the dev stack's Couchbase and PostgreSQL). Each spec sets up what it doesn't test through the API (`support/api.ts`) and drives the UI for what it does. All 10 pass locally in about 3 minutes. CI runs Chromium on every PR (`ci.yml` › `e2e`, reusing the image built there) and all three browsers nightly (`nightly.yml`).
+  - AC1 skips "map remaining fields by drag": every `customer` column auto-maps. The spec asserts the score, previews and migrates.
+  - AC2 uses a sample whose names differ and whose types conflict (`phoneNumber` as a number, `active` as a string). The conflicts score between 0.60 and 0.85, so they become suggestions. Edited mappings must be validated again before they're ready.
+  - AC4 throttles the 1M-row job (`maxDocsPerSecond: 40000`) so it can be paused mid-run. The crash test uses `docker kill` and then `docker start` on the worker. The restarted worker's reaper requeues the job once its heartbeat is 30 s stale, and the job resumes from its checkpoint: every key is present once, and the job log says "Resumed from checkpoint".
+  - AC5 creates its own dirty table, sets the field to `integer`, adds `parseInteger` with strict on, fixes the transform with `nullIf "n/a"`, and retries from the Errors tab.
+  - AC6 uses a PostgreSQL role and a Couchbase user with random passwords. It checks that no response body the browser receives contains either password.
+  - AC7: 1.0 has no invite flow, so the spec gives a second user a viewer membership in the owner's workspace directly in the e2e metadata scope (`support/db.ts` › `moveMembership`).
+  - AC8 runs axe (WCAG 2.1 A/AA) on 13 screens plus the workbench's Table and Design views, in the light and dark themes.
+- **Product fixes found by the suite:**
+  - Viewers could click **Migrate** and **Run checks** on Review, and **Re-run auto-map** in the score header. `Can` wrapped a `<footer>` and a `<div>`, and disabling those has no effect; each action is now wrapped on its own. `Can` also turns a link styled as a button into a disabled button, because a disabled link still navigates.
+  - The workbench nested a second `<main>`.
+  - The canvas's state dots had `aria-label` without a role.
+  - The canvas's scrollable panels weren't keyboard-focusable.
+  - The document tree contained its "Add field" footer (a tree may only own treeitems).
+  - Long repository values ran into the next column.
+- **Benchmark (`bench/`, its own Go module with only the standard library):**
+  - `internal/analyze` holds the gates, the window median, p95 and the rolling-median regression check (AC9).
+  - `internal/dataset` generates deterministic `generate_series` SQL with `bigint` rows (`int4` overflows once `g * k` passes 2³¹).
+  - `internal/api` is the REST client, plus an SSE reader that measures progress latency.
+  - `internal/report` writes the results JSON and markdown and reads the history.
+  - The worker serves `net/http/pprof` on `OC_PPROF_ADDR` (its own listener, off by default).
+  - Make targets: `make bench` (release) and `make bench-smoke` (nightly: integrity gates plus a 20% regression check against the last 7 runs, kept in the Actions cache).
+  - `bench/infra` is Terraform for the reference environment. It passes `terraform validate`, and the user-data templates render; it hasn't been applied.
+- **Local indicative run** (laptop, Docker Desktop, `smoke` at 500k rows): 89,945 docs/s sustained, 224 MiB peak RSS, 965 ms p95 progress latency, 500,000 of 500,000 written, verification passed. The `embed` dataset was also checked at 20k customers: every document holds its 10 orders.
+- **AC10 is a release-time step:** run `odbbench --dataset standard --gate release` in the AWS reference environment (`bench/README.md`), commit `bench/results/<run>.{json,md}`, and link them from the release notes. It needs AWS access and hasn't been run yet.

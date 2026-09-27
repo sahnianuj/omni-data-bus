@@ -110,6 +110,8 @@ type execution struct {
 	job  store.Job
 	ctl  jobs.Control
 	opts jobs.Options
+	// limiter is maxDocsPerSecond, shared by every table of the job (nil = unthrottled).
+	limiter *flowctl.TokenBucket
 
 	log     *slog.Logger // job-scoped: job_id, project_id
 	metrics *observability.JobMetrics
@@ -274,6 +276,11 @@ func (e *execution) run(base context.Context) jobs.Outcome {
 	var err error
 	if e.opts, err = jobs.ParseOptions(e.job.Options); err != nil {
 		return jobs.Outcome{Fatal: &jobs.Fatal{Code: CodeMappingInvalid, Message: "Invalid job options: " + err.Error()}}
+	}
+	if rate := e.opts.MaxDocsPerSecond; rate != nil {
+		// One bucket for the whole job: tables running in parallel share the rate, so the limit
+		// is what the cluster sees, not a per-table allowance multiplied by tableConcurrency.
+		e.limiter = flowctl.NewTokenBucket(float64(*rate), max(e.opts.BatchSize, *rate), e.r.d.Read.Clock)
 	}
 	cp, err := ParseCheckpoint(e.job.Checkpoint)
 	if err != nil {
@@ -712,9 +719,7 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 	}
 	cfg := d.Read
 	cfg.BatchSize = BatchSizeFor(e.opts.BatchSize, avgRow, len(cp.Partitions), d.MemoryBudgetBytes)
-	if e.opts.MaxDocsPerSecond != nil {
-		cfg.Limiter = flowctl.NewTokenBucket(float64(*e.opts.MaxDocsPerSecond), max(cfg.BatchSize, *e.opts.MaxDocsPerSecond), cfg.Clock)
-	}
+	cfg.Limiter = e.limiter
 	cfg.OnRetry = func(part, attempt int, err error) {
 		log.Warn("source read retry", "partition", part, "attempt", attempt, "err", err)
 	}

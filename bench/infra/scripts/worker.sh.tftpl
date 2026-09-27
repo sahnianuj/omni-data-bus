@@ -1,0 +1,12 @@
+#!/bin/bash
+# Omni-Data-Bus (api + worker in one process) under test, with metrics and pprof on their own ports.
+set -euxo pipefail
+apt-get update -y && apt-get install -y docker.io curl
+until curl -fsS -u Administrator:'${password}' "http://${nodes[0]}:8091/pools/default/buckets/omniconnect" >/dev/null; do sleep 10; done
+docker run -d --name odb --restart unless-stopped --network host \
+  -e OC_META_CONNSTR='couchbase://${join(",", nodes)}' -e OC_META_USERNAME=Administrator -e OC_META_PASSWORD='${password}' \
+  -e OC_META_BUCKET=omniconnect -e OC_META_SCOPE=meta \
+  -e OC_MASTER_KEY='${master_key}' -e OC_PUBLIC_URL='${public_url}' \
+  -e OC_SESSION_COOKIE_SECURE=false -e OC_SIGNUP_ENABLED=true -e OC_ALLOW_PRIVATE_NETWORKS=true \
+  -e OC_HTTP_ADDR=:8080 -e OC_METRICS_ADDR=:9090 -e OC_PPROF_ADDR=:6060 \
+  ${image} --role all

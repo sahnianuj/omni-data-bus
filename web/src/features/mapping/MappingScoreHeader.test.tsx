@@ -25,6 +25,13 @@ describe('MappingScoreHeader', () => {
     expect(screen.getByText('Average confidence 94%')).toBeInTheDocument()
   })
 
+  it('viewers see the re-run controls disabled', async () => {
+    mockSession('viewer')
+    renderUI(<MappingScoreHeader automap={stats()} live={stats()} onFilter={() => {}} onRerun={() => {}} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Re-run auto-map' })).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Auto-map options' })).toBeDisabled()
+  })
+
   it('AC1: pluralization and zero state', () => {
     const { unmount } = renderUI(
       <MappingScoreHeader automap={stats({ totalSourceColumns: 1, autoMapped: 1 })} live={stats({ requiredTargetUnmapped: 1 })} onFilter={() => {}} onRerun={() => {}} />,

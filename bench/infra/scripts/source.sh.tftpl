@@ -1,0 +1,10 @@
+#!/bin/bash
+# PostgreSQL 16 source, tuned for bulk reads. The benchmark generates its datasets (bench.*) here.
+set -euxo pipefail
+apt-get update -y && apt-get install -y docker.io
+docker run -d --name postgres --restart unless-stopped --network host --shm-size 4g \
+  -e POSTGRES_USER=bench -e POSTGRES_PASSWORD='${password}' -e POSTGRES_DB=bench \
+  -v /var/lib/pgdata:/var/lib/postgresql/data postgres:16 \
+  -c shared_buffers=8GB -c effective_cache_size=20GB -c work_mem=64MB -c maintenance_work_mem=2GB \
+  -c max_wal_size=16GB -c checkpoint_timeout=30min -c max_connections=200 \
+  -c max_parallel_workers_per_gather=4 -c listen_addresses='*'

@@ -1781,7 +1781,7 @@ export interface components {
             /** @enum {string} */
             writeMode?: "upsert" | "insert" | "replace";
             batchSize?: number;
-            /** @description "auto" or "1".."16" */
+            /** @description "auto" or "1".."8" */
             readParallelism?: string;
             writeConcurrency?: number;
             tableConcurrency?: number;

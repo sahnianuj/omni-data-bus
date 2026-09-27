@@ -36,7 +36,7 @@ export const defaultJobOptions: Required<Pick<JobOptions, 'writeMode' | 'batchSi
   batchSize: 1000,
   readParallelism: 'auto',
   writeConcurrency: 64,
-  tableConcurrency: 1,
+  tableConcurrency: 3,
   maxDocsPerSecond: null,
   durability: 'none',
   errorPolicy: { maxErrors: 1000, maxErrorRatio: 0.01, minRowsForRatio: 10000 },

@@ -11,7 +11,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 HELM_IMAGE := alpine/helm:3.18.4
 HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:latest
 
-.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration coverage build image image-test helm-test index
+.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-bench coverage build image image-test helm-test e2e bench bench-smoke index
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -50,7 +50,7 @@ lint: ## Lint Go and web code
 	cd backend && golangci-lint run ./...
 	cd web && npm run lint && npm run typecheck
 
-test: test-backend test-budgets test-web ## Run all unit tests
+test: test-backend test-budgets test-web test-bench ## Run all unit tests
 
 test-backend: ## Go unit tests with race detector and coverage gate
 	@mkdir -p backend/coverage
@@ -63,6 +63,9 @@ test-budgets: ## Performance budget tests, uninstrumented (they skip under -race
 
 test-web: ## Web unit tests with coverage
 	cd web && npm run test:coverage
+
+test-bench: ## Benchmark harness unit tests (bench/, OC-034)
+	cd bench && go vet ./... && go test -race ./...
 
 test-integration: ## Go integration tests (needs Docker; uses Couchbase 8.0.3 and PostgreSQL containers)
 	@mkdir -p backend/coverage
@@ -91,3 +94,16 @@ helm-test: ## Lint the Helm chart and run its unit tests (via Docker)
 
 index: ## Regenerate docs/release-1.0.0/INDEX.md from story statuses
 	python3 scripts/update-story-index.py docs/release-1.0.0
+
+e2e: ## End-to-end suite (Playwright) against the built image; E2E_BROWSERS=all adds Firefox and WebKit
+	./scripts/e2e.sh
+
+DATASET ?= standard
+GATE ?= release
+BENCH_OUT ?= results
+bench: ## Benchmark against a running stack: make bench DATASET=standard GATE=release (see bench/README.md)
+	cd bench && go run ./cmd/odbbench --dataset $(DATASET) --gate $(GATE) --out $(BENCH_OUT) $(BENCH_ARGS)
+
+bench-smoke: ## Nightly smoke benchmark against the e2e stack: integrity gates + 20% regression check
+	cd bench && go run ./cmd/odbbench --dataset smoke --gate integrity --regression-window 7 --regression-tolerance 0.2 \
+		--pprof http://localhost:16060 --out $(BENCH_OUT) $(BENCH_ARGS)

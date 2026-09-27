@@ -15,9 +15,9 @@ As a **data engineer**, I want to press **Migrate** and have a durable job start
   "mappingIds": ["…"],                 // default: all ready mappings in the project
   "writeMode": "upsert",               // upsert | insert (skip existing) | replace (only existing)
   "batchSize": 1000,                   // rows per read batch (100..10000)
-  "readParallelism": "auto",           // auto | 1..16 partitions per table (OC-024)
+  "readParallelism": "auto",           // auto | 1..8 partitions per table (OC-024)
   "writeConcurrency": 64,              // in-flight KV ops (1..512)
-  "tableConcurrency": 1,               // mappings processed in parallel (1..4)
+  "tableConcurrency": 3,               // mappings processed in parallel (1..6)
   "maxDocsPerSecond": null,            // throttle (token bucket), null = unlimited
   "durability": "none",                // none | majority | majorityAndPersistActive | persistToMajority
   "errorPolicy": { "maxErrors": 1000, "maxErrorRatio": 0.01 },  // OC-026
