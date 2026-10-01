@@ -196,7 +196,7 @@ web/src/features/export/    # export dialog, export history (OC-055)
 ```json
 { "type": "directory",
   "config": { "path": "/data/odb-out", "layout": "flat", "pretty": false,
-              "compression": "none", "fileMode": "0640", "durability": "file", "manifest": true,
+              "compression": "none", "fileMode": "0640", "durability": "none", "manifest": true,
               "maxDocBytes": 20971520 } }
 ```
 

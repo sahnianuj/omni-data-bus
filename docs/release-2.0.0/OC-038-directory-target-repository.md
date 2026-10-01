@@ -27,7 +27,7 @@ As a **data engineer**, I want to set my project's target to a directory, test t
 | `pretty` | `false` | Two-space indent when true |
 | `compression` | `none` | `none` \| `gzip` (file extension becomes `.json.gz`) |
 | `fileMode` | `0640` | Octal, `0600`–`0666`; directories get `+x` for each read bit |
-| `durability` | `file` | `none` (no fsync) \| `file` (fsync the file) \| `file+dir` (also fsync the parent directory after rename) |
+| `durability` | `none` (was `file` until OC-079) | `none` (no fsync) \| `file` (fsync the file) \| `file+dir` (also fsync the parent directory after rename) |
 | `manifest` | `true` | Write `_odb/manifest/*.jsonl` (OC-039) |
 | `maxDocBytes` | 20 MiB | 1 KiB – 1 GiB |
 

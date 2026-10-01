@@ -62,7 +62,7 @@ func TestValidate_AC1_AllowedRoots(t *testing.T) {
 	require.Equal(t, filepath.Join(root, "shop"), name)
 	var got Config
 	require.NoError(t, json.Unmarshal(norm, &got))
-	require.Equal(t, Config{Path: filepath.Join(root, "shop"), Layout: "flat", Compression: "none", FileMode: "0640", Durability: "file", Manifest: true, MaxDocBytes: DefaultMaxDocBytes}, got)
+	require.Equal(t, Config{Path: filepath.Join(root, "shop"), Layout: "flat", Compression: "none", FileMode: "0640", Durability: "none", Manifest: true, MaxDocBytes: DefaultMaxDocBytes}, got)
 }
 
 func TestRegistry_AC1_DisabledWithoutRoots(t *testing.T) {

@@ -8,19 +8,19 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **42** | **215** |
-| ✅ Implemented | 31 | 154 |
+| **Total** | **44** | **218** |
+| ✅ Implemented | 33 | 157 |
 | 🚧 In progress | 0 | 0 |
 | ⬜ Not started | 11 | 61 |
 | Not yet implemented (in progress + not started) | 11 | 61 |
-| **Completion** | 74% | 72% |
+| **Completion** | 75% | 72% |
 
 ### By priority
 
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
 | P0 | Must have — release blocker | 26 | 161 | 16 / 105 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 14 | 52 | 13 / 47 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 16 | 55 | 15 / 50 |
 | P2 | Nice to have | 2 | 2 | 2 / 2 |
 
 ### By epic
@@ -28,11 +28,11 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | Epic | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|
 | E7 Foundations 2.0 | 3 | 13 | 3 / 13 |
-| E8 Directory Target | 5 | 26 | 5 / 26 |
+| E8 Directory Target | 6 | 27 | 6 / 27 |
 | E9 Relationship Mapping | 5 | 37 | 5 / 37 |
 | E10 Document Composer | 18 | 78 | 18 / 78 |
 | E11 Portable Runner | 9 | 50 | 0 / 0 |
-| E12 Harden & Ship 2.0 | 2 | 11 | 0 / 0 |
+| E12 Harden & Ship 2.0 | 3 | 13 | 1 / 2 |
 
 ## Stories by priority
 
@@ -67,7 +67,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 25 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | E11 Portable Runner | 3 | ⬜ Not started |
 | 26 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | E11 Portable Runner | 3 | ⬜ Not started |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (14 stories, 52 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (16 stories, 55 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -85,6 +85,8 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 12 | ~~[OC-071](OC-071-guided-fixes-for-imported-design-differences.md)~~ | ~~Guided fixes when the document differs from the imported design~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
 | 13 | ~~[OC-075](OC-075-unmapped-design-fields-are-info.md)~~ | ~~Unmapped fields of an imported design are information, not warnings~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
 | 14 | ~~[OC-076](OC-076-reference-box-differences-only-when-strict.md)~~ | ~~Reference box lists differences only when the mapping is strict~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
+| 15 | ~~[OC-078](OC-078-review-checks-up-front-no-start-dialog.md)~~ | ~~Review step: checks up front, Migrate starts without a dialog~~ | ~~E12 Harden & Ship 2.0~~ | ~~2~~ | ✅ Implemented |
+| 16 | ~~[OC-079](OC-079-directory-durability-default-none.md)~~ | ~~Directory targets default to durability "None"~~ | ~~E8 Directory Target~~ | ~~1~~ | ✅ Implemented |
 
 ### P2 — Nice to have (2 stories, 2 points)
 
@@ -100,11 +102,11 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase | Stories (in order) | Points | Done | Status | Outcome |
 |---|---|---|---|---|---|
 | Phase 0 — 2.0 foundations | ~~OC-058~~, ~~OC-036~~, ~~OC-037~~ | 13 | 3/3 (13 pts) | ✅ Done | Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build |
-| Phase 1 — Directory target | ~~OC-038~~, ~~OC-039~~, ~~OC-040~~, ~~OC-041~~, ~~OC-068~~ | 26 | 5/5 (26 pts) | ✅ Done | Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key |
+| Phase 1 — Directory target | ~~OC-038~~, ~~OC-039~~, ~~OC-040~~, ~~OC-041~~, ~~OC-068~~, ~~OC-079~~ | 27 | 6/6 (27 pts) | ✅ Done | Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key |
 | Phase 2 — Relationship mapping | ~~OC-042~~, ~~OC-043~~, ~~OC-044~~, ~~OC-045~~, ~~OC-046~~ | 37 | 5/5 (37 pts) | ✅ Done | Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises |
 | Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~ | 78 | 18/18 (78 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
 | Phase 4 — Portable runner | OC-050, OC-051, OC-052, OC-053, OC-054, OC-055, OC-072, OC-073, OC-074 | 50 | 0/9 (0 pts) | 🚧 Current | Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE |
-| Phase 5 — Harden & ship 2.0 | OC-057, OC-056 | 11 | 0/2 (0 pts) | ⬜ Planned | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
+| Phase 5 — Harden & ship 2.0 | ~~OC-078~~, OC-057, OC-056 | 13 | 1/3 (2 pts) | ⬜ Planned | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
 
 ## Stories by phase
 
@@ -120,7 +122,7 @@ _Projects can target Couchbase or a directory; mappings move to spec v2 (relatio
 | 2 | [OC-036](OC-036-pluggable-target-kinds.md) | Pluggable target kinds (Couchbase or directory) | P0 | E7 Foundations 2.0 | 5 | OC-012, OC-013, OC-025, OC-030 | ✅ Implemented |
 | 3 | [OC-037](OC-037-mapping-spec-v2-execution-plan.md) | Mapping spec v2 (relation tree) & shared execution plan | P0 | E7 Foundations 2.0 | 5 | OC-021, OC-022, OC-025 | ✅ Implemented |
 
-### Phase 1 — Directory target — ✅ Done (5/5 stories, 26/26 points)
+### Phase 1 — Directory target — ✅ Done (6/6 stories, 27/27 points)
 
 _Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key._
 
@@ -131,6 +133,7 @@ _Migrate into a folder of JSON files, one per document, named by primary key; lo
 | 3 | [OC-040](OC-040-directory-writer.md) | Directory writer: atomic, resumable file output | P0 | E8 Directory Target | 8 | OC-036, OC-039, OC-025, OC-026, OC-029 | ✅ Implemented |
 | 4 | [OC-041](OC-041-directory-verification-document-browser.md) | Directory verification & output document browser | P1 | E8 Directory Target | 5 | OC-040, OC-030 | ✅ Implemented |
 | 5 | [OC-068](OC-068-move-mappings-on-target-kind-change.md) | Move mappings when the target kind changes | P1 | E8 Directory Target | 3 | OC-036, OC-038 | ✅ Implemented |
+| 6 | [OC-079](OC-079-directory-durability-default-none.md) | Directory targets default to durability "None" | P1 | E8 Directory Target | 1 | OC-038, OC-040 | ✅ Implemented |
 
 ### Phase 2 — Relationship mapping — ✅ Done (5/5 stories, 37/37 points)
 
@@ -185,14 +188,15 @@ _Export a finished mapping as a self-contained bash script or Kubernetes kit and
 | 8 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072 | ⬜ Not started |
 | 9 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072, OC-073 | ⬜ Not started |
 
-### Phase 5 — Harden & ship 2.0 — ⬜ Planned (0/2 stories, 0/11 points)
+### Phase 5 — Harden & ship 2.0 — ⬜ Planned (1/3 stories, 2/13 points)
 
 _Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | P0 | E12 Harden & Ship 2.0 | 3 | OC-036, OC-037, OC-055 | ⬜ Not started |
-| 2 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | P0 | E12 Harden & Ship 2.0 | 8 | All P0 stories | ⬜ Not started |
+| 1 | [OC-078](OC-078-review-checks-up-front-no-start-dialog.md) | Review step: checks up front, Migrate starts without a dialog | P1 | E12 Harden & Ship 2.0 | 2 | OC-023 | ✅ Implemented |
+| 2 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | P0 | E12 Harden & Ship 2.0 | 3 | OC-036, OC-037, OC-055 | ⬜ Not started |
+| 3 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | P0 | E12 Harden & Ship 2.0 | 8 | All P0 stories | ⬜ Not started |
 
 ## Release checklist
 

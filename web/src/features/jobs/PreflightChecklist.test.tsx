@@ -65,7 +65,7 @@ describe('PreflightChecklist', () => {
     renderRoutes(routes, '/projects/p1/review')
     expect(await screen.findByText('1 of 2 mappings will be migrated.')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Run checks' }))
+    // OC-078: the checks run on their own when the step opens.
     const list = await screen.findByRole('region', { name: 'Pre-flight checks' })
     expect(within(list).getByText('1 check failed')).toBeInTheDocument()
     expect(within(list).getByText('Connection refused')).toBeInTheDocument()
@@ -76,17 +76,41 @@ describe('PreflightChecklist', () => {
     expect(state.creates).toHaveLength(0)
   })
 
-  it('Migrate runs the checks, confirms with a summary and opens the job', async () => {
+  it('OC-078 AC1: checks run on their own and Migrate starts without a dialog', async () => {
     const state = mockJobsApi(passing)
     const { router } = renderRoutes(routes, '/projects/p1/review')
-    await userEvent.click(await screen.findByRole('button', { name: 'Migrate' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Start the migration?' })
-    expect(dialog).toHaveTextContent('≈ 42k')
-    expect(dialog).toHaveTextContent('shop.customer → shop.sales.customer')
-    expect(within(dialog).getByRole('list', { name: 'Warnings' })).toHaveTextContent('already holds about 12 documents')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Start migration' }))
+    // Warnings show on the page before Migrate, with the row estimate next to it.
+    const list = await screen.findByRole('region', { name: 'Pre-flight checks' })
+    expect(within(list).getByText('shop.sales.customer already holds about 12 documents.')).toBeInTheDocument()
+    expect(await screen.findByText('≈ 42k rows · Upsert')).toBeInTheDocument()
+    expect(state.preflights).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: 'Migrate' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/projects/p1/jobs/j1'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(state.creates).toHaveLength(1)
+    expect(state.preflights).toHaveLength(1)
+  })
+
+  it('OC-078 AC2: changing an option checks again before Migrate is enabled', async () => {
+    const state = mockJobsApi(passing)
+    renderRoutes(routes, '/projects/p1/review')
+    await screen.findByText('≈ 42k rows · Upsert')
+    await userEvent.click(screen.getByRole('button', { name: /Advanced options/ }))
+    const batch = screen.getByRole('spinbutton', { name: /Batch size/ })
+    await userEvent.clear(batch)
+    await userEvent.type(batch, '500')
+    await waitFor(() => expect(state.preflights.at(-1)).toMatchObject({ batchSize: 500 }))
+    expect(state.preflights).toHaveLength(2) // one on open, one after typing settles
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Migrate' })).toBeEnabled())
+  })
+
+  it('OC-078: a viewer doesn’t run checks', async () => {
+    mockSession('viewer')
+    const state = mockJobsApi(passing)
+    renderRoutes(routes, '/projects/p1/review')
+    expect(await screen.findByText('1 of 2 mappings will be migrated.')).toBeInTheDocument()
+    await new Promise((r) => setTimeout(r, 600))
+    expect(state.preflights).toHaveLength(0)
   })
 
   it('an active job links to it instead of starting another', async () => {

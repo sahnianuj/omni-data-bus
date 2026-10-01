@@ -46,7 +46,7 @@ describe('TargetKindPicker', () => {
     await waitFor(() => expect(testBody).toBeDefined())
     expect(testBody).toEqual({
       role: 'target', type: 'directory', secrets: {},
-      config: { path: '/data/odb-out', createIfMissing: false, layout: 'flat', pretty: false, compression: 'none', fileMode: '0640', durability: 'file', manifest: true, maxDocBytes: 20971520 },
+      config: { path: '/data/odb-out', createIfMissing: false, layout: 'flat', pretty: false, compression: 'none', fileMode: '0640', durability: 'none', manifest: true, maxDocBytes: 20971520 },
     })
     // The Couchbase-only capabilities card isn't shown for a directory.
     expect(screen.queryByRole('region', { name: 'What you can do here' })).not.toBeInTheDocument()

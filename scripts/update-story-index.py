@@ -66,7 +66,7 @@ RELEASES = {
             ("Phase 0 — 2.0 foundations", "Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build",
              ["OC-058", "OC-036", "OC-037"]),
             ("Phase 1 — Directory target", "Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key",
-             ["OC-038", "OC-039", "OC-040", "OC-041", "OC-068"]),
+             ["OC-038", "OC-039", "OC-040", "OC-041", "OC-068", "OC-079"]),
             ("Phase 2 — Relationship mapping", "Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises",
              ["OC-042", "OC-043", "OC-044", "OC-045", "OC-046"]),
             ("Phase 3 — Document composer", "Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design",
@@ -74,7 +74,7 @@ RELEASES = {
             ("Phase 4 — Portable runner", "Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE",
              ["OC-050", "OC-051", "OC-052", "OC-053", "OC-054", "OC-055", "OC-072", "OC-073", "OC-074"]),
             ("Phase 5 — Harden & ship 2.0", "Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate",
-             ["OC-057", "OC-056"]),
+             ["OC-078", "OC-057", "OC-056"]),
         ],
         "checklist": [
             "All P0 stories are Implemented (and P1 stories are Implemented or explicitly descoped with sign-off)",

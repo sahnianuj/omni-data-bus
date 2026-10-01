@@ -74,8 +74,8 @@ export class Review {
   async migrate(projectId: string): Promise<string> {
     const p = this.page
     await p.goto(`/projects/${projectId}/review`)
-    await p.getByRole('button', { name: 'Migrate', exact: true }).click()
-    await p.getByRole('dialog', { name: 'Start the migration?' }).getByRole('button', { name: 'Start migration' }).click()
+    // Checks run on their own; Migrate is enabled once they pass and starts the job (OC-078).
+    await p.getByRole('button', { name: 'Migrate', exact: true }).click({ timeout: 60_000 })
     await expect(p).toHaveURL(/\/jobs\/[^/]+$/, { timeout: 60_000 })
     return p.url().split('/jobs/')[1]!
   }

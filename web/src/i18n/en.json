@@ -1005,7 +1005,7 @@
   },
   "review": {
     "title": "Review & migrate",
-    "intro": "Check what will be migrated, adjust options if needed, then start. Pre-flight checks run automatically before the job starts.",
+    "intro": "Check what will be migrated and adjust options if needed. Pre-flight checks run automatically and show anything that needs attention here; Migrate then starts right away.",
     "tables": "Tables to migrate",
     "table": "Table",
     "target": "Target collection",
@@ -1018,13 +1018,7 @@
     "migrate": "Migrate",
     "activeJob": "A migration is already running for this project.",
     "openJob": "Open migration",
-    "confirmTitle": "Start the migration?",
-    "confirmBody": "Documents are written to the target as rows stream in. You can pause or cancel at any time.",
-    "rows": "Rows",
-    "writeMode": "Write mode",
-    "targets": "Targets",
-    "warnings": "Warnings",
-    "start": "Start migration"
+    "summary": "≈ {{rows}} rows · {{mode}}"
   },
   "monitor": {
     "title": "Migration",
@@ -1338,7 +1332,7 @@
       "file+dir": "Sync file and folder"
     },
     "durabilityHint": {
-      "none": "Fastest; files may be lost on a power failure.",
+      "none": "Fastest (default). Files are still written whole; only a power cut can lose the most recent ones, which a re-run writes again.",
       "file": "Each file is flushed to disk before it counts as written.",
       "file+dir": "Also syncs the folder after each rename; safest, slower."
     },

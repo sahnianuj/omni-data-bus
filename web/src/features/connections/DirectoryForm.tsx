@@ -57,7 +57,7 @@ export function DirectoryForm({ existing, testing, saving, onTest, onSave, onCan
       pretty: cfg.pretty === true,
       compression: (cfg.compression as Values['compression']) ?? 'none',
       fileMode: String(cfg.fileMode ?? '0640'),
-      durability: (cfg.durability as Values['durability']) ?? 'file',
+      durability: (cfg.durability as Values['durability']) ?? 'none',
       manifest: cfg.manifest !== false,
       maxDocMiB: String(Number(cfg.maxDocBytes ?? 20971520) / 1048576),
     },

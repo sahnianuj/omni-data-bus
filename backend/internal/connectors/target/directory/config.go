@@ -75,7 +75,9 @@ func ParseConfig(raw json.RawMessage) (Config, error) {
 	def(&c.Layout, "flat")
 	def(&c.Compression, "none")
 	def(&c.FileMode, DefaultFileMode)
-	def(&c.Durability, "file")
+	// No fsync by default: on macOS a per-file sync is a full device flush, ~220 files/s (OC-079).
+	// Writes stay atomic (temp file + rename); only a power cut can lose the latest files.
+	def(&c.Durability, "none")
 	if c.MaxDocBytes == 0 {
 		c.MaxDocBytes = DefaultMaxDocBytes
 	}

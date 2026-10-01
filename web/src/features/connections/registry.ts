@@ -42,7 +42,7 @@ export const connectionUIs: Record<string, ConnectionUI> = {
     endpoint: (c) => str(c.config.path),
     fields: (c) => [
       { labelKey: 'dir.layout', valueKey: `dir.layouts.${str(c.config.layout) || 'flat'}` },
-      { labelKey: 'dir.durability', valueKey: `dir.durabilities.${str(c.config.durability) || 'file'}` },
+      { labelKey: 'dir.durability', valueKey: `dir.durabilities.${str(c.config.durability) || 'none'}` },
     ],
   },
 }

@@ -310,7 +310,7 @@ func (f failSyncFS) Create(name string, m fs.FileMode) (file, error) {
 }
 
 func TestWriter_SyncFaultNeverPublishes(t *testing.T) {
-	w, root := newTestWriter(t, "upsert", nil, failSyncFS{})
+	w, root := newTestWriter(t, "upsert", map[string]any{"durability": "file"}, failSyncFS{})
 	r := w.WriteBatch(context.Background(), []target.Doc{doc("1001", 1)})[0]
 	require.Equal(t, target.Failed, r.Outcome)
 	require.NoFileExists(t, filepath.Join(root, "orders", "1001.json"))
