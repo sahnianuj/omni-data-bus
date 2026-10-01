@@ -26,7 +26,7 @@ test('AC2: drop JSON sample, review suggestions, migrate', async ({ page }) => {
   await expect(score.getByRole('heading', { name: 'Omni-Data-Bus auto-mapped 15 of 15 columns' })).toBeVisible()
 
   // Design → Import → JSON sample → Replace.
-  await page.getByRole('radio', { name: 'Design' }).click()
+  await page.getByRole('tab', { name: 'Design' }).click()
   await page.getByRole('button', { name: 'Import' }).click()
   await page.getByRole('menuitem', { name: 'JSON sample' }).click()
   await page.getByRole('dialog', { name: 'JSON sample' }).getByRole('textbox', { name: 'JSON' }).fill(JSON.stringify(sample, null, 2))
@@ -44,7 +44,7 @@ test('AC2: drop JSON sample, review suggestions, migrate', async ({ page }) => {
   await expect(score.getByRole('button', { name: /^[1-9]\d* suggested$/ }).first()).toBeVisible()
 
   // Review and accept the suggestions.
-  await page.getByRole('radio', { name: 'Canvas' }).click()
+  await page.getByRole('tab', { name: 'Canvas' }).click()
   const panel = page.getByRole('complementary', { name: 'Mapping panels' })
   await panel.getByRole('tab', { name: 'Suggestions' }).click()
   await panel.getByRole('button', { name: 'Accept all', exact: true }).click()
@@ -52,7 +52,7 @@ test('AC2: drop JSON sample, review suggestions, migrate', async ({ page }) => {
   await expect(score.getByRole('button', { name: '0 suggested' }).first()).toBeVisible()
 
   // loyaltyTier has no source column: make it optional so the mapping validates.
-  await page.getByRole('radio', { name: 'Design' }).click()
+  await page.getByRole('tab', { name: 'Design' }).click()
   await page.getByRole('checkbox', { name: 'loyaltyTier is required' }).uncheck()
   await expect(page.getByText('All changes saved')).toBeVisible()
   await expect(score.getByRole('button', { name: /required fields? unmapped/ })).toHaveCount(0)

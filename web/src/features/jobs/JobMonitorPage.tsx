@@ -17,6 +17,7 @@ import { JobSummaryCard } from './JobSummaryCard'
 import { JobTimeline } from './JobTimeline'
 import { addSamples, LiveErrorFeed } from './LiveErrorFeed'
 import { MappingProgressList } from './MappingProgressList'
+import { OutputBrowser } from './OutputBrowser'
 import { failedTone, StatTile } from './StatTile'
 import { pushPoint, ThroughputSparkline } from './ThroughputSparkline'
 
@@ -137,6 +138,7 @@ function Monitor({ job }: { job: Job }) {
           </TabsTrigger>
           <TabsTrigger value="options">{t('monitor.tab.options')}</TabsTrigger>
           <TabsTrigger value="log">{t('monitor.tab.log')}</TabsTrigger>
+          {terminal ? <TabsTrigger value="output">{t('monitor.tab.output')}</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="overview" className="flex flex-col gap-5">
           <MappingProgressList projectId={job.projectId} mappings={p.mappings} />
@@ -163,6 +165,11 @@ function Monitor({ job }: { job: Job }) {
         <TabsContent value="log">
           <AsyncBoundary query={log}>{(evs) => <JobTimeline events={evs} />}</AsyncBoundary>
         </TabsContent>
+        {terminal ? (
+          <TabsContent value="output">
+            <OutputBrowser job={job} mappings={p.mappings.map((m) => ({ mappingId: m.mappingId, table: m.table }))} />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </>
   )

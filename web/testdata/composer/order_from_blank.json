@@ -1,0 +1,146 @@
+{
+  "specVersion": 2,
+  "mode": "composed",
+  "docSchema": {
+    "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+        {
+          "id": "fld_1",
+          "name": "orderId",
+          "type": "integer"
+        },
+        {
+          "id": "fld_2",
+          "name": "items",
+          "type": "array",
+          "items": {
+            "id": "fld_3",
+            "name": "[]",
+            "type": "object",
+            "children": [
+              {
+                "id": "fld_4",
+                "name": "quantity",
+                "type": "integer"
+              },
+              {
+                "id": "fld_5",
+                "name": "product",
+                "type": "object",
+                "children": [
+                  {
+                    "id": "fld_6",
+                    "name": "sku",
+                    "type": "string"
+                  }
+                ],
+                "binding": {
+                  "relationId": "rel_1"
+                }
+              }
+            ]
+          },
+          "binding": {
+            "relationId": "rel_2"
+          }
+        }
+      ]
+    },
+    "source": "manual"
+  },
+  "key": {
+    "template": "order::{order_id}"
+  },
+  "typeField": {
+    "enabled": false,
+    "name": "",
+    "value": ""
+  },
+  "nullHandling": "include",
+  "fieldMappings": [
+    {
+      "id": "map_1",
+      "targetFieldId": "fld_1",
+      "sources": [
+        {
+          "column": "order_id"
+        }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+    },
+    {
+      "id": "map_2",
+      "targetFieldId": "fld_4",
+      "sources": [
+        {
+          "column": "quantity",
+          "relation": "rel_2"
+        }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+    },
+    {
+      "id": "map_3",
+      "targetFieldId": "fld_6",
+      "sources": [
+        {
+          "column": "sku",
+          "relation": "rel_1"
+        }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+    }
+  ],
+  "relations": [
+    {
+      "kind": "one-to-many",
+      "table": {
+        "schema": "public",
+        "name": "order_items"
+      },
+      "join": [
+        {
+          "parent": "order_id",
+          "child": "order_id"
+        }
+      ],
+      "limit": 1000,
+      "id": "rel_2",
+      "parentId": null,
+      "targetFieldId": "fld_2"
+    },
+    {
+      "kind": "many-to-one",
+      "table": {
+        "schema": "public",
+        "name": "products"
+      },
+      "join": [
+        {
+          "parent": "product_id",
+          "child": "product_id"
+        }
+      ],
+      "id": "rel_1",
+      "parentId": "rel_2",
+      "targetFieldId": "fld_5"
+    }
+  ],
+  "aggregates": [],
+  "ignoredColumns": [],
+  "root": {
+    "table": {
+      "schema": "public",
+      "name": "orders"
+    }
+  }
+}

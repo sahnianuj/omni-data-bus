@@ -51,7 +51,10 @@ export function VerificationSection({ report, verifies }: { report: JobReport; v
               s?.missing ? t('verify.missing', { count: s.missing }) : null,
               s?.sourceChanged ? t('verify.sourceChanged', { count: s.sourceChanged }) : null,
               v.counts.reconciled ? t('verify.reconciled') : t('verify.notReconciled'),
-              v.counts.targetCount != null ? t('verify.targetCount', { count: v.counts.targetCount }) : null,
+              v.counts.targetCount != null ? t(v.targetKind === 'directory' ? 'verify.targetFiles' : 'verify.targetCount', { count: v.counts.targetCount }) : null,
+              v.integrity ? t('verify.integrity', { checked: n(v.integrity.checked) }) : null,
+              v.integrity?.missing ? t('verify.integrityMissing', { count: v.integrity.missing }) : null,
+              v.integrity?.mismatched ? t('verify.integrityMismatched', { count: v.integrity.mismatched }) : null,
             ].filter(Boolean)
             return (
               <li key={m.mappingId} className="flex flex-col gap-0.5" data-testid={`verify-${m.mappingId}`}>

@@ -35,6 +35,8 @@ type adminAPI interface {
 	Version(ctx context.Context) (string, error)
 	// Exists reports whether a document exists.
 	Exists(ctx context.Context, bucket, scope, collection, key string) (bool, error)
+	// Get reads one document's raw JSON (gocb.ErrDocumentNotFound when absent).
+	Get(ctx context.Context, bucket, scope, collection, key string) ([]byte, error)
 	// SampleScan draws a random sample with a KV range scan (Couchbase Server 7.6+).
 	SampleScan(ctx context.Context, bucket, scope, collection string, n int) ([]json.RawMessage, error)
 }

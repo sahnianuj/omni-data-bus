@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { projectKeys } from '@/features/projects/api'
-import { api, call } from '@/lib/api/client'
+import { api, ApiError, call } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
 
 export type Job = components['schemas']['Job']
@@ -164,3 +164,39 @@ export const reportUrl = (id: string, format: 'html' | 'json' | 'csv') =>
   `/api/v1/jobs/${encodeURIComponent(id)}/${format === 'json' ? 'report' : `report.${format}`}?download=1`
 
 export const errorsExportUrl = (id: string, format: 'csv' | 'ndjson' = 'csv') => `/api/v1/jobs/${encodeURIComponent(id)}/errors/export?format=${format}`
+
+export type StoredDocument = components['schemas']['StoredDocument']
+export type OutputPage = components['schemas']['OutputPage']
+
+/** The URL of a migrated document by key (OC-039); download=true returns it as an attachment. */
+export function documentUrl(projectId: string, mappingId: string, key: string, download = false): string {
+  const path = key.split('/').map(encodeURIComponent).join('/')
+  return `/api/v1/projects/${encodeURIComponent(projectId)}/mappings/${encodeURIComponent(mappingId)}/documents/${path}${download ? '?download=1' : ''}`
+}
+
+/** One migrated document by key: null when there's none (OC-041 output browser). */
+export function useStoredDocument(projectId: string, mappingId: string, key: string) {
+  return useQuery({
+    queryKey: ['document', projectId, mappingId, key],
+    enabled: key !== '' && mappingId !== '',
+    retry: false,
+    queryFn: async (): Promise<StoredDocument | null> => {
+      try {
+        return await call(api.GET('/api/v1/projects/{id}/mappings/{mid}/documents/{key}', { params: { path: { id: projectId, mid: mappingId, key } } }))
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      }
+    },
+  })
+}
+
+/** A page of what a job's mapping wrote, sorted by key (directory targets). */
+export function useJobOutput(jobId: string, mappingId: string, cursor: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['job-output', jobId, mappingId, cursor],
+    enabled: enabled && mappingId !== '',
+    retry: false,
+    queryFn: () => call(api.GET('/api/v1/jobs/{jid}/output', { params: { path: { jid: jobId }, query: { mapping: mappingId, cursor: cursor || undefined, limit: 50 } } })),
+  })
+}

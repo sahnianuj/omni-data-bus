@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -18,17 +19,12 @@ import (
 	"time"
 
 	"omnidatabus/internal/app"
+	"omnidatabus/internal/buildinfo"
 	"omnidatabus/internal/config"
 	"omnidatabus/internal/crypto"
 	"omnidatabus/internal/observability"
 	"omnidatabus/internal/store"
 	"omnidatabus/internal/store/cbstore"
-)
-
-// Set at build time with -ldflags "-X main.version=… -X main.commit=…".
-var (
-	version = "dev"
-	commit  = "none"
 )
 
 func main() {
@@ -38,13 +34,13 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("odb", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	showVersion := fs.Bool("version", false, "print version and exit")
+	showVersion := fs.Bool("version", false, "print the build information and exit")
 	role := fs.String("role", "", "override OC_ROLE: all | api | worker")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if *showVersion {
-		fmt.Fprintf(stdout, "odb %s (commit %s)\n", version, commit)
+		fmt.Fprint(stdout, buildinfo.Get().Text())
 		return 0
 	}
 	envFile, err := config.LoadDotEnv(config.DotEnvCandidates()...)
@@ -58,8 +54,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return runAdmin(fs.Args()[1:], stdout, stderr)
 		case "healthcheck":
 			return runHealthcheck(fs.Args()[1:], stdout, stderr)
+		case "version":
+			return runVersion(fs.Args()[1:], stdout, stderr)
+		case "doc":
+			return runDoc(fs.Args()[1:], stdout, stderr)
 		default:
-			fmt.Fprintf(stderr, "unknown command %q (commands: admin, healthcheck; flags: --version, --role)\n", fs.Arg(0))
+			fmt.Fprintf(stderr, "unknown command %q (commands: admin, doc, healthcheck, version; flags: --version, --role)\n", fs.Arg(0))
 			return 2
 		}
 	}
@@ -83,11 +83,34 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := app.Run(ctx, cfg, logger, app.BuildInfo{Version: version, Commit: commit}); err != nil {
+	if err := app.Run(ctx, cfg, logger, buildinfo.Get()); err != nil {
 		logger.Error("server stopped with error", "error", err.Error())
 		return 1
 	}
 	logger.Info("server stopped")
+	return 0
+}
+
+// runVersion prints the build information: the text block, or with --json the API's shape
+// without the node list (OC-058).
+func runVersion(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	asJSON := fs.Bool("json", false, "print JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	info := buildinfo.Get()
+	if !*asJSON {
+		fmt.Fprint(stdout, info.Text())
+		return 0
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(info); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
 	return 0
 }
 

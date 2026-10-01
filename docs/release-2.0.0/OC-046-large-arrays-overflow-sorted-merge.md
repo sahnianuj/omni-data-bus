@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P1 | 8 | OC-043, OC-024 | Not started |
+| E9 Relationship Mapping | P1 | 8 | OC-043, OC-024 | Implemented |
 
 ## User story
 As a **data engineer** with customers who have hundreds of thousands of orders, I want relations with very many child rows to be read efficiently and handled predictably when they don't fit in one document, so that a migration neither runs out of memory nor silently produces truncated or oversized documents.
@@ -91,3 +91,9 @@ After serialization and before the writer, each document is checked against the 
 | Test | Location | Verifies |
 |---|---|---|
 | `BenchmarkRelations_SortedMergeVsBatched` | `bench/relations_bench_test.go` | Gate enforced in OC-056 |
+
+## Implementation notes (2026-09-29)
+- Sorted-merge reads the child for each root batch by key range (`[min, max]` of the batch's keys, `ORDER BY key COLLATE "C"` for text) as a stream and merges it with the batch's sorted keys (`related.Merger`, holding at most `limit + 1` rows of one parent). It isn't one job-long cursor: every batch is independent, so resume needs nothing beyond the pipeline's checkpoint (AC3 test). `auto` chooses it only when the relation is at depth 1, joins on the root's single-column primary key (the root's read order), the key types sort the same in Go and PostgreSQL, and the child's (junction's) join column leads an index; otherwise it stays batched with a note (`RelationStep.StrategyNote`).
+- Split pages are written as extra documents after their parent in the same batch. Written/processed counts stay per source row (checkpoint and progress invariants); pages are counted in the checkpoint's `pages`. A failed page write fails its row.
+- Size guard: halves the largest root array (truncate, `DOC_SIZE_TRUNCATED`) or paginates it (split) until the document fits the target's limit (a directory's `maxDocBytes` via `target.DocLimiter`). A relation without an explicit overflow policy (every 1.0 mapping) keeps the 1.0 behavior: `DOC_TOO_LARGE`.
+- **Open:** AC6 (`BenchmarkRelations_SortedMergeVsBatched`, 100k parents × 500 children) needs the benchmark environment; it is run with the OC-056 release-gate benchmarks.

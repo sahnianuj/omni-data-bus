@@ -140,6 +140,14 @@ func (f *fakeAdmin) Version(context.Context) (string, error) {
 	return f.version, nil
 }
 
+func (f *fakeAdmin) Get(_ context.Context, _, _, _, key string) ([]byte, error) {
+	f.record("Get:" + key)
+	if !strings.HasPrefix(key, "exists::") {
+		return nil, gocb.ErrDocumentNotFound
+	}
+	return []byte(`{"key":"` + key + `"}`), nil
+}
+
 func (f *fakeAdmin) Exists(_ context.Context, _, _, _, key string) (bool, error) {
 	f.record("Exists:" + key)
 	if f.createErr != nil {

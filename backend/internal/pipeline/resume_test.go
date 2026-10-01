@@ -71,7 +71,7 @@ func TestResume_AC3_SkipsDonePartitionsAndMappings(t *testing.T) {
 	require.True(t, o.Finished)
 	require.Equal(t, 1, f.src.opened, "the finished mapping isn't read again")
 	require.Len(t, f.writeOpts, 1, "nor written")
-	require.Equal(t, "people", f.writeOpts[0].Collection)
+	require.Equal(t, "people", f.writeOpts[0].Location.Collection)
 	require.Equal(t, 700, f.w.count())
 	cp, _ := ParseCheckpoint(o.Checkpoint)
 	require.True(t, cp.Mappings[archive.ID].Done)

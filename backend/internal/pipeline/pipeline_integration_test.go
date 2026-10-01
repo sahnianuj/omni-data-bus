@@ -69,6 +69,23 @@ func specFor(t *schema.Table) mapping.Spec {
 }
 
 func TestPipeline_AC8_Integration_EndToEnd(t *testing.T) {
+	// The 1.0 form: a mapping with only a Couchbase target.
+	endToEnd(t, func(m *store.Mapping, scope, table string) {
+		m.Target = store.MappingTarget{Bucket: "sandbox", Scope: scope, Collection: table}
+	})
+}
+
+// OC-036 AC2: the same golden migration with a 2.0 location, written through the target ports
+// (WriteOptions.Location, the kind's writer), gives the same documents.
+func TestPipeline_AC2_CouchbaseThroughPorts(t *testing.T) {
+	endToEnd(t, func(m *store.Mapping, scope, table string) {
+		m.SetLocation(store.Location{Kind: store.KindCouchbase, Bucket: "sandbox", Scope: scope, Collection: table})
+	})
+}
+
+// endToEnd migrates the shop tables into a throwaway scope and checks counts and sampled
+// documents; place sets where each mapping writes.
+func endToEnd(t *testing.T, place func(m *store.Mapping, scope, table string)) {
 	ctx := context.Background()
 	pgCfg, pgPass, cbCfg, cbPass, cl := e2eEnv(t)
 	pgSess, err := postgres.New().Open(ctx, pgCfg, connectors.Credentials{Password: pgPass})
@@ -106,10 +123,9 @@ func TestPipeline_AC8_Integration_EndToEnd(t *testing.T) {
 	for _, tb := range tables {
 		spec := specFor(snap.Table("shop", tb))
 		raw, _ := json.Marshal(spec)
-		m, err := st.Mappings().Create(ctx, "ws", store.Mapping{
-			ProjectID: p.ID, SourceSchema: "shop", SourceTable: tb, Spec: raw, Status: "ready",
-			Target: store.MappingTarget{Bucket: "sandbox", Scope: scope, Collection: tb},
-		})
+		nm := store.Mapping{ProjectID: p.ID, SourceSchema: "shop", SourceTable: tb, Spec: raw, Status: "ready"}
+		place(&nm, scope, tb)
+		m, err := st.Mappings().Create(ctx, "ws", nm)
 		require.NoError(t, err)
 		ids = append(ids, m.ID)
 		specs[tb] = spec
@@ -143,8 +159,11 @@ func TestPipeline_AC8_Integration_EndToEnd(t *testing.T) {
 	for _, tb := range tables {
 		n := exactCount(t, pgCfg, pgPass, tb)
 		c := cl.Bucket("sandbox").Scope(scope).Collection(tb)
-		// Document count: every source row became a document.
-		require.Equal(t, n, countDocs(t, cl, scope, tb), "table %s", tb)
+		// Document count: every source row became a document. A range scan sees documents
+		// once they're persisted, so poll until it catches up.
+		var got int64
+		require.Eventually(t, func() bool { got = countDocs(t, cl, scope, tb); return got == n }, 2*time.Minute, time.Second,
+			"table %s: %d of %d documents", tb, got, n)
 
 		// 20 random documents equal Program.Apply of their source row.
 		table := snap.Table("shop", tb)

@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"omnidatabus/internal/connectors/source"
+	"omnidatabus/internal/schema"
 )
 
 // cursorName is the server-side cursor used for tables without a key (one per connection).
@@ -34,6 +35,37 @@ func keyList(t source.TableRead) string {
 		ks[i] = pgx.Identifier{k}.Sanitize()
 	}
 	return strings.Join(ks, ", ")
+}
+
+// selectHead is "SELECT" or, for a grouped read, "SELECT DISTINCT ON (keys)" (OC-063).
+func selectHead(t source.TableRead) string {
+	if t.Distinct {
+		return "SELECT DISTINCT ON (" + keyList(t) + ")"
+	}
+	return "SELECT"
+}
+
+// orderList orders by the key, then, for a grouped read, by Within (which row of a group is
+// its first).
+func orderList(t source.TableRead) string {
+	order := keyList(t)
+	if t.Distinct {
+		for _, w := range t.Within {
+			if !contains(t.Key, w) {
+				order += ", " + pgx.Identifier{w}.Sanitize()
+			}
+		}
+	}
+	return order
+}
+
+func contains(xs []string, x string) bool {
+	for _, y := range xs {
+		if y == x {
+			return true
+		}
+	}
+	return false
 }
 
 func placeholders(from, n int) string {
@@ -70,11 +102,11 @@ func KeysetSQL(t source.TableRead, q KeysetQuery) string {
 		where = append(where, first+" < $"+strconv.Itoa(n))
 		n++
 	}
-	sql := "SELECT " + sel + " FROM " + tableIdent(t)
+	sql := selectHead(t) + " " + sel + " FROM " + tableIdent(t)
 	if len(where) > 0 {
 		sql += " WHERE " + strings.Join(where, " AND ")
 	}
-	return sql + " ORDER BY " + keys + " LIMIT $" + strconv.Itoa(n)
+	return sql + " ORDER BY " + orderList(t) + " LIMIT $" + strconv.Itoa(n)
 }
 
 // CursorSQL declares the cursor for a table without a key (OC-024 AC6).
@@ -94,8 +126,13 @@ func BoundsSQL(t source.TableRead) string {
 	return "SELECT min(" + k + "), max(" + k + ") FROM " + tableIdent(t)
 }
 
-// CountSQL counts the table's rows.
-func CountSQL(t source.TableRead) string { return "SELECT count(*) FROM " + tableIdent(t) }
+// CountSQL counts the table's rows (its groups, for a grouped read).
+func CountSQL(t source.TableRead) string {
+	if t.Distinct {
+		return "SELECT count(*) FROM (SELECT DISTINCT " + keyList(t) + " FROM " + tableIdent(t) + ") g"
+	}
+	return "SELECT count(*) FROM " + tableIdent(t)
+}
 
 // RetrySQL reads rows by key (OC-026 AC6): one array parameter per key column, zipped with
 // unnest so composite keys work: WHERE (k1, k2) IN (SELECT * FROM unnest($1::t1[], $2::t2[])).
@@ -111,102 +148,235 @@ func RetrySQL(t source.TableRead) string {
 		}
 		arrays[i] = "$" + strconv.Itoa(i+1) + "::" + typ + "[]"
 	}
-	return "SELECT " + sel + " FROM " + tableIdent(t) + " WHERE (" + keyList(t) + ") IN (SELECT * FROM unnest(" +
-		strings.Join(arrays, ", ") + ")) ORDER BY " + keyList(t)
+	return selectHead(t) + " " + sel + " FROM " + tableIdent(t) + " WHERE (" + keyList(t) + ") IN (SELECT * FROM unnest(" +
+		strings.Join(arrays, ", ") + ")) ORDER BY " + orderList(t)
 }
 
-// relatedJoinTypes are the SQL types of the join columns' array parameters.
+// relatedJoinTypes are the SQL types of the join columns' array parameters (the junction's
+// columns for many-to-many).
 func relatedJoinTypes(q source.RelatedQuery) []string {
+	cols := q.Table.Columns
+	if q.Via != nil {
+		cols = q.Via.Table.Columns
+	}
 	out := make([]string, len(q.Join))
 	for i, j := range q.Join {
-		out[i] = "text"
-		for _, c := range q.Table.Columns {
-			if c.Name == j && c.UDTName != "" {
-				out[i] = pgx.Identifier{c.UDTName}.Sanitize()
-			}
-		}
+		out[i] = columnType(cols, j)
 	}
 	return out
 }
 
-// RelatedSQL selects a related table's rows for a batch of join keys (OC-021 AC3). One key
-// column uses = ANY($1); several use (a, b) IN (SELECT * FROM unnest($1, $2)). Rows come
-// ordered by the join columns, then the embed's order. A per-key limit uses ROW_NUMBER().
-func RelatedSQL(q source.RelatedQuery) string {
-	sel, _ := projection(q.Table)
-	types := relatedJoinTypes(q)
-	joins := make([]string, len(q.Join))
-	for i, j := range q.Join {
-		joins[i] = pgx.Identifier{j}.Sanitize()
+// columnType is a column's quoted SQL type ("text" when unknown).
+func columnType(cols []schema.Column, name string) string {
+	for _, c := range cols {
+		if c.Name == name && c.UDTName != "" {
+			return pgx.Identifier{c.UDTName}.Sanitize()
+		}
 	}
-	var where string
-	if len(q.Join) == 1 {
-		where = joins[0] + " = ANY($1::" + types[0] + "[])"
+	return "text"
+}
+
+func findColumn(cols []schema.Column, name string) schema.Column {
+	for _, c := range cols {
+		if c.Name == name {
+			return c
+		}
+	}
+	return schema.Column{Name: name}
+}
+
+// textFamily: text-like types compare byte-wise under COLLATE "C" (sorted-merge, OC-046).
+func textFamily(c schema.Column) bool {
+	switch c.UDTName {
+	case "text", "varchar", "bpchar", "citext", "name":
+		return true
+	}
+	return false
+}
+
+// colExpr reads a column (qualified by alias when set) with the preview's casts, without an
+// output name.
+func colExpr(alias string, c schema.Column) string {
+	id := pgx.Identifier{c.Name}.Sanitize()
+	if alias != "" {
+		id = alias + "." + id
+	}
+	udt := strings.TrimPrefix(c.UDTName, "_")
+	suffix := ""
+	if c.IsArray {
+		suffix = "[]"
+	}
+	switch {
+	case udt == "money":
+		return id + "::numeric" + suffix
+	case !nativeTypes[udt]:
+		return id + "::text" + suffix
+	}
+	return id
+}
+
+// relatedItem is one selected value: its expression and output name.
+type relatedItem struct{ expr, name string }
+
+func (i relatedItem) sel() string {
+	if i.expr == i.name {
+		return i.expr
+	}
+	return i.expr + " AS " + i.name
+}
+
+// relatedParts are the pieces of a related query.
+type relatedParts struct {
+	items  []relatedItem // the row's values, in row order
+	from   string
+	where  []string
+	joins  []string // the key columns, for ordering and partitioning
+	orders []string // the relation's order expressions (with DESC)
+}
+
+// RelatedSQL selects a related table's rows for a batch of join keys (OC-021 AC3). One key
+// column uses = ANY($1); several use (a, b) IN (SELECT * FROM unnest($1, $2)); a Range reads
+// the key column between $1 and $2 in byte order (OC-046). A many-to-many relation reads the
+// junction left-joined to the table, with junction columns aliased __v_* after the table's
+// (OC-044). Filters follow as further bind parameters (OC-045). Rows come ordered by the join
+// columns, then the relation's order. A per-key limit uses ROW_NUMBER().
+func RelatedSQL(q source.RelatedQuery) string {
+	p := relatedParts{}
+	alias := ""
+	keyAlias := ""
+	keyCols := q.Table.Columns
+	if q.Via != nil {
+		alias, keyAlias, keyCols = "t", "j", q.Via.Table.Columns
+		p.from = tableIdent(q.Via.Table) + " j LEFT JOIN " + tableIdent(q.Table) + " t ON "
+		on := make([]string, len(q.Via.ChildJoin))
+		for i, j := range q.Via.ChildJoin {
+			on[i] = "t." + pgx.Identifier{j.Child}.Sanitize() + " = j." + pgx.Identifier{j.Via}.Sanitize()
+		}
+		p.from += strings.Join(on, " AND ")
 	} else {
+		p.from = tableIdent(q.Table)
+	}
+	for i, c := range q.Table.Columns {
+		if i < len(q.Table.Project) && q.Table.Project[i] {
+			p.items = append(p.items, relatedItem{expr: colExpr(alias, c), name: pgx.Identifier{c.Name}.Sanitize()})
+		}
+	}
+	if q.Via != nil {
+		for _, name := range q.Via.Columns {
+			p.items = append(p.items, relatedItem{expr: colExpr("j", findColumn(q.Via.Table.Columns, name)), name: pgx.Identifier{"__v_" + name}.Sanitize()})
+		}
+	}
+	qual := func(a, col string) string {
+		id := pgx.Identifier{col}.Sanitize()
+		if a != "" {
+			return a + "." + id
+		}
+		return id
+	}
+	types := relatedJoinTypes(q)
+	var next int // the next bind parameter
+	for _, j := range q.Join {
+		p.joins = append(p.joins, qual(keyAlias, j))
+	}
+	switch {
+	case q.Range != nil:
+		k := p.joins[0]
+		typ := types[0]
+		if textFamily(findColumn(keyCols, q.Join[0])) {
+			k += ` COLLATE "C"`
+			p.joins[0] = k
+		}
+		p.where = append(p.where, k+" >= $1::"+typ, k+" <= $2::"+typ)
+		next = 3
+	case len(q.Join) == 1:
+		p.where = append(p.where, p.joins[0]+" = ANY($1::"+types[0]+"[])")
+		next = 2
+	default:
 		arrays := make([]string, len(q.Join))
 		for i := range q.Join {
 			arrays[i] = "$" + strconv.Itoa(i+1) + "::" + types[i] + "[]"
 		}
-		where = "(" + strings.Join(joins, ", ") + ") IN (SELECT * FROM unnest(" + strings.Join(arrays, ", ") + "))"
+		p.where = append(p.where, "("+strings.Join(p.joins, ", ")+") IN (SELECT * FROM unnest("+strings.Join(arrays, ", ")+"))")
+		next = len(q.Join) + 1
 	}
-	order := append([]string(nil), joins...)
-	var within []string
+	for _, f := range q.Filter {
+		a, cols := alias, q.Table.Columns
+		if f.Via {
+			a, cols = "j", q.Via.Table.Columns
+		}
+		cond, used := filterSQL(qual(a, f.Column), columnType(cols, f.Column), f, next)
+		p.where = append(p.where, cond)
+		next += used
+	}
 	for _, o := range q.OrderBy {
-		col := pgx.Identifier{o.Column}.Sanitize()
+		a := alias
+		if o.Via {
+			a = "j"
+		}
+		col := qual(a, o.Column)
 		if o.Desc {
 			col += " DESC"
 		}
-		order = append(order, col)
-		within = append(within, col)
+		p.orders = append(p.orders, col)
 	}
+	where := strings.Join(p.where, " AND ")
 	if q.PerKeyLimit <= 0 {
-		return "SELECT " + sel + " FROM " + tableIdent(q.Table) + " WHERE " + where + " ORDER BY " + strings.Join(order, ", ")
-	}
-	over := "PARTITION BY " + strings.Join(joins, ", ")
-	if len(within) > 0 {
-		over += " ORDER BY " + strings.Join(within, ", ")
-	}
-	// The inner query keeps the projected expressions under their column names.
-	outer := make([]string, 0, len(q.Table.Columns))
-	for i, c := range q.Table.Columns {
-		if i < len(q.Table.Project) && q.Table.Project[i] {
-			outer = append(outer, pgx.Identifier{c.Name}.Sanitize())
+		sel := make([]string, len(p.items))
+		for i, it := range p.items {
+			sel[i] = it.sel()
 		}
+		return "SELECT " + strings.Join(sel, ", ") + " FROM " + p.from + " WHERE " + where + " ORDER BY " + strings.Join(append(append([]string(nil), p.joins...), p.orders...), ", ")
 	}
-	innerSel := make([]string, 0, len(outer))
-	for i, c := range q.Table.Columns {
-		if i < len(q.Table.Project) && q.Table.Project[i] {
-			innerSel = append(innerSel, selectExpr(c)+" AS "+pgx.Identifier{c.Name}.Sanitize())
-		}
+	over := "PARTITION BY " + strings.Join(p.joins, ", ")
+	if len(p.orders) > 0 {
+		over += " ORDER BY " + strings.Join(p.orders, ", ")
 	}
-	return "SELECT " + strings.Join(outer, ", ") + " FROM (SELECT " + strings.Join(innerSel, ", ") + ", " + strings.Join(joinsFor(q), ", ") +
-		", row_number() OVER (" + over + ") AS odb_rn FROM " + tableIdent(q.Table) + " WHERE " + where + ") odb_r WHERE odb_rn <= " +
-		strconv.Itoa(q.PerKeyLimit) + " ORDER BY " + strings.Join(outerOrder(q), ", ")
-}
-
-// joinsFor are the join and order columns carried out of the inner query under private names.
-func joinsFor(q source.RelatedQuery) []string {
-	var out []string
-	for i, j := range q.Join {
-		out = append(out, pgx.Identifier{j}.Sanitize()+" AS odb_j"+strconv.Itoa(i))
+	// The inner query keeps the projected expressions under their column names, and carries
+	// the join and order columns out under private names.
+	outer := make([]string, len(p.items))
+	inner := make([]string, 0, len(p.items)+len(p.joins)+len(p.orders))
+	for i, it := range p.items {
+		outer[i] = it.name
+		inner = append(inner, it.expr+" AS "+it.name)
 	}
-	for i, o := range q.OrderBy {
-		out = append(out, pgx.Identifier{o.Column}.Sanitize()+" AS odb_o"+strconv.Itoa(i))
+	var outerOrder []string
+	for i, j := range p.joins {
+		inner = append(inner, strings.TrimSuffix(j, ` COLLATE "C"`)+" AS odb_j"+strconv.Itoa(i))
+		outerOrder = append(outerOrder, "odb_j"+strconv.Itoa(i))
 	}
-	return out
-}
-
-func outerOrder(q source.RelatedQuery) []string {
-	var out []string
-	for i := range q.Join {
-		out = append(out, "odb_j"+strconv.Itoa(i))
-	}
-	for i, o := range q.OrderBy {
+	for i, o := range p.orders {
+		inner = append(inner, strings.TrimSuffix(o, " DESC")+" AS odb_o"+strconv.Itoa(i))
 		col := "odb_o" + strconv.Itoa(i)
-		if o.Desc {
+		if strings.HasSuffix(o, " DESC") {
 			col += " DESC"
 		}
-		out = append(out, col)
+		outerOrder = append(outerOrder, col)
 	}
-	return append(out, "odb_rn")
+	outerOrder = append(outerOrder, "odb_rn")
+	return "SELECT " + strings.Join(outer, ", ") + " FROM (SELECT " + strings.Join(inner, ", ") +
+		", row_number() OVER (" + over + ") AS odb_rn FROM " + p.from + " WHERE " + where + ") odb_r WHERE odb_rn <= " +
+		strconv.Itoa(q.PerKeyLimit) + " ORDER BY " + strings.Join(outerOrder, ", ")
+}
+
+// filterSQL renders one filter condition on col with its values as parameters from $next;
+// used is how many parameters it takes (OC-045: values are never part of the SQL text).
+func filterSQL(col, typ string, f source.FilterCond, next int) (cond string, used int) {
+	param := "$" + strconv.Itoa(next) + "::" + typ
+	switch f.Op {
+	case "isNull":
+		return col + " IS NULL", 0
+	case "notNull":
+		return col + " IS NOT NULL", 0
+	case "in":
+		return col + " = ANY(" + param + "[])", 1
+	case "notIn":
+		return col + " <> ALL(" + param + "[])", 1
+	case "like":
+		return col + " LIKE $" + strconv.Itoa(next) + "::text", 1
+	}
+	op := map[string]string{"eq": "=", "ne": "<>", "lt": "<", "lte": "<=", "gt": ">", "gte": ">="}[f.Op]
+	if op == "" {
+		op = "=" // validated upstream; never reached
+	}
+	return col + " " + op + " " + param, 1
 }

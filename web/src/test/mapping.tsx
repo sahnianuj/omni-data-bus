@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { ReactElement } from 'react'
 import type { MappingPreviewRequest } from '@/features/mapping/api'
 import { createWorkbenchStore, WorkbenchContext } from '@/features/mapping/store'
-import type { MappingPreview, MappingSpec, MappingStats, MappingView, SourceColumn } from '@/features/mapping/types'
+import type { MappingPreview, MappingSpec, MappingStats, MappingView, RelationGraph, RelationHop, SourceColumn } from '@/features/mapping/types'
 import { server } from './msw'
 import { renderUI } from './render'
 
@@ -25,6 +25,8 @@ export const columns: SourceColumn[] = [
 /** 1 auto (customerId), 1 auto (first), 1 suggested (email), 1 manual (createdAt), ignored legacy_flag. */
 export function sampleSpec(): MappingSpec {
   return {
+    specVersion: 2,
+    mode: 'canvas',
     docSchema: {
       source: 'generated',
       root: {
@@ -48,7 +50,8 @@ export function sampleSpec(): MappingSpec {
       { id: 'm_email', targetFieldId: 'f_email', sources: [{ column: 'email_address' }], transforms: [], origin: 'suggested', state: 'pending', confidence: 0.78, reason: 'synonym' },
       { id: 'm_created', targetFieldId: 'f_created', sources: [{ column: 'created_on' }], transforms: [{ op: 'formatDatetime', args: { format: 'epoch_ms' } }], origin: 'manual', state: 'active' },
     ],
-    embeds: [],
+    relations: [],
+    aggregates: [],
     ignoredColumns: ['legacy_flag'],
   }
 }
@@ -62,6 +65,7 @@ export function mappingView(over: Partial<MappingView> = {}): MappingView {
   return {
     id: 'm1', projectId: 'p1', sourceSchema: 'shop', sourceTable: 'customer',
     target: { bucket: 'shop', scope: 'sales', collection: 'customer' },
+    location: { kind: 'couchbase', ...(over.target ?? { bucket: 'shop', scope: 'sales', collection: 'customer' }) },
     spec: sampleSpec(), status: 'draft', automapStats: stats(), stats: stats(), issues: [],
     explain: {
       m_email: { score: 0.78, nameScore: 0.88, typeScore: 1, typeClass: 'exact', reason: "Names are synonyms ('email address' ~ 'email') (78%); types match", signals: [{ name: 'SYNONYM', score: 0.88 }] },
@@ -116,10 +120,10 @@ export function embedView(over: Partial<MappingView> = {}): MappingView {
       items: { id: 'f_item', name: '[]', type: 'object', children: [{ id: 'f_total', name: 'total', type: 'number' }, { id: 'f_date', name: 'orderDate', type: 'string' }] },
     },
   ]
-  spec.embeds = [{ id: 'emb_o', kind: 'one-to-many', table: { schema: 'shop', name: 'orders' }, join: [{ parent: 'customer_id', child: 'customer_id' }], targetFieldId: 'f_orders', limit: 1000 }]
+  spec.relations = [{ id: 'emb_o', parentId: null, kind: 'one-to-many', table: { schema: 'shop', name: 'orders' }, join: [{ parent: 'customer_id', child: 'customer_id' }], targetFieldId: 'f_orders', limit: 1000 }]
   spec.fieldMappings = [
     ...spec.fieldMappings,
-    { id: 'm_total', targetFieldId: 'f_total', sources: [{ column: 'total', embed: 'emb_o' }], transforms: [], origin: 'auto', state: 'active', confidence: 1 },
+    { id: 'm_total', targetFieldId: 'f_total', sources: [{ relation: 'emb_o', column: 'total' }], transforms: [], origin: 'auto', state: 'active', confidence: 1 },
   ]
   return mappingView({
     spec,
@@ -136,4 +140,35 @@ export function embedView(over: Partial<MappingView> = {}): MappingView {
     ],
     ...over,
   })
+}
+
+// The orders relationship graph (OC-042): orders ↙ order_items ↗ products, orders ↗ customers
+// (and a virtual one), orders ↔ products via order_items.
+const ref = (name: string) => ({ schema: 'public', name })
+const hop = (from: string, to: string, kind: RelationHop['kind'], join: [string, string], over: Partial<RelationHop> = {}): RelationHop => ({
+  from: ref(from), to: ref(to), kind, join: [{ parent: join[0], child: join[1] }], indexed: true, ...over,
+})
+
+/** orders ↙ order_items ↗ products, orders ↗ customers (and a virtual one), orders ↔ products via order_items. */
+export function ordersGraph(): RelationGraph {
+  const items = hop('orders', 'order_items', 'one-to-many', ['order_id', 'order_id'], { indexed: false })
+  return {
+    root: ref('orders'),
+    depth: 4,
+    paths: [
+      { hops: [hop('orders', 'customers', 'many-to-one', ['customer_id', 'customer_id'])] },
+      { hops: [items] },
+      { hops: [hop('orders', 'customers', 'many-to-one', ['cust_code', 'code'], { virtual: true, relationshipId: 'vrel_01' })] },
+      { hops: [items, hop('order_items', 'products', 'many-to-one', ['product_id', 'product_id'])] },
+    ],
+    junctions: [{
+      table: ref('products'), via: ref('order_items'), parentJoin: [{ parent: 'order_id', via: 'order_id' }], childJoin: [{ via: 'product_id', child: 'product_id' }],
+      payloadColumns: ['quantity', 'unit_price'], confidence: 'medium', indexed: false,
+    }],
+    advice: [{ code: 'RELATION_NO_INDEX', table: ref('order_items'), columns: ['order_id'], message: 'Lookups on order_items.order_id will scan the table; consider `CREATE INDEX ON order_items(order_id)`.' }],
+  }
+}
+
+export function ordersView() {
+  return mappingView({ sourceSchema: 'public', sourceTable: 'orders', embedCandidates: [], embedTables: {} })
 }

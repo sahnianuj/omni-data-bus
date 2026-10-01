@@ -61,6 +61,21 @@ describe.each([':root', '.dark'] as const)('design tokens %s', (theme) => {
   })
 })
 
+// OC-077: the sample pane has its own tint, readable and apart from the canvas and selection.
+describe.each([':root', '.dark'] as const)('sample pane %s', (theme) => {
+  const t = tokens(theme)
+  const bg = t['sample-surface']!
+  it('AC1: pane text ≥ 4.5:1', () => {
+    for (const fg of ['foreground', 'muted-foreground', 'subtle-foreground', 'success', 'warning', 'danger', 'primary-soft-foreground']) {
+      expect(contrast(t[fg]!, bg), `${fg} on sample-surface`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+  it('AC1: distinct from the canvas and the selection highlight', () => {
+    expect(deltaE(bg, t.background!)).toBeGreaterThanOrEqual(7)
+    expect(deltaE(bg, t['primary-soft']!)).toBeGreaterThanOrEqual(5)
+  })
+})
+
 describe('contrast helper', () => {
   it('matches known WCAG values', () => {
     expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 0)

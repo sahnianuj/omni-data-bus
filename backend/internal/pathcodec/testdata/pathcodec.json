@@ -1,0 +1,155 @@
+{
+  "cases": [
+    {
+      "key": "1001",
+      "name": "1001",
+      "hashed": false
+    },
+    {
+      "key": "order::1001",
+      "name": "order%3A%3A1001",
+      "hashed": false
+    },
+    {
+      "key": "a/b\\c",
+      "name": "a%2Fb%5Cc",
+      "hashed": false
+    },
+    {
+      "key": "C:\\x",
+      "name": "C%3A%5Cx",
+      "hashed": false
+    },
+    {
+      "key": "50%",
+      "name": "50%25",
+      "hashed": false
+    },
+    {
+      "key": "tilde~key",
+      "name": "tilde%7Ekey",
+      "hashed": false
+    },
+    {
+      "key": "*?\"\u003c\u003e|",
+      "name": "%2A%3F%22%3C%3E%7C",
+      "hashed": false
+    },
+    {
+      "key": ".hidden",
+      "name": "%2Ehidden",
+      "hashed": false
+    },
+    {
+      "key": "..",
+      "name": "%2E%2E",
+      "hashed": false
+    },
+    {
+      "key": "-flag",
+      "name": "%2Dflag",
+      "hashed": false
+    },
+    {
+      "key": "trailing.",
+      "name": "trailing%2E",
+      "hashed": false
+    },
+    {
+      "key": "trailing ",
+      "name": "trailing%20",
+      "hashed": false
+    },
+    {
+      "key": "CON",
+      "name": "%43ON",
+      "hashed": false
+    },
+    {
+      "key": "con.json",
+      "name": "%63on.json",
+      "hashed": false
+    },
+    {
+      "key": "Com1",
+      "name": "%43om1",
+      "hashed": false
+    },
+    {
+      "key": "LPT9.txt",
+      "name": "%4CPT9.txt",
+      "hashed": false
+    },
+    {
+      "key": "CONSOLE",
+      "name": "CONSOLE",
+      "hashed": false
+    },
+    {
+      "key": "nul",
+      "name": "%6Eul",
+      "hashed": false
+    },
+    {
+      "key": "tab\there",
+      "name": "tab%09here",
+      "hashed": false
+    },
+    {
+      "key": "bell\u0007",
+      "name": "bell%07%7F",
+      "hashed": false
+    },
+    {
+      "key": "café",
+      "name": "café",
+      "hashed": false
+    },
+    {
+      "key": "café",
+      "name": "café",
+      "hashed": false
+    },
+    {
+      "key": "日本語::注文",
+      "name": "日本語%3A%3A注文",
+      "hashed": false
+    },
+    {
+      "key": "🎉 party",
+      "name": "🎉 party",
+      "hashed": false
+    },
+    {
+      "key": "spaces in key",
+      "name": "spaces in key",
+      "hashed": false
+    },
+    {
+      "key": "UPPER lower",
+      "name": "UPPER lower",
+      "hashed": false
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "hashed": false
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx~f7a7d04ed8b08131",
+      "hashed": true
+    },
+    {
+      "key": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé~9758f974a14f6d41",
+      "hashed": true
+    },
+    {
+      "key": "////////////////////////////////////////////////////////////////////////////////////////////////////",
+      "name": "%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F~23fca93826e8fb43",
+      "hashed": true
+    }
+  ],
+  "version": 1
+}

@@ -35,6 +35,7 @@ export const opArgs: Record<OpName, ArgDef[]> = {
   mask: [{ name: 'keepLast', kind: 'number' }, { name: 'char', kind: 'text' }],
   hash: [{ name: 'algo', kind: 'select', options: ['sha256', 'sha1'] }],
   expression: [{ name: 'expr', kind: 'expr' }],
+  array: [{ name: 'dropNulls', kind: 'bool' }],
 }
 
 /** Text typed for a value arg: JSON literals (numbers, true, null, "…") become typed values. */

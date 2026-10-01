@@ -4,9 +4,11 @@ package docschema
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"omnidatabus/internal/problem"
 )
@@ -48,12 +50,81 @@ type DocField struct {
 	Children    []DocField `json:"children,omitempty"` // object
 	Items       *DocField  `json:"items,omitempty"`    // array element
 	Format      string     `json:"format,omitempty"`   // datetime: iso8601|epoch_ms|date; string: uuid|email
+	// Binding is the document composer's metadata for an object or array node (OC-047).
+	Binding *Binding `json:"binding,omitempty"`
+	// Example is a scalar value from an imported design (OC-059): shown next to the field,
+	// never written to documents.
+	Example json.RawMessage `json:"example,omitempty"`
+}
+
+// Adapters let a node take a relation of the other cardinality (OC-047).
+const (
+	AdapterFirst = "first" // an object bound to a one-to-many or many-to-many relation: its first row
+	AdapterWrap  = "wrap"  // an array bound to a many-to-one relation: a 0- or 1-item array
+)
+
+// Binding ties a composed node to the relation that fills it. RelationID mirrors the relation
+// whose targetFieldId is this node (the relation is authoritative); Adapter changes how the
+// relation's rows fill the node.
+type Binding struct {
+	RelationID string `json:"relationId,omitempty"`
+	Adapter    string `json:"adapter,omitempty"`
 }
 
 // Schema is a document design. Source records how it was created.
 type Schema struct {
 	Root   DocField `json:"root"`
 	Source string   `json:"source"` // generated | json-sample | json-schema | collection-sample | manual
+	// Reference is the first imported sample, verbatim (compacted), when it fits in
+	// MaxReferenceBytes (OC-059). Design-time only: it never reaches an exported bundle.
+	Reference json.RawMessage `json:"reference,omitempty"`
+	// Imported records the import that created the design; unlike Source it survives edits.
+	Imported *Imported `json:"imported,omitempty"`
+	// ConstantHints are fields whose imported values look fixed (OC-059). The composer offers
+	// to keep each as a constant; applied or dismissed hints are removed.
+	ConstantHints []ConstantHint `json:"constantHints,omitempty"`
+}
+
+// Imported describes the customer design a mapping was built from (OC-059).
+type Imported struct {
+	At         time.Time `json:"at"`
+	FileName   string    `json:"fileName,omitempty"`
+	Format     string    `json:"format"` // sample | ndjson | json-schema
+	Samples    int       `json:"samples"`
+	FieldCount int       `json:"fieldCount"`
+	// Fields are the imported design's fields as the customer defined them: what the
+	// generated documents are checked against (OC-061), whatever is edited later.
+	Fields []ContractField `json:"fields,omitempty"`
+}
+
+// ContractField is one field of an imported design.
+type ContractField struct {
+	Path     string    `json:"path"`
+	Type     FieldType `json:"type"`
+	Required bool      `json:"required,omitempty"`
+}
+
+// Contract lists a design's fields (array items included, as "x[]") in tree order.
+func Contract(s *Schema) []ContractField {
+	out := []ContractField{}
+	s.Walk(func(f *DocField, path string, _ *DocField) {
+		out = append(out, ContractField{Path: path, Type: f.Type, Required: f.Required})
+	})
+	return out
+}
+
+// Import formats.
+const (
+	FormatSample     = "sample"
+	FormatNDJSON     = "ndjson"
+	FormatJSONSchema = "json-schema"
+)
+
+// ConstantHint suggests keeping a field as a constant value.
+type ConstantHint struct {
+	FieldID string          `json:"fieldId"`
+	Value   json.RawMessage `json:"value"`
+	Reason  string          `json:"reason"` // same-in-every-sample | discriminator-name | schema-const
 }
 
 // Design sources.
@@ -70,8 +141,12 @@ const (
 	MaxDepth   = 16
 	MaxFields  = 2000
 	MaxNameLen = 128
-	RootName   = "$"
-	RootID     = "fld_root"
+	// MaxReferenceBytes caps the stored reference document (OC-059).
+	MaxReferenceBytes = 256 << 10
+	// MaxExampleBytes caps one field's example (a 200-character string plus quoting and escapes).
+	MaxExampleBytes = 1 << 10
+	RootName        = "$"
+	RootID          = "fld_root"
 )
 
 const idAlphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -232,6 +307,9 @@ func Validate(s *Schema) []Issue {
 		}
 	}
 	check(&s.Root, "", 1)
+	if len(s.Reference) > MaxReferenceBytes {
+		add("$", s.Root.ID, "REFERENCE_TOO_LARGE", fmt.Sprintf("The reference document is limited to %d KB.", MaxReferenceBytes>>10))
+	}
 	if count > MaxFields {
 		add("$", s.Root.ID, "TOO_MANY_FIELDS", fmt.Sprintf("A design can have at most %d fields (this one has %d).", MaxFields, count))
 	}
@@ -260,6 +338,9 @@ func checkField(f *DocField, path string, depth int, item bool, seen, ids map[st
 	ids[f.ID] = true
 	if !f.Type.Valid() {
 		add(path, f.ID, "INVALID_TYPE", "Unknown type '"+string(f.Type)+"'.")
+	}
+	if len(f.Example) > MaxExampleBytes {
+		add(path, f.ID, "EXAMPLE_TOO_LARGE", fmt.Sprintf("Examples are limited to %d bytes.", MaxExampleBytes))
 	}
 	if depth > MaxDepth {
 		add(path, f.ID, "TOO_DEEP", fmt.Sprintf("Designs can nest at most %d levels.", MaxDepth))

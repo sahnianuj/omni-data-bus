@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E8 Directory Target | P0 | 5 | OC-036 | Not started |
+| E8 Directory Target | P0 | 5 | OC-036 | Implemented |
 
 ## User story
 As a **data engineer**, I want to set my project's target to a directory, test that the tool can write there, and pick or create sub-folders for each mapping, so that migrated documents are stored as individual JSON files.
@@ -94,3 +94,11 @@ Each check reports pass, warn or fail with a message:
 | Test | Location | Verifies |
 |---|---|---|
 | `helm unittest` › `AC5: directory target requires RWX in split mode` | `deploy/helm/omni-data-bus/tests/directory_test.yaml` | |
+
+## Implementation notes (as built)
+- **No `OC_DIRECTORY_ROOTS` (product decision, 2026-09-29).** Nothing needs configuring: the directory kind is on out of the box. Users pick the output folder in the Target step with a **folder picker** (Choose folder… → browse → New folder → Use this folder); typing a path still works. The server allows a folder inside its **default areas**: the home folder of the account running odb, and `/data` when it exists (the image creates `/data/odb-out`, owned by the server user, where Helm and compose mount the output volume). Paths are resolved through symlinks first. A path that goes through a hidden folder (`~/.ssh`, `.config`…), is outside the areas, or reaches outside them through a symlink or `..` is `DIRECTORY_OUTSIDE_ALLOWED_ROOTS`. The kind is disabled only on a server with neither area.
+- **Picker API** (editors only): `GET /target-kinds/directory/folders?path=` lists the areas (no path) or a folder's visible sub-folders, with `parent` for Up. `POST` with `{parent, name}` creates a folder; it's audited as `folder.create`. Folder names are letters, digits, spaces, `.`, `_`, `-`, not starting with a dot.
+- **Test connection** checks are `enabled`, `path` (allowed), `exists` (created when `createIfMissing` is on), `isdir`, `probe` (write, read and delete `.odb-probe-<uuid>`), `space` (warns below 5 GiB or 1M inodes), `fstype` (warns on a network file system with `durability: file+dir`) and `case` (reports case sensitivity for OC-039/OC-040). statfs is implemented for darwin and linux; other platforms report free space as unknown.
+- **The browser** (`/connections/{id}/locations`) lists sub-folders without hidden or `_odb` ones. File counts are capped at 10,000 (`docCountMore`). Folders nest up to 3 levels. Creating and stat'ing a folder re-checks, through symlinks, that it stays inside the target folder. Directory targets also got a basic `Preflight`: the folder exists or is created, and a warning if it isn't empty. OC-040 extends it.
+- **AC4:** a directory connection's API representation has no `secrets` block (`Connection.secrets` is now optional in the API). `TestPutTarget_AC4_DirectoryNoSecret` is in `internal/connections`, because `httpapi` can't import that package.
+- **AC5 (Helm):** `directoryTarget.{enabled,mountPath,persistence}` adds a PVC (kept on uninstall) mounted at `/data/odb-out` in every pod. A split deployment with more than one worker (or autoscaling) needs `ReadWriteMany` or an `existingClaim`; rendering fails otherwise. Compose (prod, e2e) mounts an `odb-out` volume there.

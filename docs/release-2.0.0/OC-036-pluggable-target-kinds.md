@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E7 Foundations 2.0 | P0 | 5 | OC-012, OC-013, OC-025, OC-030 | Not started |
+| E7 Foundations 2.0 | P0 | 5 | OC-012, OC-013, OC-025, OC-030 | Implemented |
 
 ## User story
 As a **data engineer**, I want to choose what kind of target my project writes to, either a Couchbase cluster or a directory of JSON files, so that I can use the same mapping work for a database load or a file export.
@@ -88,3 +88,11 @@ type Preflighter interface {              // new: moved out of jobs/ (OC-023)
 |---|---|---|
 | `TargetKindPicker.test.tsx` › `AC5: switches form and browser by kind` | `src/features/targets/TargetKindPicker.test.tsx` | |
 | `JobOptions.test.tsx` › `AC5: hides unsupported options` | `src/features/jobs/JobOptions.test.tsx` | |
+
+## Implementation notes (as built)
+- **Location** is `store.Location`, aliased as `target.Location` and `mapping.Location`. It has to live in `store` because `connectors` imports `auth`, which imports `store`, so the other way round would be an import cycle. Besides the place fields it carries `createIfMissing`. A mapping stores both `location` and the 1.0 `target`; `SetLocation` keeps them in sync, and `Mapping.Where()` reads either. Both stores normalize on write, and cbstore also on read, so a 1.0 document shows `location` without being rewritten. `store.UpdatedLocation` lets a 1.0 code path that changes only `Target` still win.
+- **Ports** (`internal/connectors/target/kinds.go`): each port takes a `target.Conn{ID, Version, Config, Creds}`, not just `(cfg, creds)`, so Couchbase keeps pooling its cluster connection per repository version. `LocationBrowser` also has `StatLocation`: verification's document count and the mapping's "target exists" check both use it. Capabilities are a `Capabilities()` method on `target.Connector`. A kind the server has switched off implements `target.Availability`.
+- **Preflight**: the Couchbase keyspace checks moved to `couchbase.PreflightKeyspaces` and run concurrently, one goroutine per location. `jobs.Preflighter` calls the kind through `connections.Service.PreflightTarget` and prefixes check IDs and labels with the table. The 1.0 preflight tests pass with unchanged assertions (AC2). One label changed: "Target repository reachable (KV service)" is now "Target repository reachable", because the check is no longer Couchbase-only.
+- **Directory kind**: registered with its descriptor, capabilities (no durability, expiry or credentials) and config validation (an absolute, clean `path`). It is **disabled** (`TARGET_KIND_DISABLED`, "set OC_DIRECTORY_ROOTS") until OC-038 adds the allowlist, probes, browser and writer. This keeps the server from writing to arbitrary worker paths before then. A connection of a kind without credentials stores no secret.
+- **API**: new codes `TARGET_KIND_UNKNOWN` (replaces `TARGET_TYPE_UNSUPPORTED` for an unknown target type), `TARGET_KIND_DISABLED`, `TARGET_KIND_IN_USE` and `LOCATION_INVALID`. `/connections/{id}/locations` takes `?parent=` as a slash path ("bucket/scope", "orders/2026"). Creating a location writes the audit action `location.create`. Mapping create and update accept `location`, or the 1.0 `target`. For a Couchbase project, an incomplete keyspace is still accepted, as in 1.0. For other kinds the location is validated, including the OC-038 folder rules. The `/buckets…` endpoints are unchanged.
+- **Tests**: `TestPutTarget_AC1_UnknownKind` and `TestPutTarget_AC3_KindChangeGuard` are in `internal/connections/handlers_test.go`, not `internal/httpapi`: `httpapi` can't import `connections` without an import cycle. The web kind picker replaces the connector picker on the Target step. For a directory, the Tables step asks for a folder per table and sends `location`. Durability (Review → Advanced options) and expiry (Key panel) are hidden when the kind doesn't support them.

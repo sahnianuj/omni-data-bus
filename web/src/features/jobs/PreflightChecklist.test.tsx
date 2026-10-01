@@ -14,13 +14,14 @@ import type { JobOptions, PreflightResult } from './api'
 setupMswServer()
 
 const mapping = (table: string, status: MappingSummary['status']): MappingSummary => ({
-  id: `m-${table}`, sourceSchema: 'shop', sourceTable: table, target: { bucket: 'shop', scope: 'sales', collection: table },
+  id: `m-${table}`, sourceSchema: 'shop', sourceTable: table, mode: 'canvas', driving: { schema: 'shop', name: table }, target: { bucket: 'shop', scope: 'sales', collection: table },
+  location: { kind: 'couchbase', bucket: 'shop', scope: 'sales', collection: table },
   status, stats: stats(), version: 1, updatedAt: new Date().toISOString(),
 })
 
 const passing: PreflightResult = {
   ok: true, totalRows: 42000,
-  mappings: [{ mappingId: 'm-customer', table: 'shop.customer', target: { bucket: 'shop', scope: 'sales', collection: 'customer' }, rowEstimate: 42000 }],
+  mappings: [{ mappingId: 'm-customer', table: 'shop.customer', target: { bucket: 'shop', scope: 'sales', collection: 'customer' }, location: { kind: 'couchbase', bucket: 'shop', scope: 'sales', collection: 'customer' }, rowEstimate: 42000 }],
   checks: [
     { id: 'source', label: 'Source repository reachable', status: 'ok' },
     { id: 'target', label: 'Target repository reachable (KV service)', status: 'ok' },

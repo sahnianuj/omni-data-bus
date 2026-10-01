@@ -1,0 +1,25 @@
+{
+  "specVersion": 2,
+  "mode": "canvas",
+  "docSchema": {
+    "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object"
+    },
+    "source": ""
+  },
+  "key": {
+    "template": "{id}"
+  },
+  "typeField": {
+    "enabled": false,
+    "name": "",
+    "value": ""
+  },
+  "nullHandling": "include",
+  "fieldMappings": [],
+  "relations": [],
+  "aggregates": [],
+  "ignoredColumns": []
+}

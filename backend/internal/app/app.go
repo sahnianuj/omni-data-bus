@@ -11,21 +11,21 @@ import (
 	"time"
 
 	"omnidatabus/internal/auth"
+	"omnidatabus/internal/buildinfo"
 	"omnidatabus/internal/config"
 	"omnidatabus/internal/crypto"
 	"omnidatabus/internal/httpapi"
+	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/netguard"
 	"omnidatabus/internal/observability"
+	"omnidatabus/internal/related"
 	"omnidatabus/internal/store"
 	"omnidatabus/internal/store/cbstore"
 	"omnidatabus/internal/store/provision"
 )
 
-// BuildInfo identifies the running binary.
-type BuildInfo struct {
-	Version string
-	Commit  string
-}
+// BuildInfo identifies the running binary (internal/buildinfo, OC-058).
+type BuildInfo = buildinfo.Info
 
 // NewHandler builds the HTTP handler with every feature wired in. /metrics is on it unless
 // OC_METRICS_ADDR gives metrics their own listener (MetricsServer).
@@ -40,11 +40,27 @@ func NewHandler(cfg config.Config, logger *slog.Logger, build BuildInfo, deps De
 		Logger:     logger,
 		Ready:      deps.Ready,
 		SPA:        httpapi.EmbeddedSPA(),
-		Version:    build.Version,
-		Commit:     build.Commit,
+		Version:    versionHandler(cfg, logger, build, deps),
 		Features:   Features(deps),
 		Middleware: APIMiddleware(deps),
 	})
+}
+
+// versionHandler serves /api/v1/version from the node registry when a store is wired (OC-058).
+func versionHandler(cfg config.Config, logger *slog.Logger, build BuildInfo, deps Deps) http.Handler {
+	h := &httpapi.VersionHandler{
+		Info: build, Expose: cfg.ExposeBuildInfo, Role: cfg.Role, Logger: logger,
+		Authenticated: func(r *http.Request) bool { _, ok := auth.PrincipalFrom(r.Context()); return ok },
+	}
+	if deps.Store != nil {
+		h.Nodes = deps.Store.Nodes()
+		if sv, ok := deps.Store.(interface {
+			SchemaVersion(ctx context.Context) (int, error)
+		}); ok {
+			h.Schema = sv.SchemaVersion
+		}
+	}
+	return h
 }
 
 // MetaConfig converts the OC_META_* settings into cbstore's configuration.
@@ -141,6 +157,8 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 		return err
 	}
 	netguard.SetDefault(netguard.NewDialer(policy))
+	mapping.SetMaxRelationDepth(cfg.Worker.MaxRelationDepth)
+	related.SetMemoryLimitMB(cfg.Worker.RelationMemoryMB)
 	logger.Info("egress policy", "allow_private_networks", policy.AllowPrivateNetworks, "allow", len(policy.Allow), "deny", len(policy.Deny))
 	flush, err := observability.SetupTracing(ctx, observability.TracingConfig{
 		Endpoint: cfg.Observe.OTLPEndpoint, SampleRatio: cfg.Observe.SampleRatio, Version: build.Version,
@@ -162,13 +180,14 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 	}
 	defer func() { _ = meta.Close() }()
 	go observability.RefreshJobGauge(ctx, jobCounts(meta), 15*time.Second, logger)
+	go Heartbeat(ctx, meta.Nodes(), NodeBeat(cfg, build), NodeHeartbeatInterval, logger)
 	authSvc, err := auth.NewService(meta, auth.Argon2Hasher{Params: auth.DefaultArgon2}, store.SystemClock{}, auth.Settings{
 		IdleTTL: cfg.Session.IdleTTL, AbsoluteTTL: cfg.Session.AbsoluteTTL, SignupEnabled: cfg.SignupEnabled,
 	})
 	if err != nil {
 		return err
 	}
-	sources, targets := Registries()
+	sources, targets := Registries(nil)
 	sealer := crypto.NewLocalSealer(keyring)
 	// Workers claim and run migration jobs (OC-023); API-only nodes don't.
 	workerDone := make(chan struct{})
@@ -218,7 +237,9 @@ func Serve(ctx context.Context, cfg config.Config, logger *slog.Logger, build Bu
 		}()
 		logger.Warn("serving pprof: for benchmarks only, never expose it", "addr", cfg.Observe.PprofAddr)
 	}
-	logger.Info("listening", "addr", cfg.HTTPAddr, "role", cfg.Role, "version", build.Version)
+	observability.BuildInfo.WithLabelValues(build.Version, build.Commit, build.Channel, build.GoVersion).Set(1)
+	logger.Info("listening", "addr", cfg.HTTPAddr, "role", cfg.Role, "version", build.Version, "commit", build.Commit,
+		"channel", build.Channel, "build_time", build.BuildTime, "go_version", build.GoVersion)
 	return srv.Run(ctx, nil)
 }
 

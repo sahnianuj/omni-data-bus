@@ -62,7 +62,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Build version */
+        /**
+         * Release and build information
+         * @description Signed-in callers get the full build, the metadata schema version and the versions of the running nodes. Anonymous callers get only version and channel, or an empty object when OC_EXPOSE_BUILD_INFO=false. Cached for 10 s per API node (OC-058).
+         */
         get: operations["getVersion"];
         put?: never;
         post?: never;
@@ -343,6 +346,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Relationship paths from a root table (foreign keys both ways and virtual relationships), junction candidates and index advice (OC-042) */
+        get: operations["getRelationGraph"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** The project's virtual relationships (user-defined joins where the source has no foreign key) */
+        get: operations["listRelationships"];
+        put?: never;
+        /** Create a virtual relationship (column types must be compatible, else 422 RELATION_TYPE_MISMATCH) */
+        post: operations["createRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/relationships/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sample the source to suggest a virtual relationship's cardinality (10 s timeout; "unknown" when it times out) */
+        post: operations["detectRelationshipCardinality"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/relationships/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        /** One virtual relationship */
+        get: operations["getRelationship"];
+        /** Replace a virtual relationship's definition */
+        put: operations["updateRelationship"];
+        post?: never;
+        /** Delete a virtual relationship */
+        delete: operations["deleteRelationship"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections/{id}/schema": {
         parameters: {
             query?: never;
@@ -398,6 +481,111 @@ export interface paths {
         get: operations["previewTable"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/target-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Target kinds (Couchbase, directory) with their capabilities (OC-036) */
+        get: operations["listTargetKinds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/target-kinds/directory/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Folder picker for a directory target (OC-038)
+         * @description Without path, the areas a directory target may be in (the home folder of the account running the server, and /data when it exists); with path, its visible sub-folders. Hidden folders are never listed or allowed. Editors only.
+         */
+        get: operations["listDirectoryFolders"];
+        put?: never;
+        /** Create a folder from the folder picker */
+        post: operations["createDirectoryFolder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/mappings/{mid}/documents/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+                /** @description The document key; may contain "/" and "::" (the rest of the path) */
+                key: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * A migrated document by key (Couchbase KV get, or the file at its computed path)
+         * @description OC-039/OC-041. With download=1 the document is returned as a JSON attachment. A key whose file would be outside the mapping's folder reads as 404 and is audited (output.path_rejected).
+         */
+        get: operations["getDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jid}/output": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        /** A page of the documents a job's mapping wrote, sorted by key (directory targets) */
+        get: operations["listJobOutput"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{id}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Children of a location on the target (buckets → scopes → collections, or sub-folders)
+         * @description Replaces the /buckets… endpoints for new clients; they stay as aliases for Couchbase targets until 3.0 (OC-036).
+         */
+        get: operations["listLocations"];
+        put?: never;
+        /** Create a location (a Couchbase scope and collection, or a folder) */
+        post: operations["createLocation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -648,6 +836,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/mappings/{mid}/suggest-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Proposed driving table and bindings for a composed design's unbound objects and arrays (OC-060; changes nothing) */
+        post: operations["suggestBindings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/doc-schemas/infer": {
         parameters: {
             query?: never;
@@ -659,6 +867,43 @@ export interface paths {
         put?: never;
         /** A design from a JSON sample (object, array or NDJSON) or a JSON Schema */
         post: operations["inferDocSchema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/doc-schemas/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A revised design with the current field ids kept where fields still exist, and the diff (OC-061) */
+        post: operations["reconcileDocSchema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/mappings/{mid}/mapping-sheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        /** Every design field with its source, transforms, status and issues, as CSV or Markdown (OC-061) */
+        get: operations["mappingSheet"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -735,7 +980,7 @@ export interface paths {
         /** The project's jobs, newest first */
         get: operations["listProjectJobs"];
         put?: never;
-        /** Run the pre-flight again and queue a migration (422 PREFLIGHT_FAILED with the checklist; 409 PROJECT_HAS_RUNNING_JOB) */
+        /** Run the pre-flight again and queue a migration (422 MAPPING_INVALID listing validation errors, or PREFLIGHT_FAILED, both with the checklist; 409 PROJECT_HAS_RUNNING_JOB) */
         post: operations["createJob"];
         delete?: never;
         options?: never;
@@ -1062,9 +1307,33 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** @description Every field is optional because anonymous callers get a subset (OC-058). */
         Version: {
-            version: string;
-            commit: string;
+            /** @example 2.0.0 */
+            version?: string;
+            /** @enum {string} */
+            channel?: "release" | "rc" | "dev";
+            /** @example 3f2a9c1 */
+            commit?: string;
+            /**
+             * @description UTC RFC 3339; empty for local builds
+             * @example 2026-11-02T14:05:11Z
+             */
+            buildTime?: string;
+            /** @example go1.26.8 */
+            goVersion?: string;
+            /** @example linux/amd64 */
+            platform?: string;
+            /** @description Built from uncommitted changes */
+            dirty?: boolean;
+            metadataSchemaVersion?: number;
+            /** @description Distinct versions of the live nodes, by role */
+            nodes?: {
+                api?: string[];
+                worker?: string[];
+            };
+            /** @description false when nodes run more than one version */
+            consistent?: boolean;
         };
         SignupRequest: {
             /** Format: email */
@@ -1093,7 +1362,7 @@ export interface components {
         RepoSummary: {
             id: string;
             /** @enum {string} */
-            type: "postgres" | "couchbase";
+            type: "postgres" | "couchbase" | "directory";
             name: string;
             /** @enum {string} */
             lastTestStatus: "ok" | "warn" | "failed" | "untested";
@@ -1147,12 +1416,12 @@ export interface components {
             /** @enum {string} */
             role: "source" | "target";
             /** @enum {string} */
-            type: "postgres" | "couchbase";
+            type: "postgres" | "couchbase" | "directory";
             name: string;
             config: {
                 [key: string]: unknown;
             };
-            secrets: components["schemas"]["SecretMeta"];
+            secrets?: components["schemas"]["SecretMeta"];
             /** @enum {string} */
             lastTestStatus: "ok" | "warn" | "failed" | "untested";
             /** Format: date-time */
@@ -1218,6 +1487,11 @@ export interface components {
                 [key: string]: unknown;
             };
             secrets?: components["schemas"]["SecretsPatch"];
+            /** @description Target kind change (OC-068): move every mapping to the new kind, keeping its collection or folder name. Couchbase needs bucket and scope. Without it, a kind change while mappings have locations is 409 TARGET_KIND_IN_USE. */
+            relocate?: {
+                bucket?: string;
+                scope?: string;
+            };
         };
         TestStep: {
             id: string;
@@ -1460,11 +1734,52 @@ export interface components {
             children?: components["schemas"]["DocField"][];
             items?: components["schemas"]["DocField"];
             format?: string;
+            binding?: components["schemas"]["Binding"];
+            /** @description A scalar value from an imported design (OC-059), shown next to the field; never written to documents */
+            example?: string | number | boolean;
+        };
+        /** @description Document composer metadata on an object or array node (OC-047). relationId mirrors the relation whose targetFieldId is this node (the relation is authoritative); adapter lets a node take a relation of the other cardinality. */
+        Binding: {
+            relationId?: string;
+            /**
+             * @description first — an object bound to one-to-many or many-to-many takes its first row (in the relation's order); wrap — an array bound to many-to-one holds 0 or 1 item
+             * @enum {string}
+             */
+            adapter?: "first" | "wrap";
         };
         DocSchema: {
             root: components["schemas"]["DocField"];
             /** @enum {string} */
             source: "generated" | "json-sample" | "json-schema" | "collection-sample" | "manual";
+            /** @description The first imported sample, verbatim (≤ 256 KB, OC-059). Design-time only; never exported in a bundle. */
+            reference?: {
+                [key: string]: unknown;
+            };
+            imported?: components["schemas"]["ImportedDesign"];
+            /** @description Fields whose imported values look fixed; the composer offers to keep each as a constant (OC-059) */
+            constantHints?: components["schemas"]["ConstantHint"][];
+        };
+        /** @description The customer design a mapping was built from (OC-059); unlike source it survives edits */
+        ImportedDesign: {
+            /** Format: date-time */
+            at: string;
+            fileName?: string;
+            /** @enum {string} */
+            format: "sample" | "ndjson" | "json-schema";
+            samples: number;
+            fieldCount: number;
+            /** @description The imported design's fields as the customer defined them (paths like items[].sku); what conformance is checked against */
+            fields?: {
+                path: string;
+                type: components["schemas"]["FieldType"];
+                required?: boolean;
+            }[];
+        };
+        ConstantHint: {
+            fieldId: string;
+            value: string | number | boolean;
+            /** @enum {string} */
+            reason: "same-in-every-sample" | "discriminator-name" | "schema-const";
         };
         TransformStep: {
             op: string;
@@ -1476,8 +1791,18 @@ export interface components {
             id: string;
             targetFieldId: string;
             sources: {
+                /** @description The relation whose table the column belongs to (absent for the mapped table) */
+                relation?: string;
                 column: string;
-                /** @description The embed whose table the column belongs to */
+                /**
+                 * @description Read a many-to-many junction column (OC-044)
+                 * @enum {string}
+                 */
+                from?: "via";
+                /**
+                 * @deprecated
+                 * @description 1.0 name of relation; accepted on input, never returned
+                 */
                 embed?: string;
             }[];
             transforms: components["schemas"]["TransformStep"][];
@@ -1491,7 +1816,17 @@ export interface components {
             /** @enum {string} */
             nullHandling?: "include" | "omit";
         };
+        /** @description Mapping spec v2 (OC-037). A 1.0 spec (no specVersion, embeds[] instead of relations[]) is still accepted on input and upgraded; responses are always v2. */
         MappingSpec: {
+            /** @enum {integer} */
+            specVersion: 2;
+            /** @enum {string} */
+            mode: "canvas" | "composed";
+            root?: {
+                table: components["schemas"]["TableRef"];
+                /** @description One document per distinct value of these driving-table columns, not per row (OC-063; composed mappings). The group's rows fill the relation with group true. */
+                groupBy?: string[];
+            };
             docSchema: components["schemas"]["DocSchema"];
             key: {
                 template: string;
@@ -1505,10 +1840,13 @@ export interface components {
             nullHandling: "include" | "omit";
             /** @description Leave designed fields without an active mapping out of the document (default false writes them as null). */
             omitUnmapped?: boolean;
+            /** @description Conformance to the imported design (REFERENCE_FIELD_UNMAPPED, REFERENCE_EXTRA_FIELD) is an error, blocking migrations and exports (OC-061) */
+            referenceStrict?: boolean;
             /** Format: int64 */
             expirySec?: number;
             fieldMappings: components["schemas"]["FieldMapping"][];
-            embeds: components["schemas"]["Embed"][];
+            relations: components["schemas"]["Relation"][];
+            aggregates: components["schemas"]["Aggregate"][];
             ignoredColumns: string[];
         };
         TableRef: {
@@ -1522,19 +1860,73 @@ export interface components {
         EmbedOrder: {
             column: string;
             desc?: boolean;
+            /**
+             * @description A many-to-many junction column
+             * @enum {string}
+             */
+            from?: "via";
         };
         /** @enum {string} */
         EmbedKind: "many-to-one" | "one-to-many";
-        Embed: {
+        /** @enum {string} */
+        RelationKind: "many-to-one" | "one-to-many" | "many-to-many";
+        /** @description A related table in the document (spec v2). Relations form a tree through parentId (null = a child of the mapped table; nested up to OC_MAX_RELATION_DEPTH, OC-043); 1.0 embeds are relations at depth 1. lookupOnly many-to-one relations add no field (their columns are mapped in scope); many-to-many relations go through via (OC-044); arrays have a shape, filter and aggregates (OC-045) and an overflow policy and strategy (OC-046). */
+        Relation: {
             id: string;
-            kind: components["schemas"]["EmbedKind"];
+            parentId: string | null;
+            kind: components["schemas"]["RelationKind"];
             table: components["schemas"]["TableRef"];
-            join: components["schemas"]["JoinPair"][];
+            join?: components["schemas"]["JoinPair"][];
+            via?: {
+                table: components["schemas"]["TableRef"];
+                parentJoin: {
+                    parent?: string;
+                    via: string;
+                }[];
+                childJoin: {
+                    via: string;
+                    child?: string;
+                }[];
+                columns?: string[];
+            };
+            targetFieldId?: string;
+            lookupOnly?: boolean;
+            /** @enum {string} */
+            shape?: "objects" | "scalars" | "keyed";
+            valueColumn?: string;
+            keyColumn?: string;
             orderBy?: components["schemas"]["EmbedOrder"][];
             limit?: number;
-            targetFieldId: string;
+            filter?: {
+                column: string;
+                /** @enum {string} */
+                op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "notIn" | "isNull" | "notNull" | "like";
+                value?: unknown;
+                /** @enum {string} */
+                from?: "via";
+            }[];
+            /** @enum {string} */
+            overflow?: "truncate" | "fail" | "split";
+            /** @enum {string} */
+            strategy?: "auto" | "batched" | "sorted-merge";
             /** @enum {string} */
             empty?: "array" | "omit";
+            /** @description Many-to-many: one item per target row */
+            distinct?: boolean;
+            /** @description Many-to-many: keep junction rows whose target row is missing */
+            keepDangling?: boolean;
+            /** @description The group's rows (OC-063): a one-to-many from the driving table to itself on root.groupBy, directly under the root; table, kind and join are filled from the root */
+            group?: boolean;
+        };
+        Aggregate: {
+            id: string;
+            relationId: string;
+            /** @enum {string} */
+            fn: "count" | "sum" | "min" | "max" | "avg" | "first" | "last";
+            column?: string;
+            /** @enum {string} */
+            from?: "via";
+            targetFieldId: string;
         };
         EmbedCandidate: {
             kind: components["schemas"]["EmbedKind"];
@@ -1545,23 +1937,286 @@ export interface components {
             rowEstimate?: number | null;
             rowsPerParent?: number;
             embedId?: string;
+            /** @description The virtual relationship this candidate comes from (OC-042) */
+            virtual?: string;
         };
         EmbedTable: {
             table: components["schemas"]["TableRef"];
             columns: components["schemas"]["SourceColumn"][];
+            /** @description A many-to-many relation's junction payload columns */
+            via?: components["schemas"]["SourceColumn"][];
         };
+        /** @description A relation to add (OC-021; nested, lookup-only, many-to-many, shapes and paths from OC-043 – OC-045). Then are further hops, each nested under the one before. */
         AddEmbedRequest: {
-            kind: components["schemas"]["EmbedKind"];
+            kind: components["schemas"]["RelationKind"];
+            parentId?: string;
             table: components["schemas"]["TableRef"];
-            join: components["schemas"]["JoinPair"][];
+            join?: components["schemas"]["JoinPair"][];
+            via?: components["schemas"]["RelationVia"];
+            lookupOnly?: boolean;
             targetName?: string;
             orderBy?: components["schemas"]["EmbedOrder"][];
             limit?: number;
             /** @enum {string} */
             empty?: "array" | "omit";
+            /** @enum {string} */
+            shape?: "objects" | "scalars" | "keyed";
+            valueColumn?: string;
+            keyColumn?: string;
+            filter?: components["schemas"]["RelationFilter"][];
+            /** @enum {string} */
+            overflow?: "truncate" | "fail" | "split";
+            /** @enum {string} */
+            strategy?: "auto" | "batched" | "sorted-merge";
+            distinct?: boolean;
+            keepDangling?: boolean;
+            noField?: boolean;
+            aggregates?: {
+                /** @enum {string} */
+                fn: "count" | "sum" | "min" | "max" | "avg" | "first" | "last";
+                column?: string;
+                /** @enum {string} */
+                from?: "via";
+                targetName?: string;
+            }[];
             generate?: boolean;
             includeJoinColumns?: boolean;
+            then?: components["schemas"]["AddEmbedRequest"][];
         };
+        SuggestBindingsRequest: {
+            /** @description Only this node's suggestion (default every unbound object and array) */
+            nodeId?: string;
+            /** @description Also rank driving tables from the root's fields */
+            root?: boolean;
+            specOverride?: components["schemas"]["MappingSpec"];
+        };
+        BindingSuggestions: {
+            root: {
+                table: components["schemas"]["TableRef"];
+                score: number;
+                reasons: string[];
+            }[];
+            suggestions: components["schemas"]["BindingSuggestion"][];
+        };
+        BindingSuggestion: {
+            nodeId: string;
+            path: string;
+            /**
+             * @description high ≥ 0.75, medium ≥ 0.50; unresolved shows its best candidate without suggesting it
+             * @enum {string}
+             */
+            confidence: "high" | "medium" | "unresolved";
+            candidate: components["schemas"]["BindingCandidate"];
+            alternatives: components["schemas"]["BindingCandidate"][];
+        };
+        BindingCandidate: {
+            /** @description No relation — the object groups its parent scope's columns */
+            fromParent?: boolean;
+            /** @enum {string} */
+            kind?: "many-to-one" | "one-to-many" | "many-to-many";
+            table?: components["schemas"]["TableRef"];
+            join?: components["schemas"]["JoinPair"][];
+            via?: components["schemas"]["RelationVia"];
+            virtual?: boolean;
+            /** @enum {string} */
+            adapter?: "first" | "wrap";
+            /** @enum {string} */
+            shape?: "scalars";
+            valueColumn?: string;
+            /** @description Fill the array with the group's rows */
+            group?: boolean;
+            groupBy?: string[];
+            orderBy?: components["schemas"]["EmbedOrder"][];
+            score: number;
+            reasons: string[];
+        };
+        RelationVia: {
+            table: components["schemas"]["TableRef"];
+            parentJoin: components["schemas"]["ViaJoin"][];
+            childJoin: components["schemas"]["ViaJoin"][];
+            columns?: string[];
+        };
+        ViaJoin: {
+            parent?: string;
+            via: string;
+            child?: string;
+        };
+        RelationFilter: {
+            column: string;
+            /** @enum {string} */
+            op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "in" | "notIn" | "isNull" | "notNull" | "like";
+            value?: unknown;
+            /** @enum {string} */
+            from?: "via";
+        };
+        RelationHop: {
+            from: components["schemas"]["TableRef"];
+            to: components["schemas"]["TableRef"];
+            kind: components["schemas"]["EmbedKind"];
+            join: components["schemas"]["JoinPair"][];
+            constraint?: string;
+            relationshipId?: string;
+            virtual?: boolean;
+            indexed: boolean;
+        };
+        RelationPath: {
+            hops: components["schemas"]["RelationHop"][];
+        };
+        JunctionCandidate: {
+            table: components["schemas"]["TableRef"];
+            via: components["schemas"]["TableRef"];
+            parentJoin: components["schemas"]["ViaJoin"][];
+            childJoin: components["schemas"]["ViaJoin"][];
+            payloadColumns: string[];
+            /** @enum {string} */
+            confidence: "high" | "medium";
+            indexed: boolean;
+        };
+        IndexAdvice: {
+            /** @enum {string} */
+            code: "RELATION_NO_INDEX";
+            table: components["schemas"]["TableRef"];
+            columns: string[];
+            message: string;
+        };
+        RelationGraph: {
+            root: components["schemas"]["TableRef"];
+            depth: number;
+            paths: components["schemas"]["RelationPath"][];
+            junctions: components["schemas"]["JunctionCandidate"][];
+            advice: components["schemas"]["IndexAdvice"][];
+        };
+        RelationshipEnd: {
+            schema: string;
+            table: string;
+            columns: string[];
+        };
+        RelationshipDetection: {
+            /** Format: int64 */
+            maxPerKey: number;
+            /** Format: int64 */
+            fromMaxPerKey: number;
+            /** Format: int64 */
+            sampledRows: number;
+            /** @enum {string} */
+            suggested: "many-to-one" | "one-to-one" | "one-to-many" | "unknown";
+            /** Format: date-time */
+            at: string;
+            warning?: string;
+        };
+        RelationshipInput: {
+            name?: string;
+            from: components["schemas"]["RelationshipEnd"];
+            to: components["schemas"]["RelationshipEnd"];
+            /** @enum {string} */
+            cardinality?: "many-to-one" | "one-to-one" | "one-to-many";
+            detected?: components["schemas"]["RelationshipDetection"];
+        };
+        Relationship: {
+            id: string;
+            workspaceId?: string;
+            projectId: string;
+            name: string;
+            from: components["schemas"]["RelationshipEnd"];
+            to: components["schemas"]["RelationshipEnd"];
+            /** @enum {string} */
+            cardinality: "many-to-one" | "one-to-one" | "one-to-many";
+            detected?: components["schemas"]["RelationshipDetection"];
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int64 */
+            version: number;
+        };
+        /** @description Where a mapping writes (OC-036): {kind: couchbase, bucket, scope, collection} or {kind: directory, folder}. */
+        Location: {
+            /** @enum {string} */
+            kind: "couchbase" | "directory";
+            bucket?: string;
+            scope?: string;
+            collection?: string;
+            /** @description Relative to the directory target's root, e.g. "orders" or "archive/2026" */
+            folder?: string;
+            createIfMissing?: boolean;
+        };
+        StoredDocument: {
+            key: string;
+            /** @description The file, relative to the target folder (directories) */
+            path?: string;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: date-time */
+            modifiedAt?: string;
+            document: unknown;
+            location: components["schemas"]["Location"];
+        };
+        OutputPage: {
+            mappingId: string;
+            location: components["schemas"]["Location"];
+            items: {
+                key: string;
+                path: string;
+                /** Format: int64 */
+                bytes: number;
+            }[];
+            nextCursor: string;
+        };
+        FolderListing: {
+            /** @description "" lists the areas */
+            path: string;
+            /** @description Where "up" goes; "" from an area's top folder */
+            parent: string;
+            folders: {
+                name: string;
+                path: string;
+            }[];
+            canCreate: boolean;
+        };
+        LocationNode: {
+            name: string;
+            /** @enum {string} */
+            level: "bucket" | "scope" | "collection" | "folder";
+            /** @description The parent to list this node's children with */
+            path: string;
+            location: components["schemas"]["Location"];
+            /** @description A mapping can write here */
+            leaf: boolean;
+            /** Format: int64 */
+            docCount?: number;
+            /** @description More than docCount (a capped count */
+            docCountMore?: boolean;
+            canCreate: boolean;
+        };
+        LocationList: {
+            kind: string;
+            parent: string;
+            nodes: components["schemas"]["LocationNode"][];
+        };
+        LocationCreated: {
+            /** @enum {string} */
+            status: "ready" | "pending";
+            location: components["schemas"]["Location"];
+        };
+        TargetKindCapabilities: {
+            supportsDurability: boolean;
+            supportsExpiry: boolean;
+            supportsCreateLocation: boolean;
+            requiresCredentials: boolean;
+            /** Format: int64 */
+            maxDocBytes: number;
+            locationLevels: string[];
+        };
+        TargetKind: components["schemas"]["ConnectorDescriptor"] & {
+            kindCapabilities: components["schemas"]["TargetKindCapabilities"];
+            enabled: boolean;
+            disabledReason?: string;
+        };
+        TargetKindList: {
+            kinds: components["schemas"]["TargetKind"][];
+        };
+        /** @description The 1.0 Couchbase form of Location (empty for other kinds). */
         MappingTarget: {
             bucket: string;
             scope: string;
@@ -1590,6 +2245,17 @@ export interface components {
                 suggested: number;
                 unmappedSource: number;
             };
+            /** @description The score per bound scope, root first: "root 8/10 · items 5/6 · items.product 3/3" (OC-049) */
+            byNode?: components["schemas"]["NodeScore"][];
+        };
+        NodeScore: {
+            /** @description The bound node (fld_root for the root) */
+            nodeId: string;
+            relationId?: string;
+            /** @description Dotted field names, e.g. items.product ("root" for the root) */
+            path: string;
+            mapped: number;
+            total: number;
         };
         MappingIssue: {
             /** @enum {string} */
@@ -1601,14 +2267,22 @@ export interface components {
             fieldMappingId?: string;
             fix?: {
                 /** @enum {string} */
-                kind: "mark-optional" | "accept-suggestions" | "add-transform" | "enable-create";
+                kind: "mark-optional" | "accept-suggestions" | "add-transform" | "enable-create" | "repoint-source" | "combine-rows" | "add-to-design" | "restore-field" | "map-field";
                 label: string;
                 step?: components["schemas"]["TransformStep"];
+                /** @description repoint-source: read the column from this relation (OC-065) */
+                relationId?: string;
+                /** @description combine-rows: group by these key columns (OC-066); restore-field and map-field: map from the first, of relationId's rows (OC-071) */
+                columns?: string[];
             };
             op?: string;
             opIndex?: number;
             line?: number;
             column?: number;
+            /** @description The design node the issue is on, e.g. items[].product (OC-049) */
+            nodePath?: string;
+            /** @description The relation the issue is about */
+            relationId?: string;
         };
         Explanation: {
             score: number;
@@ -1632,6 +2306,7 @@ export interface components {
             sourceSchema: string;
             sourceTable: string;
             target: components["schemas"]["MappingTarget"];
+            location: components["schemas"]["Location"];
             spec: components["schemas"]["MappingSpec"];
             status: components["schemas"]["MappingStatus"];
             automapStats?: components["schemas"]["MappingStats"];
@@ -1655,7 +2330,12 @@ export interface components {
             id: string;
             sourceSchema: string;
             sourceTable: string;
+            /** @enum {string} */
+            mode: "canvas" | "composed";
+            /** @description The table whose rows become documents: a composed mapping's driving table, else the mapping's own (OC-047) */
+            driving: components["schemas"]["TableRef"];
             target: components["schemas"]["MappingTarget"];
+            location: components["schemas"]["Location"];
             status: components["schemas"]["MappingStatus"];
             automapStats?: components["schemas"]["MappingStats"];
             stats: components["schemas"]["MappingStats"];
@@ -1663,14 +2343,22 @@ export interface components {
             version: number;
             /** Format: date-time */
             updatedAt: string;
+            /** @description The document at a glance (OC-062): arrays and objects bound to tables, and the group-by columns */
+            shape?: {
+                arrays: number;
+                objects: number;
+                groupBy?: string[];
+            };
         };
         MappingList: {
             items: components["schemas"]["MappingSummary"][];
         };
+        /** @description Send location (2.0) or target (1.0, Couchbase only); location wins when both are sent. */
         CreateMappingRequest: {
             sourceSchema: string;
             sourceTable: string;
-            target: components["schemas"]["MappingTarget"];
+            target?: components["schemas"]["MappingTarget"];
+            location?: components["schemas"]["Location"];
             generate?: {
                 /** @enum {string} */
                 naming?: "camelCase" | "snake_case" | "preserve";
@@ -1691,20 +2379,62 @@ export interface components {
         UpdateMappingRequest: {
             spec: components["schemas"]["MappingSpec"];
             target?: components["schemas"]["MappingTarget"];
+            location?: components["schemas"]["Location"];
         };
         AutomapRequest: {
             /** @enum {string} */
             mode?: "fill" | "reset";
             includeManual?: boolean;
+            /** @description Auto-map one bound scope only (OC-049): a bound node, or fld_root for the root-level fields. Fills unmapped fields; never changes mapped ones */
+            nodeId?: string;
+            /** @description Auto-map every bound scope from the root down (fill mode) */
+            allScopes?: boolean;
         };
         DesignRequest: {
             docSchema: components["schemas"]["DocSchema"];
-            /** @enum {string} */
-            strategy: "replace" | "merge";
+            /**
+             * @description reconcile follows a revised design, keeping the IDs, mappings and bindings of fields that still exist (OC-061)
+             * @enum {string}
+             */
+            strategy: "replace" | "merge" | "reconcile";
+            /** @description Current field ids whose proposed rename or move is refused (reconcile) */
+            declined?: string[];
         };
         DesignResult: {
             mapping: components["schemas"]["MappingView"];
             orphans: components["schemas"]["FieldMapping"][];
+            diff?: components["schemas"]["DesignDiff"];
+        };
+        DesignDiff: {
+            added: components["schemas"]["DiffField"][];
+            removed: components["schemas"]["DiffField"][];
+            typeChanged: {
+                fieldId: string;
+                path: string;
+                from: components["schemas"]["FieldType"];
+                to: components["schemas"]["FieldType"];
+            }[];
+            renamed: components["schemas"]["DiffChange"][];
+            moved: components["schemas"]["DiffChange"][];
+        };
+        DiffField: {
+            fieldId: string;
+            path: string;
+            type: components["schemas"]["FieldType"];
+        };
+        DiffChange: {
+            fieldId: string;
+            from: string;
+            to: string;
+        };
+        ReconcileRequest: {
+            current: components["schemas"]["DocSchema"];
+            incoming: components["schemas"]["DocSchema"];
+            declined?: string[];
+        };
+        ReconcileResult: {
+            docSchema: components["schemas"]["DocSchema"];
+            diff: components["schemas"]["DesignDiff"];
         };
         ValidationResult: {
             issues: components["schemas"]["MappingIssue"][];
@@ -1720,6 +2450,26 @@ export interface components {
             checkKeys?: boolean;
             /** @enum {string} */
             writeMode?: "upsert" | "insert";
+            /** @description Preview this root row: column → value of the driving table (e.g. {"order_id": 1001}) */
+            rootKey?: {
+                [key: string]: unknown;
+            };
+            /** @description Preview the root row with the most rows of this relation (an array directly under the root, OC-049) */
+            worstCase?: string;
+        };
+        NodeStats: {
+            /** @description Rows used in the preview document */
+            rows: number;
+            /**
+             * Format: int64
+             * @description All related rows
+             */
+            total?: number;
+            /** @description The preview read at most 50 rows per parent ("showing 50 of 1,240") */
+            truncated: boolean;
+            dangling: number;
+            /** @description Rows the first adapter left out */
+            adapterDiscarded: number;
         };
         RowError: {
             fieldPath?: string;
@@ -1749,7 +2499,33 @@ export interface components {
                     [key: string]: components["schemas"]["TraceStep"][];
                 };
                 keyExists?: boolean;
+                /** @description The file the document would be written to (directory targets) */
+                path?: string;
+                /** @description Per relation node, by dotted path (items, items.product) */
+                stats?: {
+                    [key: string]: components["schemas"]["NodeStats"];
+                };
+                /** @description The document's shape against the imported design (OC-061), by path; values aren't compared */
+                conformance?: {
+                    missing: string[];
+                    extra: string[];
+                    typeDiff: string[];
+                };
             }[];
+            worstCase?: {
+                relationId: string;
+                path: string;
+                /**
+                 * Format: int64
+                 * @description The most rows of the relation under one root row
+                 */
+                rows: number;
+                /**
+                 * Format: int64
+                 * @description The full document's estimated size with every row
+                 */
+                estimatedBytes: number;
+            };
             summary?: {
                 ok: number;
                 errors: number;
@@ -1768,6 +2544,8 @@ export interface components {
             /** @enum {string} */
             kind: "json-sample" | "json-schema";
             content: string;
+            /** @description The imported file's name */
+            fileName?: string;
         };
         InferResult: {
             docSchema: components["schemas"]["DocSchema"];
@@ -1803,6 +2581,10 @@ export interface components {
             mappingVersions?: {
                 [key: string]: number;
             };
+            /** @description Each mapping's execution plan hash when the job was created (OC-037); equal hashes build equal documents */
+            planHashes?: {
+                [key: string]: string;
+            };
         };
         MappingRef: {
             mappingId: string;
@@ -1833,6 +2615,7 @@ export interface components {
             mappingId: string;
             table: string;
             target: components["schemas"]["MappingTarget"];
+            location: components["schemas"]["Location"];
             /** Format: int64 */
             rowEstimate: number;
         };
@@ -1990,6 +2773,24 @@ export interface components {
             counts: components["schemas"]["VerifyCounts"];
             sample?: components["schemas"]["VerifySample"];
             error?: string;
+            /**
+             * @description What was counted: documents in a collection, or files in a folder
+             * @enum {string}
+             */
+            targetKind?: "couchbase" | "directory";
+            /** @description A directory's manifest checked against its files (OC-041) */
+            integrity?: {
+                listed: number;
+                checked: number;
+                missing: number;
+                mismatched: number;
+                issues: {
+                    key: string;
+                    path: string;
+                    /** @enum {string} */
+                    problem: "missing" | "hash_mismatch";
+                }[];
+            };
             /** Format: int64 */
             avgDocBytes: number;
             throughputAvg: number;
@@ -2115,9 +2916,9 @@ export interface components {
          * @description Codes of dead-lettered rows (OC-026); the web error catalog covers each one.
          * @enum {string}
          */
-        RowErrorCode: "PARSE_FAILED" | "TYPE_MISMATCH" | "EXPR_ERROR" | "NON_FINITE_NUMBER" | "TRANSFORM_INVALID" | "KEY_TEMPLATE_INVALID" | "KEY_NULL_COMPONENT" | "KEY_TOO_LONG" | "KEY_INVALID" | "DOC_TOO_LARGE" | "TEMPORARY_FAILURE_EXHAUSTED" | "WRITE_FAILED" | "DECODE_FAILED";
+        RowErrorCode: "PARSE_FAILED" | "TYPE_MISMATCH" | "EXPR_ERROR" | "NON_FINITE_NUMBER" | "TRANSFORM_INVALID" | "KEY_TEMPLATE_INVALID" | "KEY_NULL_COMPONENT" | "KEY_TOO_LONG" | "KEY_INVALID" | "DOC_TOO_LARGE" | "TEMPORARY_FAILURE_EXHAUSTED" | "WRITE_FAILED" | "DECODE_FAILED" | "KEY_PATH_COLLISION";
         /** @enum {string} */
-        ErrorCode: "INTERNAL" | "VALIDATION_FAILED" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "VERSION_CONFLICT" | "UNAVAILABLE" | "UNAUTHENTICATED" | "SESSION_EXPIRED" | "INVALID_CREDENTIALS" | "EMAIL_TAKEN" | "SIGNUP_DISABLED" | "CSRF_FAILED" | "FORBIDDEN_ROLE" | "RATE_LIMITED" | "INVALID_CURSOR" | "PROJECT_NAME_TAKEN" | "PROJECT_HAS_RUNNING_JOB" | "SOURCE_TYPE_UNSUPPORTED" | "TARGET_TYPE_UNSUPPORTED" | "SCHEMA_NOT_DISCOVERED" | "KEYSPACE_EXISTS" | "CAPELLA_BUCKET_CREATE_UNSUPPORTED" | "PROJECT_REPOSITORIES_INCOMPLETE" | "MAPPING_EXISTS" | "MAPPING_VERSION_CONFLICT" | "PREVIEW_TIMEOUT" | "MAPPING_INVALID" | "INVALID_SAMPLE" | "SCHEMA_REF_CYCLE" | "SAMPLING_UNAVAILABLE" | "JOB_INVALID_TRANSITION" | "PREFLIGHT_FAILED" | "NO_READY_MAPPINGS" | "RETRY_NOT_POSSIBLE" | "SOURCE_UNREACHABLE" | "SOURCE_DNS" | "SOURCE_TIMEOUT" | "SOURCE_TLS" | "SOURCE_AUTH_FAILED" | "SOURCE_DB_NOT_FOUND" | "SOURCE_PERMISSION_DENIED" | "SOURCE_UNKNOWN" | "TARGET_UNREACHABLE" | "TARGET_DNS" | "TARGET_TIMEOUT" | "TARGET_TLS" | "TARGET_AUTH_FAILED" | "TARGET_DB_NOT_FOUND" | "TARGET_PERMISSION_DENIED" | "TARGET_UNKNOWN" | "EGRESS_DENIED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_CONCURRENT_OPERATIONS";
+        ErrorCode: "INTERNAL" | "VALIDATION_FAILED" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "VERSION_CONFLICT" | "UNAVAILABLE" | "UNAUTHENTICATED" | "SESSION_EXPIRED" | "INVALID_CREDENTIALS" | "EMAIL_TAKEN" | "SIGNUP_DISABLED" | "CSRF_FAILED" | "FORBIDDEN_ROLE" | "RATE_LIMITED" | "INVALID_CURSOR" | "PROJECT_NAME_TAKEN" | "PROJECT_HAS_RUNNING_JOB" | "SOURCE_TYPE_UNSUPPORTED" | "TARGET_TYPE_UNSUPPORTED" | "TARGET_KIND_UNKNOWN" | "TARGET_KIND_DISABLED" | "TARGET_KIND_IN_USE" | "LOCATION_INVALID" | "DIRECTORY_OUTSIDE_ALLOWED_ROOTS" | "DOCUMENT_NOT_FOUND" | "SCHEMA_NOT_DISCOVERED" | "KEYSPACE_EXISTS" | "CAPELLA_BUCKET_CREATE_UNSUPPORTED" | "PROJECT_REPOSITORIES_INCOMPLETE" | "MAPPING_EXISTS" | "MAPPING_VERSION_CONFLICT" | "PREVIEW_TIMEOUT" | "MAPPING_INVALID" | "INVALID_SAMPLE" | "SCHEMA_REF_CYCLE" | "SAMPLING_UNAVAILABLE" | "JOB_INVALID_TRANSITION" | "PREFLIGHT_FAILED" | "NO_READY_MAPPINGS" | "RETRY_NOT_POSSIBLE" | "SOURCE_UNREACHABLE" | "SOURCE_DNS" | "SOURCE_TIMEOUT" | "SOURCE_TLS" | "SOURCE_AUTH_FAILED" | "SOURCE_DB_NOT_FOUND" | "SOURCE_PERMISSION_DENIED" | "SOURCE_UNKNOWN" | "TARGET_UNREACHABLE" | "TARGET_DNS" | "TARGET_TIMEOUT" | "TARGET_TLS" | "TARGET_AUTH_FAILED" | "TARGET_DB_NOT_FOUND" | "TARGET_PERMISSION_DENIED" | "TARGET_UNKNOWN" | "EGRESS_DENIED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_CONCURRENT_OPERATIONS";
     };
     responses: {
         /** @description Error */
@@ -2717,6 +3518,189 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    getRelationGraph: {
+        parameters: {
+            query: {
+                /** @description schema.table, e.g. public.orders */
+                root: string;
+                depth?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationGraph"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listRelationships: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Relationship"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createRelationship: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Relationship"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    detectRelationshipCardinality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipDetection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getRelationship: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Relationship"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateRelationship: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The relationship version, e.g. "2" */
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Relationship"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteRelationship: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     getSchema: {
         parameters: {
             query?: {
@@ -2812,6 +3796,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreviewResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listTargetKinds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Target kinds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetKindList"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listDirectoryFolders: {
+        parameters: {
+            query?: {
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Folders */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderListing"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createDirectoryFolder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    parent: string;
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        path: string;
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getDocument: {
+        parameters: {
+            query?: {
+                download?: "1";
+            };
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+                /** @description The document key; may contain "/" and "::" (the rest of the path) */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredDocument"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listJobOutput: {
+        parameters: {
+            query?: {
+                /** @description Defaults to the job's first mapping */
+                mapping?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Output page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutputPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listLocations: {
+        parameters: {
+            query?: {
+                /** @description Parent location path: "" (root), "bucket", "bucket/scope", or a folder such as "orders/2026" */
+                parent?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Child locations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationList"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Location"];
+            };
+        };
+        responses: {
+            /** @description Created and ready to use */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationCreated"];
+                };
+            };
+            /** @description Created; the target is still making it available */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationCreated"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -3263,6 +4439,34 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    suggestBindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SuggestBindingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BindingSuggestions"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     inferDocSchema: {
         parameters: {
             query?: never;
@@ -3283,6 +4487,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InferResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    reconcileDocSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconcileResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    mappingSheet: {
+        parameters: {
+            query?: {
+                format?: "csv" | "md";
+            };
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The mapping sheet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                    "text/markdown": string;
                 };
             };
             default: components["responses"]["Problem"];

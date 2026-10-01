@@ -24,19 +24,37 @@ const (
 	NullOmit    = "omit"
 )
 
-// Spec is stored in mappings.spec.
+// SpecVersion is the version this code writes. Specs without specVersion are 1.0 (v1) and are
+// upgraded when decoded (UpgradeV1, OC-037).
+const SpecVersion = 2
+
+// Spec modes: edited on the mapping canvas, or composed from the target side (OC-047).
+const (
+	ModeCanvas   = "canvas"
+	ModeComposed = "composed"
+)
+
+// Spec is stored in mappings.spec (architecture §6.1).
 type Spec struct {
+	SpecVersion int    `json:"specVersion"`
+	Mode        string `json:"mode"`
+	// Root is the mapped table; nil in specs from 1.0 (the mapping names the table).
+	Root         *Root            `json:"root,omitempty"`
 	DocSchema    docschema.Schema `json:"docSchema"`
 	Key          KeySpec          `json:"key"`
 	TypeField    TypeField        `json:"typeField"`
 	NullHandling string           `json:"nullHandling"` // include | omit
 	// OmitUnmapped leaves designed fields without an active mapping out of the document; by
 	// default they're written as null so the document keeps its designed shape.
-	OmitUnmapped   bool           `json:"omitUnmapped,omitempty"`
-	ExpirySec      int64          `json:"expirySec,omitempty"`
-	FieldMappings  []FieldMapping `json:"fieldMappings"`
-	Embeds         []Embed        `json:"embeds"` // OC-021
-	IgnoredColumns []string       `json:"ignoredColumns"`
+	OmitUnmapped bool `json:"omitUnmapped,omitempty"`
+	// ReferenceStrict makes the generated documents' conformance to an imported design an
+	// error rather than a warning, so it blocks migrations and exports (OC-061).
+	ReferenceStrict bool           `json:"referenceStrict,omitempty"`
+	ExpirySec       int64          `json:"expirySec,omitempty"`
+	FieldMappings   []FieldMapping `json:"fieldMappings"`
+	Relations       []Relation     `json:"relations"`
+	Aggregates      []Aggregate    `json:"aggregates"`
+	IgnoredColumns  []string       `json:"ignoredColumns"`
 }
 
 // KeySpec is the document key template (OC-016).
@@ -51,11 +69,20 @@ type TypeField struct {
 	Value   string `json:"value"`
 }
 
-// SourceRef is one source of a field mapping: a column of the mapped table, or of an embedded
-// table when Embed is set (OC-021).
+// Root names the mapped (root) table.
+type Root struct {
+	Table TableRef `json:"table"`
+	// GroupBy makes one document per distinct value of these driving-table columns, instead of
+	// one per row (OC-063). Composed mappings only.
+	GroupBy []string `json:"groupBy,omitempty"`
+}
+
+// SourceRef is one source of a field mapping: a column of the mapped table, or of a relation's
+// table when Relation is set. From "via" reads a many-to-many junction column (OC-044).
 type SourceRef struct {
-	Column string `json:"column"`
-	Embed  string `json:"embed,omitempty"`
+	Relation string `json:"relation,omitempty"`
+	Column   string `json:"column"`
+	From     string `json:"from,omitempty"`
 }
 
 // Step is one transform in a field mapping's pipeline (ops: OC-020).
@@ -103,15 +130,24 @@ func NewMappingID() string {
 
 // Normalize fills nil slices and defaults so the spec round-trips as [] rather than null.
 func (s *Spec) Normalize() {
+	if s.SpecVersion == 0 {
+		s.SpecVersion = SpecVersion // specs built in code are current
+	}
+	if s.Mode == "" {
+		s.Mode = ModeCanvas
+	}
+	if s.Aggregates == nil {
+		s.Aggregates = []Aggregate{}
+	}
 	if s.FieldMappings == nil {
 		s.FieldMappings = []FieldMapping{}
 	}
-	if s.Embeds == nil {
-		s.Embeds = []Embed{}
+	if s.Relations == nil {
+		s.Relations = []Relation{}
 	}
-	for i := range s.Embeds {
-		if s.Embeds[i].Join == nil {
-			s.Embeds[i].Join = []JoinPair{}
+	for i := range s.Relations {
+		if s.Relations[i].Join == nil {
+			s.Relations[i].Join = []JoinPair{}
 		}
 	}
 	if s.IgnoredColumns == nil {
@@ -125,6 +161,10 @@ func (s *Spec) Normalize() {
 	}
 	if s.DocSchema.Root.Children == nil {
 		s.DocSchema.Root.Children = []docschema.DocField{}
+	}
+	if s.Composed() {
+		SyncGroup(s)
+		SyncBindings(s)
 	}
 	for i := range s.FieldMappings {
 		if s.FieldMappings[i].Sources == nil {

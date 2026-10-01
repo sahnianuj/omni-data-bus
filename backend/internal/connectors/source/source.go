@@ -5,6 +5,8 @@ package source
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"time"
 
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/schema"
@@ -31,9 +33,61 @@ type Batch struct {
 	Partition int
 	Rows      [][]any
 	LastKey   []any // keyset position after this batch
-	// Related holds each embed's rows for every parent row: embed id → row index → child rows
-	// (OC-021; filled by the pipeline's embed resolver).
-	Related map[string][][][]any
+	// Related holds each row's related rows (index = row index; OC-021, nested from OC-043),
+	// filled by the pipeline's relation resolver.
+	Related []Related
+	// RelatedFailures are rows whose related rows couldn't be read (row index → failure),
+	// e.g. RELATION_MEMORY_EXCEEDED; the transform stage dead-letters them.
+	RelatedFailures map[int]RowFailure
+}
+
+// RowFailure fails one row.
+type RowFailure struct {
+	Code    string
+	Message string
+}
+
+// Related are one parent row's related rows by relation id.
+type Related map[string]*RelatedSet
+
+// RelatedSet is one relation's rows for one parent row, in the relation's order.
+type RelatedSet struct {
+	Rows []RelatedRow
+	// Dangling counts many-to-many junction rows dropped because their target row is missing
+	// (OC-044 RELATION_DANGLING).
+	Dangling int
+}
+
+// RelatedRow is one related row: its table's columns (a many-to-many row appends its junction
+// columns, OC-044), and the rows of the relations nested under it (OC-043).
+type RelatedRow struct {
+	Values []any
+	Sub    Related
+}
+
+// FlatRelated builds a parent's related rows from rows without nested relations (relation id
+// → rows): the 1.0 shape, used by tests and callers with depth-1 relations only.
+func FlatRelated(m map[string][][]any) Related {
+	if m == nil {
+		return nil
+	}
+	out := make(Related, len(m))
+	for id, rows := range m {
+		set := &RelatedSet{Rows: make([]RelatedRow, len(rows))}
+		for i, r := range rows {
+			set.Rows[i] = RelatedRow{Values: r}
+		}
+		out[id] = set
+	}
+	return out
+}
+
+// Len is the number of rows (0 for a nil set).
+func (s *RelatedSet) Len() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.Rows)
 }
 
 // Reader streams batches; Next returns io.EOF when done.
@@ -80,6 +134,9 @@ type PreviewRequest struct {
 	RowEstimate int64
 	// TimeoutSec is the statement timeout (default 5 s).
 	TimeoutSec int
+	// DistinctOn reads one row per distinct value of these columns (the first in OrderBy),
+	// for a grouped driving table (OC-063).
+	DistinctOn []string
 }
 
 // Session is an open source connection. Reading is added by OC-024.
@@ -92,6 +149,16 @@ type Session interface {
 	// Preview returns up to MaxPreviewLimit rows as driver values, one per requested column.
 	Preview(ctx context.Context, req PreviewRequest) ([][]any, error)
 	Close() error
+}
+
+// ErrQueryTimeout is returned when a probe query hit its statement timeout.
+var ErrQueryTimeout = errors.New("the query timed out")
+
+// KeyCounter is implemented by sessions that can measure how many rows share a key (the
+// cardinality detection of virtual relationships, OC-042): the most rows of one key value among
+// the first sample distinct values, and how many values were looked at. Null keys are ignored.
+type KeyCounter interface {
+	MaxRowsPerKey(ctx context.Context, schemaName, table string, columns []string, sample int, timeout time.Duration) (maxPerKey, keys int64, err error)
 }
 
 // SnapshotProber is implemented by sessions whose database can export a transaction snapshot,

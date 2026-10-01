@@ -637,7 +637,22 @@
      "manuallyMapped": 0,
      "suggested": 1,
      "unmappedSource": 1
-    }
+    },
+    "byNode": [
+     {
+      "nodeId": "fld_root",
+      "path": "root",
+      "mapped": 1,
+      "total": 1
+     },
+     {
+      "nodeId": "f_orders",
+      "relationId": "emb_o",
+      "path": "orders",
+      "mapped": 1,
+      "total": 2
+     }
+    ]
    }
   },
   {
@@ -806,7 +821,358 @@
      "manuallyMapped": 0,
      "suggested": 0,
      "unmappedSource": 1
-    }
+    },
+    "byNode": [
+     {
+      "nodeId": "fld_root",
+      "path": "root",
+      "mapped": 2,
+      "total": 3
+     },
+     {
+      "nodeId": "f_cust",
+      "relationId": "emb_c",
+      "path": "customer",
+      "mapped": 2,
+      "total": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "OC-049 AC5: composed score per bound scope, root first, parents before children",
+   "columns": [
+    "order_id",
+    "customer_id",
+    "city"
+   ],
+   "embedded": {
+    "rel_items": [
+     "order_id",
+     "line_no",
+     "product_id",
+     "supplier_id"
+    ],
+    "rel_prod": [
+     "product_id",
+     "name"
+    ],
+    "rel_supplier": [
+     "supplier_id",
+     "name"
+    ],
+    "rel_tags": [
+     "tag_id",
+     "label"
+    ],
+    "rel_cust": [
+     "customer_id",
+     "name"
+    ]
+   },
+   "spec": {
+    "specVersion": 2,
+    "mode": "composed",
+    "root": {
+     "table": {
+      "schema": "public",
+      "name": "orders"
+     }
+    },
+    "docSchema": {
+     "source": "manual",
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f_oid",
+        "name": "orderId",
+        "type": "integer"
+       },
+       {
+        "id": "f_ship",
+        "name": "shipping",
+        "type": "object",
+        "children": [
+         {
+          "id": "f_city",
+          "name": "city",
+          "type": "string"
+         }
+        ]
+       },
+       {
+        "id": "f_items",
+        "name": "items",
+        "type": "array",
+        "items": {
+         "id": "f_item",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "f_line",
+           "name": "lineNo",
+           "type": "integer"
+          },
+          {
+           "id": "f_pname",
+           "name": "productName",
+           "type": "string"
+          },
+          {
+           "id": "f_supplier",
+           "name": "supplier",
+           "type": "object",
+           "children": [
+            {
+             "id": "f_sname",
+             "name": "name",
+             "type": "string"
+            }
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "id": "f_tags",
+        "name": "tags",
+        "type": "array",
+        "items": {
+         "id": "f_tag",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "f_label",
+           "name": "label",
+           "type": "string"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "key": {
+     "template": "order::{order_id}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "relations": [
+     {
+      "id": "rel_cust",
+      "parentId": null,
+      "kind": "many-to-one",
+      "lookupOnly": true,
+      "table": {
+       "schema": "public",
+       "name": "customers"
+      },
+      "join": [
+       {
+        "parent": "customer_id",
+        "child": "customer_id"
+       }
+      ]
+     },
+     {
+      "id": "rel_items",
+      "parentId": null,
+      "kind": "one-to-many",
+      "table": {
+       "schema": "public",
+       "name": "order_items"
+      },
+      "join": [
+       {
+        "parent": "order_id",
+        "child": "order_id"
+       }
+      ],
+      "targetFieldId": "f_items"
+     },
+     {
+      "id": "rel_prod",
+      "parentId": "rel_items",
+      "kind": "many-to-one",
+      "lookupOnly": true,
+      "table": {
+       "schema": "public",
+       "name": "products"
+      },
+      "join": [
+       {
+        "parent": "product_id",
+        "child": "product_id"
+       }
+      ]
+     },
+     {
+      "id": "rel_supplier",
+      "parentId": "rel_items",
+      "kind": "many-to-one",
+      "table": {
+       "schema": "public",
+       "name": "suppliers"
+      },
+      "join": [
+       {
+        "parent": "supplier_id",
+        "child": "supplier_id"
+       }
+      ],
+      "targetFieldId": "f_supplier"
+     },
+     {
+      "id": "rel_tags",
+      "parentId": null,
+      "kind": "many-to-many",
+      "table": {
+       "schema": "public",
+       "name": "tags"
+      },
+      "targetFieldId": "f_tags",
+      "via": {
+       "table": {
+        "schema": "public",
+        "name": "order_tags"
+       },
+       "parentJoin": [
+        {
+         "parent": "order_id",
+         "via": "order_id"
+        }
+       ],
+       "childJoin": [
+        {
+         "via": "tag_id",
+         "child": "tag_id"
+        }
+       ],
+       "columns": [
+        "tagged_at"
+       ]
+      }
+     }
+    ],
+    "aggregates": [],
+    "fieldMappings": [
+     {
+      "id": "m_oid",
+      "targetFieldId": "f_oid",
+      "sources": [
+       {
+        "column": "order_id"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m_line",
+      "targetFieldId": "f_line",
+      "sources": [
+       {
+        "column": "line_no",
+        "relation": "rel_items"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     },
+     {
+      "id": "m_pname",
+      "targetFieldId": "f_pname",
+      "sources": [
+       {
+        "column": "name",
+        "relation": "rel_prod"
+       }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active",
+      "confidence": 0
+     },
+     {
+      "id": "m_label",
+      "targetFieldId": "f_label",
+      "sources": [
+       {
+        "column": "label",
+        "relation": "rel_tags"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     }
+    ],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 2,
+    "autoMapped": 1,
+    "suggested": 0,
+    "manuallyMapped": 0,
+    "unmappedSource": 1,
+    "ignored": 0,
+    "totalTargetLeaves": 2,
+    "mappedTargetLeaves": 1,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0.5,
+    "coverageRatio": 0.5,
+    "averageConfidence": 0.9333333333333332,
+    "embedded": {
+     "tables": 5,
+     "totalColumns": 8,
+     "autoMapped": 2,
+     "manuallyMapped": 1,
+     "suggested": 0,
+     "unmappedSource": 5
+    },
+    "byNode": [
+     {
+      "nodeId": "fld_root",
+      "path": "root",
+      "mapped": 1,
+      "total": 2
+     },
+     {
+      "nodeId": "f_items",
+      "relationId": "rel_items",
+      "path": "items",
+      "mapped": 2,
+      "total": 2
+     },
+     {
+      "nodeId": "f_tags",
+      "relationId": "rel_tags",
+      "path": "tags",
+      "mapped": 1,
+      "total": 1
+     },
+     {
+      "nodeId": "f_supplier",
+      "relationId": "rel_supplier",
+      "path": "items.supplier",
+      "mapped": 0,
+      "total": 1
+     }
+    ]
    }
   }
  ]

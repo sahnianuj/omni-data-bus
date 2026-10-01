@@ -47,12 +47,19 @@ type Step struct {
 	Plan func(env Env) []string
 }
 
-// Collections is every collection in the metadata scope (architecture §5).
-var Collections = []string{
+// Collections is every collection in the metadata scope (architecture §5): the 1.0 ones, then
+// those added by 2.0 (each created by its own step, so existing stores get them on upgrade).
+var Collections = append(append([]string(nil), collectionsV1...), RelationshipCollections...)
+
+// collectionsV1 are created by step 1.
+var collectionsV1 = []string{
 	"system", "users", "workspaces", "members", "sessions", "uniques", "projects", "connections",
 	"discovery_snapshots", "mappings", "jobs", "job_progress", "job_errors", "job_reports",
 	"audit", "leases", "rate_limits",
 }
+
+// RelationshipCollections hold virtual relationships (OC-042), created by step 4.
+var RelationshipCollections = []string{"relationships"}
 
 // Indexes are the GSI index definitions; #{name} is replaced by the collection's keyspace.
 var Indexes = []string{
@@ -83,44 +90,56 @@ func Expand(env Env, statement string) string {
 // Steps returns the ordered provisioning steps.
 func Steps() []Step {
 	return []Step{
-		{
-			Version: 1, Name: "collections",
-			Plan: func(env Env) []string {
-				items := []string{"scope " + env.Scope()}
-				for _, c := range Collections {
-					items = append(items, "collection "+env.Scope()+"."+c)
-				}
-				return items
-			},
-			Apply: func(ctx context.Context, env Env) error {
-				var missing []string
+		collectionStep(1, "collections", collectionsV1, true),
+		indexStep(2, "indexes", Indexes),
+		indexStep(3, "job indexes", JobIndexes),
+		collectionStep(4, "relationship collections", RelationshipCollections, false),
+	}
+}
+
+// collectionStep creates collections (and, when withScope, the scope first); ones the
+// credential may not create are listed for an admin.
+func collectionStep(version int, name string, colls []string, withScope bool) Step {
+	return Step{
+		Version: version, Name: name,
+		Plan: func(env Env) []string {
+			var items []string
+			if withScope {
+				items = append(items, "scope "+env.Scope())
+			}
+			for _, c := range colls {
+				items = append(items, "collection "+env.Scope()+"."+c)
+			}
+			return items
+		},
+		Apply: func(ctx context.Context, env Env) error {
+			var missing []string
+			if withScope {
 				if err := env.CreateScope(ctx, env.Scope()); !ok(err) {
 					if !errors.Is(err, ErrForbidden) {
 						return fmt.Errorf("create scope %s: %w", env.Scope(), err)
 					}
 					missing = append(missing, "scope "+env.Scope())
 				}
-				for _, c := range Collections {
-					err := env.CreateCollection(ctx, env.Scope(), c)
-					switch {
-					case ok(err):
-						if err := env.WaitCollection(ctx, env.Scope(), c); err != nil {
-							return fmt.Errorf("wait for collection %s: %w", c, err)
-						}
-					case errors.Is(err, ErrForbidden):
-						missing = append(missing, "collection "+env.Scope()+"."+c)
-					default:
-						return fmt.Errorf("create collection %s: %w", c, err)
+			}
+			for _, c := range colls {
+				err := env.CreateCollection(ctx, env.Scope(), c)
+				switch {
+				case ok(err):
+					if err := env.WaitCollection(ctx, env.Scope(), c); err != nil {
+						return fmt.Errorf("wait for collection %s: %w", c, err)
 					}
+				case errors.Is(err, ErrForbidden):
+					missing = append(missing, "collection "+env.Scope()+"."+c)
+				default:
+					return fmt.Errorf("create collection %s: %w", c, err)
 				}
-				if len(missing) > 0 {
-					return &NeedsAdminError{Items: missing}
-				}
-				return nil
-			},
+			}
+			if len(missing) > 0 {
+				return &NeedsAdminError{Items: missing}
+			}
+			return nil
 		},
-		indexStep(2, "indexes", Indexes),
-		indexStep(3, "job indexes", JobIndexes),
 	}
 }
 

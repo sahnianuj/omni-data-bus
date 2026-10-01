@@ -13,6 +13,7 @@ import (
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/connectors/target"
+	"omnidatabus/internal/connectors/target/couchbase"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/mappings"
 	"omnidatabus/internal/problem"
@@ -184,9 +185,10 @@ func newFixture(t *testing.T) *fixture {
 			track(id)
 			return f.sess, store.Connection{ID: id}, nil
 		},
-		OpenKeyspaces: func(_ context.Context, _ store.WorkspaceID, id string) (target.Keyspaces, store.Connection, error) {
+		// The 1.0 keyspace checks, moved into the Couchbase connector (OC-036), run on the fake cluster.
+		Target: func(ctx context.Context, _ store.WorkspaceID, id string, locs []target.PreflightLocation) ([]target.LocationPreflight, error) {
 			track(id)
-			return f.ks, store.Connection{ID: id}, nil
+			return couchbase.PreflightKeyspaces(ctx, f.ks, locs), nil
 		},
 		Latest: func(_ context.Context, _ store.WorkspaceID, id string) (store.DiscoverySnapshot, *schema.Snapshot, error) {
 			track(id)

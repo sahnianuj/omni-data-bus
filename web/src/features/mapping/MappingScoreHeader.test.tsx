@@ -113,7 +113,8 @@ describe('SegmentBar', () => {
         return HttpResponse.json(mappingView({ spec, version: 4, automapStats: stats({ autoMapped: 12, autoMapRatio: 12 / 23 }) }))
       }),
     )
-    renderRoutes(routes, '/projects/p1/mappings/m1')
+    // In the field list (Table view, on demand since OC-067), which shows each field's source.
+    renderRoutes(routes, '/projects/p1/mappings/m1?view=table')
     expect(await screen.findByRole('heading', { name: 'Omni-Data-Bus auto-mapped 10 of 23 columns' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Auto-map options' }))
@@ -124,8 +125,7 @@ describe('SegmentBar', () => {
 
     expect(await screen.findByRole('heading', { name: 'Omni-Data-Bus auto-mapped 12 of 23 columns' })).toBeInTheDocument()
     expect(calls).toEqual([{ ifMatch: '"3"', body: { mode: 'reset' } }])
-    await userEvent.click(screen.getByRole('radio', { name: 'Table' }))
-    expect(screen.getByRole('combobox', { name: 'Source for age' })).toHaveValue('age_text')
+    expect(await screen.findByRole('combobox', { name: 'Source for age' })).toHaveValue('age_text')
     expect(screen.getByRole('combobox', { name: 'Source for createdAt' })).toHaveValue('created_on')
   })
 })

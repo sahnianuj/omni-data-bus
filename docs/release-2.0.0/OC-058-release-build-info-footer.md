@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E7 Foundations 2.0 | P0 | 3 | OC-004, OC-032 | Not started |
+| E7 Foundations 2.0 | P0 | 3 | OC-004, OC-032 | Implemented |
 
 ## User story
 As a **user, operator or support engineer**, I want the running release and build information shown at the bottom of every page, and copyable in one click, so that I always know which version I'm using and can quote it exactly when I report a problem or check an upgrade.
@@ -122,3 +122,13 @@ func Get() Info // GoVersion and Platform from runtime; Dirty when Version ends 
 | Test | Location | Verifies |
 |---|---|---|
 | `TestRun_AC7_BuildInfoInStartAndReport` | `internal/headless/progress_test.go` | |
+
+## Implementation notes (as built)
+- **`internal/buildinfo`** holds `version`, `commit`, `buildTime` and `channel` (ldflags `-X omnidatabus/internal/buildinfo.<name>`). A tag's `v` is dropped (`v2.0.0` → `2.0.0`). When no `CHANNEL` is passed, it's derived from the version: `release`, `rc` (also `-beta` and `-alpha`) or `dev`. `app.BuildInfo` is now an alias of `buildinfo.Info`.
+- **Node registry**: a single `system::nodes` document holds every node's heartbeat and is updated with CAS. Each beat also prunes entries older than 60 s. We used one document instead of one `nodes::<id>` document per node because listing per-node documents needs a SQL++ index. With one document, reads stay KV-only and provisioning doesn't change. Every node beats every 20 s whatever its role (`internal/app/nodes.go`). An `all` node counts for both `api` and `worker`.
+- **`/api/v1/version`** now runs after the session middleware, which never rejects a request, so it can tell signed-in callers from anonymous ones. If the metadata store fails, the response falls back to this node alone rather than an error, so the footer still renders.
+- **Metric**: `oc_build_info{version,commit,channel,go_version} 1`, not `odb_build_info`. Every OC-031 metric, dashboard and the asset lint use the `oc_` prefix. There is a new alert, `OmniDataBusMixedVersions` (more than one version for 30 min).
+- **SPA version**: taken from `VITE_ODB_VERSION`, which `make build` and the Dockerfile's web stage set to `VERSION`. A Vite dev build is `dev` and never shows the reload prompt. `/version` is refetched every 5 minutes and on window focus, so a tab left open notices an upgrade.
+- **CLI**: `odb --version` and `odb version` print the text block. `odb version --json` prints `buildinfo.Info`.
+- **AC7 is handed off**: `odb run`, `report.json`, imported runs and exported scripts don't exist yet. OC-051 (start event and report), OC-053 (the script header's commit) and OC-055 (the imported run's build on the job page) read `buildinfo.Get()` and own the `TestRun_AC7_BuildInfoInStartAndReport` test.
+- The footer is `src/components/BuildInfoFooter.tsx`. Data hooks and the text block are in `src/features/system/buildInfo.ts`. The shared MSW server answers `GET /version` by default, because every page now calls it.

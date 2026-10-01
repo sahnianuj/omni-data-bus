@@ -323,6 +323,9 @@ func (f *fakeTarget) Test(context.Context, json.RawMessage, connectors.Credentia
 	return connectors.TestResult{OK: true}
 }
 func (f *fakeTarget) Close(context.Context) error { return nil }
+func (f *fakeTarget) Capabilities() target.Capabilities {
+	return target.Capabilities{RequiresCredentials: true, SupportsCreateLocation: true}
+}
 
 type browsableTarget struct{ *fakeTarget }
 

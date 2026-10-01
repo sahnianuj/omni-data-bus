@@ -53,8 +53,8 @@ for (const theme of ['Light', 'Dark'] as const) {
     }
     // The workbench's other views.
     await page.goto(`/projects/${p.id}/mappings/${ids[0]}`)
-    for (const view of ['Table', 'Design']) {
-      await page.getByRole('radio', { name: view }).click()
+    for (const view of ['Composer', 'Design']) {
+      await page.getByRole('tab', { name: view }).click()
       await axe(page, `mapping workbench (${view})`)
     }
 

@@ -2,10 +2,10 @@ import { http, HttpResponse } from 'msw'
 import type { Project } from '@/features/projects/api'
 import { server } from './msw'
 
-export const repo = (type: 'postgres' | 'couchbase', status: 'ok' | 'warn' | 'failed' | 'untested' = 'ok') => ({
+export const repo = (type: 'postgres' | 'couchbase' | 'directory', status: 'ok' | 'warn' | 'failed' | 'untested' = 'ok') => ({
   id: `p1::${type === 'postgres' ? 'source' : 'target'}`,
   type,
-  name: type === 'postgres' ? 'shop@db-prod-1' : 'cb.8f2k3x.cloud',
+  name: type === 'postgres' ? 'shop@db-prod-1' : type === 'directory' ? '/data/exports' : 'cb.8f2k3x.cloud',
   lastTestStatus: status,
 })
 

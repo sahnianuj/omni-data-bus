@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"omnidatabus/internal/connectors/target"
+
 	"github.com/stretchr/testify/require"
 
 	"omnidatabus/internal/config"
@@ -46,8 +48,10 @@ func TestPprofServer_OC034_ServesProfilesOnItsOwnListener(t *testing.T) {
 }
 
 func TestServe_StartsMetricsAndPprofListeners(t *testing.T) {
-	cfg := config.Config{HTTPAddr: "127.0.0.1:0", ShutdownTimeout: time.Second,
-		Observe: config.ObservabilityConfig{MetricsAddr: "127.0.0.1:0", PprofAddr: "127.0.0.1:0"}}
+	cfg := config.Config{
+		HTTPAddr: "127.0.0.1:0", ShutdownTimeout: time.Second,
+		Observe: config.ObservabilityConfig{MetricsAddr: "127.0.0.1:0", PprofAddr: "127.0.0.1:0"},
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- Serve(ctx, cfg, quiet, BuildInfo{}, Deps{Store: memstore.New(nil)}) }()
@@ -63,8 +67,10 @@ func TestServe_StartsMetricsAndPprofListeners(t *testing.T) {
 
 func TestServe_ReportsSideListenerFailures(t *testing.T) {
 	// Side listeners on an address that can't be bound only log; the public server still runs.
-	cfg := config.Config{HTTPAddr: "127.0.0.1:0", ShutdownTimeout: time.Second,
-		Observe: config.ObservabilityConfig{MetricsAddr: "256.0.0.1:1", PprofAddr: "256.0.0.1:1"}}
+	cfg := config.Config{
+		HTTPAddr: "127.0.0.1:0", ShutdownTimeout: time.Second,
+		Observe: config.ObservabilityConfig{MetricsAddr: "256.0.0.1:1", PprofAddr: "256.0.0.1:1"},
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	require.NoError(t, Serve(ctx, cfg, quiet, BuildInfo{}, Deps{Store: memstore.New(nil)}))
@@ -94,7 +100,7 @@ func TestNewWorker_WiresThePipeline(t *testing.T) {
 	cfg := devCfg(t, nil)
 	keyring, err := crypto.ParseKeyring(cfg.MasterKey, cfg.MasterKeys, cfg.MasterKeyActive)
 	require.NoError(t, err)
-	sources, targets := Registries()
+	sources, targets := Registries(nil)
 	w := NewWorker(cfg, memstore.New(nil), crypto.NewLocalSealer(keyring), sources, targets, quiet)
 	require.NotEmpty(t, w.ID())
 }
@@ -119,4 +125,14 @@ func TestDeps_DefaultHubAndMiddleware(t *testing.T) {
 	require.NotNil(t, d.hub(), "a hub is created when none is injected")
 	require.NotEmpty(t, APIMiddleware(d))
 	require.Nil(t, APIMiddleware(Deps{}), "no session middleware without auth")
+}
+
+// OC-036 AC1: the app's own registry lists both target kinds (the Target step's picker).
+func TestRegistries_AC1_BothTargetKinds(t *testing.T) {
+	_, targets := Registries(nil)
+	var kinds []string
+	for _, k := range target.Kinds(targets) {
+		kinds = append(kinds, k.Type)
+	}
+	require.ElementsMatch(t, []string{"couchbase", "directory"}, kinds)
 }

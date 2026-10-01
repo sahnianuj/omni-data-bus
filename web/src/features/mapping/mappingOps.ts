@@ -1,7 +1,7 @@
 import { addField, OpError, setRequired } from '@/features/docschema/docschemaOps'
 import { rename, type NamingStyle } from '@/lib/naming'
 import { canConnect } from './canConnect'
-import { embedFieldIds } from './embeds'
+import { fieldScopes, inScope } from './embeds'
 import type { CanvasColumn, FieldType, MappingSpec, SourceColumn, SourceRef, TransformStep } from './types'
 
 // Pure reducers for mapping edits (OC-018, OC-019). Each returns a new spec; the canvas and
@@ -66,17 +66,19 @@ export function connect(spec: MappingSpec, column: CanvasColumn, fieldId: string
   return { spec: { ...spec, fieldMappings }, outcome: 'connected', class: cc.class as 'exact' | 'lossless' | 'lossy', mappingId: id }
 }
 
-/** The mapping source for a canvas column (an embedded one names its embed). */
+/** The mapping source for a canvas column (a relation's names its relation; a junction column is from 'via'). */
 export function sourceOf(column: CanvasColumn): SourceRef {
-  return column.embed ? { column: column.column ?? column.name, embed: column.embed } : { column: column.name }
+  if (!column.embed) return { column: column.name }
+  return column.from === 'via' ? { column: column.column ?? column.name, relation: column.embed, from: 'via' } : { column: column.column ?? column.name, relation: column.embed }
 }
 
-/** Embedded columns fill only their embed's fields; the table's own columns fill the others. */
+/**
+ * A field can be filled from the root table, the relations on its path and their lookup-only
+ * relations (OC-043 scope rule): e.g. items[].orderId from orders.order_id.
+ */
 function checkScope(spec: MappingSpec, column: CanvasColumn, fieldId: string) {
-  const inEmbed = embedFieldIds(spec).get(fieldId)
-  if ((column.embed ?? undefined) === inEmbed) return
-  if (inEmbed) throw new OpError('This field is inside an embedded table: map it from that table\'s columns.')
-  throw new OpError('Columns of an embedded table can only fill that embed\'s fields.')
+  if (inScope(spec, fieldScopes(spec).get(fieldId) ?? '', column.embed)) return
+  throw new OpError('Columns of an embedded table can only fill fields inside that embed (or the fields of relations nested in it).')
 }
 
 const defaultOps = new Set(['toString', 'parseInteger', 'parseNumber', 'parseBoolean', 'toDatetime', 'formatDatetime'])
@@ -106,8 +108,8 @@ export function addSource(spec: MappingSpec, mappingId: string, column: string |
   return {
     ...spec,
     fieldMappings: spec.fieldMappings.map((m) => {
-      if (m.id !== mappingId || m.sources.some((s) => s.column === src.column && s.embed === src.embed)) return m
-      if ((m.sources[0]?.embed ?? undefined) !== src.embed) throw new OpError('Sources of one field come from the same table.')
+      if (m.id !== mappingId || m.sources.some((s) => s.column === src.column && s.relation === src.relation && s.from === src.from)) return m
+      if (!inScope(spec, fieldScopes(spec).get(m.targetFieldId) ?? '', src.relation)) throw new OpError('That column isn\'t in this field\'s scope.')
       const hasConcat = m.transforms.some((t) => t.op === 'concat' || t.op === 'expression')
       const transforms = hasConcat ? m.transforms : [{ op: 'concat', args: { separator: ' ' } }, ...m.transforms.filter((t) => !defaultOps.has(t.op))]
       return { ...m, sources: [...m.sources, src], transforms, origin: 'manual' as const }

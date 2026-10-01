@@ -38,7 +38,10 @@ type Config struct {
 	Observe ObservabilityConfig
 	Guard   SecurityConfig
 
-	SignupEnabled   bool          `env:"OC_SIGNUP_ENABLED" envDefault:"true"`
+	SignupEnabled bool `env:"OC_SIGNUP_ENABLED" envDefault:"true"`
+	// ExposeBuildInfo shows the release and channel to anonymous callers of /api/v1/version
+	// (the sign-in page footer, OC-058); signed-in users always see the full build.
+	ExposeBuildInfo bool          `env:"OC_EXPOSE_BUILD_INFO" envDefault:"true"`
 	ShutdownTimeout time.Duration `env:"OC_SHUTDOWN_TIMEOUT" envDefault:"30s"`
 }
 
@@ -60,6 +63,10 @@ type WorkerConfig struct {
 	MemoryBudgetMB int           `env:"OC_WORKER_MEMORY_BUDGET_MB" envDefault:"256" validate:"min=32"`
 	ErrorsMaxRows  int64         `env:"OC_JOB_ERRORS_MAX_ROWS" envDefault:"100000" validate:"min=0"`
 	ErrorRetention time.Duration `env:"OC_JOB_ERRORS_RETENTION" envDefault:"720h"`
+	// MaxRelationDepth limits how deep mapping relations nest (OC-037; hard cap 6).
+	MaxRelationDepth int `env:"OC_MAX_RELATION_DEPTH" envDefault:"4" validate:"min=1,max=6"`
+	// RelationMemoryMB caps a batch's related rows in memory; bigger batches are split (OC-043).
+	RelationMemoryMB int `env:"OC_RELATION_MEMORY_MB" envDefault:"256" validate:"min=1,max=65536"`
 }
 
 // ObservabilityConfig places /metrics and turns on tracing (OC-031).

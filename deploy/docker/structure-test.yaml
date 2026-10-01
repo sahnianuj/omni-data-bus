@@ -20,15 +20,20 @@ fileExistenceTests:
   - name: CA certificates
     path: /etc/ssl/certs/ca-certificates.crt
     shouldExist: true
+  - name: "OC-038: directory target folder owned by the server user"
+    path: /data/odb-out
+    shouldExist: true
+    uid: 65532
+    gid: 65532
   - name: no shell
     path: /bin/sh
     shouldExist: false
 
 commandTests:
-  - name: version
+  - name: "AC1: image reports version"
     command: /usr/local/bin/odb
     args: ["--version"]
-    expectedOutput: ['^odb \S+ \(commit \S+\)']
+    expectedOutput: ['^Omni-Data-Bus \S+ \((release|rc|dev)\)', 'Commit: \S+  Built: \S+  Go: go\S+  Platform: linux/\S+']
   - name: admin gen-key prints a 32-byte key
     command: /usr/local/bin/odb
     args: ["admin", "gen-key"]

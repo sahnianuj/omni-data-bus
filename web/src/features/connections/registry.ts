@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { CouchbaseForm } from './CouchbaseForm'
+import { DirectoryForm } from './DirectoryForm'
 import { PostgresForm } from './PostgresForm'
 import type { Connection, ConnectionFormProps } from './types'
 
@@ -34,6 +35,14 @@ export const connectionUIs: Record<string, ConnectionUI> = {
         labelKey: 'cb.tlsLabel',
         valueKey: str(c.config.connectionString).startsWith('couchbases://') ? (c.config.tlsVerify === false ? 'cb.tlsOnUnverified' : 'cb.tlsOnVerified') : 'cb.tlsOff',
       },
+    ],
+  },
+  directory: {
+    Form: DirectoryForm,
+    endpoint: (c) => str(c.config.path),
+    fields: (c) => [
+      { labelKey: 'dir.layout', valueKey: `dir.layouts.${str(c.config.layout) || 'flat'}` },
+      { labelKey: 'dir.durability', valueKey: `dir.durabilities.${str(c.config.durability) || 'file'}` },
     ],
   },
 }

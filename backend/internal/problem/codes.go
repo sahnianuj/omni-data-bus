@@ -22,6 +22,17 @@ const (
 	CodeProjectJobRunning = "PROJECT_HAS_RUNNING_JOB"
 	CodeUnsupportedSource = "SOURCE_TYPE_UNSUPPORTED"
 	CodeUnsupportedTarget = "TARGET_TYPE_UNSUPPORTED"
+	// Target kinds (OC-036): an unknown kind, a kind switched off on this server, a kind change
+	// while mappings have locations, and a malformed mapping location.
+	CodeTargetKindUnknown  = "TARGET_KIND_UNKNOWN"
+	CodeTargetKindDisabled = "TARGET_KIND_DISABLED"
+	CodeTargetKindInUse    = "TARGET_KIND_IN_USE"
+	CodeLocationInvalid    = "LOCATION_INVALID"
+	// CodeDirectoryOutsideRoots: a directory target's path is outside the folders the server may
+	// write to (home folder, /data), or in a hidden folder (OC-038).
+	CodeDirectoryOutsideRoots = "DIRECTORY_OUTSIDE_ALLOWED_ROOTS"
+	// CodeDocumentNotFound: no migrated document with that key (OC-039 lookup).
+	CodeDocumentNotFound = "DOCUMENT_NOT_FOUND"
 	// CodeSchemaNotDiscovered: the source repository has no discovery snapshot yet (OC-010).
 	CodeSchemaNotDiscovered = "SCHEMA_NOT_DISCOVERED"
 	// CodeKeyspaceExists: the bucket, scope or collection to create already exists (OC-014).
@@ -74,6 +85,7 @@ var All = []string{
 	CodeUnavailable, CodeUnauthenticated, CodeSessionExpired, CodeInvalidCreds, CodeEmailTaken,
 	CodeSignupDisabled, CodeCSRFFailed, CodeForbiddenRole, CodeRateLimited, CodeInvalidCursor,
 	CodeProjectNameTaken, CodeProjectJobRunning, CodeUnsupportedSource, CodeUnsupportedTarget,
+	CodeTargetKindUnknown, CodeTargetKindDisabled, CodeTargetKindInUse, CodeLocationInvalid, CodeDirectoryOutsideRoots, CodeDocumentNotFound,
 	CodeSchemaNotDiscovered, CodeKeyspaceExists, CodeCapellaBucketCreate,
 	CodeRepositoriesIncomplete, CodeMappingExists, CodeMappingVersionConflict, CodePreviewTimeout, CodeMappingInvalid,
 	CodeInvalidSample, CodeSchemaRefCycle, CodeSamplingUnavailable,

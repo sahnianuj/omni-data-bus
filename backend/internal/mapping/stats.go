@@ -1,5 +1,11 @@
 package mapping
 
+import (
+	"strings"
+
+	"omnidatabus/internal/docschema"
+)
+
 // Stats is the mapping score (OC-017 step 5). Stored as the automap snapshot ("10 of 23 fields
 // automatically mapped") and recomputed live after every edit.
 type Stats struct {
@@ -17,6 +23,17 @@ type Stats struct {
 	AverageConfidence      float64 `json:"averageConfidence"`
 	// Embedded counts the embedded tables' columns separately (OC-021 AC2).
 	Embedded *EmbeddedStats `json:"embedded,omitempty"`
+	// ByNode is the score per bound scope, root first (OC-049): "root 8/10 · items 5/6".
+	ByNode []NodeScore `json:"byNode,omitempty"`
+}
+
+// NodeScore is how many of a bound scope's fields are mapped.
+type NodeScore struct {
+	NodeID     string `json:"nodeId"` // the bound node; docschema.RootID for the root
+	RelationID string `json:"relationId,omitempty"`
+	Path       string `json:"path"` // dotted field names (items.product), "root" for the root
+	Mapped     int    `json:"mapped"`
+	Total      int    `json:"total"`
 }
 
 // EmbeddedStats is the "embedded" group of the score: columns of embedded tables.
@@ -85,15 +102,15 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 			st.UnmappedSource++
 		}
 	}
-	if len(s.Embeds) > 0 && embedded != nil {
-		e := &EmbeddedStats{Tables: len(s.Embeds)}
-		for _, emb := range s.Embeds {
+	if len(s.Relations) > 0 && embedded != nil {
+		e := &EmbeddedStats{Tables: len(s.Relations)}
+		for _, emb := range s.Relations {
 			joins := map[string]bool{}
 			for _, j := range emb.Join {
 				joins[j.Child] = true
 			}
 			for _, c := range embedded[emb.ID] {
-				ref := SourceRef{Column: c, Embed: emb.ID}
+				ref := SourceRef{Column: c, Relation: emb.ID}
 				if joins[c] && !manual[ref] && !auto[ref] && !suggested[ref] {
 					continue // an unmapped join column is the relation itself, not data to map
 				}
@@ -127,18 +144,76 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 	if confN > 0 {
 		st.AverageConfidence = confSum / float64(confN)
 	}
+	if len(s.Relations) > 0 {
+		st.ByNode = ByNode(s)
+	}
 	return st
 }
 
 // embeddedForeignKeys are the parent's join columns of its many-to-one embeds.
 func embeddedForeignKeys(s *Spec) map[string]bool {
 	out := map[string]bool{}
-	for _, e := range s.Embeds {
+	for _, e := range s.Relations {
 		if e.Kind == EmbedManyToOne {
 			for _, j := range e.Join {
 				out[j.Parent] = true
 			}
 		}
 	}
+	return out
+}
+
+// ByNode scores each bound scope (the root, then every relation that fills a node, parents
+// before children): its mappable fields — single values, and unbound arrays of values — that
+// belong to it, and how many of them have an active mapping or an aggregate (OC-049 AC5).
+func ByNode(s *Spec) []NodeScore {
+	scopes := FieldScopes(s)
+	mapped := map[string]bool{}
+	for _, m := range s.FieldMappings {
+		if m.Active() {
+			mapped[m.TargetFieldID] = true
+		}
+	}
+	for _, a := range s.Aggregates {
+		mapped[a.TargetFieldID] = true
+	}
+	bound := map[string]bool{}
+	for _, r := range s.Relations {
+		if !r.LookupOnly && r.TargetFieldID != "" {
+			bound[r.TargetFieldID] = true
+		}
+	}
+	out := []NodeScore{{NodeID: docschema.RootID, Path: "root"}}
+	at := map[string]int{"": 0}
+	order, _, is := Depths(s)
+	if is != nil {
+		order = nil
+	}
+	paths := s.DocSchema.Paths()
+	for _, id := range order {
+		r := s.RelationByID(id)
+		if r.LookupOnly || r.TargetFieldID == "" || paths[r.TargetFieldID] == "" {
+			continue
+		}
+		at[id] = len(out)
+		out = append(out, NodeScore{NodeID: r.TargetFieldID, RelationID: id, Path: strings.ReplaceAll(paths[r.TargetFieldID], "[]", "")})
+	}
+	s.DocSchema.Walk(func(f *docschema.DocField, _ string, parent *docschema.DocField) {
+		if parent != nil && parent.Type == docschema.Array {
+			return // an array's item: its fields are walked, the item itself isn't a field
+		}
+		leaf := f.Type.Scalar() || (f.Type == docschema.Array && !bound[f.ID] && (f.Items == nil || f.Items.Type.Scalar()))
+		if !leaf {
+			return
+		}
+		i, ok := at[scopes[f.ID]]
+		if !ok {
+			return
+		}
+		out[i].Total++
+		if mapped[f.ID] {
+			out[i].Mapped++
+		}
+	})
 	return out
 }

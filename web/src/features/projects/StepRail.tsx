@@ -9,6 +9,9 @@ export function StepRail({ project, current }: { project: Project; current: Step
   const { t } = useTranslation()
   const steps = deriveSteps(project, current)
   const anyLocked = steps.some((s) => s.state === 'locked')
+  // The target's kind as configured (OC-036): Couchbase, or a directory of JSON files.
+  const kind = project.target?.type
+  const targetSub = kind === 'directory' ? t('wizard.targetSubDirectory') : kind ? t('wizard.targetSub') : t('wizard.targetSubAny')
   return (
     <nav aria-label={t('wizard.steps')} className="flex w-[264px] shrink-0 flex-col gap-1 border-r border-border bg-background px-5 py-7">
       {steps.map((s, i) => {
@@ -37,7 +40,7 @@ export function StepRail({ project, current }: { project: Project; current: Step
             <span className="flex flex-col gap-0.5">
               <span className={cn('text-sm', s.state === 'locked' ? 'text-subtle' : 'font-medium text-foreground')}>{label}</span>
               {s.id === 'source' || s.id === 'target' ? (
-                <span className="text-xs text-subtle">{t(s.id === 'source' ? 'wizard.sourceSub' : 'wizard.targetSub')}</span>
+                <span className="text-xs text-subtle">{s.id === 'source' ? t('wizard.sourceSub') : targetSub}</span>
               ) : null}
             </span>
           </>

@@ -1,0 +1,621 @@
+{
+  "specVersion": 2,
+  "mode": "canvas",
+  "docSchema": {
+    "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+        {
+          "id": "fld_RS6ojiPgw5",
+          "name": "customerId",
+          "type": "integer",
+          "required": true
+        },
+        {
+          "id": "fld_6GS0QP2Ojl",
+          "name": "firstName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "fld_I2sbCwBmhR",
+          "name": "lastName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "fld_4tinSjMHmY",
+          "name": "emailAddress",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "fld_95cIkJmzTw",
+          "name": "phone",
+          "type": "string"
+        },
+        {
+          "id": "fld_1mnnCk9FKL",
+          "name": "addressId",
+          "type": "integer"
+        },
+        {
+          "id": "fld_aOwaOO04LF",
+          "name": "isActive",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "id": "fld_YKeXW0l3O3",
+          "name": "tags",
+          "type": "array",
+          "items": {
+            "id": "fld_rInnnsVMz5",
+            "name": "[]",
+            "type": "string"
+          }
+        },
+        {
+          "id": "fld_Oc3T0GbteA",
+          "name": "externalRef",
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "id": "fld_0U8RsPAGxJ",
+          "name": "birthDate",
+          "type": "datetime",
+          "format": "date"
+        },
+        {
+          "id": "fld_uKQxZOHl9F",
+          "name": "createdOn",
+          "type": "datetime",
+          "required": true,
+          "format": "iso8601"
+        },
+        {
+          "id": "fld_Xjxw3XgjVd",
+          "name": "updatedAt",
+          "type": "datetime",
+          "format": "iso8601"
+        },
+        {
+          "id": "fld_eFKp5dkKmI",
+          "name": "preferences",
+          "type": "any"
+        },
+        {
+          "id": "fld_2D6pfC0rMa",
+          "name": "avatar",
+          "type": "string"
+        },
+        {
+          "id": "fld_JSOKFgyZrh",
+          "name": "notes",
+          "type": "string"
+        },
+        {
+          "id": "fld_s2wB3gPngC",
+          "name": "address",
+          "type": "object",
+          "children": [
+            {
+              "id": "fld_GSXm7Tu9Xh",
+              "name": "addressId",
+              "type": "integer",
+              "required": true
+            },
+            {
+              "id": "fld_8R6LvsD4z2",
+              "name": "street",
+              "type": "string",
+              "required": true
+            },
+            {
+              "id": "fld_3MvU2RIHBy",
+              "name": "city",
+              "type": "string",
+              "required": true
+            },
+            {
+              "id": "fld_vS0aBQm5Zo",
+              "name": "postalCode",
+              "type": "string"
+            },
+            {
+              "id": "fld_ULP3VqjNVG",
+              "name": "countryCode",
+              "type": "string",
+              "required": true
+            },
+            {
+              "id": "fld_C4U75IUhw3",
+              "name": "locationIp",
+              "type": "string"
+            },
+            {
+              "id": "fld_rEWaw33UE0",
+              "name": "network",
+              "type": "string"
+            },
+            {
+              "id": "fld_ggXjUS9mhT",
+              "name": "deviceMac",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "id": "fld_E4RKzry74Z",
+          "name": "orders",
+          "type": "array",
+          "items": {
+            "id": "fld_3jc6RZSPUc",
+            "name": "[]",
+            "type": "object",
+            "children": [
+              {
+                "id": "fld_F4D3JE1hFD",
+                "name": "orderId",
+                "type": "integer",
+                "required": true
+              },
+              {
+                "id": "fld_I3xyThAZ7h",
+                "name": "status",
+                "type": "string",
+                "required": true
+              },
+              {
+                "id": "fld_CW6WM3IKqb",
+                "name": "orderDate",
+                "type": "datetime",
+                "required": true,
+                "format": "iso8601"
+              },
+              {
+                "id": "fld_yftKfWbtkE",
+                "name": "total",
+                "type": "number",
+                "required": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "source": "generated"
+  },
+  "key": {
+    "template": "customer::{customer_id}"
+  },
+  "typeField": {
+    "enabled": true,
+    "name": "docType",
+    "value": "customer"
+  },
+  "nullHandling": "include",
+  "fieldMappings": [
+    {
+      "id": "map_d0b5b1d2ae",
+      "targetFieldId": "fld_95cIkJmzTw",
+      "sources": [
+        {
+          "column": "phone"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_5485526a14",
+      "targetFieldId": "fld_YKeXW0l3O3",
+      "sources": [
+        {
+          "column": "tags"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_1abecf3e07",
+      "targetFieldId": "fld_eFKp5dkKmI",
+      "sources": [
+        {
+          "column": "preferences"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_732dcbc42f",
+      "targetFieldId": "fld_2D6pfC0rMa",
+      "sources": [
+        {
+          "column": "avatar"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_bb913bd7ec",
+      "targetFieldId": "fld_JSOKFgyZrh",
+      "sources": [
+        {
+          "column": "notes"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_acfc1a4958",
+      "targetFieldId": "fld_RS6ojiPgw5",
+      "sources": [
+        {
+          "column": "customer_id"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_b3e2bf9ddc",
+      "targetFieldId": "fld_6GS0QP2Ojl",
+      "sources": [
+        {
+          "column": "first_name"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_98bbaedb42",
+      "targetFieldId": "fld_I2sbCwBmhR",
+      "sources": [
+        {
+          "column": "last_name"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_6510fc8c1d",
+      "targetFieldId": "fld_4tinSjMHmY",
+      "sources": [
+        {
+          "column": "email_address"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_93cc7e5bec",
+      "targetFieldId": "fld_aOwaOO04LF",
+      "sources": [
+        {
+          "column": "is_active"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_4fecc20d1d",
+      "targetFieldId": "fld_uKQxZOHl9F",
+      "sources": [
+        {
+          "column": "created_on"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_76c0607ca7",
+      "targetFieldId": "fld_Oc3T0GbteA",
+      "sources": [
+        {
+          "column": "external_ref"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_c888ec680d",
+      "targetFieldId": "fld_0U8RsPAGxJ",
+      "sources": [
+        {
+          "column": "birth_date"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_a4a4931dd4",
+      "targetFieldId": "fld_Xjxw3XgjVd",
+      "sources": [
+        {
+          "column": "updated_at"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_79c39c0a60",
+      "targetFieldId": "fld_8R6LvsD4z2",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "street"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_dfb5f7204c",
+      "targetFieldId": "fld_3MvU2RIHBy",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "city"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_f680b0618b",
+      "targetFieldId": "fld_rEWaw33UE0",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "network"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_c2927cbf6f",
+      "targetFieldId": "fld_GSXm7Tu9Xh",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "address_id"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_1696604efc",
+      "targetFieldId": "fld_ULP3VqjNVG",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "country_code"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_15647e5a4c",
+      "targetFieldId": "fld_vS0aBQm5Zo",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "postal_code"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_5519ab1de9",
+      "targetFieldId": "fld_C4U75IUhw3",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "location_ip"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_fe7b6db1bf",
+      "targetFieldId": "fld_ggXjUS9mhT",
+      "sources": [
+        {
+          "relation": "emb_mgqogcg5",
+          "column": "device_mac"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_5e5cc917a2",
+      "targetFieldId": "fld_I3xyThAZ7h",
+      "sources": [
+        {
+          "relation": "emb_k82n51os",
+          "column": "status"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_a9bb3ea0fc",
+      "targetFieldId": "fld_yftKfWbtkE",
+      "sources": [
+        {
+          "relation": "emb_k82n51os",
+          "column": "total"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1,
+      "reason": "exact"
+    },
+    {
+      "id": "map_ff2b3cb84f",
+      "targetFieldId": "fld_F4D3JE1hFD",
+      "sources": [
+        {
+          "relation": "emb_k82n51os",
+          "column": "order_id"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    },
+    {
+      "id": "map_b48e057c8b",
+      "targetFieldId": "fld_CW6WM3IKqb",
+      "sources": [
+        {
+          "relation": "emb_k82n51os",
+          "column": "order_date"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.97,
+      "reason": "normalized-equal"
+    }
+  ],
+  "relations": [
+    {
+      "id": "emb_mgqogcg5",
+      "parentId": null,
+      "kind": "many-to-one",
+      "table": {
+        "schema": "shop",
+        "name": "address"
+      },
+      "join": [
+        {
+          "parent": "address_id",
+          "child": "address_id"
+        }
+      ],
+      "targetFieldId": "fld_s2wB3gPngC"
+    },
+    {
+      "id": "emb_k82n51os",
+      "parentId": null,
+      "kind": "one-to-many",
+      "table": {
+        "schema": "shop",
+        "name": "orders"
+      },
+      "join": [
+        {
+          "parent": "customer_id",
+          "child": "customer_id"
+        }
+      ],
+      "targetFieldId": "fld_E4RKzry74Z",
+      "orderBy": [
+        {
+          "column": "order_id",
+          "desc": true
+        }
+      ]
+    }
+  ],
+  "aggregates": [],
+  "ignoredColumns": []
+}

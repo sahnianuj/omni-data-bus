@@ -44,11 +44,11 @@ func (e *UnsupportedTypeError) Error() string {
 
 // Problem implements problem.Problemer.
 func (e *UnsupportedTypeError) Problem() problem.Problem {
-	code := problem.CodeUnsupportedSource
+	code, title := problem.CodeUnsupportedSource, "Unsupported database type"
 	if e.Role == RoleTarget {
-		code = problem.CodeUnsupportedTarget
+		code, title = problem.CodeTargetKindUnknown, "Unknown target kind" // OC-036
 	}
-	p := problem.New(http.StatusUnprocessableEntity, code, "Unsupported database type", fmt.Sprintf("%q isn't a supported %s type yet.", e.Type, e.Role))
+	p := problem.New(http.StatusUnprocessableEntity, code, title, fmt.Sprintf("%q isn't a supported %s type yet.", e.Type, e.Role))
 	p.FieldErrors = []problem.FieldError{{Field: "type", Message: "is not supported"}}
 	return p
 }

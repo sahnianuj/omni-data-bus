@@ -23,26 +23,28 @@ beforeEach(() => {
   )
 })
 
-const open = () => renderRoutes(routes, '/projects/p1/mappings/m1')
+const open = (view?: string) => renderRoutes(routes, `/projects/p1/mappings/m1${view ? `?view=${view}` : ''}`)
+/** The field list (Table view, OC-067: opened on demand, not from the view bar). */
+const openTable = () => open('table')
 
 describe('MappingWorkbench', () => {
   it('opens without re-rendering forever', async () => {
     mockMapping()
-    open()
+    const canvas = open()
     expect(await screen.findByRole('heading', { name: /shop\.customer/ })).toBeInTheDocument()
     expect(screen.getByRole('application', { name: 'Mapping canvas' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('radio', { name: 'Table' }))
-    expect(screen.getByRole('combobox', { name: 'Source for age' })).toBeInTheDocument()
+    canvas.unmount()
+    openTable()
+    expect(await screen.findByRole('combobox', { name: 'Source for age' })).toBeInTheDocument()
   })
 
   it('autosaves edits with If-Match on the current version', async () => {
     const state = mockMapping()
-    open()
-    await userEvent.click(await screen.findByRole('radio', { name: 'Table' }))
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Source for age' }), 'age_text')
+    openTable()
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Source for age' }), 'age_text')
     await waitFor(() => expect(state.puts).toHaveLength(1), { timeout: 3000 })
     expect(state.puts[0]!.ifMatch).toBe('"3"')
-    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(await screen.findByText('Saved · just now')).toBeInTheDocument()
   })
 
   it('a 412 shows the conflict banner; reload takes the server copy', async () => {
@@ -52,9 +54,8 @@ describe('MappingWorkbench', () => {
         HttpResponse.json({ title: 'Conflict', code: 'MAPPING_VERSION_CONFLICT', status: 412 }, { status: 412 }),
       ),
     )
-    open()
-    await userEvent.click(await screen.findByRole('radio', { name: 'Table' }))
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Source for age' }), 'age_text')
+    openTable()
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Source for age' }), 'age_text')
     expect(await screen.findByText(/Someone else changed this mapping/, {}, { timeout: 3000 })).toBeInTheDocument()
     state.view = mappingView({ version: 9 })
     await userEvent.click(screen.getByRole('button', { name: 'Reload' }))

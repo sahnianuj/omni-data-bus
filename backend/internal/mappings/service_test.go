@@ -125,8 +125,8 @@ func newFixture(t *testing.T, withRepos bool) *fixture {
 	p, err := st.Projects().Create(ctx, ws, store.NewProject{Name: "P"})
 	require.NoError(t, err)
 	if withRepos {
-		for _, role := range []store.Role{store.RoleSource, store.RoleTarget} {
-			_, err := st.Connections().Upsert(ctx, ws, p.ID, role, store.ConnectionInput{Type: "fake", Config: json.RawMessage(`{}`), LastTestStatus: "ok"})
+		for role, typ := range map[store.Role]string{store.RoleSource: "fake", store.RoleTarget: store.KindCouchbase} {
+			_, err := st.Connections().Upsert(ctx, ws, p.ID, role, store.ConnectionInput{Type: typ, Config: json.RawMessage(`{}`), LastTestStatus: "ok"})
 			require.NoError(t, err)
 		}
 	}
@@ -149,23 +149,6 @@ func (f *fixture) create(t *testing.T, table string) View {
 	v, err := f.svc.Create(ctx, ws, "u1", f.project, CreateInput{SourceSchema: "shop", SourceTable: table, Target: target1()})
 	require.NoError(t, err)
 	return v
-}
-
-func TestSanitizeCollectionName_AC1(t *testing.T) {
-	cases := map[string]string{
-		"Order Details":          "order_details",
-		"customer":               "customer",
-		"CustomerOrders":         "customer_orders",
-		"_hidden":                "hidden",
-		"%pct":                   "pct",
-		"ümlaut Größe":           "mlaut_gr_e",
-		strings.Repeat("a", 300): strings.Repeat("a", 251),
-		"___":                    "collection",
-		"order-items":            "order_items",
-	}
-	for in, want := range cases {
-		require.Equal(t, want, SanitizeCollectionName(in), in)
-	}
 }
 
 func TestBulkCreateMappings_AC1_GeneratesSchemaAndAutomap(t *testing.T) {

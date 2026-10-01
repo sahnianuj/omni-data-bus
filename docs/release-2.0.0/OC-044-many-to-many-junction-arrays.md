@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P0 | 8 | OC-042, OC-043 | Not started |
+| E9 Relationship Mapping | P0 | 8 | OC-042, OC-043 | Implemented |
 
 ## User story
 As a **data engineer** whose database stores order lines in a junction table (`order_items(order_id, product_id, quantity)`), I want to embed `products` directly into the order as an array, with each product carrying the junction's quantity and price, so that I get `order.products[]` in one step without modeling the junction table myself.
@@ -102,3 +102,8 @@ ORDER BY j."order_id", j."line_no"
 | Test | Location | Verifies |
 |---|---|---|
 | `TestResolveRelations_AC6_NestedUnderM2M` *(integration)* | `internal/pipeline/relations_integration_test.go` | |
+
+## Implementation notes (2026-09-29)
+- Many-to-many rows are read with a `LEFT JOIN` always; rows whose target join columns are null are dropped in Go and counted (`RELATION_DANGLING` with the count) unless `keepDangling`. `INNER JOIN` would drop them without a count. For the same reason the SQL per-key limit (`row_number`) is only used when no row can be dropped after the query (`keepDangling` without `distinct`).
+- `distinct` is applied in Go on the target's primary key (or its join columns without one), keeping the first row in order; junction columns come from that row.
+- A relation's row is its table's columns followed by `mapping.ViaColumns` (parent join, payload, junction order columns) named `__v_<column>`; sources/order/filters/aggregates reach them with `from: "via"`.

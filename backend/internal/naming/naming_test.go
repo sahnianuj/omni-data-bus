@@ -1,6 +1,7 @@
 package naming
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,4 +52,27 @@ func TestDefaultTypeValue_AC5_Singularize(t *testing.T) {
 	for in, want := range cases {
 		require.Equal(t, want, SingularSnake(in), in)
 	}
+}
+
+func TestCollectionName_OC014_AC1(t *testing.T) {
+	cases := map[string]string{
+		"Order Details":          "order_details",
+		"customer":               "customer",
+		"CustomerOrders":         "customer_orders",
+		"_hidden":                "hidden",
+		"%pct":                   "pct",
+		"ümlaut Größe":           "mlaut_gr_e",
+		strings.Repeat("a", 300): strings.Repeat("a", 251),
+		"___":                    "collection",
+		"order-items":            "order_items",
+	}
+	for in, want := range cases {
+		require.Equal(t, want, CollectionName(in), in)
+	}
+}
+
+func TestFolderName_OC068(t *testing.T) {
+	require.Equal(t, "order_details", FolderName("Order Details"))
+	require.Equal(t, "a_b", FolderName("a%b"))
+	require.Equal(t, strings.Repeat("a", 64), FolderName(strings.Repeat("a", 300)))
 }

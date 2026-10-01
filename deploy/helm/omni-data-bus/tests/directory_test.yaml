@@ -1,0 +1,49 @@
+suite: directory target (OC-038)
+templates:
+  - templates/deployment.yaml
+  - templates/pvc.yaml
+values:
+  - required-values.yaml
+tests:
+  - it: "AC5: off by default: no volume, no claim"
+    template: templates/pvc.yaml
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: "AC5: mounts the output volume in every pod"
+    template: templates/deployment.yaml
+    set:
+      directoryTarget: { enabled: true, persistence: { accessMode: ReadWriteMany } }
+    asserts:
+      - hasDocuments: { count: 2 }
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: { name: odb-out, mountPath: /data/odb-out }
+      - contains:
+          path: spec.template.spec.volumes
+          content: { name: odb-out, persistentVolumeClaim: { claimName: RELEASE-NAME-omni-data-bus-output } }
+
+  - it: "AC5: creates the claim unless one exists"
+    template: templates/pvc.yaml
+    set:
+      directoryTarget: { enabled: true, persistence: { accessMode: ReadWriteMany, storageClass: efs } }
+    asserts:
+      - equal: { path: "spec.accessModes[0]", value: ReadWriteMany }
+      - equal: { path: spec.storageClassName, value: efs }
+
+  - it: "AC5: directory target requires RWX in split mode"
+    template: templates/deployment.yaml
+    set:
+      directoryTarget: { enabled: true }
+      worker: { replicas: 2 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "ReadWriteMany"
+
+  - it: "AC5: one worker (or mode all) may use ReadWriteOnce"
+    template: templates/deployment.yaml
+    set:
+      mode: all
+      directoryTarget: { enabled: true }
+    asserts:
+      - hasDocuments: { count: 1 }

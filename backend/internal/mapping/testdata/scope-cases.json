@@ -1,0 +1,65 @@
+{
+  "_comment": "Shared by mapping/scope_test.go and web/src/features/composer/scope.test.ts (OC-047 AC2): which tables each field may read, outermost first, and whether a source is in scope.",
+  "spec": {
+    "specVersion": 2,
+    "mode": "composed",
+    "root": { "table": { "schema": "public", "name": "orders" } },
+    "docSchema": {
+      "source": "manual",
+      "root": {
+        "id": "fld_root", "name": "$", "type": "object",
+        "children": [
+          { "id": "f_oid", "name": "orderId", "type": "integer" },
+          { "id": "f_ship", "name": "shipping", "type": "object", "children": [{ "id": "f_city", "name": "city", "type": "string" }] },
+          {
+            "id": "f_items", "name": "items", "type": "array",
+            "items": {
+              "id": "f_item", "name": "[]", "type": "object",
+              "children": [
+                { "id": "f_line", "name": "lineNo", "type": "integer" },
+                { "id": "f_pname", "name": "productName", "type": "string" },
+                { "id": "f_supplier", "name": "supplier", "type": "object", "children": [{ "id": "f_sname", "name": "name", "type": "string" }] }
+              ]
+            }
+          },
+          { "id": "f_tags", "name": "tags", "type": "array", "items": { "id": "f_tag", "name": "[]", "type": "object", "children": [{ "id": "f_label", "name": "label", "type": "string" }] } }
+        ]
+      }
+    },
+    "key": { "template": "order::{order_id}" },
+    "typeField": { "enabled": false, "name": "", "value": "" },
+    "nullHandling": "include",
+    "relations": [
+      { "id": "rel_cust", "parentId": null, "kind": "many-to-one", "lookupOnly": true, "table": { "schema": "public", "name": "customers" }, "join": [{ "parent": "customer_id", "child": "customer_id" }] },
+      { "id": "rel_items", "parentId": null, "kind": "one-to-many", "table": { "schema": "public", "name": "order_items" }, "join": [{ "parent": "order_id", "child": "order_id" }], "targetFieldId": "f_items" },
+      { "id": "rel_prod", "parentId": "rel_items", "kind": "many-to-one", "lookupOnly": true, "table": { "schema": "public", "name": "products" }, "join": [{ "parent": "product_id", "child": "product_id" }] },
+      { "id": "rel_supplier", "parentId": "rel_items", "kind": "many-to-one", "table": { "schema": "public", "name": "suppliers" }, "join": [{ "parent": "supplier_id", "child": "supplier_id" }], "targetFieldId": "f_supplier" },
+      {
+        "id": "rel_tags", "parentId": null, "kind": "many-to-many", "table": { "schema": "public", "name": "tags" }, "targetFieldId": "f_tags",
+        "via": { "table": { "schema": "public", "name": "order_tags" }, "parentJoin": [{ "parent": "order_id", "via": "order_id" }], "childJoin": [{ "via": "tag_id", "child": "tag_id" }], "columns": ["tagged_at"] }
+      }
+    ],
+    "aggregates": [],
+    "fieldMappings": [],
+    "ignoredColumns": []
+  },
+  "scopes": [
+    { "fieldId": "f_oid", "scope": ["", "rel_cust"] },
+    { "fieldId": "f_city", "scope": ["", "rel_cust"], "note": "an unbound object shares its parent's scope" },
+    { "fieldId": "f_items", "scope": ["", "rel_cust"], "note": "a bound node itself is in its parent's scope" },
+    { "fieldId": "f_line", "scope": ["", "rel_cust", "rel_items", "rel_prod"] },
+    { "fieldId": "f_pname", "scope": ["", "rel_cust", "rel_items", "rel_prod"] },
+    { "fieldId": "f_sname", "scope": ["", "rel_cust", "rel_items", "rel_prod", "rel_supplier"] },
+    { "fieldId": "f_label", "scope": ["", "rel_cust", "rel_tags"] }
+  ],
+  "sources": [
+    { "fieldId": "f_pname", "relation": "rel_prod", "column": "name", "inScope": true, "note": "products looked up under items" },
+    { "fieldId": "f_oid", "relation": "rel_items", "column": "quantity", "inScope": false, "note": "a root field can't read an items column" },
+    { "fieldId": "f_line", "relation": "rel_tags", "column": "label", "inScope": false, "note": "tags is bound on a sibling" },
+    { "fieldId": "f_label", "relation": "rel_items", "column": "line_no", "inScope": false },
+    { "fieldId": "f_pname", "relation": "rel_supplier", "column": "name", "inScope": false, "note": "supplier is bound on a nested sibling object" },
+    { "fieldId": "f_sname", "relation": "rel_prod", "column": "name", "inScope": true, "note": "a lookup attached to an ancestor" },
+    { "fieldId": "f_sname", "relation": "", "column": "order_no", "inScope": true, "note": "the root is always in scope" },
+    { "fieldId": "f_city", "relation": "rel_cust", "column": "name", "inScope": true }
+  ]
+}

@@ -163,7 +163,7 @@ func (c *Connector) OpenWriter(ctx context.Context, rawCfg json.RawMessage, cred
 	if err != nil {
 		return nil, classify(err)
 	}
-	b := cl.Bucket(o.Bucket)
+	b := cl.Bucket(o.Location.Bucket)
 	if err := b.WaitUntilReady(time.Duration(cfg.ConnectTimeoutMs)*time.Millisecond, &gocb.WaitUntilReadyOptions{Context: ctx}); err != nil {
 		_ = cl.Close(nil)
 		return nil, classify(err)
@@ -176,14 +176,14 @@ func (c *Connector) OpenWriter(ctx context.Context, rawCfg json.RawMessage, cred
 		_ = cl.Close(nil)
 		return nil, classify(err)
 	}
-	coll := b.Scope(o.Scope).Collection(o.Collection)
+	coll := b.Scope(o.Location.Scope).Collection(o.Location.Collection)
 	// Probe the collection now: writing to a missing one would only time out, per document.
 	_, err = coll.Get("__odb_probe__", &gocb.GetOptions{Context: ctx, Timeout: 5 * time.Second})
 	if err != nil && !errors.Is(err, gocb.ErrDocumentNotFound) {
 		_ = cl.Close(nil)
 		if code, _ := ClassifyWriteError(err); code == target.CodeKeyspaceMissing {
 			return nil, problem.New(http.StatusUnprocessableEntity, target.CodeKeyspaceMissing, "Target collection missing",
-				fmt.Sprintf("%s.%s.%s doesn't exist.", o.Bucket, o.Scope, o.Collection))
+				fmt.Sprintf("%s doesn't exist.", o.Location))
 		}
 		return nil, classify(err)
 	}

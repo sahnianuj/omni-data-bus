@@ -3,9 +3,11 @@ package mapping
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"omnidatabus/internal/docschema"
 	"omnidatabus/internal/schema"
+	"omnidatabus/internal/store"
 )
 
 // Issue severities.
@@ -27,6 +29,8 @@ const (
 	CodeLossyConversion       = "LOSSY_CONVERSION"
 	CodeTypeIncompatible      = "TYPE_INCOMPATIBLE"
 	CodeTargetKeyspaceMissing = "TARGET_KEYSPACE_MISSING"
+	// CodeKeyCaseCollisionRisk: text keys on a case-insensitive directory target (OC-039).
+	CodeKeyCaseCollisionRisk  = "KEY_CASE_COLLISION_RISK"
 	CodeUnmappedSourceColumns = "UNMAPPED_SOURCE_COLUMNS"
 	CodeInvalidMapping        = "INVALID_MAPPING"
 	CodeTransformInvalid      = "TRANSFORM_INVALID"
@@ -34,9 +38,14 @@ const (
 
 // Fix is a one-click remedy the UI can apply (OC-022 AC2).
 type Fix struct {
-	Kind  string `json:"kind"`  // mark-optional | accept-suggestions | add-transform | enable-create
+	Kind  string `json:"kind"`  // mark-optional | accept-suggestions | add-transform | enable-create | repoint-source | combine-rows | add-to-design | restore-field | map-field
 	Label string `json:"label"` // e.g. "Mark optional"
 	Step  *Step  `json:"step,omitempty"`
+	// RelationID: repoint-source reads the column from this relation instead (OC-065).
+	RelationID string `json:"relationId,omitempty"`
+	// Columns: combine-rows groups by these key columns (OC-066); restore-field and map-field
+	// map from Columns[0] of RelationID's rows ("" = the root row, OC-071).
+	Columns []string `json:"columns,omitempty"`
 }
 
 // Issue is one validation finding. Path is a target field path (or "key", "typeField",
@@ -54,25 +63,40 @@ type Issue struct {
 	OpIndex *int   `json:"opIndex,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Column  int    `json:"column,omitempty"`
+	// NodePath is the design node the issue is on (items[].product), and RelationID the
+	// relation when it's about a binding (OC-049): the composer puts a badge on that node.
+	NodePath   string `json:"nodePath,omitempty"`
+	RelationID string `json:"relationId,omitempty"`
 }
 
 // Context is what Validate checks the spec against.
 type Context struct {
 	Table *schema.Table // the source table in the latest snapshot
-	// TargetExists is nil when the keyspace wasn't checked (saves don't contact the cluster).
+	// TargetExists is nil when the location wasn't checked (saves don't contact the target).
 	TargetExists *bool
-	Target       Target
+	Location     Location
+	// CaseInsensitive: the target's file system folds case (OC-039), checked by Validate.
+	CaseInsensitive bool
 	// Related resolves embedded tables (OC-021); nil = none are known.
 	Related RelatedTables
 }
 
 // sourceColumn resolves a mapping source: a column of the table, or of an embedded table.
 func (c Context) sourceColumn(s *Spec, t *schema.Table, src SourceRef) *schema.Column {
-	if src.Embed == "" {
+	if src.Relation == "" {
 		return t.Column(src.Column)
 	}
-	e := s.EmbedByID(src.Embed)
+	e := s.RelationByID(src.Relation)
 	if e == nil || c.Related == nil {
+		return nil
+	}
+	if src.From == FromVia {
+		if e.Via == nil {
+			return nil
+		}
+		if jt := c.Related(e.Via.Table.Schema, e.Via.Table.Name); jt != nil {
+			return jt.Column(src.Column)
+		}
 		return nil
 	}
 	if ct := c.Related(e.Table.Schema, e.Table.Name); ct != nil {
@@ -104,6 +128,8 @@ func Validate(s *Spec, ctx Context) []Issue {
 	if t == nil {
 		t = &schema.Table{}
 	}
+	issues = append(issues, validateGroup(s, ctx.Table)...)
+	t = GroupedTable(s, t) // a grouped read's key is the group-by columns (OC-063)
 
 	// Key template (OC-016).
 	switch kt, err := ParseKeyTemplate(s.Key.Template); {
@@ -122,7 +148,13 @@ func Validate(s *Spec, ctx Context) []Issue {
 				CodeKeyNonIdempotent: "{$uuid} keys are new on every run: re-running creates duplicates. Choose unique columns.",
 				CodeKeyMayBeTooLong:  fmt.Sprintf("Keys may reach %d bytes; Couchbase allows %d (rows over the limit fail). Consider |hash.", a.MaxBytes, MaxKeyBytes),
 			}[code]
-			add(Issue{Severity: SeverityWarning, Code: code, Path: "key", Message: msg})
+			is := Issue{Severity: SeverityWarning, Code: code, Path: "key", Message: msg}
+			if code == CodeKeyMayCollide && len(a.GroupCandidate) > 0 && !s.Grouped() {
+				// Rows sharing the key can become one document, its rows in an array (OC-066).
+				is.Message += " Rows with the same " + strings.Join(a.GroupCandidate, ", ") + " can be combined into one document instead."
+				is.Fix = &Fix{Kind: "combine-rows", Label: "Combine rows with the same key", Columns: a.GroupCandidate}
+			}
+			add(is)
 		}
 	}
 
@@ -169,8 +201,11 @@ func Validate(s *Spec, ctx Context) []Issue {
 			if ctx.sourceColumn(s, t, src) == nil {
 				missing = true
 				table := "the source table"
-				if src.Embed != "" {
-					table = "embedded table " + src.Embed
+				switch {
+				case src.From == FromVia:
+					table = "the junction of relation " + src.Relation
+				case src.Relation != "":
+					table = "embedded table " + src.Relation
 				}
 				add(Issue{
 					Severity: SeverityError, Code: CodeSourceColumnMissing, Path: path, FieldID: m.TargetFieldID, FieldMappingID: m.ID,
@@ -215,6 +250,14 @@ func Validate(s *Spec, ctx Context) []Issue {
 			add(i)
 		}
 	}
+	for _, r := range s.Relations {
+		if r.TargetFieldID != "" && !r.LookupOnly {
+			activeTargets[r.TargetFieldID] = r.ID // a relation fills its field
+		}
+	}
+	for _, a := range s.Aggregates {
+		activeTargets[a.TargetFieldID] = a.ID
+	}
 	for _, l := range s.DocSchema.Leaves() {
 		if l.Required && activeTargets[l.FieldID] == "" {
 			add(Issue{
@@ -231,13 +274,30 @@ func Validate(s *Spec, ctx Context) []Issue {
 			Fix:     &Fix{Kind: "accept-suggestions", Label: "Accept all suggestions"},
 		})
 	}
-	for _, i := range ValidateEmbeds(s, t, ctx.Related) {
+	for _, i := range ValidateRelations(s, t, ctx.Related) {
 		add(i)
 	}
-	if ctx.TargetExists != nil && !*ctx.TargetExists && !ctx.Target.CreateIfMissing {
+	if ctx.CaseInsensitive && t != nil {
+		if kt, err := ParseKeyTemplate(s.Key.Template); err == nil {
+			for _, c := range kt.Columns() {
+				if col := t.Column(c); col != nil && col.JSONType == schema.TypeString {
+					add(Issue{
+						Severity: SeverityWarning, Code: CodeKeyCaseCollisionRisk, Path: "key",
+						Message: "The target folder ignores letter case, and the key uses text column " + c + ": keys such as ABC and abc would be the same file here.",
+					})
+					break
+				}
+			}
+		}
+	}
+	if ctx.TargetExists != nil && !*ctx.TargetExists && !ctx.Location.CreateIfMissing {
+		what := "Collection " + ctx.Location.String()
+		if ctx.Location.Kind == store.KindDirectory {
+			what = "Folder " + ctx.Location.String()
+		}
 		add(Issue{
 			Severity: SeverityError, Code: CodeTargetKeyspaceMissing, Path: "target",
-			Message: fmt.Sprintf("Collection %s.%s.%s doesn't exist. Create it, or let the migration create it.", ctx.Target.Bucket, ctx.Target.Scope, ctx.Target.Collection),
+			Message: what + " doesn't exist. Create it, or let the migration create it.",
 			Fix:     &Fix{Kind: "enable-create", Label: "Create when migration starts"},
 		})
 	}
@@ -247,6 +307,7 @@ func Validate(s *Spec, ctx Context) []Issue {
 			Message: fmt.Sprintf("%d source column(s) aren't mapped and won't be migrated.", st.UnmappedSource),
 		})
 	}
+	issues = append(issues, validateReference(s, ctx)...)
 	SortIssues(issues)
 	return issues
 }
@@ -328,10 +389,10 @@ func CheckReferences(s *Spec, t *schema.Table, previous *Spec, related RelatedTa
 			})
 		}
 		for _, src := range m.Sources {
-			if src.Embed != "" && s.EmbedByID(src.Embed) == nil {
+			if src.Relation != "" && s.RelationByID(src.Relation) == nil {
 				issues = append(issues, Issue{
 					Severity: SeverityError, Code: CodeEmbedInvalid, Path: "fieldMappings." + m.ID, FieldMappingID: m.ID,
-					Message: "Mapping " + m.ID + " reads from unknown embed " + src.Embed + ".",
+					Message: "Mapping " + m.ID + " reads from unknown embed " + src.Relation + ".",
 				})
 				continue
 			}

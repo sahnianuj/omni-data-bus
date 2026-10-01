@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P0 | 8 | OC-037, OC-042 | Not started |
+| E9 Relationship Mapping | P0 | 8 | OC-037, OC-042 | Implemented |
 
 ## User story
 As a **data engineer**, I want to embed related tables inside embedded tables, for example an order with an `items` array where each item holds its `product` object, and to pull single values from a related table into the document without creating a nested object, so that one order document contains everything about the order in the shape my application reads.
@@ -112,3 +112,9 @@ As a **data engineer**, I want to embed related tables inside embedded tables, f
 | Test | Location | Verifies |
 |---|---|---|
 | `TestRelations_AC8_SnapshotAllDepths` *(integration)* | `internal/pipeline/relations_integration_test.go` | |
+
+## Implementation notes (2026-09-29)
+- Related rows are a tree (`source.Related` → `RelatedSet` → `RelatedRow{Values, Sub}`); `related.Resolver` resolves depth by depth with one query per relation per batch, attaching rows single-threaded after each depth (sibling relations share parents). Parents with the same key share their rows, so nested lookups run once per distinct row.
+- `OC_RELATION_MEMORY_MB` (default 256) caps a batch's related rows; over the cap the batch is split in half recursively, and a single row that still doesn't fit fails with `RELATION_MEMORY_EXCEEDED` (`Batch.RelatedFailures`, dead-lettered by the transform stage; the preview shows it as the item's error).
+- The transform compiles one sub-program per relation scope with a scope chain: sources resolve to the program's own row, an ancestor's current row (`{column}` = `$root`, `{relation: ancestor}`) or a lookup-only relation's row. `mapping.FieldScopes` / `InScope` implement the scope rule; the web mirrors them in `embeds.ts`.
+- Path embedding: `automap.AddRelation` with `then` hops (the `…/embeds` request's `then`); the Related tree reuses relations already embedded on the path.

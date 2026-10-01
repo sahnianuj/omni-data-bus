@@ -7,17 +7,17 @@ import (
 	"math"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
 
+	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/docschema"
 	"omnidatabus/internal/encode"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/schema"
 )
 
-// MaxDocBytes is Couchbase's document size limit.
+// MaxDocBytes is Couchbase's document size limit, the default size guard (OC-046).
 const MaxDocBytes = 20 << 20
 
 // Options configure compilation.
@@ -25,10 +25,90 @@ type Options struct {
 	Encode encode.Options
 	// Now is the job start; expressions' now() returns it for every row.
 	Now time.Time
-	// Related are the embedded tables by embed id (OC-021).
+	// Related are the tables each relation's rows are read as, by relation id (OC-021; for
+	// many-to-many the table's columns followed by the junction's, mapping.RowTable).
 	Related map[string]*schema.Table
+	// MaxDocBytes is the target's document size limit (0 = MaxDocBytes).
+	MaxDocBytes int
 
-	embedded bool // compiling an embed's sub-program: no key or type field
+	embedded bool          // compiling a relation's sub-program: no key or type field
+	scope    *compileScope // where the program's fields are (nil = the root)
+}
+
+// compileScope is the relation whose rows a (sub-)program writes, with its ancestors: a field
+// can read the root, the relations on its path, and their lookup-only relations (OC-043).
+type compileScope struct {
+	spec   *mapping.Spec     // the whole spec
+	scopes map[string]string // field → relation (mapping.FieldScopes)
+	id     string            // this scope's relation ("" = the root)
+	up     *compileScope
+	table  *schema.Table // the rows' table
+}
+
+// srcRef is a source read from outside the program's own row: an ancestor's row (up levels
+// up), or a lookup-only relation's row under that ancestor.
+type srcRef struct {
+	up     int
+	lookup string
+	idx    int
+	col    schema.Column
+}
+
+// resolve finds a mapping source in scope: the root table (relation ""), a relation on the
+// path, or a lookup-only relation attached to it. local is true for the program's own row.
+func (sc *compileScope) resolve(src mapping.SourceRef, related map[string]*schema.Table) (ref srcRef, col *schema.Column, local bool, code, msg string) {
+	missing := func(m string) (srcRef, *schema.Column, bool, string, string) {
+		return ref, nil, false, mapping.CodeSourceColumnMissing, m
+	}
+	name := src.Column
+	if src.From == mapping.FromVia {
+		name = mapping.ViaColumn(src.Column)
+	}
+	up := 0
+	for s := sc; s != nil; s, up = s.up, up+1 {
+		switch {
+		case src.Relation == "" && s.up == nil, src.Relation != "" && src.Relation == s.id:
+			if src.From == mapping.FromVia && s.id == "" {
+				return ref, nil, false, mapping.CodeEmbedScope, "Only a many-to-many relation's junction columns can be read with from: via."
+			}
+			i := columnIndex(s.table, name)
+			if i < 0 {
+				return missing("Column " + src.Column + " isn't in " + tableLabel(src.Relation) + ".")
+			}
+			return srcRef{up: up, idx: i, col: s.table.Columns[i]}, &s.table.Columns[i], up == 0, "", ""
+		case src.Relation != "":
+			r := sc.spec.RelationByID(src.Relation)
+			if r == nil || !r.LookupOnly || r.Parent() != s.id {
+				continue
+			}
+			t := related[r.ID]
+			if t == nil {
+				return ref, nil, false, mapping.CodeEmbedTableMissing, "Lookup table " + r.Table.String() + " isn't known."
+			}
+			i := columnIndex(t, name)
+			if i < 0 {
+				return missing("Column " + src.Column + " isn't in " + r.Table.String() + ".")
+			}
+			return srcRef{up: up, lookup: r.ID, idx: i, col: t.Columns[i]}, &t.Columns[i], false, "", ""
+		}
+	}
+	return ref, nil, false, mapping.CodeEmbedScope, "Columns of relation " + src.Relation + " aren't in this field's scope."
+}
+
+func tableLabel(rel string) string {
+	if rel == "" {
+		return "the source table"
+	}
+	return "relation " + rel + "'s table"
+}
+
+func columnIndex(t *schema.Table, name string) int {
+	for i, c := range t.Columns {
+		if c.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Warning is a non-fatal per-row finding.
@@ -66,6 +146,7 @@ type fieldProg struct {
 	path, name, fieldID string
 	target              docschema.FieldType
 	srcIdx              []int
+	ext                 []*srcRef // non-nil when a source is outside the row (aligned with srcIdx)
 	steps               []step
 	omitNull            bool
 	direct              bool // one source, no steps, exact type: written straight from the row
@@ -80,18 +161,9 @@ type node struct {
 	// null marks a designed field with no active mapping, written as null unless the spec
 	// omits unmapped fields.
 	null bool
-	// embed fills the field from an embedded table (OC-021).
+	// embed fills the field from a relation's rows (OC-021); agg from an aggregate (OC-045).
 	embed *embedProg
-}
-
-// embedProg writes an embed: the related rows through the embed's own sub-program.
-type embedProg struct {
-	id, path string
-	many     bool // one-to-many: an array
-	limit    int
-	omitNull bool // many-to-one without a row: omit rather than null
-	omitNone bool // one-to-many without rows: omit rather than []
-	sub      *Program
+	agg   *aggProg
 }
 
 // Program turns rows into (key, document). It is not safe for concurrent use: the pipeline
@@ -116,7 +188,16 @@ type Program struct {
 	keyBuf   []byte
 	warnings []Warning
 	embeds   []*embedProg
-	related  map[string][][]any // the current row's embedded rows
+	aggs     []*aggProg
+	parent   *Program       // the program of the enclosing relation (nil = the root)
+	related  source.Related // the current row's related rows
+	curKey   string         // the document key (for split pages)
+	guard    guardState     // the size guard's per-document state
+	pages    []Page         // extra page documents of the current document (OC-046)
+	escope   *exprScope     // names scoped expressions read (OC-047)
+	helpers  map[string]any
+	envCache map[string]any // the current row's scoped environment
+	envBuilt bool
 }
 
 // Compile resolves a spec against the source table. Issues (bad args, bad regex, unknown
@@ -126,10 +207,16 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 	if opts.Now.IsZero() {
 		opts.Now = time.Now().UTC()
 	}
+	if opts.scope == nil {
+		opts.scope = &compileScope{spec: spec, scopes: mapping.FieldScopes(spec), table: t}
+	}
+	sc := opts.scope
 	p := &Program{cols: t.Columns, opts: opts}
 	for _, c := range t.Columns {
 		p.colNames = append(p.colNames, c.Name)
 	}
+	p.escope = newExprScope(sc, opts.Related, p.colNames)
+	p.helpers = helperMap(exprEnv(opts.Now, nil, nil))
 	idx := map[string]int{}
 	for i, c := range t.Columns {
 		idx[c.Name] = i
@@ -168,23 +255,40 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		p.typeJSON = appendString(p.typeJSON, spec.TypeField.Value)
 	}
 
-	// Embeds compile to sub-programs over their tables; their mappings belong to them.
+	// This scope's relations compile to sub-programs over their tables, with the mappings of
+	// their fields; aggregates over them fill fields of this scope (OC-043, OC-045).
 	paths := spec.DocSchema.Paths()
 	byEmbed := map[string]*embedProg{}
-	for _, e := range spec.Embeds {
-		path := paths[e.TargetFieldID]
-		ep, eissues := compileEmbed(spec, e, path, opts)
+	for _, e := range sc.spec.Relations {
+		if e.Parent() != sc.id || e.LookupOnly || e.TargetFieldID == "" {
+			continue
+		}
+		ep, eissues := compileEmbed(spec, e, paths[e.TargetFieldID], opts)
 		issues = append(issues, eissues...)
 		if ep != nil {
+			ep.sub.parent = p
 			byEmbed[e.TargetFieldID] = ep
 			p.embeds = append(p.embeds, ep)
 		}
 	}
+	byAgg := map[string]*aggProg{}
+	for _, a := range sc.spec.Aggregates {
+		r := sc.spec.RelationByID(a.RelationID)
+		if r == nil || r.Parent() != sc.id || spec.DocSchema.Find(a.TargetFieldID) == nil {
+			continue
+		}
+		ap, aissues := compileAggregate(spec, a, *r, paths[a.TargetFieldID], opts)
+		issues = append(issues, aissues...)
+		if ap != nil {
+			byAgg[a.TargetFieldID] = ap
+			p.aggs = append(p.aggs, ap)
+		}
+	}
 
-	// Field programs for active mappings, by target field.
+	// Field programs for this scope's active mappings, by target field.
 	byField := map[string]*fieldProg{}
 	for _, m := range spec.FieldMappings {
-		if !m.Active() || mapping.EmbedSources(m) {
+		if !m.Active() || sc.scopes[m.TargetFieldID] != sc.id {
 			continue
 		}
 		path, ok := paths[m.TargetFieldID]
@@ -201,28 +305,42 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		fp.omitNull = nh == mapping.NullOmit
 		inType := docschema.Any
 		missing := false
+		var srcCols []*schema.Column
 		for _, s := range m.Sources {
-			i, ok := idx[s.Column]
-			if !ok {
-				errorf(path, f.ID, m.ID, mapping.CodeSourceColumnMissing, "Column "+s.Column+" isn't in the source table.", -1, "")
+			ref, col, local, code, msg := sc.resolve(s, opts.Related)
+			if col == nil {
+				errorf(path, f.ID, m.ID, code, msg, -1, "")
 				missing = true
 				continue
 			}
-			fp.srcIdx = append(fp.srcIdx, i)
+			srcCols = append(srcCols, col)
+			if local {
+				fp.srcIdx = append(fp.srcIdx, ref.idx)
+				fp.ext = append(fp.ext, nil)
+				continue
+			}
+			fp.srcIdx = append(fp.srcIdx, -1)
+			fp.ext = append(fp.ext, &ref)
 		}
 		if missing {
 			continue
 		}
-		if len(fp.srcIdx) == 1 {
-			inType = docschema.FieldType(t.Columns[fp.srcIdx[0]].JSONType)
+		if fp.local() {
+			fp.ext = nil
 		}
-		env := &compileEnv{sources: len(fp.srcIdx), columns: p.colNames, opts: opts}
+		if len(srcCols) == 1 {
+			inType = docschema.FieldType(srcCols[0].JSONType)
+		}
+		env := &compileEnv{sources: len(fp.srcIdx), columns: p.colNames, opts: opts, escope: p.escope}
 		hasConcatOrExpr := false
 		for si, st := range m.Transforms {
 			spec, ok := ops[st.Op]
 			if !ok {
 				errorf(path, f.ID, m.ID, mapping.CodeTransformInvalid, "Unknown transform '"+st.Op+"'.", si, st.Op)
 				continue
+			}
+			if st.Op == "concat" || st.Op == "expression" || st.Op == "constant" || st.Op == "array" {
+				hasConcatOrExpr = true // even when its args are wrong: that's the one issue to report
 			}
 			fn, err := spec.compile(st.Args, env)
 			if err != nil {
@@ -233,12 +351,12 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 				if errors.As(err, &ee) {
 					// The position travels in Line/Column, not in the message.
 					i.Line, i.Column, i.Message = ee.Line, ee.Column, st.Op+": "+ee.Message
+					if ee.Code != "" {
+						i.Code = ee.Code
+					}
 				}
 				issues = append(issues, i)
 				continue
-			}
-			if st.Op == "concat" || st.Op == "expression" || st.Op == "constant" {
-				hasConcatOrExpr = true
 			}
 			if st.Op == "expression" {
 				p.needRow = true
@@ -259,15 +377,15 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		if class, _ := mapping.Compat(string(inType), f.Type); class == mapping.ClassIncompatible {
 			errorf(path, f.ID, m.ID, CodeTypeMismatch, fmt.Sprintf("The pipeline produces %s, but %s is %s.", inType, path, f.Type), len(m.Transforms)-1, "")
 		}
-		fp.direct = len(fp.srcIdx) == 1 && len(fp.steps) == 0 && directSafe(t.Columns[fp.srcIdx[0]], f.Type)
-		fp.strChain = len(fp.srcIdx) == 1 && len(fp.steps) > 0 && (f.Type == docschema.String || f.Type == docschema.Any)
+		fp.direct = fp.ext == nil && len(fp.srcIdx) == 1 && len(fp.steps) == 0 && directSafe(t.Columns[fp.srcIdx[0]], f.Type)
+		fp.strChain = fp.ext == nil && len(fp.srcIdx) == 1 && len(fp.steps) > 0 && (f.Type == docschema.String || f.Type == docschema.Any)
 		for _, st := range fp.steps {
 			fp.strChain = fp.strChain && st.str != nil
 		}
 		byField[f.ID] = fp
 		p.fields = append(p.fields, fp)
 	}
-	p.root = buildNodes(spec.DocSchema.Root.Children, byField, byEmbed, !spec.OmitUnmapped)
+	p.root = buildNodes(spec.DocSchema.Root.Children, byField, byEmbed, byAgg, !spec.OmitUnmapped)
 	mapping.SortIssues(issues)
 	for _, i := range issues {
 		if i.Severity == mapping.SeverityError {
@@ -288,44 +406,10 @@ func directSafe(c schema.Column, target docschema.FieldType) bool {
 	return class == mapping.ClassExact && (c.JSONType != schema.TypeAny || target == docschema.Any)
 }
 
-// compileEmbed compiles one embed's sub-program against its table.
-func compileEmbed(spec *mapping.Spec, e mapping.Embed, path string, opts Options) (*embedProg, []mapping.Issue) {
-	issue := func(code, msg string) []mapping.Issue {
-		return []mapping.Issue{{Severity: mapping.SeverityError, Code: code, Path: path, FieldID: e.TargetFieldID, Message: "Embed " + e.ID + ": " + msg}}
-	}
-	t := opts.Related[e.ID]
-	if t == nil {
-		return nil, issue(mapping.CodeEmbedTableMissing, "table "+e.Table.String()+" isn't known.")
-	}
-	if mapping.EmbedContainer(&spec.DocSchema, e) == nil {
-		return nil, issue(mapping.CodeEmbedTargetKind, path+" doesn't have the shape of a "+e.Kind+" embed.")
-	}
-	scoped := mapping.Scoped(spec, e)
-	sub := opts
-	sub.embedded, sub.Related = true, nil
-	prog, found := Compile(&scoped, t, sub)
-	// The sub-program's paths are relative to the embed: make them absolute.
-	prefix := path + "."
-	if e.Kind == mapping.EmbedOneToMany {
-		prefix = path + "[]."
-	}
-	for i := range found {
-		found[i].Path = prefix + found[i].Path
-	}
-	if prog == nil {
-		return nil, found
-	}
-	nh := spec.NullHandling == mapping.NullOmit
-	return &embedProg{
-		id: e.ID, path: path, many: e.Kind == mapping.EmbedOneToMany, limit: e.EffectiveLimit(),
-		omitNull: nh, omitNone: e.Empty == mapping.EmptyOmit, sub: prog,
-	}, found
-}
-
 // buildNodes lays out the document in design order. Leaf fields without an active mapping
 // become null nodes when includeUnmapped (the spec's "Include unmapped fields"), else they're
 // left out. Null handling only decides what a mapped field whose value is null becomes.
-func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEmbed map[string]*embedProg, includeUnmapped bool) []*node {
+func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEmbed map[string]*embedProg, byAgg map[string]*aggProg, includeUnmapped bool) []*node {
 	var out []*node
 	for i := range fields {
 		f := &fields[i]
@@ -337,9 +421,13 @@ func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEm
 			out = append(out, &node{name: f.Name, embed: ep})
 			continue
 		}
+		if ap, ok := byAgg[f.ID]; ok {
+			out = append(out, &node{name: f.Name, agg: ap})
+			continue
+		}
 		switch {
 		case f.Type == docschema.Object && len(f.Children) > 0:
-			if kids := buildNodes(f.Children, byField, byEmbed, includeUnmapped); len(kids) > 0 {
+			if kids := buildNodes(f.Children, byField, byEmbed, byAgg, includeUnmapped); len(kids) > 0 {
 				out = append(out, &node{name: f.Name, children: kids})
 			}
 		case f.Type != docschema.Object && includeUnmapped:
@@ -395,7 +483,7 @@ func (p *Program) resetRow(row []any) {
 		p.encoded[i] = false
 	}
 	p.warnings = p.warnings[:0]
-	p.curRow, p.rowBuilt = row, false
+	p.curRow, p.rowBuilt, p.envBuilt = row, false, false
 }
 
 // rowMap is the column → value map expressions see as row, built at most once per row.
@@ -418,31 +506,52 @@ func (p *Program) Apply(row []any, buf []byte) (key string, doc []byte, warnings
 	return p.apply(row, nil, buf, nil)
 }
 
-// ApplyRelated is Apply with the row's embedded rows (embed id → rows, OC-021). A missing
-// embed has no rows.
+// ApplyRelated is Apply with the row's depth-1 related rows (relation id → rows, OC-021): the
+// 1.0 shape, without nested relations. A missing relation has no rows.
 func (p *Program) ApplyRelated(row []any, related map[string][][]any, buf []byte) (key string, doc []byte, warnings []Warning, rerr *RowError) {
+	return p.apply(row, source.FlatRelated(related), buf, nil)
+}
+
+// ApplyWith is Apply with the row's related rows as the resolver returns them (nested
+// relations included, OC-043). Split pages (OC-046) are in Pages until the next call.
+func (p *Program) ApplyWith(row []any, related source.Related, buf []byte) (key string, doc []byte, warnings []Warning, rerr *RowError) {
 	return p.apply(row, related, buf, nil)
 }
 
 // ApplyTrace is Apply that also records every field's value after the source read and after
 // each step (the preview's trace view).
 func (p *Program) ApplyTrace(row []any, buf []byte) (key string, doc []byte, warnings []Warning, trace map[string][]TraceStep, rerr *RowError) {
-	return p.ApplyTraceRelated(row, nil, buf)
+	return p.ApplyTraceWith(row, nil, buf)
 }
 
-// ApplyTraceRelated is ApplyTrace with the row's embedded rows.
+// ApplyTraceRelated is ApplyTrace with the row's depth-1 related rows.
 func (p *Program) ApplyTraceRelated(row []any, related map[string][][]any, buf []byte) (key string, doc []byte, warnings []Warning, trace map[string][]TraceStep, rerr *RowError) {
+	return p.ApplyTraceWith(row, source.FlatRelated(related), buf)
+}
+
+// ApplyTraceWith is ApplyTrace with the row's related rows.
+func (p *Program) ApplyTraceWith(row []any, related source.Related, buf []byte) (key string, doc []byte, warnings []Warning, trace map[string][]TraceStep, rerr *RowError) {
 	trace = map[string][]TraceStep{}
 	key, doc, warnings, rerr = p.apply(row, related, buf, trace)
 	return key, doc, warnings, trace, rerr
 }
 
-// HasEmbeds reports whether documents need embedded rows (ApplyRelated).
-func (p *Program) HasEmbeds() bool { return len(p.embeds) > 0 }
+// HasEmbeds reports whether documents need related rows (ApplyWith).
+func (p *Program) HasEmbeds() bool { return len(p.embeds) > 0 || len(p.aggs) > 0 }
 
-func (p *Program) apply(row []any, related map[string][][]any, buf []byte, trace map[string][]TraceStep) (string, []byte, []Warning, *RowError) {
+// maxDocBytes is the size guard's limit.
+func (p *Program) maxDocBytes() int {
+	if p.opts.MaxDocBytes > 0 {
+		return p.opts.MaxDocBytes
+	}
+	return MaxDocBytes
+}
+
+func (p *Program) apply(row []any, related source.Related, buf []byte, trace map[string][]TraceStep) (string, []byte, []Warning, *RowError) {
 	p.resetRow(row)
 	p.related = related
+	p.pages = p.pages[:0]
+	p.guard.reset()
 	if len(row) != len(p.cols) {
 		return "", nil, nil, &RowError{Code: CodeTypeMismatch, Message: fmt.Sprintf("row has %d values; the table has %d columns", len(row), len(p.cols))}
 	}
@@ -462,22 +571,36 @@ func (p *Program) apply(row []any, related map[string][][]any, buf []byte, trace
 		p.keyBuf = kb
 		key = string(kb)
 	}
-	doc := buf[:0]
-	doc = append(doc, '{')
-	first := true
-	if p.typeJSON != nil {
-		doc = append(doc, p.typeJSON...)
-		first = false
+	p.curKey = key
+	// The size guard (OC-046) re-renders with its largest array cut down until the document
+	// fits, when that array's overflow policy says so.
+	for {
+		doc := buf[:0]
+		doc = append(doc, '{')
+		first := true
+		if p.typeJSON != nil {
+			doc = append(doc, p.typeJSON...)
+			first = false
+		}
+		doc, _, rerr := p.writeNodes(doc, p.root, row, first, trace)
+		if rerr != nil {
+			return "", nil, nil, rerr
+		}
+		doc = append(doc, '}')
+		if len(doc) <= p.maxDocBytes() {
+			p.warnings = append(p.warnings, p.guard.warnings()...)
+			return key, doc, p.warnings, nil
+		}
+		if !p.guard.shrink() {
+			return "", nil, nil, &RowError{Code: CodeDocTooLarge, Message: fmt.Sprintf("the document is %d bytes; the target allows %d", len(doc), p.maxDocBytes())}
+		}
+		buf = doc
+		p.resetRow(row)
+		p.pages = p.pages[:0]
+		for k := range trace {
+			delete(trace, k)
+		}
 	}
-	doc, _, rerr := p.writeNodes(doc, p.root, row, first, trace)
-	if rerr != nil {
-		return "", nil, nil, rerr
-	}
-	doc = append(doc, '}')
-	if len(doc) > MaxDocBytes {
-		return "", nil, nil, &RowError{Code: CodeDocTooLarge, Message: fmt.Sprintf("the document is %d bytes; Couchbase allows %d", len(doc), MaxDocBytes)}
-	}
-	return key, doc, p.warnings, nil
 }
 
 // writeNodes appends the members of an object; wrote reports whether any member was written.
@@ -497,6 +620,17 @@ func (p *Program) writeNodes(dst []byte, nodes []*node, row []any, first bool, t
 			var ok bool
 			var rerr *RowError
 			dst, ok, rerr = p.writeEmbed(dst, n.embed)
+			if rerr != nil {
+				return dst, false, rerr
+			}
+			if !ok {
+				dst = dst[:mark]
+				continue
+			}
+		case n.agg != nil:
+			var ok bool
+			var rerr *RowError
+			dst, ok, rerr = p.writeAggregate(dst, n.agg)
 			if rerr != nil {
 				return dst, false, rerr
 			}
@@ -534,51 +668,6 @@ func (p *Program) writeNodes(dst []byte, nodes []*node, row []any, first bool, t
 	return dst, wrote, nil
 }
 
-// CodeEmbedTruncated warns that a one-to-many embed had more rows than its limit.
-const CodeEmbedTruncated = "EMBED_TRUNCATED"
-
-// writeEmbed appends an embed's value: the related row as an object (many-to-one; null or
-// omitted without one), or the related rows as an array of objects, at most limit of them
-// (one-to-many; [] or omitted without any). ok is false when the field is omitted.
-func (p *Program) writeEmbed(dst []byte, e *embedProg) ([]byte, bool, *RowError) {
-	rows := p.related[e.id]
-	if !e.many {
-		if len(rows) == 0 {
-			if e.omitNull {
-				return dst, false, nil
-			}
-			return append(dst, "null"...), true, nil
-		}
-		dst, rerr := e.sub.writeObject(dst, rows[0], e.path+".")
-		p.addWarnings(e.sub.warnings, e.path+".")
-		return dst, true, rerr
-	}
-	if len(rows) == 0 && e.omitNone {
-		return dst, false, nil
-	}
-	if len(rows) > e.limit {
-		p.warnings = append(p.warnings, Warning{
-			FieldPath: e.path, Code: CodeEmbedTruncated,
-			Message: fmt.Sprintf("more than %d related rows; kept the first %d", e.limit, e.limit),
-		})
-		rows = rows[:e.limit]
-	}
-	dst = append(dst, '[')
-	for i, r := range rows {
-		if i > 0 {
-			dst = append(dst, ',')
-		}
-		var rerr *RowError
-		prefix := e.path + "[" + strconv.Itoa(i) + "]."
-		dst, rerr = e.sub.writeObject(dst, r, prefix)
-		p.addWarnings(e.sub.warnings, prefix)
-		if rerr != nil {
-			return dst, false, rerr
-		}
-	}
-	return append(dst, ']'), true, nil
-}
-
 func (p *Program) addWarnings(ws []Warning, prefix string) {
 	for _, w := range ws {
 		w.FieldPath = prefix + w.FieldPath
@@ -586,19 +675,35 @@ func (p *Program) addWarnings(ws []Warning, prefix string) {
 	}
 }
 
-// writeObject appends one embedded row as an object; errors carry the full field path.
-func (p *Program) writeObject(dst []byte, row []any, prefix string) ([]byte, *RowError) {
-	p.resetRow(row)
-	if len(row) != len(p.cols) {
-		return dst, &RowError{FieldPath: strings.TrimSuffix(prefix, "."), Code: CodeTypeMismatch, Message: fmt.Sprintf("related row has %d values; the table has %d columns", len(row), len(p.cols))}
+// local reports whether every source is a column of the program's own row.
+func (f *fieldProg) local() bool {
+	for _, e := range f.ext {
+		if e != nil {
+			return false
+		}
 	}
-	dst = append(dst, '{')
-	dst, _, rerr := p.writeNodes(dst, p.root, row, true, nil)
-	if rerr != nil {
-		rerr.FieldPath = prefix + rerr.FieldPath
-		return dst, rerr
+	return true
+}
+
+// source is the encoded value of a field's i-th source: a column of the row, of an ancestor
+// relation's current row, or of a lookup-only relation's row (OC-043; null without one).
+func (p *Program) source(f *fieldProg, row []any, i int) any {
+	if f.ext == nil || f.ext[i] == nil {
+		return p.value(row, f.srcIdx[i])
 	}
-	return append(dst, '}'), nil
+	r := f.ext[i]
+	q := p
+	for n := 0; n < r.up && q.parent != nil; n++ {
+		q = q.parent
+	}
+	if r.lookup == "" {
+		return q.value(q.curRow, r.idx)
+	}
+	set := q.related[r.lookup]
+	if set.Len() == 0 || r.idx >= len(set.Rows[0].Values) {
+		return nil
+	}
+	return encode.ValueWith(set.Rows[0].Values[r.idx], r.col, p.opts.Encode)
 }
 
 // writeField appends one field's value; ok is false when a null is omitted.
@@ -624,11 +729,11 @@ func (p *Program) writeField(dst []byte, f *fieldProg, row []any, trace map[stri
 	var v any
 	var sources []any
 	if len(f.srcIdx) == 1 {
-		v = p.value(row, f.srcIdx[0])
+		v = p.source(f, row, 0)
 	} else if len(f.srcIdx) > 1 {
 		sources = make([]any, len(f.srcIdx))
-		for i, si := range f.srcIdx {
-			sources[i] = p.value(row, si)
+		for i := range f.srcIdx {
+			sources[i] = p.source(f, row, i)
 		}
 		v = sources[0]
 	}
@@ -638,7 +743,7 @@ func (p *Program) writeField(dst []byte, f *fieldProg, row []any, trace map[stri
 	ctx := &p.ctx
 	ctx.sources, ctx.warnings, ctx.path = sources, &p.warnings, f.path
 	if ctx.row == nil {
-		ctx.row = p.rowMap
+		ctx.row, ctx.scoped = p.rowMap, p.scopedEnv
 	}
 	for _, s := range f.steps {
 		ctx.op = s.op

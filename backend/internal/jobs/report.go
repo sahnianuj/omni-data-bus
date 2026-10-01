@@ -59,8 +59,9 @@ func (s *Service) Report(ctx context.Context, ws store.WorkspaceID, id string) (
 		mr := verify.MappingReport{MappingID: mid}
 		spec := opts.Specs[mid]
 		if m, err := s.store.Mappings().Get(ctx, ws, mid); err == nil {
-			mr.Table = m.SourceSchema + "." + m.SourceTable
-			mr.Target = m.Target.Bucket + "." + m.Target.Scope + "." + m.Target.Collection
+			srcSchema, srcTable := m.Driving()
+			mr.Table = srcSchema + "." + srcTable
+			mr.Target = m.Where().String()
 			if len(spec) == 0 {
 				spec = m.Spec
 			}

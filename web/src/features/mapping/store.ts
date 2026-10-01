@@ -6,7 +6,7 @@ import type { Filter } from './selectVisible'
 import type { MappingIssue, MappingSpec, MappingStats, MappingView, SourceColumn } from './types'
 
 export type Selection = { kind: 'mapping'; id: string } | { kind: 'field'; id: string } | { kind: 'column'; name: string } | null
-export type WorkbenchMode = 'canvas' | 'table' | 'design'
+export type WorkbenchMode = 'canvas' | 'table' | 'design' | 'composer'
 
 export type WorkbenchState = {
   view: MappingView // the last server response
@@ -52,7 +52,8 @@ export function createWorkbenchStore(view: MappingView, columns: SourceColumn[])
     selection: null,
     filter: 'all',
     search: '',
-    mode: 'canvas',
+    // A composed mapping opens in the composer (OC-048).
+    mode: view.spec.mode === 'composed' ? 'composer' : 'canvas',
     collapsed: new Set(),
     conflict: false,
     revision: 0,

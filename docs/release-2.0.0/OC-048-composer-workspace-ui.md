@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E10 Document Composer | P0 | 13 | OC-047, OC-042, OC-004 | Not started |
+| E10 Document Composer | P0 | 13 | OC-047, OC-042, OC-004 | Implemented |
 
 ## User story
 As a **data engineer**, I want a workspace where I sketch my JSON document as a tree, drag source tables onto objects and arrays to define 1:1 and 1:M associations, and drag columns onto fields, while seeing a live sample document, so that I can build a custom document structure without writing code.
@@ -112,3 +112,12 @@ As a **data engineer**, I want a workspace where I sketch my JSON document as a 
 | Test | Location | Verifies |
 |---|---|---|
 | `composerStore.test.ts` › `AC7: undo history and autosave` | `src/features/composer/composerStore.test.ts` | |
+
+## Implementation notes (2026-09-30)
+- The composer is a fourth view of the mapping workbench (**Canvas · Composer · Table · Design**) on the same store, so undo (100 steps; ≥ 50 required), 800 ms autosave with If-Match and the 412 conflict banner are shared. Choosing Composer sets `spec.mode: composed` (and `root` to the mapping's own table); choosing Canvas sets it back unless the mapping is driven by another table, which is refused with a message. A composed mapping opens in the composer.
+- Panes: Sources (the driving table's relationship tree from the OC-042 graph, junctions, then every other table; bold / outlined / muted by reach from the selected node), Document (ARIA tree), Inspector, a Problems panel under the tree (OC-049) and the Sample pane. Below 1024 px the panes are tabs.
+- Keyboard: arrows, Home/End, Enter (sibling field), Tab (child field), Alt+↑/↓ (reorder), F2 (rename), Delete, Shift+F10 or the Menu key (node actions, arrow-navigable). Every drag has a menu equivalent: *Bind to table…* (table picker → Bind dialog), *Look up values from a table…* (lookup-only relation), *Map from column…* (focuses the inspector's Source picker), *Paste JSON sample…*.
+- The Bind dialog pre-fills from the graph edges leaving the node's scope table; junction candidates apply when that table is the graph's root (the graph's junctions are root-relative). Join columns are editable; *Define relationship…* opens the virtual relationship editor with both tables selected. *Generate item fields* adds a field per column (a one-to-many's join columns left out); *Auto-map* runs the OC-049 scoped auto-map after saving.
+- Starting points: Blank, JSON sample (types inferred client-side: integer vs number, nested objects and arrays), Generated from table (then a root auto-map), or the existing mapping.
+- AC1's golden is `web/testdata/composer/order_from_blank.json` (ids normalized); the backend compiles the same file (`TestCompile_ComposerGolden`), so the UI and the server agree on the model. E2E: `web/tests/e2e/composer-order.spec.ts` (drag-and-drop bindings against the built image); the a11y E2E now also checks the Composer view in both themes.
+- The workbench's save badge now reads "Saved · just now" (was "Saved"), matching the project wizard and AC7. Small grey (`text-subtle`) labels failed color contrast in a real browser, so the composer and the canvas's *Virtual relationship* button use `text-muted`.

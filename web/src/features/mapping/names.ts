@@ -1,6 +1,6 @@
 import { snake } from '@/lib/naming'
 
-/** Mirrors mappings.SanitizeCollectionName: Order Details → order_details. */
+/** Mirrors naming.CollectionName: Order Details → order_details. */
 export function sanitizeCollectionName(table: string): string {
   let out = ''
   for (const ch of snake(table)) {
@@ -11,4 +11,9 @@ export function sanitizeCollectionName(table: string): string {
   out = out.replace(/^[_%]+/, '').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
   if (out.length > 251) out = out.slice(0, 251).replace(/_+$/, '')
   return out || 'collection'
+}
+
+/** Mirrors naming.FolderName: a collection name without "%", at most 64 characters (OC-038). */
+export function folderName(name: string): string {
+  return sanitizeCollectionName(name).replace(/%/g, '_').slice(0, 64).replace(/^_+|_+$/g, '') || 'collection'
 }

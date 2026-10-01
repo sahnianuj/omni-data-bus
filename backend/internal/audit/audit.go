@@ -18,8 +18,8 @@ var Actions = []string{
 	"auth.signup", "auth.login.success", "auth.login.failure", "auth.logout",
 	"project.create", "project.update", "project.delete",
 	"connection.create", "connection.update", "connection.delete", "connection.test", "connection.discover",
-	"keyspace.create",
-	"mapping.create", "mapping.update", "mapping.automap", "mapping.design", "mapping.delete",
+	"keyspace.create", "location.create", "folder.create", "output.path_rejected",
+	"mapping.create", "mapping.update", "mapping.automap", "mapping.design", "mapping.delete", "mapping.relocate",
 	"job.create", "job.pause", "job.resume", "job.cancel", "job.retry",
 	"report.download",
 }

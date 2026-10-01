@@ -46,7 +46,47 @@ func (p pgxReadConn) Query(ctx context.Context, sql string, args ...any) ([][]an
 	return out, rows.Err()
 }
 
+// Stream calls fn with each row as it arrives (sorted-merge, OC-046).
+func (p pgxReadConn) Stream(ctx context.Context, sql string, fn func([]any) error, args ...any) error {
+	rows, err := p.c.Query(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		vals, err := rows.Values()
+		if err != nil {
+			return err
+		}
+		if err := fn(vals); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 func (p pgxReadConn) Close(ctx context.Context) error { return p.c.Close(ctx) }
+
+// streamConn is a readConn that can stream rows; others are read whole and then replayed.
+type streamConn interface {
+	Stream(ctx context.Context, sql string, fn func([]any) error, args ...any) error
+}
+
+func streamOn(ctx context.Context, c readConn, sql string, fn func([]any) error, args ...any) error {
+	if sc, ok := c.(streamConn); ok {
+		return sc.Stream(ctx, sql, fn, args...)
+	}
+	rows, err := c.Query(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if err := fn(r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // dialFunc opens a new connection with the given application_name.
 type dialFunc func(ctx context.Context, app string) (readConn, error)
@@ -412,48 +452,80 @@ func (c *cursor) Close() error {
 // ReadRelated implements source.RelatedReader: one query for a batch of join keys, on a
 // connection that shares the coordinator's exported snapshot (OC-021 AC5).
 func (r *readSession) ReadRelated(ctx context.Context, q source.RelatedQuery, keys [][]any) ([][]any, error) {
-	if len(keys) == 0 {
-		return nil, nil
+	var out [][]any
+	err := r.StreamRelated(ctx, q, keys, func(row []any) error {
+		out = append(out, row)
+		return nil
+	})
+	return out, err
+}
+
+// StreamRelated implements source.RelatedStreamer: ReadRelated, one row at a time.
+func (r *readSession) StreamRelated(ctx context.Context, q source.RelatedQuery, keys [][]any, fn func(row []any) error) error {
+	if len(keys) == 0 && q.Range == nil {
+		return nil
 	}
 	sql := RelatedSQL(q)
 	args := relatedArgs(q, keys)
 	_, idx := projection(q.Table)
-	var rows [][]any
+	width := len(q.Table.Columns)
+	emit := func(v []any) error { return fn(relatedRow(v, idx, width)) }
 	var err error
 	if r.snapshot == "" {
-		err = r.onCoord(ctx, func(c readConn) error {
-			rows, err = c.Query(ctx, sql, args...)
-			return err
-		})
+		err = r.onCoord(ctx, func(c readConn) error { return streamOn(ctx, c, sql, emit, args...) })
 	} else {
 		var conn readConn
 		if conn, err = r.lookupConn(ctx); err != nil {
-			return nil, wrapRead(err)
+			return wrapRead(err)
 		}
-		rows, err = conn.Query(ctx, sql, args...)
+		err = streamOn(ctx, conn, sql, emit, args...)
 		r.releaseLookup(ctx, conn, err != nil && ClassifyPgTransient(err))
 	}
 	if err != nil {
-		return nil, wrapRead(err)
+		return wrapRead(err)
 	}
-	out := make([][]any, len(rows))
-	for i, v := range rows {
-		out[i] = widen(v, idx, len(q.Table.Columns))
-	}
-	return out, nil
+	return nil
 }
 
-// relatedArgs are one text array per join column (the SQL casts them to the column's type).
+// relatedRow aligns a related row with its table's columns; values past the projection (a
+// many-to-many row's junction columns) follow in order.
+func relatedRow(vals []any, idx []int, width int) []any {
+	row := widen(vals, idx, width)
+	if len(vals) > len(idx) {
+		row = append(row, vals[len(idx):]...)
+	}
+	return row
+}
+
+// relatedArgs are one text array per join column (the SQL casts them to the column's type), or
+// a range's two bounds, followed by the filters' values (OC-045).
 func relatedArgs(q source.RelatedQuery, keys [][]any) []any {
-	args := make([]any, len(q.Join))
-	for k := range q.Join {
-		col := make([]string, len(keys))
-		for i, key := range keys {
-			if k < len(key) {
-				col[i] = pgText(key[k])
+	var args []any
+	if q.Range != nil {
+		args = append(args, pgText(q.Range.From), pgText(q.Range.To))
+	} else {
+		for k := range q.Join {
+			col := make([]string, len(keys))
+			for i, key := range keys {
+				if k < len(key) {
+					col[i] = pgText(key[k])
+				}
+			}
+			args = append(args, col)
+		}
+	}
+	for _, f := range q.Filter {
+		switch f.Op {
+		case "isNull", "notNull":
+		case "in", "notIn":
+			args = append(args, append([]string{}, f.Args...))
+		default:
+			if len(f.Args) > 0 {
+				args = append(args, f.Args[0])
+			} else {
+				args = append(args, "")
 			}
 		}
-		args[k] = col
 	}
 	return args
 }

@@ -1,0 +1,36 @@
+{
+  "docSchema": {
+    "root": { "id": "fld_root", "name": "$", "type": "object", "children": [
+      { "id": "f_oid", "name": "orderId", "type": "integer" },
+      { "id": "f_label", "name": "label", "type": "string" },
+      { "id": "f_items", "name": "items", "type": "array", "items": { "id": "f_item", "name": "item", "type": "object", "children": [
+        { "id": "f_sku", "name": "sku", "type": "string" },
+        { "id": "f_qty", "name": "qty", "type": "integer" }
+      ] } },
+      { "id": "f_cust", "name": "customer", "type": "object", "children": [
+        { "id": "f_cname", "name": "name", "type": "string" }
+      ] }
+    ] },
+    "source": "manual"
+  },
+  "key": { "template": "order::{order_id}" },
+  "typeField": { "enabled": true, "name": "type", "value": "order" },
+  "nullHandling": "include",
+  "omitUnmapped": true,
+  "expirySec": 86400,
+  "fieldMappings": [
+    { "id": "m_oid", "targetFieldId": "f_oid", "sources": [ { "column": "order_id" } ], "transforms": [], "origin": "auto", "state": "active" },
+    { "id": "m_label", "targetFieldId": "f_label", "sources": [ { "column": "order_id" }, { "column": "status" } ], "transforms": [ { "op": "concat", "args": { "separator": "-" } } ], "origin": "manual", "state": "active", "nullHandling": "omit" },
+    { "id": "m_sku", "targetFieldId": "f_sku", "sources": [ { "column": "sku", "embed": "emb_items" } ], "transforms": [ { "op": "upper" } ], "origin": "auto", "state": "active" },
+    { "id": "m_qty", "targetFieldId": "f_qty", "sources": [ { "column": "quantity", "embed": "emb_items" } ], "transforms": [], "origin": "suggested", "state": "pending", "confidence": 0.8, "reason": "synonym" },
+    { "id": "m_cname", "targetFieldId": "f_cname", "sources": [ { "column": "name", "embed": "emb_cust" } ], "transforms": [], "origin": "manual", "state": "active" }
+  ],
+  "embeds": [
+    { "id": "emb_items", "kind": "one-to-many", "table": { "schema": "shop", "name": "order_items" },
+      "join": [ { "parent": "order_id", "child": "order_id" } ],
+      "orderBy": [ { "column": "line_no" }, { "column": "sku", "desc": true } ], "limit": 50, "targetFieldId": "f_items", "empty": "omit" },
+    { "id": "emb_cust", "kind": "many-to-one", "table": { "schema": "shop", "name": "customer" },
+      "join": [ { "parent": "customer_id", "child": "customer_id" }, { "parent": "region", "child": "region" } ], "targetFieldId": "f_cust" }
+  ],
+  "ignoredColumns": []
+}

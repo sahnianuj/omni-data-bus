@@ -6,6 +6,7 @@ import { navItems } from '@/app/nav'
 import { storage } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import { Breadcrumbs } from './Breadcrumbs'
+import { BuildInfoFooter } from './BuildInfoFooter'
 import { CommandPalette } from './CommandPalette'
 import { Logo } from './Logo'
 import { ThemeMenu } from './ThemeMenu'
@@ -102,9 +103,11 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
             </button>
           </div>
         </header>
-        <main id="main" className="flex-1 overflow-y-auto">
+        {/* min-h-0 lets pages that fill the height (canvas, composer) size to what's left above the footer. */}
+        <main id="main" className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
+        <BuildInfoFooter />
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>

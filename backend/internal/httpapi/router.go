@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"omnidatabus/internal/buildinfo"
 	"omnidatabus/internal/observability"
 	"omnidatabus/internal/problem"
 
@@ -25,11 +26,12 @@ func (f RegistrarFunc) Routes(r chi.Router) { f(r) }
 
 // Options configures the router.
 type Options struct {
-	Logger     *slog.Logger
-	Ready      map[string]Pinger
-	SPA        fs.FS // nil when the web app is served by Vite (development)
-	Version    string
-	Commit     string
+	Logger *slog.Logger
+	Ready  map[string]Pinger
+	SPA    fs.FS // nil when the web app is served by Vite (development)
+	// Version serves GET /api/v1/version (OC-058); it runs after Middleware so it can tell
+	// signed-in callers from anonymous ones. Nil serves the anonymous view of buildinfo.Get().
+	Version    http.Handler
 	Features   []Registrar
 	Middleware []func(http.Handler) http.Handler // applied to /api/v1 (auth, CSRF)
 	// Metrics serves /metrics on this router; nil when it has its own listener (OC_METRICS_ADDR).
@@ -58,13 +60,15 @@ func NewRouter(o Options) chi.Router {
 		api.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
 			problem.Write(w, req, problem.New(http.StatusMethodNotAllowed, problem.CodeBadRequest, "Method not allowed", ""))
 		})
-		api.Get("/version", func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]string{"version": o.Version, "commit": o.Commit})
-		})
 		api.Group(func(g chi.Router) {
 			for _, m := range o.Middleware {
 				g.Use(m)
 			}
+			version := o.Version
+			if version == nil {
+				version = &VersionHandler{Info: buildinfo.Get(), Expose: true}
+			}
+			g.Method(http.MethodGet, "/version", version)
 			for _, f := range o.Features {
 				f.Routes(g)
 			}

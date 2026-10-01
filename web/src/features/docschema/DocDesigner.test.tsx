@@ -102,6 +102,25 @@ describe('DocDesigner', () => {
     expect(names(store)).toContain('nickname')
   })
 
+  it('AC7: merge uses server reconcile', async () => {
+    // "Update, keep mappings" is the composer's re-import (OC-061): the server's reconcile.
+    const inferred: DocSchema = { source: 'json-sample', root: { id: 'r', name: '$', type: 'object', children: [{ id: 'n1', name: 'customerId', type: 'integer' }] } }
+    const design: unknown[] = []
+    server.use(
+      http.post('*/api/v1/doc-schemas/infer', () => HttpResponse.json({ docSchema: inferred, warnings: [] })),
+      http.post('*/api/v1/projects/:pid/mappings/:mid/design', async ({ request }) => {
+        design.push(await request.json())
+        return HttpResponse.json({ mapping: mappingView({ version: 4 }), orphans: [], diff: { added: [], removed: [], typeChanged: [], renamed: [], moved: [] } })
+      }),
+    )
+    renderWorkbench(designer())
+    const file = new File(['{"customerId":1}'], 'sample.json', { type: 'application/json' })
+    fireEvent.drop(screen.getByRole('region', { name: 'Document design' }), { dataTransfer: { files: [file], types: ['Files'], getData: () => '' } })
+    const dialog = await screen.findByRole('dialog', { name: 'Review design changes' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Update, keep mappings' }))
+    await waitFor(() => expect(design).toEqual([{ docSchema: inferred, strategy: 'reconcile' }]))
+  })
+
   it('AC8: rename re-renders single row', async () => {
     const children: DocField[] = Array.from({ length: 1000 }, (_, i) => ({ id: `f${i}`, name: `field${i}`, type: 'string' }))
     const spec = { ...sampleSpec(), fieldMappings: [], docSchema: { source: 'manual' as const, root: { id: 'fld_root', name: '$', type: 'object' as const, children } } }

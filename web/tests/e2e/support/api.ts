@@ -50,6 +50,19 @@ export class Api {
     return (await res.json()) as T
   }
 
+  async getText(path: string): Promise<string> {
+    const res = await this.ctx.get(path)
+    expect(res.ok(), `${path}: ${res.status()}`).toBeTruthy()
+    return res.text()
+  }
+
+  async sendWithHeaders<T = unknown>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, data: unknown, headers: Record<string, string>): Promise<T> {
+    const res = await this.ctx.fetch(path, { method, data, headers: { ...this.headers(), ...headers } })
+    expect(res.ok(), `${method} ${path}: ${res.status()} ${await res.text()}`).toBeTruthy()
+    const text = await res.text()
+    return (text ? JSON.parse(text) : undefined) as T
+  }
+
   async send<T = unknown>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, data?: unknown, ok = true): Promise<T> {
     const res = await this.ctx.fetch(path, { method, data, headers: this.headers() })
     if (ok) expect(res.ok(), `${method} ${path}: ${res.status()} ${await res.text()}`).toBeTruthy()

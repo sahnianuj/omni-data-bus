@@ -13,9 +13,10 @@ export const errorCatalog: Record<RowErrorCode, Entry> = {
   KEY_NULL_COMPONENT: { title: 'Key column is empty', hint: 'Use columns that are never null in the key template, or add a default.' },
   KEY_TOO_LONG: { title: 'Document key is longer than 250 bytes', hint: 'Shorten the key template, e.g. with a hash filter.' },
   KEY_INVALID: { title: 'Document key was rejected', hint: 'Keys must be 1–250 bytes of valid UTF-8.' },
-  DOC_TOO_LARGE: { title: 'Document is over 20 MB', hint: 'Split large columns out, or omit them from the design.' },
+  DOC_TOO_LARGE: { title: "Document is over the target's size limit", hint: 'Split large columns out, or omit them from the design (Couchbase allows 20 MB; a directory its largest document setting).' },
   TEMPORARY_FAILURE_EXHAUSTED: { title: 'Couchbase stayed busy', hint: 'Lower the write concurrency or add a throttle, then retry the failed rows.' },
-  WRITE_FAILED: { title: "Couchbase didn't accept the document", hint: 'See the message for details, then retry the failed rows.' },
+  WRITE_FAILED: { title: "The target didn't accept the document", hint: 'See the message for details, then retry the failed rows.' },
+  KEY_PATH_COLLISION: { title: 'Two keys map to the same file', hint: "The target folder ignores letter case: make the key template's text columns lower-case, or choose a case-sensitive folder." },
   DECODE_FAILED: { title: "Source value couldn't be read", hint: 'The column type may be unsupported; cast it in a view or exclude it.' },
 }
 

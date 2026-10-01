@@ -295,11 +295,58 @@ type KeyAnalysis struct {
 	Codes          []string `json:"codes"`
 	MaxBytes       int      `json:"maxBytes,omitempty"` // worst-case estimate; 0 = unknown
 	UnknownColumns []string `json:"unknownColumns,omitempty"`
+	// GroupCandidate: the key's columns are part of the primary key (or of a not-null unique
+	// key), so the rows that collide on it can be combined into one document grouped by them
+	// (OC-066). In the primary key's order.
+	GroupCandidate []string `json:"groupCandidate,omitempty"`
+}
+
+// groupCandidate is cols in key order when they're a proper part of the primary key or of a
+// not-null unique key.
+func groupCandidate(cols []string, t *schema.Table) []string {
+	if len(cols) == 0 {
+		return nil
+	}
+	keys := [][]string{t.PrimaryKey}
+	for _, u := range t.UniqueConstraints {
+		ok := true
+		for _, c := range u {
+			if col := t.Column(c); col == nil || col.Nullable {
+				ok = false
+			}
+		}
+		if ok {
+			keys = append(keys, u)
+		}
+	}
+	for _, k := range keys {
+		in := map[string]bool{}
+		for _, c := range k {
+			in[c] = true
+		}
+		all := len(cols) < len(k)
+		for _, c := range cols {
+			all = all && in[c]
+		}
+		if all {
+			var out []string
+			for _, c := range k {
+				for _, x := range cols {
+					if x == c {
+						out = append(out, c)
+					}
+				}
+			}
+			return out
+		}
+	}
+	return nil
 }
 
 // AnalyzeKey checks a template against the table: every column must exist; referenced
 // columns must cover the PK or a unique constraint (else KEY_MAY_COLLIDE); {$uuid} is
 // NON_IDEMPOTENT_KEY; and a worst-case length over 250 bytes is KEY_MAY_BE_TOO_LONG.
+// When it may collide on columns that are part of a key, GroupCandidate names them (OC-066).
 func AnalyzeKey(kt *KeyTemplate, t *schema.Table) KeyAnalysis {
 	a := KeyAnalysis{Codes: []string{}}
 	used := map[string]bool{}
@@ -333,6 +380,7 @@ func AnalyzeKey(kt *KeyTemplate, t *schema.Table) KeyAnalysis {
 		}
 		if !a.Unique {
 			a.Codes = append(a.Codes, CodeKeyMayCollide)
+			a.GroupCandidate = groupCandidate(kt.Columns(), t)
 		}
 	}
 	a.MaxBytes = estimate(kt, t)

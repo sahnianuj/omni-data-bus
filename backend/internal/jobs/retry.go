@@ -62,8 +62,9 @@ func (s *Service) Retry(ctx context.Context, ws store.WorkspaceID, userID, id st
 				if err != nil {
 					return View{}, PreflightResult{}, retryNotPossible("A mapping of this job was deleted.")
 				}
-				if t := snap.Table(m.SourceSchema, m.SourceTable); t == nil || len(t.PrimaryKey) == 0 {
-					return View{}, PreflightResult{}, retryNotPossible(m.SourceSchema + "." + m.SourceTable + " has no primary key, so its rows can't be read back by key. Run the migration again instead.")
+				srcSchema, srcTable := m.Driving()
+				if t := snap.Table(srcSchema, srcTable); t == nil || len(t.PrimaryKey) == 0 {
+					return View{}, PreflightResult{}, retryNotPossible(srcSchema + "." + srcTable + " has no primary key, so its rows can't be read back by key. Run the migration again instead.")
 				}
 			}
 		}

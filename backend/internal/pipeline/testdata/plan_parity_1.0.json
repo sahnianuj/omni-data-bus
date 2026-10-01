@@ -1,0 +1,139 @@
+{
+  "about": "Documents built by 1.0 (before spec v2) from internal/mapping/testdata/specs/v1/customer_address_orders.json over the dev-stack shop seed: sha256 over sorted key, NUL, document bytes, newline (OC-037 AC2).",
+  "documents": 2000,
+  "sample": {
+    "customer::1": {
+      "docType": "customer",
+      "customerId": 1,
+      "firstName": "Liam",
+      "lastName": "Smith",
+      "emailAddress": "customer1@example.com",
+      "phone": "+1-555-0001",
+      "addressId": null,
+      "isActive": true,
+      "tags": [
+        "tier-1",
+        "region-1"
+      ],
+      "externalRef": "c4ca4238-a0b9-2382-0dcc-509a6f75849b",
+      "birthDate": "1970-02-07",
+      "createdOn": "2020-01-01T01:00:00Z",
+      "updatedAt": "2024-06-01T12:01:00",
+      "preferences": {
+        "language": "es",
+        "newsletter": false
+      },
+      "avatar": null,
+      "notes": null,
+      "address": {
+        "addressId": 2,
+        "street": "2 Market Street",
+        "city": "Bangalore",
+        "postalCode": "10002",
+        "countryCode": "IN",
+        "locationIp": "10.0.2.2",
+        "network": "10.0.0.0/16",
+        "deviceMac": "08:00:2b:01:02:03"
+      },
+      "orders": [
+        {
+          "orderId": 10000,
+          "status": "pending",
+          "orderDate": "2023-01-07T22:40:00Z",
+          "total": 10
+        },
+        {
+          "orderId": 8000,
+          "status": "pending",
+          "orderDate": "2023-01-06T13:20:00Z",
+          "total": 10
+        },
+        {
+          "orderId": 6000,
+          "status": "pending",
+          "orderDate": "2023-01-05T04:00:00Z",
+          "total": 10
+        },
+        {
+          "orderId": 4000,
+          "status": "pending",
+          "orderDate": "2023-01-03T18:40:00Z",
+          "total": 10
+        },
+        {
+          "orderId": 2000,
+          "status": "pending",
+          "orderDate": "2023-01-02T09:20:00Z",
+          "total": 10
+        }
+      ]
+    },
+    "customer::999": {
+      "docType": "customer",
+      "customerId": 999,
+      "firstName": "Omar",
+      "lastName": "Chen",
+      "emailAddress": "customer999@example.com",
+      "phone": "+1-555-0999",
+      "addressId": null,
+      "isActive": true,
+      "tags": [
+        "tier-0",
+        "region-3"
+      ],
+      "externalRef": "b706835d-e79a-2b4e-8050-6f582af3676a",
+      "birthDate": "1972-08-21",
+      "createdOn": "2020-02-11T15:00:00Z",
+      "updatedAt": "2024-06-02T04:39:00",
+      "preferences": {
+        "language": "en",
+        "newsletter": false
+      },
+      "avatar": null,
+      "notes": null,
+      "address": {
+        "addressId": 200,
+        "street": "200 Market Street",
+        "city": "San Jose",
+        "postalCode": "10200",
+        "countryCode": "US",
+        "locationIp": "10.0.200.0",
+        "network": "10.0.0.0/16",
+        "deviceMac": "08:00:2b:01:02:03"
+      },
+      "orders": [
+        {
+          "orderId": 8998,
+          "status": "shipped",
+          "orderDate": "2023-01-07T05:58:00Z",
+          "total": 508.98
+        },
+        {
+          "orderId": 6998,
+          "status": "shipped",
+          "orderDate": "2023-01-05T20:38:00Z",
+          "total": 508.98
+        },
+        {
+          "orderId": 4998,
+          "status": "shipped",
+          "orderDate": "2023-01-04T11:18:00Z",
+          "total": 508.98
+        },
+        {
+          "orderId": 2998,
+          "status": "shipped",
+          "orderDate": "2023-01-03T01:58:00Z",
+          "total": 508.98
+        },
+        {
+          "orderId": 998,
+          "status": "shipped",
+          "orderDate": "2023-01-01T16:38:00Z",
+          "total": 508.98
+        }
+      ]
+    }
+  },
+  "sha256": "0f97445082df1c8e918a87dfd351f4974abbdbb05028695beffcba05ed5fcc32"
+}

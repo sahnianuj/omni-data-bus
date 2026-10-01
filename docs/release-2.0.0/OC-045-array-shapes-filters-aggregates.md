@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P1 | 5 | OC-043 | Not started |
+| E9 Relationship Mapping | P1 | 5 | OC-043 | Implemented |
 
 ## User story
 As a **data engineer**, I want more control over the arrays built from related rows: arrays of plain values (`productIds: [1, 2]`), only the rows that match a condition (only active lines), and summary values on the parent (`itemCount`, `orderTotal`), so that the documents match what my application actually needs.
@@ -86,3 +86,9 @@ The target field type must match: `array` of a scalar type for `scalars`, `objec
 |---|---|---|
 | `EmbedDialog.test.tsx` › `AC5: shape switch converts field` | `src/features/mapping/EmbedDialog.test.tsx` | |
 | `FilterChips.test.tsx` › `AC5: typed values per column` | `src/features/mapping/FilterChips.test.tsx` | |
+
+## Implementation notes (2026-09-29)
+- `sum`/`avg` use `math/big` exact rationals (no new dependency instead of shopspring/decimal); sums keep the inputs' scale, averages 6 more digits, trailing zeros trimmed, written as JSON numbers.
+- Aggregates need every row, so a relation with aggregates (or the split overflow policy) keeps all rows (`Keep = 0`) and doesn't push its limit into SQL.
+- Keyed objects: a null key skips the row with `RELATION_NULL_KEY`. A scalars array uses a mapping on its item field when there is one (transforms), else its `valueColumn`.
+- Filters also support `from: "via"` on many-to-many; values are validated with `mapping.FilterArgs` and sent as `$n::<column type>` parameters.

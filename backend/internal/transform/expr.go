@@ -22,7 +22,7 @@ const (
 
 // ExprHelpers is the allow-list of functions available to expressions besides the operators.
 // Every expr built-in is disabled, so there is no way to reach I/O, the clock or reflection.
-var ExprHelpers = []string{"upper", "lower", "trim", "len", "round", "coalesce", "now"}
+var ExprHelpers = []string{"upper", "lower", "trim", "len", "round", "coalesce", "now", "concat"}
 
 // Env is the evaluation environment: value, row and the helpers. Fields typed any are
 // checked dynamically. now is fixed to the job start, so every row sees the same time
@@ -37,6 +37,8 @@ type Env struct {
 	Round    func(any, int) any `expr:"round"`
 	Coalesce func(...any) any   `expr:"coalesce"`
 	Now      func() string      `expr:"now"`
+	// Concat joins its arguments' text, skipping nulls (composer expressions, OC-047).
+	Concat func(...any) string `expr:"concat"`
 }
 
 func exprEnv(now time.Time, value any, row map[string]any) Env {
@@ -74,6 +76,15 @@ func exprEnv(now time.Time, value any, row map[string]any) Env {
 			return nil
 		},
 		Now: func() string { return ISO(now) },
+		Concat: func(vs ...any) string {
+			var b strings.Builder
+			for _, v := range vs {
+				if v != nil {
+					b.WriteString(String(v))
+				}
+			}
+			return b.String()
+		},
 	}
 }
 
@@ -93,6 +104,9 @@ func toFloat(v any) (float64, bool) {
 type ExprError struct {
 	Line, Column int
 	Message      string
+	// Code overrides the issue code (SOURCE_OUT_OF_SCOPE for a relation outside the field's
+	// scope, OC-047); "" is TRANSFORM_INVALID.
+	Code string
 }
 
 func (e *ExprError) Error() string {
@@ -103,6 +117,9 @@ func compileExpression(args map[string]any, env *compileEnv) (opFunc, error) {
 	src, _ := argString(args, "expr")
 	if strings.TrimSpace(src) == "" {
 		return nil, errors.New("expr is required")
+	}
+	if names := freeNames(src); len(names) > 0 && env.escope != nil {
+		return compileScopedExpression(src, names, env)
 	}
 	row := map[string]any{}
 	for _, c := range env.columns {
@@ -129,6 +146,43 @@ func compileExpression(args map[string]any, env *compileEnv) (opFunc, error) {
 	now := env.opts.Now
 	return func(v any, ctx *stepCtx) (any, error) {
 		out, err := machine.Run(program, exprEnv(now, v, ctx.row()))
+		if err != nil {
+			return nil, &stepErr{code: CodeExprError, msg: err.Error()}
+		}
+		return normalizeExprValue(out), nil
+	}, nil
+}
+
+// compileScopedExpression compiles an expression that reads names beyond value and row: the
+// row's columns, $root, $parent and in-scope relations (OC-047). Its environment is a map built
+// once per row (Program.scopedEnv); plain expressions keep the faster struct environment.
+func compileScopedExpression(src string, names map[string]int, env *compileEnv) (opFunc, error) {
+	es := env.escope
+	if bad := es.check(src, names); bad != nil {
+		return nil, bad
+	}
+	program, err := expr.Compile(src,
+		expr.Env(es.template(helperMap(exprEnv(env.opts.Now, nil, nil)))),
+		expr.DisableAllBuiltins(),
+		expr.AsAny(),
+		expr.Optimize(true),
+		expr.MaxNodes(exprMaxNodes),
+	)
+	if err != nil {
+		var fe *file.Error
+		if errors.As(err, &fe) {
+			return nil, &ExprError{Line: fe.Line, Column: fe.Column + 1, Message: fe.Message}
+		}
+		return nil, err
+	}
+	if bad := unknownRowColumn(src, env.columns); bad != nil {
+		return nil, bad
+	}
+	machine := &vm.VM{MemoryBudget: exprMemoryBudget}
+	return func(v any, ctx *stepCtx) (any, error) {
+		e := ctx.scoped()
+		e["value"] = v
+		out, err := machine.Run(program, e)
 		if err != nil {
 			return nil, &stepErr{code: CodeExprError, msg: err.Error()}
 		}

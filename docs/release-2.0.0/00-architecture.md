@@ -12,7 +12,7 @@ This document is the shared reference for every story in `docs/release-2.0.0`. I
 |---|---|---|---|
 | 1 | **Directory target** | Migrate into a folder of JSON files, one file per document, named by the document's primary key, so any document can be opened directly by key | OC-036, OC-038 – OC-041 |
 | 2 | **Relationship (array) mapping** | Build one big document from several tables: an order with an `items[]` array, each item carrying its product, across multi-level and many-to-many (junction-table) relations | OC-037, OC-042 – OC-046 |
-| 3 | **Portable runner** | Export a finished mapping as a self-contained bash script (or Kubernetes kit) with the mapping metadata, source credentials and target baked in, and run it in production without the tool | OC-050 – OC-055 |
+| 3 | **Portable runner** | Export a finished mapping as a self-contained bash script (or Kubernetes kit) with the mapping metadata, source credentials and target baked in, and run it in production without the tool; or hand the customer the whole tool as one Docker image with a bundled single-node Couchbase Server CE (no Capella needed) | OC-050 – OC-055, OC-072 – OC-074 |
 | 4 | **Document composer** | Design any target JSON structure from scratch and bind its objects, arrays and fields to source tables and relations | OC-047 – OC-049 |
 
 The workflow in the tool stays the same (Source → Target → Tables → Design & Map → Review → Migrate). Two things are new: the Target step can pick a **directory**, and the Migrate step gains an **Export** tab.
@@ -68,7 +68,7 @@ A document's file path is a pure function of its key and the target configuratio
 <root>/<folder>/<seg1>/<seg2>/…/<encode(last)>.json       layout: key-path (key split on "::")
 ```
 
-`encode` percent-encodes characters that are unsafe on Linux, macOS or Windows file systems, and appends a hash when a name would exceed 255 bytes. It is reversible, and it is implemented in Go and TypeScript against one shared fixture file. For directory targets the key template defaults to the primary key alone (`{order_id}` → `1001.json`).
+`encode` percent-encodes characters that are unsafe on Linux, macOS or Windows file systems, and appends a hash when a name would exceed 255 bytes. It is reversible, and it is implemented in Go and TypeScript against one shared fixture file. The key template defaults the same way for every target kind (`<table>::{pk}`: key `orders::1001` is `orders%3A%3A1001.json` in the flat layout and `orders/1001.json` with `key-path`): a mapping builds identical keys and documents whether it writes to Couchbase or to a directory (user decision, 2026-09-29).
 
 ---
 
@@ -122,7 +122,7 @@ backend/internal/
 │   └── templates/          # migrate.sh.tmpl, k8s/*.yaml.tmpl, README.md.tmpl
 └── headless/               # odb run: local checkpoint/error/progress ports (OC-051)
 api/bundle.schema.json      # JSON Schema of the portable bundle (OC-050)
-web/src/features/composer/  # document composer (OC-048, OC-049)
+web/src/features/composer/  # document composer (OC-048, OC-049; JSON design import, binding suggestions, conformance OC-059..061; grouping, FK embed OC-063..064)
 web/src/features/export/    # export dialog, export history (OC-055)
 ```
 

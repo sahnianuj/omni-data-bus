@@ -17,6 +17,11 @@ type TableRead struct {
 	Project []bool
 	// Key is the keyset order (the primary key, or a not-null unique key); empty = cursor read.
 	Key []string
+	// Distinct reads one row per distinct Key (a grouped driving table, OC-063): the first row
+	// of each group in Within order (the primary key). Counts and reads by key count and return
+	// groups.
+	Distinct bool
+	Within   []string
 	// App is the session's application_name, e.g. "omni-data-bus job <id> p<k>".
 	App string
 }
@@ -92,10 +97,12 @@ func IsTransient(err error) bool {
 	return errors.As(err, &t)
 }
 
-// OrderColumn is one column of a related table's order (OC-021).
+// OrderColumn is one column of a related table's order (OC-021); Via orders by a junction
+// column (many-to-many, OC-044).
 type OrderColumn struct {
 	Column string
 	Desc   bool
+	Via    bool
 }
 
 // RelatedQuery reads the rows of a related table whose join columns match a batch of keys
@@ -103,16 +110,72 @@ type OrderColumn struct {
 type RelatedQuery struct {
 	// Table is the related table; Project must include the join and order columns.
 	Table TableRead
-	// Join are the related table's columns matched against each key, in key order.
+	// Join are the related table's columns matched against each key, in key order (for
+	// many-to-many, the junction's columns).
 	Join []string
 	// OrderBy orders each key's rows (after the join columns).
 	OrderBy []OrderColumn
 	// PerKeyLimit, when > 0, returns at most this many rows per key.
 	PerKeyLimit int
+	// Via reads a many-to-many relation through its junction (OC-044): rows carry the table's
+	// columns followed by Via.Columns. Target rows are left-joined, so a junction row whose
+	// target is missing comes back with null table columns.
+	Via *ViaQuery
+	// Filter conditions are ANDed and sent as bind parameters (OC-045).
+	Filter []FilterCond
+	// Range, when set, reads the rows whose single join column lies in [From, To] instead of
+	// matching keys, ordered by it in byte order (sorted-merge, OC-046).
+	Range *KeyRange
+}
+
+// ViaQuery is a many-to-many relation's junction.
+type ViaQuery struct {
+	// Table is the junction; its Columns give the join parameters' types (Project is unused).
+	Table TableRead
+	// ChildJoin pairs junction columns with the related table's columns.
+	ChildJoin []ViaJoin
+	// Columns are the junction columns appended to each row, in order.
+	Columns []string
+}
+
+// ViaJoin pairs a junction column with a related table column.
+type ViaJoin struct {
+	Via   string
+	Child string
+}
+
+// FilterCond is one condition on a related table's (or junction's) column. Args are
+// PostgreSQL input text (checked against the column type when the mapping was validated).
+type FilterCond struct {
+	Column string
+	Op     string // eq ne lt lte gt gte in notIn isNull notNull like
+	Args   []string
+	Via    bool
+}
+
+// KeyRange bounds a single join column (inclusive).
+type KeyRange struct {
+	From, To any
 }
 
 // RelatedReader is implemented by read sessions that can look up related rows inside the
 // session's snapshot, so embedded rows are consistent with their parents (OC-021 AC5).
 type RelatedReader interface {
 	ReadRelated(ctx context.Context, q RelatedQuery, keys [][]any) ([][]any, error)
+}
+
+// RelatedCounter is implemented by read sessions that can count a relation's rows without
+// reading them (the composer preview, OC-049): "showing 50 of 1,240", and the worst case.
+type RelatedCounter interface {
+	// CountRelated counts q's rows (filters applied) for each key, aligned with keys.
+	CountRelated(ctx context.Context, q RelatedQuery, keys [][]any) ([]int64, error)
+	// TopRelated is the join key with the most rows (filters applied), as text values, and
+	// its count; ok is false when the relation has no rows.
+	TopRelated(ctx context.Context, q RelatedQuery) (key []any, count int64, ok bool, err error)
+}
+
+// RelatedStreamer is implemented by read sessions that can stream a related query's rows one
+// at a time (sorted-merge, OC-046), so memory doesn't grow with the result.
+type RelatedStreamer interface {
+	StreamRelated(ctx context.Context, q RelatedQuery, keys [][]any, fn func(row []any) error) error
 }

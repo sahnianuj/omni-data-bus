@@ -27,7 +27,7 @@ As a **data engineer**, I want to export everything needed to run a migration (s
 | `project` | projects | id, name (informational only) |
 | `source` | project source connection | Non-secret `config`, plus a `credentials` block (OC-052) |
 | `target` | project target connection, or the export's override | A Couchbase project can export a directory target, for example to write JSON files in production |
-| `mappings[]` | selected mappings | Spec upgraded to v2, `location`, `planHash` |
+| `mappings[]` | selected mappings | Spec upgraded to v2, `location`, `planHash`. Design-time data is stripped: `docSchema.reference` and field `example`s (OC-059) never go into a bundle |
 | `relationships[]` | virtual relationships used by the selected mappings (OC-042) | |
 | `jobOptions` | project defaults or export overrides | batchSize, readers, writers, write mode, error thresholds, throttle |
 | `sourceFingerprint` | latest discovery snapshot | Per table: sha256 over `(column name, udtName, nullable)` for referenced columns only |

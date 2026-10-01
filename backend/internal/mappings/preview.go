@@ -5,15 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+
+	"omnidatabus/internal/docschema"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/source"
+	"omnidatabus/internal/connectors/target/directory"
 	"omnidatabus/internal/encode"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/observability"
+	"omnidatabus/internal/plan"
+	"omnidatabus/internal/preview"
 	"omnidatabus/internal/problem"
 	"omnidatabus/internal/related"
 	"omnidatabus/internal/schema"
@@ -37,7 +43,9 @@ func compileIssues(spec *mapping.Spec, t *schema.Table, rel mapping.RelatedTable
 	_, issues := transform.Compile(spec, t, transform.Options{Related: related.Tables(spec, rel)})
 	var out []mapping.Issue
 	for _, i := range issues {
-		if transformCodes[i.Code] {
+		// An expression reading a relation outside its field's scope is only found by the
+		// compiler (at its position, OC-047); a source outside it is found by Validate.
+		if transformCodes[i.Code] || (i.Code == mapping.CodeSourceOutOfScope && i.Line > 0) {
 			out = append(out, i)
 		}
 	}
@@ -52,6 +60,10 @@ type PreviewInput struct {
 	SpecOverride   *mapping.Spec `json:"specOverride"`
 	CheckKeys      bool          `json:"checkKeys"`
 	WriteMode      string        `json:"writeMode" validate:"omitempty,oneof=upsert insert"`
+	// RootKey previews one root row: driving table column → value (OC-049).
+	RootKey map[string]any `json:"rootKey"`
+	// WorstCase previews the root row with the most rows of this relation (OC-049).
+	WorstCase string `json:"worstCase"`
 }
 
 // PreviewItem is one sample row and the document it becomes.
@@ -65,6 +77,20 @@ type PreviewItem struct {
 	Trace     map[string][]transform.TraceStep `json:"trace,omitempty"`
 	// KeyExists is set by the collision check: the target already has this key.
 	KeyExists *bool `json:"keyExists,omitempty"`
+	// Path is the file the document would be written to (directory targets, OC-039).
+	Path string `json:"path,omitempty"`
+	// Stats describe each relation node by dotted path (items, items.product; OC-049).
+	Stats map[string]preview.NodeStats `json:"stats,omitempty"`
+	// Conformance compares the document's shape with the imported design (OC-061).
+	Conformance *docschema.Conformance `json:"conformance,omitempty"`
+}
+
+// WorstCase is the root row with the most rows of one relation, and its full size (OC-049).
+type WorstCase struct {
+	RelationID     string `json:"relationId"`
+	Path           string `json:"path"`
+	Rows           int64  `json:"rows"`
+	EstimatedBytes int64  `json:"estimatedBytes"`
 }
 
 // PreviewSummary counts the sample.
@@ -90,6 +116,7 @@ type PreviewResult struct {
 	Summary   *PreviewSummary `json:"summary,omitempty"`
 	Fields    []FieldPreview  `json:"fields,omitempty"`
 	WriteMode string          `json:"writeMode"`
+	WorstCase *WorstCase      `json:"worstCase,omitempty"`
 }
 
 // ErrPreviewTimeout is a sample query that exceeded the statement timeout.
@@ -108,7 +135,11 @@ func (s *Service) Preview(ctx context.Context, ws store.WorkspaceID, projectID, 
 	if in.SpecOverride != nil {
 		spec = *in.SpecOverride // preview unsaved edits
 		spec.Normalize()
+		rootOf(m, &spec)
+		d := driving(m, &spec)
+		t = p.table(d.Schema, d.Name)
 	}
+	drv := driving(m, &spec)
 	switch {
 	case in.Limit == 0:
 		in.Limit = previewDefault
@@ -120,40 +151,95 @@ func (s *Service) Preview(ctx context.Context, ws store.WorkspaceID, projectID, 
 	if in.WriteMode == "" {
 		in.WriteMode = "upsert"
 	}
-	if p.snap.Table(m.SourceSchema, m.SourceTable) == nil {
-		return PreviewResult{}, tableNotFound(m.SourceSchema, m.SourceTable)
+	if p.snap.Table(drv.Schema, drv.Name) == nil {
+		return PreviewResult{}, tableNotFound(drv.Schema, drv.Name)
 	}
-	prog, found := transform.Compile(&spec, t, transform.Options{Related: related.Tables(&spec, p.related())})
+	// The same execution plan a migration runs (OC-037).
+	pl, found, err := plan.Compile(plan.Input{
+		Spec: &spec, Root: drv, Table: t, Related: p.related(),
+	})
+	if err != nil {
+		return PreviewResult{}, problem.New(http.StatusUnprocessableEntity, problem.CodeMappingInvalid, "Invalid mapping", err.Error())
+	}
+	prog := pl.Program
 	if prog == nil {
 		return PreviewResult{}, invalid(found)
 	}
-	rows, err := s.sampleRows(ctx, ws, p, m.SourceSchema, t, in)
+	// One read session for the root rows, their related rows and the counts (OC-049).
+	ctx, cancel := context.WithTimeout(ctx, previewTimeoutSec*time.Second)
+	defer cancel()
+	rs, closeRead, err := s.openRead(ctx, ws, p)
 	if err != nil {
 		return PreviewResult{}, err
 	}
-	rel, err := s.relatedRows(ctx, ws, p, &spec, t, prog, rows)
+	defer closeRead()
+	var rows [][]any
+	var worst *WorstCase
+	switch {
+	case in.WorstCase != "":
+		var wc *preview.WorstCase
+		rows, wc, err = preview.WorstCaseRows(ctx, rs, pl, &spec, drv, t, in.WorstCase)
+		if wc != nil {
+			worst = &WorstCase{RelationID: wc.RelationID, Path: wc.Path, Rows: wc.Rows}
+		}
+	case len(in.RootKey) > 0:
+		rows, err = preview.RowsByKey(ctx, rs, drv, t, in.RootKey)
+	default:
+		rows, err = s.sampleRows(ctx, ws, p, drv.Schema, t, in, spec.GroupBy())
+	}
 	if err != nil {
-		return PreviewResult{}, err
+		return PreviewResult{}, previewErr(ctx, err)
+	}
+	rel, fails, totals, err := preview.Related(ctx, rs, pl, &spec, rows)
+	if err != nil {
+		return PreviewResult{}, previewErr(ctx, err)
 	}
 	if in.FieldMappingID != "" {
 		return s.fieldPreview(prog, &spec, rows, in.FieldMappingID)
 	}
-	out := PreviewResult{Items: make([]PreviewItem, 0, len(rows)), Summary: &PreviewSummary{}, WriteMode: in.WriteMode}
+	out := PreviewResult{Items: make([]PreviewItem, 0, len(rows)), Summary: &PreviewSummary{}, WriteMode: in.WriteMode, WorstCase: worst}
+	docPath := s.docPath(p, m.Where())
 	var total int
 	buf := make([]byte, 0, 4096)
 	for i, row := range rows {
 		item := PreviewItem{SourceRow: sourceRow(t, row), Warnings: []transform.Warning{}}
-		key, doc, warnings, trace, rerr := prog.ApplyTraceRelated(row, related.Row(rel, i), buf)
+		if f, failed := fails[i]; failed {
+			item.Error = &transform.RowError{Code: f.Code, Message: f.Message}
+			out.Summary.Errors++
+			out.Items = append(out.Items, item)
+			continue
+		}
+		var rowRel source.Related
+		if rel != nil {
+			rowRel = related.Row(rel, i)
+			if pl.HasRelations() {
+				item.Stats = preview.Stats(&spec, rowRel, totals[i])
+			}
+			rowRel = preview.Trim(rowRel)
+		}
+		key, doc, warnings, trace, rerr := prog.ApplyTraceWith(row, rowRel, buf)
 		item.Trace = trace
 		if rerr != nil {
 			item.Error = rerr
 			out.Summary.Errors++
 		} else {
 			item.Key, item.Document, item.SizeBytes = key, append(json.RawMessage(nil), doc...), len(doc)
+			item.Path = docPath(key)
 			item.Warnings = append(item.Warnings, warnings...)
+			if imp := spec.DocSchema.Imported; imp != nil && len(imp.Fields) > 0 {
+				c := docschema.Conform(imp.Fields, item.Document)
+				item.Conformance = &c
+			}
 			out.Summary.OK++
 			total += len(doc)
 			out.Summary.MaxSizeBytes = max(out.Summary.MaxSizeBytes, len(doc))
+			if worst != nil {
+				shown := 0
+				if st, ok := item.Stats[worst.Path]; ok {
+					shown = st.Rows
+				}
+				worst.EstimatedBytes = preview.EstimateBytes(doc, strings.Split(fieldPathOf(&spec, worst.RelationID), "."), shown, worst.Rows)
+			}
 		}
 		out.Items = append(out.Items, item)
 	}
@@ -168,7 +254,7 @@ func (s *Service) Preview(ctx context.Context, ws store.WorkspaceID, projectID, 
 	return out, nil
 }
 
-func (s *Service) sampleRows(ctx context.Context, ws store.WorkspaceID, p projectCtx, schemaName string, t *schema.Table, in PreviewInput) ([][]any, error) {
+func (s *Service) sampleRows(ctx context.Context, ws store.WorkspaceID, p projectCtx, schemaName string, t *schema.Table, in PreviewInput, groupBy []string) ([][]any, error) {
 	sess, _, err := s.openSource(ctx, ws, p.source.ID)
 	if err != nil {
 		return nil, err
@@ -176,7 +262,7 @@ func (s *Service) sampleRows(ctx context.Context, ws store.WorkspaceID, p projec
 	defer func() { _ = sess.Close() }()
 	req := source.PreviewRequest{
 		Schema: schemaName, Table: t.Name, Columns: t.Columns, OrderBy: t.PrimaryKey, Limit: in.Limit,
-		Random: in.SampleMode == "random", TimeoutSec: previewTimeoutSec,
+		Random: in.SampleMode == "random", TimeoutSec: previewTimeoutSec, DistinctOn: groupBy, // one row per group (OC-063)
 	}
 	if t.RowEstimate != nil {
 		req.RowEstimate = *t.RowEstimate
@@ -192,44 +278,58 @@ func (s *Service) sampleRows(ctx context.Context, ws store.WorkspaceID, p projec
 	return rows, nil
 }
 
-// relatedRows looks up the sample rows' embedded rows the way a migration does (OC-021).
-func (s *Service) relatedRows(ctx context.Context, ws store.WorkspaceID, p projectCtx, spec *mapping.Spec, t *schema.Table, prog *transform.Program, rows [][]any) (map[string][][][]any, error) {
-	if !prog.HasEmbeds() || len(rows) == 0 {
-		return nil, nil
-	}
-	plans, err := related.Plans(spec, t, p.related())
-	if err != nil {
-		return nil, problem.New(http.StatusUnprocessableEntity, problem.CodeMappingInvalid, "Invalid mapping", err.Error())
-	}
+// openRead opens a read session on the source for the preview; rs is nil when the source
+// can't stream (then the preview has no related rows).
+func (s *Service) openRead(ctx context.Context, ws store.WorkspaceID, p projectCtx) (source.ReadSession, func(), error) {
 	sess, _, err := s.openSource(ctx, ws, p.source.ID)
 	if err != nil {
-		return nil, err
+		return nil, func() {}, err
 	}
-	defer func() { _ = sess.Close() }()
 	sr, ok := sess.(source.SnapshotReader)
 	if !ok {
-		return nil, nil
+		return nil, func() { _ = sess.Close() }, nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, previewTimeoutSec*time.Second)
-	defer cancel()
 	rs, err := sr.BeginRead(ctx, "omni-data-bus preview", false)
 	if err != nil {
-		return nil, connectors.Classify(connectors.RoleSource, err)
+		_ = sess.Close()
+		return nil, func() {}, connectors.Classify(connectors.RoleSource, err)
 	}
-	defer func() { _ = rs.Close() }()
-	rr, ok := rs.(source.RelatedReader)
-	if !ok {
-		return nil, nil
+	return rs, func() {
+		_ = rs.Close()
+		_ = sess.Close()
+	}, nil
+}
+
+// previewErr maps a read error: a timeout, else a classified source error.
+func previewErr(ctx context.Context, err error) error {
+	var pr problem.Problem
+	if errors.As(err, &pr) {
+		return err
 	}
-	res := &related.Resolver{Plans: plans, Reader: rr, Concurrency: related.DefaultConcurrency}
-	out, err := res.Resolve(ctx, rows)
+	if ctx.Err() != nil {
+		return ErrPreviewTimeout
+	}
+	return connectors.Classify(connectors.RoleSource, err)
+}
+
+// fieldPathOf is a relation's field as dotted names from the root (its array's items aside).
+func fieldPathOf(spec *mapping.Spec, relID string) string {
+	return preview.NodePaths(spec)[relID]
+}
+
+// docPath returns where a key's document lands on a directory target ("" for other kinds).
+func (s *Service) docPath(p projectCtx, loc store.Location) func(key string) string {
+	if loc.Kind != store.KindDirectory {
+		return func(string) string { return "" }
+	}
+	cfg, err := directory.ParseConfig(p.target.Config)
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ErrPreviewTimeout
-		}
-		return nil, connectors.Classify(connectors.RoleSource, err)
+		return func(string) string { return "" }
 	}
-	return out, nil
+	return func(key string) string {
+		rel, _ := cfg.DocPath(loc.Folder, key)
+		return rel
+	}
 }
 
 func sourceRow(t *schema.Table, row []any) map[string]any {
@@ -280,11 +380,15 @@ func (s *Service) checkKeys(ctx context.Context, ws store.WorkspaceID, p project
 	if len(keys) == 0 {
 		return nil
 	}
+	loc := m.Where()
+	if loc.Kind != store.KindCouchbase {
+		return nil // other kinds check existing keys with their own reader (OC-041)
+	}
 	ks, _, err := s.openKeyspaces(ctx, ws, p.target.ID)
 	if err != nil {
 		return err
 	}
-	exists, err := ks.ExistingKeys(ctx, m.Target.Bucket, m.Target.Scope, m.Target.Collection, keys)
+	exists, err := ks.ExistingKeys(ctx, loc.Bucket, loc.Scope, loc.Collection, keys)
 	if err != nil {
 		if problem.HasCode(err, problem.CodeNotFound) {
 			exists = map[string]bool{} // the collection doesn't exist yet: nothing collides

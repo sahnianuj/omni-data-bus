@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { findField } from '@/features/docschema/docschemaOps'
-import { mappingView, renderWorkbench } from '@/test/mapping'
+import { embedView, mappingView, renderWorkbench } from '@/test/mapping'
 import type { MappingIssue } from './types'
 import { ValidationPanel } from './ValidationPanel'
 
@@ -48,5 +48,22 @@ describe('ValidationPanel', () => {
   it('shows a ready message without issues', () => {
     renderWorkbench(<ValidationPanel />)
     expect(screen.getByText('No issues. This mapping is ready.')).toBeInTheDocument()
+  })
+
+  it('OC-070 AC3: remove and add all', async () => {
+    const view = embedView()
+    view.spec = { ...view.spec, docSchema: { ...view.spec.docSchema, imported: { at: '2026-10-01T00:00:00Z', format: 'sample', samples: 1, fieldCount: 0, fields: [] } } }
+    const extra = (path: string, fieldId: string): MappingIssue => ({
+      severity: 'info', code: 'REFERENCE_EXTRA_FIELD', path, nodePath: path, fieldId, message: `${path} isn't in the design you imported.`, fix: { kind: 'add-to-design', label: 'Add to design' },
+    })
+    const email = view.spec.docSchema.root.children!.find((c) => c.name === 'email')!
+    view.issues = [extra('orders', 'f_orders'), extra('email', email.id)]
+    const { store } = renderWorkbench(<ValidationPanel />, view)
+    await userEvent.click(screen.getByRole('button', { name: 'Remove orders' }))
+    expect(store.getState().history.present.relations).toEqual([])
+    expect(findField(store.getState().history.present.docSchema, 'f_orders')).toBeUndefined()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add all 2 to design' }))
+    expect(store.getState().history.present.docSchema.imported!.fields!.map((f) => f.path)).toEqual(['email'])
   })
 })

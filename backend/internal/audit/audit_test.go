@@ -51,7 +51,7 @@ func sources(t *testing.T) map[string]string {
 // recordedAction finds actions passed to the recording helpers: Action: "…", s.audit(…, "…"),
 // s.save(…, "…") (mapping saves audit their action), h.record(r, "…"), h.control("…"), .Record(ctx, ws, user,
 // "…", …) and action := "…".
-var recordedAction = regexp.MustCompile(`(?:Action:\s*|\.audit\([^\n]*?|\.save\([^\n]*?|\.record\(r,\s*|\.control\(|\.Record\([^\n]*?|action\s*:?=\s*)"([a-z]+\.[a-z.]+)"`)
+var recordedAction = regexp.MustCompile(`(?:Action:\s*|\.audit\([^\n]*?|\.save\([^\n]*?|\.record\(r,\s*|\.control\(|\.Record\([^\n]*?|action\s*:?=\s*)"([a-z]+\.[a-z._]+)"`)
 
 func TestAudit_AC7_AllActionsCovered(t *testing.T) {
 	src := sources(t)

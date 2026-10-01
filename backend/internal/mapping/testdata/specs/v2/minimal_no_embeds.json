@@ -1,0 +1,70 @@
+{
+  "specVersion": 2,
+  "mode": "canvas",
+  "docSchema": {
+    "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+        {
+          "id": "f_id",
+          "name": "id",
+          "type": "integer",
+          "required": true
+        },
+        {
+          "id": "f_url",
+          "name": "url",
+          "type": "string"
+        }
+      ]
+    },
+    "source": "generated"
+  },
+  "key": {
+    "template": "page_view::{$uuid}"
+  },
+  "typeField": {
+    "enabled": false,
+    "name": "type",
+    "value": ""
+  },
+  "nullHandling": "omit",
+  "fieldMappings": [
+    {
+      "id": "m_id",
+      "targetFieldId": "f_id",
+      "sources": [
+        {
+          "column": "id"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+    },
+    {
+      "id": "m_url",
+      "targetFieldId": "f_url",
+      "sources": [
+        {
+          "column": "url"
+        }
+      ],
+      "transforms": [
+        {
+          "op": "trim"
+        }
+      ],
+      "origin": "manual",
+      "state": "active"
+    }
+  ],
+  "relations": [],
+  "aggregates": [],
+  "ignoredColumns": [
+    "legacy"
+  ]
+}

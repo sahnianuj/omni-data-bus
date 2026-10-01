@@ -56,7 +56,7 @@ type verifyInput struct {
 	compile   func() (*transform.Program, error)
 	plans     []related.Plan
 	writer    target.DocWriter
-	target    store.MappingTarget
+	target    store.Location
 	counts    MappingCheckpoint
 	rowsRead  int64
 	col       *collector
@@ -106,14 +106,26 @@ func (e *execution) verifyMapping(parent context.Context, in verifyInput) verify
 			res.Sample = &sr
 		}
 	}
+	res.TargetKind = in.target.Kind
+	if ic, ok := in.writer.(target.IntegrityChecker); ok {
+		if rep, err := ic.CheckIntegrity(ctx, integritySample); err == nil {
+			res.Integrity = &verify.Integrity{Listed: rep.Listed, Checked: rep.Checked, Missing: rep.Missing, Mismatched: rep.Mismatched}
+			for _, i := range rep.Issues {
+				res.Integrity.Issues = append(res.Integrity.Issues, verify.IntegrityIssue(i))
+			}
+		}
+	}
 	res.Decide()
 	return res
 }
 
+// integritySample is how many manifest lines are checked against their files (OC-041).
+const integritySample = 1000
+
 // countPoll is how often settledCount re-reads the collection count.
 var countPoll = 500 * time.Millisecond
 
-func (e *execution) settledCount(ctx context.Context, t store.MappingTarget, want int64) (int64, bool) {
+func (e *execution) settledCount(ctx context.Context, t store.Location, want int64) (int64, bool) {
 	ctx, cancel := context.WithTimeout(ctx, targetCountTimeout)
 	defer cancel()
 	conn := store.ConnectionID(e.job.ProjectID, store.RoleTarget)
@@ -123,6 +135,8 @@ func (e *execution) settledCount(ctx context.Context, t store.MappingTarget, wan
 		switch {
 		case err != nil:
 			return last, last >= 0
+		case t.Kind == store.KindDirectory:
+			return n, true // a folder's file count doesn't lag behind the writes
 		case n == want:
 			return n, true
 		case n == last && n > want:
@@ -174,16 +188,21 @@ func (e *execution) sampleCheck(ctx context.Context, in verifyInput, samples []v
 		},
 		KeyOf: func(row []any) []any { return keyOf(row, in.keyIdx) },
 		Transform: func(ctx context.Context, rows [][]any) ([]verify.Built, error) {
-			var rel map[string][][][]any
+			var rel []source.Related
+			var fails map[int]source.RowFailure
 			if resolver != nil {
 				var err error
-				if rel, err = resolver.Resolve(ctx, rows); err != nil {
+				if rel, fails, err = resolver.Resolve(ctx, rows); err != nil {
 					return nil, err
 				}
 			}
 			out := make([]verify.Built, len(rows))
 			for i, row := range rows {
-				key, doc, _, rerr := prog.ApplyRelated(row, related.Row(rel, i), nil)
+				if f, failed := fails[i]; failed {
+					out[i].Err = &transform.RowError{Code: f.Code, Message: f.Message}
+					continue
+				}
+				key, doc, _, rerr := prog.ApplyWith(row, related.Row(rel, i), nil)
 				out[i] = verify.Built{Key: key, Doc: append([]byte(nil), doc...)}
 				if rerr != nil {
 					out[i].Err = rerr

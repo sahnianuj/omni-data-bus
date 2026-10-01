@@ -8,48 +8,49 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **23** | **146** |
-| ✅ Implemented | 0 | 0 |
+| **Total** | **42** | **215** |
+| ✅ Implemented | 31 | 154 |
 | 🚧 In progress | 0 | 0 |
-| ⬜ Not started | 23 | 146 |
-| Not yet implemented (in progress + not started) | 23 | 146 |
-| **Completion** | 0% | 0% |
+| ⬜ Not started | 11 | 61 |
+| Not yet implemented (in progress + not started) | 11 | 61 |
+| **Completion** | 74% | 72% |
 
 ### By priority
 
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
-| P0 | Must have — release blocker | 19 | 123 | 0 / 0 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 4 | 23 | 0 / 0 |
+| P0 | Must have — release blocker | 26 | 161 | 16 / 105 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 14 | 52 | 13 / 47 |
+| P2 | Nice to have | 2 | 2 | 2 / 2 |
 
 ### By epic
 
 | Epic | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|
-| E7 Foundations 2.0 | 3 | 13 | 0 / 0 |
-| E8 Directory Target | 4 | 23 | 0 / 0 |
-| E9 Relationship Mapping | 5 | 37 | 0 / 0 |
-| E10 Document Composer | 3 | 26 | 0 / 0 |
-| E11 Portable Runner | 6 | 36 | 0 / 0 |
+| E7 Foundations 2.0 | 3 | 13 | 3 / 13 |
+| E8 Directory Target | 5 | 26 | 5 / 26 |
+| E9 Relationship Mapping | 5 | 37 | 5 / 37 |
+| E10 Document Composer | 18 | 78 | 18 / 78 |
+| E11 Portable Runner | 9 | 50 | 0 / 0 |
 | E12 Harden & Ship 2.0 | 2 | 11 | 0 / 0 |
 
 ## Stories by priority
 
-### P0 — Must have — release blocker (19 stories, 123 points)
+### P0 — Must have — release blocker (26 stories, 161 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
-| 1 | [OC-036](OC-036-pluggable-target-kinds.md) | Pluggable target kinds (Couchbase or directory) | E7 Foundations 2.0 | 5 | ⬜ Not started |
-| 2 | [OC-037](OC-037-mapping-spec-v2-execution-plan.md) | Mapping spec v2 (relation tree) & shared execution plan | E7 Foundations 2.0 | 5 | ⬜ Not started |
-| 3 | [OC-038](OC-038-directory-target-repository.md) | Directory target repository (per project): configure, test, save | E8 Directory Target | 5 | ⬜ Not started |
-| 4 | [OC-039](OC-039-directory-layout-key-file-names.md) | Directory layout, key-to-file-name encoding & lookup by primary key | E8 Directory Target | 5 | ⬜ Not started |
-| 5 | [OC-040](OC-040-directory-writer.md) | Directory writer: atomic, resumable file output | E8 Directory Target | 8 | ⬜ Not started |
-| 6 | [OC-042](OC-042-relationship-graph-virtual-relationships.md) | Relationship graph, junction-table detection & virtual relationships | E9 Relationship Mapping | 8 | ⬜ Not started |
-| 7 | [OC-043](OC-043-nested-relations-multi-level.md) | Nested relations: multi-level objects and arrays | E9 Relationship Mapping | 8 | ⬜ Not started |
-| 8 | [OC-044](OC-044-many-to-many-junction-arrays.md) | Many-to-many arrays through junction tables | E9 Relationship Mapping | 8 | ⬜ Not started |
-| 9 | [OC-047](OC-047-composer-bindings-scope-model.md) | Document composer: bindings, scope rules & plan compilation | E10 Document Composer | 8 | ⬜ Not started |
-| 10 | [OC-048](OC-048-composer-workspace-ui.md) | Document composer workspace (UI) | E10 Document Composer | 13 | ⬜ Not started |
-| 11 | [OC-049](OC-049-composer-preview-validation-automap.md) | Composer preview, validation & scoped auto-map | E10 Document Composer | 5 | ⬜ Not started |
+| 1 | ~~[OC-036](OC-036-pluggable-target-kinds.md)~~ | ~~Pluggable target kinds (Couchbase or directory)~~ | ~~E7 Foundations 2.0~~ | ~~5~~ | ✅ Implemented |
+| 2 | ~~[OC-037](OC-037-mapping-spec-v2-execution-plan.md)~~ | ~~Mapping spec v2 (relation tree) & shared execution plan~~ | ~~E7 Foundations 2.0~~ | ~~5~~ | ✅ Implemented |
+| 3 | ~~[OC-038](OC-038-directory-target-repository.md)~~ | ~~Directory target repository (per project): configure, test, save~~ | ~~E8 Directory Target~~ | ~~5~~ | ✅ Implemented |
+| 4 | ~~[OC-039](OC-039-directory-layout-key-file-names.md)~~ | ~~Directory layout, key-to-file-name encoding & lookup by primary key~~ | ~~E8 Directory Target~~ | ~~5~~ | ✅ Implemented |
+| 5 | ~~[OC-040](OC-040-directory-writer.md)~~ | ~~Directory writer: atomic, resumable file output~~ | ~~E8 Directory Target~~ | ~~8~~ | ✅ Implemented |
+| 6 | ~~[OC-042](OC-042-relationship-graph-virtual-relationships.md)~~ | ~~Relationship graph, junction-table detection & virtual relationships~~ | ~~E9 Relationship Mapping~~ | ~~8~~ | ✅ Implemented |
+| 7 | ~~[OC-043](OC-043-nested-relations-multi-level.md)~~ | ~~Nested relations: multi-level objects and arrays~~ | ~~E9 Relationship Mapping~~ | ~~8~~ | ✅ Implemented |
+| 8 | ~~[OC-044](OC-044-many-to-many-junction-arrays.md)~~ | ~~Many-to-many arrays through junction tables~~ | ~~E9 Relationship Mapping~~ | ~~8~~ | ✅ Implemented |
+| 9 | ~~[OC-047](OC-047-composer-bindings-scope-model.md)~~ | ~~Document composer: bindings, scope rules & plan compilation~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
+| 10 | ~~[OC-048](OC-048-composer-workspace-ui.md)~~ | ~~Document composer workspace (UI)~~ | ~~E10 Document Composer~~ | ~~13~~ | ✅ Implemented |
+| 11 | ~~[OC-049](OC-049-composer-preview-validation-automap.md)~~ | ~~Composer preview, validation & scoped auto-map~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
 | 12 | [OC-050](OC-050-portable-migration-bundle.md) | Portable migration bundle format | E11 Portable Runner | 5 | ⬜ Not started |
 | 13 | [OC-051](OC-051-headless-runner-odb-run.md) | Headless runner (`odb run --bundle`) | E11 Portable Runner | 8 | ⬜ Not started |
 | 14 | [OC-052](OC-052-exported-credentials-sealing.md) | Credentials in exported bundles: sealed, plaintext or external | E11 Portable Runner | 5 | ⬜ Not started |
@@ -57,16 +58,40 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 16 | [OC-054](OC-054-kubernetes-execution-kit.md) | Kubernetes execution kit | E11 Portable Runner | 5 | ⬜ Not started |
 | 17 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | E12 Harden & Ship 2.0 | 8 | ⬜ Not started |
 | 18 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | E12 Harden & Ship 2.0 | 3 | ⬜ Not started |
-| 19 | [OC-058](OC-058-release-build-info-footer.md) | Release & build information footer | E7 Foundations 2.0 | 3 | ⬜ Not started |
+| 19 | ~~[OC-058](OC-058-release-build-info-footer.md)~~ | ~~Release & build information footer~~ | ~~E7 Foundations 2.0~~ | ~~3~~ | ✅ Implemented |
+| 20 | ~~[OC-059](OC-059-composer-import-target-json.md)~~ | ~~Import a target JSON design into the composer~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
+| 21 | ~~[OC-060](OC-060-composer-binding-suggestions.md)~~ | ~~Suggest bindings for an imported design~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
+| 22 | ~~[OC-063](OC-063-group-rows-into-one-document.md)~~ | ~~One document per group of rows (group the driving table)~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
+| 23 | ~~[OC-065](OC-065-array-items-read-their-own-row.md)~~ | ~~Array items read their own row, never repeat the parent's~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 24 | [OC-072](OC-072-all-in-one-image-couchbase-ce.md) | All-in-one image: Omni-Data-Bus with a bundled Couchbase Server CE node | E11 Portable Runner | 8 | ⬜ Not started |
+| 25 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | E11 Portable Runner | 3 | ⬜ Not started |
+| 26 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | E11 Portable Runner | 3 | ⬜ Not started |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (4 stories, 23 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (14 stories, 52 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
-| 1 | [OC-041](OC-041-directory-verification-document-browser.md) | Directory verification & output document browser | E8 Directory Target | 5 | ⬜ Not started |
-| 2 | [OC-045](OC-045-array-shapes-filters-aggregates.md) | Array shapes, filters & aggregates | E9 Relationship Mapping | 5 | ⬜ Not started |
-| 3 | [OC-046](OC-046-large-arrays-overflow-sorted-merge.md) | Large arrays: sorted-merge strategy, overflow policies & document size guard | E9 Relationship Mapping | 8 | ⬜ Not started |
+| 1 | ~~[OC-041](OC-041-directory-verification-document-browser.md)~~ | ~~Directory verification & output document browser~~ | ~~E8 Directory Target~~ | ~~5~~ | ✅ Implemented |
+| 2 | ~~[OC-045](OC-045-array-shapes-filters-aggregates.md)~~ | ~~Array shapes, filters & aggregates~~ | ~~E9 Relationship Mapping~~ | ~~5~~ | ✅ Implemented |
+| 3 | ~~[OC-046](OC-046-large-arrays-overflow-sorted-merge.md)~~ | ~~Large arrays: sorted-merge strategy, overflow policies & document size guard~~ | ~~E9 Relationship Mapping~~ | ~~8~~ | ✅ Implemented |
 | 4 | [OC-055](OC-055-export-ui-run-history.md) | Export dialog, export history & external run reports | E11 Portable Runner | 5 | ⬜ Not started |
+| 5 | ~~[OC-061](OC-061-composer-reference-conformance.md)~~ | ~~Re-import a revised design, conformance check & mapping sheet~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
+| 6 | ~~[OC-062](OC-062-workbench-view-switcher.md)~~ | ~~Visible, explained workbench views~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 7 | ~~[OC-064](OC-064-expand-foreign-key-into-object.md)~~ | ~~Expand a foreign key into an embedded object (and back)~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 8 | ~~[OC-066](OC-066-combine-rows-that-share-a-key.md)~~ | ~~Combine rows that share a document key~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
+| 9 | ~~[OC-068](OC-068-move-mappings-on-target-kind-change.md)~~ | ~~Move mappings when the target kind changes~~ | ~~E8 Directory Target~~ | ~~3~~ | ✅ Implemented |
+| 10 | ~~[OC-069](OC-069-canvas-embeds-follow-grouped-rows.md)~~ | ~~Canvas embeds follow the group's rows, and removing a lookup removes its fields~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
+| 11 | ~~[OC-070](OC-070-resolve-fields-outside-imported-design.md)~~ | ~~Resolve fields that aren't in the imported design~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 12 | ~~[OC-071](OC-071-guided-fixes-for-imported-design-differences.md)~~ | ~~Guided fixes when the document differs from the imported design~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 13 | ~~[OC-075](OC-075-unmapped-design-fields-are-info.md)~~ | ~~Unmapped fields of an imported design are information, not warnings~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
+| 14 | ~~[OC-076](OC-076-reference-box-differences-only-when-strict.md)~~ | ~~Reference box lists differences only when the mapping is strict~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
+
+### P2 — Nice to have (2 stories, 2 points)
+
+| # | ID | Story | Epic | Points | Status |
+|---|---|---|---|---|---|
+| 1 | ~~[OC-067](OC-067-hide-table-view.md)~~ | ~~Hide the Table view from the view bar~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
+| 2 | ~~[OC-077](OC-077-sample-pane-stands-out.md)~~ | ~~Sample pane stands out from the canvas~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
 
 ## Delivery phases
 
@@ -74,63 +99,79 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 
 | Phase | Stories (in order) | Points | Done | Status | Outcome |
 |---|---|---|---|---|---|
-| Phase 0 — 2.0 foundations | OC-058, OC-036, OC-037 | 13 | 0/3 (0 pts) | 🚧 Current | Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build |
-| Phase 1 — Directory target | OC-038, OC-039, OC-040, OC-041 | 23 | 0/4 (0 pts) | ⬜ Planned | Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key |
-| Phase 2 — Relationship mapping | OC-042, OC-043, OC-044, OC-045, OC-046 | 37 | 0/5 (0 pts) | ⬜ Planned | Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises |
-| Phase 3 — Document composer | OC-047, OC-048, OC-049 | 26 | 0/3 (0 pts) | ⬜ Planned | Design any target JSON shape from scratch, bind objects and arrays to source relations, preview and validate it |
-| Phase 4 — Portable runner | OC-050, OC-051, OC-052, OC-053, OC-054, OC-055 | 36 | 0/6 (0 pts) | ⬜ Planned | Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool |
+| Phase 0 — 2.0 foundations | ~~OC-058~~, ~~OC-036~~, ~~OC-037~~ | 13 | 3/3 (13 pts) | ✅ Done | Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build |
+| Phase 1 — Directory target | ~~OC-038~~, ~~OC-039~~, ~~OC-040~~, ~~OC-041~~, ~~OC-068~~ | 26 | 5/5 (26 pts) | ✅ Done | Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key |
+| Phase 2 — Relationship mapping | ~~OC-042~~, ~~OC-043~~, ~~OC-044~~, ~~OC-045~~, ~~OC-046~~ | 37 | 5/5 (37 pts) | ✅ Done | Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises |
+| Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~ | 78 | 18/18 (78 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
+| Phase 4 — Portable runner | OC-050, OC-051, OC-052, OC-053, OC-054, OC-055, OC-072, OC-073, OC-074 | 50 | 0/9 (0 pts) | 🚧 Current | Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE |
 | Phase 5 — Harden & ship 2.0 | OC-057, OC-056 | 11 | 0/2 (0 pts) | ⬜ Planned | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
 
 ## Stories by phase
 
 Each phase lists its stories in delivery order.
 
-### Phase 0 — 2.0 foundations — 🚧 Current (0/3 stories, 0/13 points)
+### Phase 0 — 2.0 foundations — ✅ Done (3/3 stories, 13/13 points)
 
 _Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-058](OC-058-release-build-info-footer.md) | Release & build information footer | P0 | E7 Foundations 2.0 | 3 | OC-004, OC-032 | ⬜ Not started |
-| 2 | [OC-036](OC-036-pluggable-target-kinds.md) | Pluggable target kinds (Couchbase or directory) | P0 | E7 Foundations 2.0 | 5 | OC-012, OC-013, OC-025, OC-030 | ⬜ Not started |
-| 3 | [OC-037](OC-037-mapping-spec-v2-execution-plan.md) | Mapping spec v2 (relation tree) & shared execution plan | P0 | E7 Foundations 2.0 | 5 | OC-021, OC-022, OC-025 | ⬜ Not started |
+| 1 | [OC-058](OC-058-release-build-info-footer.md) | Release & build information footer | P0 | E7 Foundations 2.0 | 3 | OC-004, OC-032 | ✅ Implemented |
+| 2 | [OC-036](OC-036-pluggable-target-kinds.md) | Pluggable target kinds (Couchbase or directory) | P0 | E7 Foundations 2.0 | 5 | OC-012, OC-013, OC-025, OC-030 | ✅ Implemented |
+| 3 | [OC-037](OC-037-mapping-spec-v2-execution-plan.md) | Mapping spec v2 (relation tree) & shared execution plan | P0 | E7 Foundations 2.0 | 5 | OC-021, OC-022, OC-025 | ✅ Implemented |
 
-### Phase 1 — Directory target — ⬜ Planned (0/4 stories, 0/23 points)
+### Phase 1 — Directory target — ✅ Done (5/5 stories, 26/26 points)
 
 _Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-038](OC-038-directory-target-repository.md) | Directory target repository (per project): configure, test, save | P0 | E8 Directory Target | 5 | OC-036 | ⬜ Not started |
-| 2 | [OC-039](OC-039-directory-layout-key-file-names.md) | Directory layout, key-to-file-name encoding & lookup by primary key | P0 | E8 Directory Target | 5 | OC-038, OC-016 | ⬜ Not started |
-| 3 | [OC-040](OC-040-directory-writer.md) | Directory writer: atomic, resumable file output | P0 | E8 Directory Target | 8 | OC-036, OC-039, OC-025, OC-026, OC-029 | ⬜ Not started |
-| 4 | [OC-041](OC-041-directory-verification-document-browser.md) | Directory verification & output document browser | P1 | E8 Directory Target | 5 | OC-040, OC-030 | ⬜ Not started |
+| 1 | [OC-038](OC-038-directory-target-repository.md) | Directory target repository (per project): configure, test, save | P0 | E8 Directory Target | 5 | OC-036 | ✅ Implemented |
+| 2 | [OC-039](OC-039-directory-layout-key-file-names.md) | Directory layout, key-to-file-name encoding & lookup by primary key | P0 | E8 Directory Target | 5 | OC-038, OC-016 | ✅ Implemented |
+| 3 | [OC-040](OC-040-directory-writer.md) | Directory writer: atomic, resumable file output | P0 | E8 Directory Target | 8 | OC-036, OC-039, OC-025, OC-026, OC-029 | ✅ Implemented |
+| 4 | [OC-041](OC-041-directory-verification-document-browser.md) | Directory verification & output document browser | P1 | E8 Directory Target | 5 | OC-040, OC-030 | ✅ Implemented |
+| 5 | [OC-068](OC-068-move-mappings-on-target-kind-change.md) | Move mappings when the target kind changes | P1 | E8 Directory Target | 3 | OC-036, OC-038 | ✅ Implemented |
 
-### Phase 2 — Relationship mapping — ⬜ Planned (0/5 stories, 0/37 points)
+### Phase 2 — Relationship mapping — ✅ Done (5/5 stories, 37/37 points)
 
 _Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-042](OC-042-relationship-graph-virtual-relationships.md) | Relationship graph, junction-table detection & virtual relationships | P0 | E9 Relationship Mapping | 8 | OC-037, OC-010 | ⬜ Not started |
-| 2 | [OC-043](OC-043-nested-relations-multi-level.md) | Nested relations: multi-level objects and arrays | P0 | E9 Relationship Mapping | 8 | OC-037, OC-042 | ⬜ Not started |
-| 3 | [OC-044](OC-044-many-to-many-junction-arrays.md) | Many-to-many arrays through junction tables | P0 | E9 Relationship Mapping | 8 | OC-042, OC-043 | ⬜ Not started |
-| 4 | [OC-045](OC-045-array-shapes-filters-aggregates.md) | Array shapes, filters & aggregates | P1 | E9 Relationship Mapping | 5 | OC-043 | ⬜ Not started |
-| 5 | [OC-046](OC-046-large-arrays-overflow-sorted-merge.md) | Large arrays: sorted-merge strategy, overflow policies & document size guard | P1 | E9 Relationship Mapping | 8 | OC-043, OC-024 | ⬜ Not started |
+| 1 | [OC-042](OC-042-relationship-graph-virtual-relationships.md) | Relationship graph, junction-table detection & virtual relationships | P0 | E9 Relationship Mapping | 8 | OC-037, OC-010 | ✅ Implemented |
+| 2 | [OC-043](OC-043-nested-relations-multi-level.md) | Nested relations: multi-level objects and arrays | P0 | E9 Relationship Mapping | 8 | OC-037, OC-042 | ✅ Implemented |
+| 3 | [OC-044](OC-044-many-to-many-junction-arrays.md) | Many-to-many arrays through junction tables | P0 | E9 Relationship Mapping | 8 | OC-042, OC-043 | ✅ Implemented |
+| 4 | [OC-045](OC-045-array-shapes-filters-aggregates.md) | Array shapes, filters & aggregates | P1 | E9 Relationship Mapping | 5 | OC-043 | ✅ Implemented |
+| 5 | [OC-046](OC-046-large-arrays-overflow-sorted-merge.md) | Large arrays: sorted-merge strategy, overflow policies & document size guard | P1 | E9 Relationship Mapping | 8 | OC-043, OC-024 | ✅ Implemented |
 
-### Phase 3 — Document composer — ⬜ Planned (0/3 stories, 0/26 points)
+### Phase 3 — Document composer — ✅ Done (18/18 stories, 78/78 points)
 
-_Design any target JSON shape from scratch, bind objects and arrays to source relations, preview and validate it._
+_Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-047](OC-047-composer-bindings-scope-model.md) | Document composer: bindings, scope rules & plan compilation | P0 | E10 Document Composer | 8 | OC-037, OC-043, OC-044 | ⬜ Not started |
-| 2 | [OC-048](OC-048-composer-workspace-ui.md) | Document composer workspace (UI) | P0 | E10 Document Composer | 13 | OC-047, OC-042, OC-004 | ⬜ Not started |
-| 3 | [OC-049](OC-049-composer-preview-validation-automap.md) | Composer preview, validation & scoped auto-map | P0 | E10 Document Composer | 5 | OC-047, OC-022, OC-017 | ⬜ Not started |
+| 1 | [OC-047](OC-047-composer-bindings-scope-model.md) | Document composer: bindings, scope rules & plan compilation | P0 | E10 Document Composer | 8 | OC-037, OC-043, OC-044 | ✅ Implemented |
+| 2 | [OC-048](OC-048-composer-workspace-ui.md) | Document composer workspace (UI) | P0 | E10 Document Composer | 13 | OC-047, OC-042, OC-004 | ✅ Implemented |
+| 3 | [OC-049](OC-049-composer-preview-validation-automap.md) | Composer preview, validation & scoped auto-map | P0 | E10 Document Composer | 5 | OC-047, OC-022, OC-017 | ✅ Implemented |
+| 4 | [OC-059](OC-059-composer-import-target-json.md) | Import a target JSON design into the composer | P0 | E10 Document Composer | 5 | OC-048, OC-015 | ✅ Implemented |
+| 5 | [OC-060](OC-060-composer-binding-suggestions.md) | Suggest bindings for an imported design | P0 | E10 Document Composer | 8 | OC-059, OC-042, OC-049 | ✅ Implemented |
+| 6 | [OC-061](OC-061-composer-reference-conformance.md) | Re-import a revised design, conformance check & mapping sheet | P1 | E10 Document Composer | 5 | OC-059, OC-049 | ✅ Implemented |
+| 7 | [OC-062](OC-062-workbench-view-switcher.md) | Visible, explained workbench views | P1 | E10 Document Composer | 3 | OC-048, OC-035 | ✅ Implemented |
+| 8 | [OC-063](OC-063-group-rows-into-one-document.md) | One document per group of rows (group the driving table) | P0 | E10 Document Composer | 8 | OC-047, OC-043, OC-046, OC-049 | ✅ Implemented |
+| 9 | [OC-064](OC-064-expand-foreign-key-into-object.md) | Expand a foreign key into an embedded object (and back) | P1 | E10 Document Composer | 3 | OC-043, OC-047, OC-063 | ✅ Implemented |
+| 10 | [OC-065](OC-065-array-items-read-their-own-row.md) | Array items read their own row, never repeat the parent's | P0 | E10 Document Composer | 3 | OC-063, OC-049 | ✅ Implemented |
+| 11 | [OC-066](OC-066-combine-rows-that-share-a-key.md) | Combine rows that share a document key | P1 | E10 Document Composer | 5 | OC-063, OC-065 | ✅ Implemented |
+| 12 | [OC-067](OC-067-hide-table-view.md) | Hide the Table view from the view bar | P2 | E10 Document Composer | 1 | OC-062 | ✅ Implemented |
+| 13 | [OC-069](OC-069-canvas-embeds-follow-grouped-rows.md) | Canvas embeds follow the group's rows, and removing a lookup removes its fields | P1 | E10 Document Composer | 2 | OC-043, OC-063 | ✅ Implemented |
+| 14 | [OC-070](OC-070-resolve-fields-outside-imported-design.md) | Resolve fields that aren't in the imported design | P1 | E10 Document Composer | 3 | OC-059, OC-061 | ✅ Implemented |
+| 15 | [OC-071](OC-071-guided-fixes-for-imported-design-differences.md) | Guided fixes when the document differs from the imported design | P1 | E10 Document Composer | 3 | OC-061, OC-064, OC-070 | ✅ Implemented |
+| 16 | [OC-075](OC-075-unmapped-design-fields-are-info.md) | Unmapped fields of an imported design are information, not warnings | P1 | E10 Document Composer | 1 | OC-061, OC-070, OC-071 | ✅ Implemented |
+| 17 | [OC-076](OC-076-reference-box-differences-only-when-strict.md) | Reference box lists differences only when the mapping is strict | P1 | E10 Document Composer | 1 | OC-061, OC-071, OC-075 | ✅ Implemented |
+| 18 | [OC-077](OC-077-sample-pane-stands-out.md) | Sample pane stands out from the canvas | P2 | E10 Document Composer | 1 | OC-048, OC-049 | ✅ Implemented |
 
-### Phase 4 — Portable runner — ⬜ Planned (0/6 stories, 0/36 points)
+### Phase 4 — Portable runner — 🚧 Current (0/9 stories, 0/50 points)
 
-_Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool._
+_Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
@@ -140,6 +181,9 @@ _Export a finished mapping as a self-contained bash script or Kubernetes kit and
 | 4 | [OC-053](OC-053-executable-bash-script-export.md) | Executable migration script export (`migrate.sh`) | P0 | E11 Portable Runner | 8 | OC-051, OC-052 | ⬜ Not started |
 | 5 | [OC-054](OC-054-kubernetes-execution-kit.md) | Kubernetes execution kit | P0 | E11 Portable Runner | 5 | OC-053 | ⬜ Not started |
 | 6 | [OC-055](OC-055-export-ui-run-history.md) | Export dialog, export history & external run reports | P1 | E11 Portable Runner | 5 | OC-053, OC-054, OC-052 | ⬜ Not started |
+| 7 | [OC-072](OC-072-all-in-one-image-couchbase-ce.md) | All-in-one image: Omni-Data-Bus with a bundled Couchbase Server CE node | P0 | E11 Portable Runner | 8 | OC-032, OC-036, OC-058 | ⬜ Not started |
+| 8 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072 | ⬜ Not started |
+| 9 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072, OC-073 | ⬜ Not started |
 
 ### Phase 5 — Harden & ship 2.0 — ⬜ Planned (0/2 stories, 0/11 points)
 
@@ -157,5 +201,5 @@ _Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate
 - [ ] OC-056 benchmarks pass every gate on the reference environment; results committed under `bench/results/`
 - [ ] Security review of exported-credential handling (OC-052) and directory path controls (OC-038) completed; no HIGH/CRITICAL vulnerabilities
 - [ ] 1.0 → 2.0 upgrade rehearsed on a copy of a 1.0 metadata bucket (OC-057)
-- [ ] Image and static `odb` binaries signed, SBOM attached, Helm chart published
+- [ ] Image, all-in-one appliance image and static `odb` binaries signed, SBOM attached, Helm chart published; Couchbase CE redistribution confirmed (OC-072)
 - [ ] User guide, runner guide and deployment docs updated

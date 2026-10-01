@@ -213,7 +213,10 @@ func (r projects) Delete(ctx context.Context, ws store.WorkspaceID, id string) e
 			return err
 		}
 	}
-	return mappings(r).deleteForProject(ctx, id)
+	if err := mappings(r).deleteForProject(ctx, id); err != nil {
+		return err
+	}
+	return relationships(r).deleteForProject(ctx, id)
 }
 
 // timePtr parses an optional timestamp.

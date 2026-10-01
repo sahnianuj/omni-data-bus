@@ -4,6 +4,8 @@ import { Link } from 'react-router'
 import { PageHeader } from '@/components/PageHeader'
 import { hasRole } from '@/features/auth/Can'
 import { useSession } from '@/features/auth/api'
+import { BuildDetails } from '@/components/BuildInfoFooter'
+import { useBuildInfo } from '@/features/system/buildInfo'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -24,6 +26,22 @@ export function SettingsPage() {
           <ChevronRight className="size-4 text-muted" aria-hidden />
         </Link>
       ) : null}
+      <AboutSection />
     </div>
+  )
+}
+
+/** Settings → About: the same build details as the footer's popover (OC-058). */
+function AboutSection() {
+  const { t } = useTranslation()
+  const info = useBuildInfo()
+  return (
+    <section aria-labelledby="settings-about" className="flex max-w-md flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-[13px]">
+      <div className="flex flex-col">
+        <h2 id="settings-about" className="text-sm font-medium">{t('settings.about.title')}</h2>
+        <span className="text-muted">{t('settings.about.description')}</span>
+      </div>
+      {info.data ? <BuildDetails v={info.data} /> : null}
+    </section>
   )
 }

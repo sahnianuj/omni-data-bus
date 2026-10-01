@@ -50,13 +50,13 @@ describe('JobErrorsTab', () => {
     renderUI(<JobErrorsTab job={job({ status: 'completed_with_errors', retryable: true })} />)
     const byCode = await screen.findByRole('region', { name: 'Errors by code' })
     expect(within(byCode).getByText("Value couldn't be converted")).toBeInTheDocument()
-    expect(within(byCode).getByText('Document is over 20 MB')).toBeInTheDocument()
+    expect(within(byCode).getByText("Document is over the target's size limit")).toBeInTheDocument()
     expect(within(byCode).getByText('120')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Download CSV' })).toHaveAttribute('href', '/api/v1/jobs/j1/errors/export?format=csv')
 
     // Clicking a code filters the table.
     expect(await screen.findAllByRole('row')).toHaveLength(3)
-    await userEvent.click(within(byCode).getByRole('button', { name: /Document is over 20 MB/ }))
+    await userEvent.click(within(byCode).getByRole('button', { name: /Document is over the target's size limit/ }))
     await waitFor(() => expect(state.listQueries).toContain('DOC_TOO_LARGE'))
     const table = await screen.findByRole('table', { name: 'Failed rows' })
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(2))
@@ -64,7 +64,7 @@ describe('JobErrorsTab', () => {
 
     // The drawer shows the source row and the fix hint.
     await userEvent.click(within(table).getByRole('button', { name: 'View row' }))
-    const drawer = await screen.findByRole('dialog', { name: 'Document is over 20 MB' })
+    const drawer = await screen.findByRole('dialog', { name: "Document is over the target's size limit" })
     expect(drawer).toHaveTextContent('Split large columns out')
     expect(drawer).toHaveTextContent('"total": "12,5"')
   })

@@ -1,0 +1,9 @@
+{
+  "docSchema": { "root": { "id": "fld_root", "name": "$", "type": "object", "children": [] } },
+  "key": { "template": "{id}" },
+  "typeField": { "enabled": false },
+  "nullHandling": "include",
+  "fieldMappings": null,
+  "embeds": null,
+  "ignoredColumns": null
+}

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
@@ -42,5 +42,20 @@ describe('AppShell', () => {
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument()
     expect(screen.getByText('Owner')).toBeInTheDocument()
     expect(screen.getByText("Ada Lovelace's workspace")).toBeInTheDocument()
+  })
+
+  it.each(['/', '/projects', '/jobs', '/settings', '/nowhere'])('AC3: footer present on all shell routes (%s)', async (url) => {
+    renderRoutes(routes, url)
+    const footer = await screen.findByRole('contentinfo', { name: 'Build information' })
+    expect(await within(footer).findByText(/Omni-Data-Bus 2\.0\.0 · build 3f2a9c1/)).toBeInTheDocument()
+    // The footer sits after <main>, outside the scrolling content area, so it never covers a page.
+    expect(document.getElementById('main')?.contains(footer)).toBe(false)
+  })
+
+  it('AC3: Settings → About shows the same build details', async () => {
+    renderRoutes(routes, '/settings')
+    const about = await screen.findByRole('region', { name: 'About' })
+    expect(await within(about).findByText('3f2a9c1e0b')).toBeInTheDocument()
+    expect(within(about).getByRole('button', { name: 'Copy build info' })).toBeInTheDocument()
   })
 })

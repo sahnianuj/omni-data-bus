@@ -15,6 +15,7 @@ tags:
   - name: discovery
   - name: keyspaces
   - name: mappings
+  - name: relations
 paths:
   /healthz:
     get:
@@ -60,7 +61,11 @@ paths:
     get:
       tags: [system]
       operationId: getVersion
-      summary: Build version
+      summary: Release and build information
+      description: >-
+        Signed-in callers get the full build, the metadata schema version and the versions of the
+        running nodes. Anonymous callers get only version and channel, or an empty object when
+        OC_EXPOSE_BUILD_INFO=false. Cached for 10 s per API node (OC-058).
       responses:
         '200':
           description: Version info
@@ -357,6 +362,119 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DiscoveryStatus' }
         default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/relations:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [relations]
+      operationId: getRelationGraph
+      summary: Relationship paths from a root table (foreign keys both ways and virtual relationships), junction candidates and index advice (OC-042)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: root, in: query, required: true, schema: { type: string }, description: 'schema.table, e.g. public.orders' }
+        - { name: depth, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 6, default: 4 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelationGraph' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/relationships:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [relations]
+      operationId: listRelationships
+      summary: The project's virtual relationships (user-defined joins where the source has no foreign key)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: '#/components/schemas/Relationship' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [relations]
+      operationId: createRelationship
+      summary: Create a virtual relationship (column types must be compatible, else 422 RELATION_TYPE_MISMATCH)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Relationship' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/relationships/detect:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [relations]
+      operationId: detectRelationshipCardinality
+      summary: Sample the source to suggest a virtual relationship's cardinality (10 s timeout; "unknown" when it times out)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelationshipDetection' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/relationships/{rid}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: rid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [relations]
+      operationId: getRelationship
+      summary: One virtual relationship
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Relationship' }
+        default: { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [relations]
+      operationId: updateRelationship
+      summary: Replace a virtual relationship's definition
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: If-Match, in: header, required: false, schema: { type: string }, description: 'The relationship version, e.g. "2"' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Relationship' }
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [relations]
+      operationId: deleteRelationship
+      summary: Delete a virtual relationship
+      security: [{ cookieAuth: [] }]
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Problem' }
   /api/v1/connections/{id}/schema:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -419,6 +537,141 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PreviewResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/target-kinds:
+    get:
+      tags: [connections]
+      operationId: listTargetKinds
+      summary: Target kinds (Couchbase, directory) with their capabilities (OC-036)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Target kinds
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TargetKindList' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/target-kinds/directory/folders:
+    get:
+      tags: [connections]
+      operationId: listDirectoryFolders
+      summary: Folder picker for a directory target (OC-038)
+      description: >-
+        Without path, the areas a directory target may be in (the home folder of the account running
+        the server, and /data when it exists); with path, its visible sub-folders. Hidden folders are
+        never listed or allowed. Editors only.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: path, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Folders
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderListing' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [connections]
+      operationId: createDirectoryFolder
+      summary: Create a folder from the folder picker
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parent, name]
+              properties:
+                parent: { type: string }
+                name: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, required: [path], properties: { path: { type: string } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/documents/{key}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+      - { name: key, in: path, required: true, schema: { type: string }, description: 'The document key; may contain "/" and "::" (the rest of the path)' }
+    get:
+      tags: [mappings]
+      operationId: getDocument
+      summary: A migrated document by key (Couchbase KV get, or the file at its computed path)
+      description: >-
+        OC-039/OC-041. With download=1 the document is returned as a JSON attachment. A key whose file
+        would be outside the mapping's folder reads as 404 and is audited (output.path_rejected).
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: download, in: query, required: false, schema: { type: string, enum: ['1'] } }
+      responses:
+        '200':
+          description: The document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StoredDocument' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/jobs/{jid}/output:
+    parameters:
+      - { name: jid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [jobs]
+      operationId: listJobOutput
+      summary: A page of the documents a job's mapping wrote, sorted by key (directory targets)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: mapping, in: query, required: false, schema: { type: string }, description: Defaults to the job's first mapping }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200':
+          description: Output page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutputPage' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/locations:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [keyspaces]
+      operationId: listLocations
+      summary: Children of a location on the target (buckets → scopes → collections, or sub-folders)
+      description: Replaces the /buckets… endpoints for new clients; they stay as aliases for Couchbase targets until 3.0 (OC-036).
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: parent, in: query, required: false, schema: { type: string }, description: 'Parent location path: "" (root), "bucket", "bucket/scope", or a folder such as "orders/2026"' }
+      responses:
+        '200':
+          description: Child locations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationList' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [keyspaces]
+      operationId: createLocation
+      summary: Create a location (a Couchbase scope and collection, or a folder)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Location' }
+      responses:
+        '201':
+          description: Created and ready to use
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationCreated' }
+        '202':
+          description: Created; the target is still making it available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationCreated' }
         default: { $ref: '#/components/responses/Problem' }
   /api/v1/connections/{id}/buckets:
     parameters:
@@ -729,6 +982,26 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MappingPreview' }
         default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/suggest-bindings:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: suggestBindings
+      summary: Proposed driving table and bindings for a composed design's unbound objects and arrays (OC-060; changes nothing)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SuggestBindingsRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BindingSuggestions' }
+        default: { $ref: '#/components/responses/Problem' }
   /api/v1/doc-schemas/infer:
     post:
       tags: [mappings]
@@ -746,6 +1019,42 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InferResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/doc-schemas/reconcile:
+    post:
+      tags: [mappings]
+      operationId: reconcileDocSchema
+      summary: A revised design with the current field ids kept where fields still exist, and the diff (OC-061)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReconcileRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReconcileResult' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/mapping-sheet:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [mappings]
+      operationId: mappingSheet
+      summary: Every design field with its source, transforms, status and issues, as CSV or Markdown (OC-061)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: format, in: query, schema: { type: string, enum: [csv, md], default: csv } }
+      responses:
+        '200':
+          description: The mapping sheet
+          content:
+            text/csv: { schema: { type: string } }
+            text/markdown: { schema: { type: string } }
         default: { $ref: '#/components/responses/Problem' }
   /api/v1/doc-schemas/export:
     post:
@@ -828,7 +1137,7 @@ paths:
     post:
       tags: [jobs]
       operationId: createJob
-      summary: Run the pre-flight again and queue a migration (422 PREFLIGHT_FAILED with the checklist; 409 PROJECT_HAS_RUNNING_JOB)
+      summary: Run the pre-flight again and queue a migration (422 MAPPING_INVALID listing validation errors, or PREFLIGHT_FAILED, both with the checklist; 409 PROJECT_HAS_RUNNING_JOB)
       security: [{ cookieAuth: [] }]
       requestBody:
         required: false
@@ -1137,10 +1446,23 @@ components:
           additionalProperties: { type: string }
     Version:
       type: object
-      required: [version, commit]
+      description: Every field is optional because anonymous callers get a subset (OC-058).
       properties:
-        version: { type: string }
-        commit: { type: string }
+        version: { type: string, example: 2.0.0 }
+        channel: { type: string, enum: [release, rc, dev] }
+        commit: { type: string, example: 3f2a9c1 }
+        buildTime: { type: string, description: 'UTC RFC 3339; empty for local builds', example: '2026-11-02T14:05:11Z' }
+        goVersion: { type: string, example: go1.26.8 }
+        platform: { type: string, example: linux/amd64 }
+        dirty: { type: boolean, description: Built from uncommitted changes }
+        metadataSchemaVersion: { type: integer }
+        nodes:
+          type: object
+          description: Distinct versions of the live nodes, by role
+          properties:
+            api: { type: array, items: { type: string } }
+            worker: { type: array, items: { type: string } }
+        consistent: { type: boolean, description: false when nodes run more than one version }
     SignupRequest:
       type: object
       required: [email, password, displayName]
@@ -1178,7 +1500,7 @@ components:
       required: [id, type, name, lastTestStatus]
       properties:
         id: { type: string }
-        type: { type: string, enum: [postgres, couchbase] }
+        type: { type: string, enum: [postgres, couchbase, directory] }
         name: { type: string }
         lastTestStatus: { type: string, enum: [ok, warn, failed, untested] }
         lastTestedAt: { type: string, format: date-time }
@@ -1234,12 +1556,12 @@ components:
         clientCertSet: { type: boolean }
     Connection:
       type: object
-      required: [id, projectId, role, type, name, config, secrets, lastTestStatus, createdAt, updatedAt, version]
+      required: [id, projectId, role, type, name, config, lastTestStatus, createdAt, updatedAt, version]
       properties:
         id: { type: string }
         projectId: { type: string }
         role: { type: string, enum: [source, target] }
-        type: { type: string, enum: [postgres, couchbase] }
+        type: { type: string, enum: [postgres, couchbase, directory] }
         name: { type: string }
         config: { type: object, additionalProperties: true }
         secrets: { $ref: '#/components/schemas/SecretMeta' }
@@ -1310,6 +1632,12 @@ components:
         name: { type: string, maxLength: 100 }
         config: { type: object, additionalProperties: true }
         secrets: { $ref: '#/components/schemas/SecretsPatch' }
+        relocate:
+          type: object
+          description: 'Target kind change (OC-068): move every mapping to the new kind, keeping its collection or folder name. Couchbase needs bucket and scope. Without it, a kind change while mappings have locations is 409 TARGET_KIND_IN_USE.'
+          properties:
+            bucket: { type: string }
+            scope: { type: string }
     TestStep:
       type: object
       required: [id, label, status]
@@ -1611,12 +1939,64 @@ components:
         children: { type: array, items: { $ref: '#/components/schemas/DocField' } }
         items: { $ref: '#/components/schemas/DocField' }
         format: { type: string }
+        binding: { $ref: '#/components/schemas/Binding' }
+        example:
+          description: A scalar value from an imported design (OC-059), shown next to the field; never written to documents
+          oneOf: [{ type: string }, { type: number }, { type: boolean }]
+    Binding:
+      type: object
+      description: >-
+        Document composer metadata on an object or array node (OC-047). relationId mirrors the
+        relation whose targetFieldId is this node (the relation is authoritative); adapter lets a
+        node take a relation of the other cardinality.
+      properties:
+        relationId: { type: string }
+        adapter:
+          type: string
+          enum: [first, wrap]
+          description: first — an object bound to one-to-many or many-to-many takes its first row (in the relation's order); wrap — an array bound to many-to-one holds 0 or 1 item
     DocSchema:
       type: object
       required: [root, source]
       properties:
         root: { $ref: '#/components/schemas/DocField' }
         source: { type: string, enum: [generated, json-sample, json-schema, collection-sample, manual] }
+        reference:
+          type: object
+          additionalProperties: true
+          description: The first imported sample, verbatim (≤ 256 KB, OC-059). Design-time only; never exported in a bundle.
+        imported: { $ref: '#/components/schemas/ImportedDesign' }
+        constantHints:
+          type: array
+          description: Fields whose imported values look fixed; the composer offers to keep each as a constant (OC-059)
+          items: { $ref: '#/components/schemas/ConstantHint' }
+    ImportedDesign:
+      type: object
+      description: The customer design a mapping was built from (OC-059); unlike source it survives edits
+      required: [at, format, samples, fieldCount]
+      properties:
+        at: { type: string, format: date-time }
+        fileName: { type: string }
+        format: { type: string, enum: [sample, ndjson, json-schema] }
+        samples: { type: integer }
+        fieldCount: { type: integer }
+        fields:
+          type: array
+          description: The imported design's fields as the customer defined them (paths like items[].sku); what conformance is checked against
+          items:
+            type: object
+            required: [path, type]
+            properties:
+              path: { type: string }
+              type: { $ref: '#/components/schemas/FieldType' }
+              required: { type: boolean }
+    ConstantHint:
+      type: object
+      required: [fieldId, value, reason]
+      properties:
+        fieldId: { type: string }
+        value: { oneOf: [{ type: string }, { type: number }, { type: boolean }] }
+        reason: { type: string, enum: [same-in-every-sample, discriminator-name, schema-const] }
     TransformStep:
       type: object
       required: [op]
@@ -1635,8 +2015,10 @@ components:
             type: object
             required: [column]
             properties:
+              relation: { type: string, description: The relation whose table the column belongs to (absent for the mapped table) }
               column: { type: string }
-              embed: { type: string, description: The embed whose table the column belongs to }
+              from: { type: string, enum: [via], description: 'Read a many-to-many junction column (OC-044)' }
+              embed: { type: string, deprecated: true, description: '1.0 name of relation; accepted on input, never returned' }
         transforms: { type: array, items: { $ref: '#/components/schemas/TransformStep' } }
         origin: { type: string, enum: [auto, suggested, manual] }
         state: { type: string, enum: [active, pending, rejected] }
@@ -1646,8 +2028,22 @@ components:
         nullHandling: { type: string, enum: [include, omit] }
     MappingSpec:
       type: object
-      required: [docSchema, key, typeField, nullHandling, fieldMappings, embeds, ignoredColumns]
+      description: >-
+        Mapping spec v2 (OC-037). A 1.0 spec (no specVersion, embeds[] instead of relations[]) is
+        still accepted on input and upgraded; responses are always v2.
+      required: [specVersion, mode, docSchema, key, typeField, nullHandling, fieldMappings, relations, aggregates, ignoredColumns]
       properties:
+        specVersion: { type: integer, enum: [2] }
+        mode: { type: string, enum: [canvas, composed] }
+        root:
+          type: object
+          required: [table]
+          properties:
+            table: { $ref: '#/components/schemas/TableRef' }
+            groupBy:
+              type: array
+              items: { type: string }
+              description: One document per distinct value of these driving-table columns, not per row (OC-063; composed mappings). The group's rows fill the relation with group true.
         docSchema: { $ref: '#/components/schemas/DocSchema' }
         key:
           type: object
@@ -1665,9 +2061,13 @@ components:
         omitUnmapped:
           type: boolean
           description: Leave designed fields without an active mapping out of the document (default false writes them as null).
+        referenceStrict:
+          type: boolean
+          description: Conformance to the imported design (REFERENCE_FIELD_UNMAPPED, REFERENCE_EXTRA_FIELD) is an error, blocking migrations and exports (OC-061)
         expirySec: { type: integer, format: int64 }
         fieldMappings: { type: array, items: { $ref: '#/components/schemas/FieldMapping' } }
-        embeds: { type: array, items: { $ref: '#/components/schemas/Embed' } }
+        relations: { type: array, items: { $ref: '#/components/schemas/Relation' } }
+        aggregates: { type: array, items: { $ref: '#/components/schemas/Aggregate' } }
         ignoredColumns: { type: array, items: { type: string } }
     TableRef:
       type: object
@@ -1687,21 +2087,71 @@ components:
       properties:
         column: { type: string }
         desc: { type: boolean }
+        from: { type: string, enum: [via], description: 'A many-to-many junction column' }
     EmbedKind:
       type: string
       enum: [many-to-one, one-to-many]
-    Embed:
+    RelationKind:
+      type: string
+      enum: [many-to-one, one-to-many, many-to-many]
+    Relation:
       type: object
-      required: [id, kind, table, join, targetFieldId]
+      description: >-
+        A related table in the document (spec v2). Relations form a tree through parentId (null
+        = a child of the mapped table; nested up to OC_MAX_RELATION_DEPTH, OC-043); 1.0 embeds are
+        relations at depth 1. lookupOnly many-to-one relations add no field (their columns are
+        mapped in scope); many-to-many relations go through via (OC-044); arrays have a shape,
+        filter and aggregates (OC-045) and an overflow policy and strategy (OC-046).
+      required: [id, parentId, kind, table]
       properties:
         id: { type: string }
-        kind: { $ref: '#/components/schemas/EmbedKind' }
+        parentId: { type: [string, 'null'] }
+        kind: { $ref: '#/components/schemas/RelationKind' }
         table: { $ref: '#/components/schemas/TableRef' }
         join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        via:
+          type: object
+          required: [table, parentJoin, childJoin]
+          properties:
+            table: { $ref: '#/components/schemas/TableRef' }
+            parentJoin: { type: array, items: { type: object, required: [via], properties: { parent: { type: string }, via: { type: string } } } }
+            childJoin: { type: array, items: { type: object, required: [via], properties: { via: { type: string }, child: { type: string } } } }
+            columns: { type: array, items: { type: string } }
+        targetFieldId: { type: string }
+        lookupOnly: { type: boolean }
+        shape: { type: string, enum: [objects, scalars, keyed] }
+        valueColumn: { type: string }
+        keyColumn: { type: string }
         orderBy: { type: array, items: { $ref: '#/components/schemas/EmbedOrder' } }
         limit: { type: integer, minimum: 0, maximum: 100000 }
-        targetFieldId: { type: string }
+        filter:
+          type: array
+          items:
+            type: object
+            required: [column, op]
+            properties:
+              column: { type: string }
+              op: { type: string, enum: [eq, ne, lt, lte, gt, gte, in, notIn, isNull, notNull, like] }
+              value: {}
+              from: { type: string, enum: [via] }
+        overflow: { type: string, enum: [truncate, fail, split] }
+        strategy: { type: string, enum: [auto, batched, sorted-merge] }
         empty: { type: string, enum: [array, omit] }
+        distinct: { type: boolean, description: 'Many-to-many: one item per target row' }
+        keepDangling: { type: boolean, description: 'Many-to-many: keep junction rows whose target row is missing' }
+        group:
+          type: boolean
+          description: 'The group''s rows (OC-063): a one-to-many from the driving table to itself on root.groupBy, directly under the root; table, kind and join are filled from the root'
+    Aggregate:
+      type: object
+      required: [id, relationId, fn, targetFieldId]
+      properties:
+        id: { type: string }
+        relationId: { type: string }
+        fn: { type: string, enum: [count, sum, min, max, avg, first, last] }
+        column: { type: string }
+        from: { type: string, enum: [via] }
+        targetFieldId: { type: string }
     EmbedCandidate:
       type: object
       required: [kind, table, join, constraint]
@@ -1713,27 +2163,307 @@ components:
         rowEstimate: { type: [integer, 'null'], format: int64 }
         rowsPerParent: { type: number }
         embedId: { type: string }
+        virtual: { type: string, description: 'The virtual relationship this candidate comes from (OC-042)' }
     EmbedTable:
       type: object
       required: [table, columns]
       properties:
         table: { $ref: '#/components/schemas/TableRef' }
         columns: { type: array, items: { $ref: '#/components/schemas/SourceColumn' } }
+        via: { type: array, description: 'A many-to-many relation''s junction payload columns', items: { $ref: '#/components/schemas/SourceColumn' } }
     AddEmbedRequest:
       type: object
-      required: [kind, table, join]
+      description: 'A relation to add (OC-021; nested, lookup-only, many-to-many, shapes and paths from OC-043 – OC-045). Then are further hops, each nested under the one before.'
+      required: [kind, table]
       properties:
-        kind: { $ref: '#/components/schemas/EmbedKind' }
+        kind: { $ref: '#/components/schemas/RelationKind' }
+        parentId: { type: string }
         table: { $ref: '#/components/schemas/TableRef' }
-        join: { type: array, minItems: 1, items: { $ref: '#/components/schemas/JoinPair' } }
+        join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        via: { $ref: '#/components/schemas/RelationVia' }
+        lookupOnly: { type: boolean }
         targetName: { type: string }
         orderBy: { type: array, items: { $ref: '#/components/schemas/EmbedOrder' } }
         limit: { type: integer, minimum: 0, maximum: 100000 }
         empty: { type: string, enum: [array, omit] }
+        shape: { type: string, enum: [objects, scalars, keyed] }
+        valueColumn: { type: string }
+        keyColumn: { type: string }
+        filter: { type: array, items: { $ref: '#/components/schemas/RelationFilter' } }
+        overflow: { type: string, enum: [truncate, fail, split] }
+        strategy: { type: string, enum: [auto, batched, sorted-merge] }
+        distinct: { type: boolean }
+        keepDangling: { type: boolean }
+        noField: { type: boolean }
+        aggregates:
+          type: array
+          items:
+            type: object
+            required: [fn]
+            properties:
+              fn: { type: string, enum: [count, sum, min, max, avg, first, last] }
+              column: { type: string }
+              from: { type: string, enum: [via] }
+              targetName: { type: string }
         generate: { type: boolean }
         includeJoinColumns: { type: boolean }
+        then: { type: array, items: { $ref: '#/components/schemas/AddEmbedRequest' } }
+    SuggestBindingsRequest:
+      type: object
+      properties:
+        nodeId: { type: string, description: Only this node's suggestion (default every unbound object and array) }
+        root: { type: boolean, description: Also rank driving tables from the root's fields }
+        specOverride: { $ref: '#/components/schemas/MappingSpec' }
+    BindingSuggestions:
+      type: object
+      required: [root, suggestions]
+      properties:
+        root:
+          type: array
+          items:
+            type: object
+            required: [table, score, reasons]
+            properties:
+              table: { $ref: '#/components/schemas/TableRef' }
+              score: { type: number }
+              reasons: { type: array, items: { type: string } }
+        suggestions: { type: array, items: { $ref: '#/components/schemas/BindingSuggestion' } }
+    BindingSuggestion:
+      type: object
+      required: [nodeId, path, confidence, candidate, alternatives]
+      properties:
+        nodeId: { type: string }
+        path: { type: string }
+        confidence: { type: string, enum: [high, medium, unresolved], description: 'high ≥ 0.75, medium ≥ 0.50; unresolved shows its best candidate without suggesting it' }
+        candidate: { $ref: '#/components/schemas/BindingCandidate' }
+        alternatives: { type: array, items: { $ref: '#/components/schemas/BindingCandidate' } }
+    BindingCandidate:
+      type: object
+      required: [score, reasons]
+      properties:
+        fromParent: { type: boolean, description: No relation — the object groups its parent scope's columns }
+        kind: { type: string, enum: [many-to-one, one-to-many, many-to-many] }
+        table: { $ref: '#/components/schemas/TableRef' }
+        join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        via: { $ref: '#/components/schemas/RelationVia' }
+        virtual: { type: boolean }
+        adapter: { type: string, enum: [first, wrap] }
+        shape: { type: string, enum: [scalars] }
+        valueColumn: { type: string }
+        group: { type: boolean, description: Fill the array with the group's rows, grouping the driving table by groupBy (OC-063) }
+        groupBy: { type: array, items: { type: string } }
+        orderBy: { type: array, items: { $ref: '#/components/schemas/EmbedOrder' } }
+        score: { type: number }
+        reasons: { type: array, items: { type: string } }
+    RelationVia:
+      type: object
+      required: [table, parentJoin, childJoin]
+      properties:
+        table: { $ref: '#/components/schemas/TableRef' }
+        parentJoin: { type: array, items: { $ref: '#/components/schemas/ViaJoin' } }
+        childJoin: { type: array, items: { $ref: '#/components/schemas/ViaJoin' } }
+        columns: { type: array, items: { type: string } }
+    ViaJoin:
+      type: object
+      required: [via]
+      properties:
+        parent: { type: string }
+        via: { type: string }
+        child: { type: string }
+    RelationFilter:
+      type: object
+      required: [column, op]
+      properties:
+        column: { type: string }
+        op: { type: string, enum: [eq, ne, lt, lte, gt, gte, in, notIn, isNull, notNull, like] }
+        value: {}
+        from: { type: string, enum: [via] }
+    RelationHop:
+      type: object
+      required: [from, to, kind, join, indexed]
+      properties:
+        from: { $ref: '#/components/schemas/TableRef' }
+        to: { $ref: '#/components/schemas/TableRef' }
+        kind: { $ref: '#/components/schemas/EmbedKind' }
+        join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        constraint: { type: string }
+        relationshipId: { type: string }
+        virtual: { type: boolean }
+        indexed: { type: boolean }
+    RelationPath:
+      type: object
+      required: [hops]
+      properties:
+        hops: { type: array, items: { $ref: '#/components/schemas/RelationHop' } }
+    JunctionCandidate:
+      type: object
+      required: [table, via, parentJoin, childJoin, payloadColumns, confidence, indexed]
+      properties:
+        table: { $ref: '#/components/schemas/TableRef' }
+        via: { $ref: '#/components/schemas/TableRef' }
+        parentJoin: { type: array, items: { $ref: '#/components/schemas/ViaJoin' } }
+        childJoin: { type: array, items: { $ref: '#/components/schemas/ViaJoin' } }
+        payloadColumns: { type: array, items: { type: string } }
+        confidence: { type: string, enum: [high, medium] }
+        indexed: { type: boolean }
+    IndexAdvice:
+      type: object
+      required: [code, table, columns, message]
+      properties:
+        code: { type: string, enum: [RELATION_NO_INDEX] }
+        table: { $ref: '#/components/schemas/TableRef' }
+        columns: { type: array, items: { type: string } }
+        message: { type: string }
+    RelationGraph:
+      type: object
+      required: [root, depth, paths, junctions, advice]
+      properties:
+        root: { $ref: '#/components/schemas/TableRef' }
+        depth: { type: integer }
+        paths: { type: array, items: { $ref: '#/components/schemas/RelationPath' } }
+        junctions: { type: array, items: { $ref: '#/components/schemas/JunctionCandidate' } }
+        advice: { type: array, items: { $ref: '#/components/schemas/IndexAdvice' } }
+    RelationshipEnd:
+      type: object
+      required: [schema, table, columns]
+      properties:
+        schema: { type: string }
+        table: { type: string }
+        columns: { type: array, items: { type: string } }
+    RelationshipDetection:
+      type: object
+      required: [maxPerKey, fromMaxPerKey, sampledRows, suggested, at]
+      properties:
+        maxPerKey: { type: integer, format: int64 }
+        fromMaxPerKey: { type: integer, format: int64 }
+        sampledRows: { type: integer, format: int64 }
+        suggested: { type: string, enum: [many-to-one, one-to-one, one-to-many, unknown] }
+        at: { type: string, format: date-time }
+        warning: { type: string }
+    RelationshipInput:
+      type: object
+      required: [from, to]
+      properties:
+        name: { type: string }
+        from: { $ref: '#/components/schemas/RelationshipEnd' }
+        to: { $ref: '#/components/schemas/RelationshipEnd' }
+        cardinality: { type: string, enum: [many-to-one, one-to-one, one-to-many] }
+        detected: { $ref: '#/components/schemas/RelationshipDetection' }
+    Relationship:
+      type: object
+      required: [id, projectId, name, from, to, cardinality, version]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        projectId: { type: string }
+        name: { type: string }
+        from: { $ref: '#/components/schemas/RelationshipEnd' }
+        to: { $ref: '#/components/schemas/RelationshipEnd' }
+        cardinality: { type: string, enum: [many-to-one, one-to-one, one-to-many] }
+        detected: { $ref: '#/components/schemas/RelationshipDetection' }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, format: int64 }
+    Location:
+      type: object
+      description: 'Where a mapping writes (OC-036): {kind: couchbase, bucket, scope, collection} or {kind: directory, folder}.'
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [couchbase, directory] }
+        bucket: { type: string }
+        scope: { type: string }
+        collection: { type: string }
+        folder: { type: string, description: 'Relative to the directory target''s root, e.g. "orders" or "archive/2026"' }
+        createIfMissing: { type: boolean }
+    StoredDocument:
+      type: object
+      required: [key, bytes, document, location]
+      properties:
+        key: { type: string }
+        path: { type: string, description: 'The file, relative to the target folder (directories)' }
+        bytes: { type: integer, format: int64 }
+        modifiedAt: { type: string, format: date-time }
+        document: {}
+        location: { $ref: '#/components/schemas/Location' }
+    OutputPage:
+      type: object
+      required: [mappingId, location, items, nextCursor]
+      properties:
+        mappingId: { type: string }
+        location: { $ref: '#/components/schemas/Location' }
+        items:
+          type: array
+          items:
+            type: object
+            required: [key, path, bytes]
+            properties:
+              key: { type: string }
+              path: { type: string }
+              bytes: { type: integer, format: int64 }
+        nextCursor: { type: string }
+    FolderListing:
+      type: object
+      required: [path, parent, folders, canCreate]
+      properties:
+        path: { type: string, description: '"" lists the areas' }
+        parent: { type: string, description: 'Where "up" goes; "" from an area''s top folder' }
+        folders:
+          type: array
+          items: { type: object, required: [name, path], properties: { name: { type: string }, path: { type: string } } }
+        canCreate: { type: boolean }
+    LocationNode:
+      type: object
+      required: [name, level, path, location, leaf, canCreate]
+      properties:
+        name: { type: string }
+        level: { type: string, enum: [bucket, scope, collection, folder] }
+        path: { type: string, description: The parent to list this node's children with }
+        location: { $ref: '#/components/schemas/Location' }
+        leaf: { type: boolean, description: A mapping can write here }
+        docCount: { type: integer, format: int64 }
+        docCountMore: { type: boolean, description: More than docCount (a capped count, e.g. "10,000+") }
+        canCreate: { type: boolean }
+    LocationList:
+      type: object
+      required: [kind, parent, nodes]
+      properties:
+        kind: { type: string }
+        parent: { type: string }
+        nodes: { type: array, items: { $ref: '#/components/schemas/LocationNode' } }
+    LocationCreated:
+      type: object
+      required: [status, location]
+      properties:
+        status: { type: string, enum: [ready, pending] }
+        location: { $ref: '#/components/schemas/Location' }
+    TargetKindCapabilities:
+      type: object
+      required: [supportsDurability, supportsExpiry, supportsCreateLocation, requiresCredentials, maxDocBytes, locationLevels]
+      properties:
+        supportsDurability: { type: boolean }
+        supportsExpiry: { type: boolean }
+        supportsCreateLocation: { type: boolean }
+        requiresCredentials: { type: boolean }
+        maxDocBytes: { type: integer, format: int64 }
+        locationLevels: { type: array, items: { type: string } }
+    TargetKind:
+      allOf:
+        - { $ref: '#/components/schemas/ConnectorDescriptor' }
+        - type: object
+          required: [kindCapabilities, enabled]
+          properties:
+            kindCapabilities: { $ref: '#/components/schemas/TargetKindCapabilities' }
+            enabled: { type: boolean }
+            disabledReason: { type: string }
+    TargetKindList:
+      type: object
+      required: [kinds]
+      properties:
+        kinds: { type: array, items: { $ref: '#/components/schemas/TargetKind' } }
     MappingTarget:
       type: object
+      description: The 1.0 Couchbase form of Location (empty for other kinds).
       required: [bucket, scope, collection]
       properties:
         bucket: { type: string }
@@ -1767,6 +2497,19 @@ components:
             manuallyMapped: { type: integer }
             suggested: { type: integer }
             unmappedSource: { type: integer }
+        byNode:
+          type: array
+          description: 'The score per bound scope, root first: "root 8/10 · items 5/6 · items.product 3/3" (OC-049)'
+          items: { $ref: '#/components/schemas/NodeScore' }
+    NodeScore:
+      type: object
+      required: [nodeId, path, mapped, total]
+      properties:
+        nodeId: { type: string, description: The bound node (fld_root for the root) }
+        relationId: { type: string }
+        path: { type: string, description: 'Dotted field names, e.g. items.product ("root" for the root)' }
+        mapped: { type: integer }
+        total: { type: integer }
     MappingIssue:
       type: object
       required: [severity, code, path, message]
@@ -1781,13 +2524,17 @@ components:
           type: object
           required: [kind, label]
           properties:
-            kind: { type: string, enum: [mark-optional, accept-suggestions, add-transform, enable-create] }
+            kind: { type: string, enum: [mark-optional, accept-suggestions, add-transform, enable-create, repoint-source, combine-rows, add-to-design, restore-field, map-field] }
             label: { type: string }
             step: { $ref: '#/components/schemas/TransformStep' }
+            relationId: { type: string, description: 'repoint-source: read the column from this relation (OC-065)' }
+            columns: { type: array, items: { type: string }, description: 'combine-rows: group by these key columns (OC-066); restore-field and map-field: map from the first, of relationId''s rows (OC-071)' }
         op: { type: string }
         opIndex: { type: integer }
         line: { type: integer }
         column: { type: integer }
+        nodePath: { type: string, description: 'The design node the issue is on, e.g. items[].product (OC-049)' }
+        relationId: { type: string, description: The relation the issue is about, when it's a binding's }
     Explanation:
       type: object
       required: [score, nameScore, typeScore, typeClass, signals, reason]
@@ -1813,13 +2560,14 @@ components:
       enum: [draft, ready, stale]
     MappingView:
       type: object
-      required: [id, projectId, sourceSchema, sourceTable, target, spec, status, stats, issues, explain, version, createdAt, updatedAt]
+      required: [id, projectId, sourceSchema, sourceTable, target, location, spec, status, stats, issues, explain, version, createdAt, updatedAt]
       properties:
         id: { type: string }
         projectId: { type: string }
         sourceSchema: { type: string }
         sourceTable: { type: string }
         target: { $ref: '#/components/schemas/MappingTarget' }
+        location: { $ref: '#/components/schemas/Location' }
         spec: { $ref: '#/components/schemas/MappingSpec' }
         status: { $ref: '#/components/schemas/MappingStatus' }
         automapStats: { $ref: '#/components/schemas/MappingStats' }
@@ -1833,17 +2581,28 @@ components:
         embedCandidates: { type: array, items: { $ref: '#/components/schemas/EmbedCandidate' } }
     MappingSummary:
       type: object
-      required: [id, sourceSchema, sourceTable, target, status, stats, version, updatedAt]
+      required: [id, sourceSchema, sourceTable, mode, driving, target, location, status, stats, version, updatedAt]
       properties:
         id: { type: string }
         sourceSchema: { type: string }
         sourceTable: { type: string }
+        mode: { type: string, enum: [canvas, composed] }
+        driving: { $ref: '#/components/schemas/TableRef', description: "The table whose rows become documents: a composed mapping's driving table, else the mapping's own (OC-047)" }
         target: { $ref: '#/components/schemas/MappingTarget' }
+        location: { $ref: '#/components/schemas/Location' }
         status: { $ref: '#/components/schemas/MappingStatus' }
         automapStats: { $ref: '#/components/schemas/MappingStats' }
         stats: { $ref: '#/components/schemas/MappingStats' }
         version: { type: integer, format: int64 }
         updatedAt: { type: string, format: date-time }
+        shape:
+          type: object
+          description: 'The document at a glance (OC-062): arrays and objects bound to tables, and the group-by columns'
+          required: [arrays, objects]
+          properties:
+            arrays: { type: integer }
+            objects: { type: integer }
+            groupBy: { type: array, items: { type: string } }
     MappingList:
       type: object
       required: [items]
@@ -1851,11 +2610,13 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/MappingSummary' } }
     CreateMappingRequest:
       type: object
-      required: [sourceSchema, sourceTable, target]
+      description: Send location (2.0) or target (1.0, Couchbase only); location wins when both are sent.
+      required: [sourceSchema, sourceTable]
       properties:
         sourceSchema: { type: string }
         sourceTable: { type: string }
         target: { $ref: '#/components/schemas/MappingTarget' }
+        location: { $ref: '#/components/schemas/Location' }
         generate:
           type: object
           properties:
@@ -1886,23 +2647,78 @@ components:
       properties:
         spec: { $ref: '#/components/schemas/MappingSpec' }
         target: { $ref: '#/components/schemas/MappingTarget' }
+        location: { $ref: '#/components/schemas/Location' }
     AutomapRequest:
       type: object
       properties:
         mode: { type: string, enum: [fill, reset] }
         includeManual: { type: boolean }
+        nodeId:
+          type: string
+          description: 'Auto-map one bound scope only (OC-049): a bound node, or fld_root for the root-level fields. Fills unmapped fields; never changes mapped ones'
+        allScopes: { type: boolean, description: Auto-map every bound scope from the root down (fill mode) }
     DesignRequest:
       type: object
       required: [docSchema, strategy]
       properties:
         docSchema: { $ref: '#/components/schemas/DocSchema' }
-        strategy: { type: string, enum: [replace, merge] }
+        strategy:
+          type: string
+          enum: [replace, merge, reconcile]
+          description: reconcile follows a revised design, keeping the IDs, mappings and bindings of fields that still exist (OC-061)
+        declined: { type: array, items: { type: string }, description: 'Current field ids whose proposed rename or move is refused (reconcile)' }
     DesignResult:
       type: object
       required: [mapping, orphans]
       properties:
         mapping: { $ref: '#/components/schemas/MappingView' }
         orphans: { type: array, items: { $ref: '#/components/schemas/FieldMapping' } }
+        diff: { $ref: '#/components/schemas/DesignDiff' }
+    DesignDiff:
+      type: object
+      required: [added, removed, typeChanged, renamed, moved]
+      properties:
+        added: { type: array, items: { $ref: '#/components/schemas/DiffField' } }
+        removed: { type: array, items: { $ref: '#/components/schemas/DiffField' } }
+        typeChanged:
+          type: array
+          items:
+            type: object
+            required: [fieldId, path, from, to]
+            properties:
+              fieldId: { type: string }
+              path: { type: string }
+              from: { $ref: '#/components/schemas/FieldType' }
+              to: { $ref: '#/components/schemas/FieldType' }
+        renamed: { type: array, items: { $ref: '#/components/schemas/DiffChange' } }
+        moved: { type: array, items: { $ref: '#/components/schemas/DiffChange' } }
+    DiffField:
+      type: object
+      required: [fieldId, path, type]
+      properties:
+        fieldId: { type: string }
+        path: { type: string }
+        type: { $ref: '#/components/schemas/FieldType' }
+    DiffChange:
+      type: object
+      required: [fieldId, from, to]
+      properties:
+        fieldId: { type: string }
+        from: { type: string }
+        to: { type: string }
+    ReconcileRequest:
+      type: object
+      required: [current, incoming]
+      properties:
+        current: { $ref: '#/components/schemas/DocSchema' }
+        incoming: { $ref: '#/components/schemas/DocSchema' }
+        declined: { type: array, items: { type: string } }
+    ReconcileResult:
+      type: object
+      required: [docSchema, diff]
+      properties:
+        docSchema: { $ref: '#/components/schemas/DocSchema' }
+        diff: { $ref: '#/components/schemas/DesignDiff' }
     ValidationResult:
       type: object
       required: [issues, status, ready]
@@ -1919,6 +2735,22 @@ components:
         specOverride: { $ref: '#/components/schemas/MappingSpec' }
         checkKeys: { type: boolean }
         writeMode: { type: string, enum: [upsert, insert] }
+        rootKey:
+          type: object
+          additionalProperties: true
+          description: 'Preview this root row: column → value of the driving table (e.g. {"order_id": 1001})'
+        worstCase:
+          type: string
+          description: Preview the root row with the most rows of this relation (an array directly under the root, OC-049)
+    NodeStats:
+      type: object
+      required: [rows, truncated, dangling, adapterDiscarded]
+      properties:
+        rows: { type: integer, description: Rows used in the preview document }
+        total: { type: integer, format: int64, description: All related rows, when counted (arrays directly under the root) }
+        truncated: { type: boolean, description: 'The preview read at most 50 rows per parent ("showing 50 of 1,240")' }
+        dangling: { type: integer }
+        adapterDiscarded: { type: integer, description: Rows the first adapter left out }
     RowError:
       type: object
       required: [code, message]
@@ -1952,6 +2784,24 @@ components:
               error: { oneOf: [{ $ref: '#/components/schemas/RowError' }, { type: 'null' }] }
               trace: { type: object, additionalProperties: { type: array, items: { $ref: '#/components/schemas/TraceStep' } } }
               keyExists: { type: boolean }
+              path: { type: string, description: The file the document would be written to (directory targets) }
+              stats: { type: object, additionalProperties: { $ref: '#/components/schemas/NodeStats' }, description: 'Per relation node, by dotted path (items, items.product)' }
+              conformance:
+                type: object
+                description: The document's shape against the imported design (OC-061), by path; values aren't compared
+                required: [missing, extra, typeDiff]
+                properties:
+                  missing: { type: array, items: { type: string } }
+                  extra: { type: array, items: { type: string } }
+                  typeDiff: { type: array, items: { type: string } }
+        worstCase:
+          type: object
+          required: [relationId, path, rows, estimatedBytes]
+          properties:
+            relationId: { type: string }
+            path: { type: string }
+            rows: { type: integer, format: int64, description: The most rows of the relation under one root row }
+            estimatedBytes: { type: integer, format: int64, description: The full document's estimated size with every row }
         summary:
           type: object
           required: [ok, errors, avgSizeBytes, maxSizeBytes, collisions]
@@ -1977,6 +2827,7 @@ components:
       properties:
         kind: { type: string, enum: [json-sample, json-schema] }
         content: { type: string }
+        fileName: { type: string, maxLength: 255, description: The imported file's name, recorded in docSchema.imported }
     InferResult:
       type: object
       required: [docSchema, warnings]
@@ -2013,6 +2864,10 @@ components:
           type: object
           additionalProperties: { type: integer, format: int64 }
           description: Each mapping's version when the job was created (its spec is frozen server-side)
+        planHashes:
+          type: object
+          additionalProperties: { type: string }
+          description: Each mapping's execution plan hash when the job was created (OC-037); equal hashes build equal documents
     MappingRef:
       type: object
       required: [mappingId, table]
@@ -2039,11 +2894,12 @@ components:
         mappingId: { type: string }
     PlannedMapping:
       type: object
-      required: [mappingId, table, target, rowEstimate]
+      required: [mappingId, table, target, location, rowEstimate]
       properties:
         mappingId: { type: string }
         table: { type: string }
         target: { $ref: '#/components/schemas/MappingTarget' }
+        location: { $ref: '#/components/schemas/Location' }
         rowEstimate: { type: integer, format: int64 }
     PreflightResult:
       type: object
@@ -2188,6 +3044,25 @@ components:
         counts: { $ref: '#/components/schemas/VerifyCounts' }
         sample: { $ref: '#/components/schemas/VerifySample' }
         error: { type: string }
+        targetKind: { type: string, enum: [couchbase, directory], description: 'What was counted: documents in a collection, or files in a folder' }
+        integrity:
+          type: object
+          description: A directory's manifest checked against its files (OC-041)
+          required: [listed, checked, missing, mismatched, issues]
+          properties:
+            listed: { type: integer }
+            checked: { type: integer }
+            missing: { type: integer }
+            mismatched: { type: integer }
+            issues:
+              type: array
+              items:
+                type: object
+                required: [key, path, problem]
+                properties:
+                  key: { type: string }
+                  path: { type: string }
+                  problem: { type: string, enum: [missing, hash_mismatch] }
         avgDocBytes: { type: integer, format: int64 }
         throughputAvg: { type: number }
         throughputPeak: { type: number }
@@ -2320,7 +3195,7 @@ components:
     RowErrorCode:
       description: Codes of dead-lettered rows (OC-026); the web error catalog covers each one.
       type: string
-      enum: [PARSE_FAILED, TYPE_MISMATCH, EXPR_ERROR, NON_FINITE_NUMBER, TRANSFORM_INVALID, KEY_TEMPLATE_INVALID, KEY_NULL_COMPONENT, KEY_TOO_LONG, KEY_INVALID, DOC_TOO_LARGE, TEMPORARY_FAILURE_EXHAUSTED, WRITE_FAILED, DECODE_FAILED]
+      enum: [PARSE_FAILED, TYPE_MISMATCH, EXPR_ERROR, NON_FINITE_NUMBER, TRANSFORM_INVALID, KEY_TEMPLATE_INVALID, KEY_NULL_COMPONENT, KEY_TOO_LONG, KEY_INVALID, DOC_TOO_LARGE, TEMPORARY_FAILURE_EXHAUSTED, WRITE_FAILED, DECODE_FAILED, KEY_PATH_COLLISION]
     ErrorCode:
       type: string
       enum:
@@ -2344,6 +3219,12 @@ components:
         - PROJECT_HAS_RUNNING_JOB
         - SOURCE_TYPE_UNSUPPORTED
         - TARGET_TYPE_UNSUPPORTED
+        - TARGET_KIND_UNKNOWN
+        - TARGET_KIND_DISABLED
+        - TARGET_KIND_IN_USE
+        - LOCATION_INVALID
+        - DIRECTORY_OUTSIDE_ALLOWED_ROOTS
+        - DOCUMENT_NOT_FOUND
         - SCHEMA_NOT_DISCOVERED
         - KEYSPACE_EXISTS
         - CAPELLA_BUCKET_CREATE_UNSUPPORTED

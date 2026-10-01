@@ -24,8 +24,10 @@ type Store struct {
 	snaps    map[string]store.DiscoverySnapshot
 	heads    map[string][]string // connection id → snapshot ids, newest first
 	maps     map[string]store.Mapping
+	rels     map[string]store.Relationship // by RelationshipKey
 	acc      accountsData
 	jobs     jobsState
+	nodes    map[string]store.NodeBeat
 }
 
 // New returns an empty store.
@@ -35,8 +37,8 @@ func New(clock store.Clock) *Store {
 	}
 	return &Store{
 		clock: clock, projects: map[string]store.Project{}, names: map[string]string{}, conns: map[string]store.Connection{},
-		snaps: map[string]store.DiscoverySnapshot{}, heads: map[string][]string{}, maps: map[string]store.Mapping{},
-		acc: newAccountsData(),
+		snaps: map[string]store.DiscoverySnapshot{}, heads: map[string][]string{}, maps: map[string]store.Mapping{}, rels: map[string]store.Relationship{},
+		nodes: map[string]store.NodeBeat{}, acc: newAccountsData(),
 	}
 }
 
@@ -162,6 +164,11 @@ func (r projects) Delete(_ context.Context, ws store.WorkspaceID, id string) err
 	for mid, m := range s.maps {
 		if m.ProjectID == id {
 			delete(s.maps, mid)
+		}
+	}
+	for k, r := range s.rels {
+		if r.ProjectID == id {
+			delete(s.rels, k)
 		}
 	}
 	return nil
@@ -368,6 +375,7 @@ func (r mappings) Create(_ context.Context, ws store.WorkspaceID, m store.Mappin
 	}
 	now := s.clock.Now()
 	m.WorkspaceID, m.CreatedAt, m.UpdatedAt, m.Version = ws, now, now, 1
+	m.NormalizeLocation()
 	s.maps[m.ID] = cloneMapping(m)
 	return cloneMapping(m), nil
 }
@@ -411,7 +419,8 @@ func (r mappings) Update(_ context.Context, ws store.WorkspaceID, m store.Mappin
 	if cur.Version != m.Version {
 		return store.Mapping{}, store.ErrVersionConflict
 	}
-	cur.Target, cur.Spec, cur.AutomapStats, cur.Status = m.Target, m.Spec, m.AutomapStats, m.Status
+	m.SetLocation(store.UpdatedLocation(cur, m))
+	cur.Target, cur.Location, cur.Spec, cur.AutomapStats, cur.Status = m.Target, m.Location, m.Spec, m.AutomapStats, m.Status
 	cur.UpdatedAt = s.clock.Now()
 	cur.Version++
 	s.maps[m.ID] = cloneMapping(cur)

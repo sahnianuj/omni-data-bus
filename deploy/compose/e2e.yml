@@ -23,6 +23,9 @@ x-app: &app
   image: ${ODB_IMAGE:-omni-data-bus:e2e}
   environment: *env
   networks: [devstack]
+  # One volume for api and worker: the worker writes directory targets, the api reads them back
+  # for the Output tab (OC-038, OC-041).
+  volumes: [odb-out:/data/odb-out]
   healthcheck:
     test: ["CMD", "/usr/local/bin/odb", "healthcheck"]
     interval: 3s
@@ -45,6 +48,9 @@ services:
       # Profiles for the benchmark harness (bench/, OC-034); published on localhost only.
       OC_PPROF_ADDR: ":6060"
     ports: ["19092:9090", "127.0.0.1:16060:6060"]
+
+volumes:
+  odb-out:
 
 networks:
   devstack:

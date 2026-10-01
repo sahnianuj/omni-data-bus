@@ -36,7 +36,7 @@ const HOST = /^(\[[0-9a-fA-F:.]+\]|[0-9a-fA-F:]+|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za
 export function PostgresForm({ existing, testing, saving, onTest, onSave, onCancel }: ConnectionFormProps) {
   const { t } = useTranslation()
   const cfg = (existing?.config ?? {}) as Partial<Record<keyof Values, unknown>>
-  const storedPassword = !!existing?.secrets.passwordSet
+  const storedPassword = !!existing?.secrets?.passwordSet
   const [pasting, setPasting] = useState(false)
   const [uri, setUri] = useState('')
   const [uriError, setUriError] = useState<string | null>(null)
@@ -190,7 +190,7 @@ export function PostgresForm({ existing, testing, saving, onTest, onSave, onCanc
         <p className="text-xs text-subtle">{t(`pg.sslHelp.${sslMode}`)}</p>
         {sslMode === 'verify-ca' || sslMode === 'verify-full' ? (
           <div className="flex flex-col gap-3 pt-1">
-            <CertDropzone label={t('pg.caCert')} storedFingerprint={existing?.secrets.caCertFingerprint} onChange={(pem) => form.setValue('caCertPem', pem)} />
+            <CertDropzone label={t('pg.caCert')} storedFingerprint={existing?.secrets?.caCertFingerprint} onChange={(pem) => form.setValue('caCertPem', pem)} />
             <div className="grid grid-cols-2 gap-3">
               <CertDropzone label={t('pg.clientCert')} onChange={(pem) => form.setValue('clientCertPem', pem)} />
               <CertDropzone label={t('pg.clientKey')} onChange={(pem) => form.setValue('clientKeyPem', pem)} />

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { couchbaseCapabilities, type TargetKindCapabilities } from '@/features/targets/kinds'
 import { defaultJobOptions, type JobOptions } from './api'
 
 // Mirrors jobs.Options.Validate on the server (OC-023 AC3).
@@ -31,6 +32,8 @@ export type OptionValues = z.infer<typeof optionsSchema>
 type Props = {
   /** Called with the options when valid, or null while a field is invalid. */
   onChange: (options: JobOptions | null) => void
+  /** What the project's target kind supports (OC-036); options it doesn't are hidden. Default: Couchbase. */
+  capabilities?: Pick<TargetKindCapabilities, 'supportsDurability'>
 }
 
 // setValueAs also sees the default values (numbers, null), not only input strings.
@@ -39,17 +42,19 @@ const nullableNum = { setValueAs: (v: unknown) => (v === '' || v == null ? null 
 const inputCls = 'h-8 w-full rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 font-mono text-xs aria-[invalid=true]:border-danger'
 
 /** The Review step's collapsible Advanced options, validated like the server. */
-export function AdvancedOptions({ onChange }: Props) {
+export function AdvancedOptions({ onChange, capabilities = couchbaseCapabilities }: Props) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const form = useForm<OptionValues>({ resolver: zodResolver(optionsSchema), defaultValues: defaultJobOptions, mode: 'onChange' })
   const values = useWatch({ control: form.control })
   const { errors } = form.formState
 
+  const { supportsDurability } = capabilities
   useEffect(() => {
     const parsed = optionsSchema.safeParse(values)
-    onChange(parsed.success ? parsed.data : null)
-  }, [values, onChange])
+    // A hidden option keeps its neutral value, so the job never carries one the target can't honor.
+    onChange(parsed.success ? (supportsDurability ? parsed.data : { ...parsed.data, durability: 'none' }) : null)
+  }, [values, onChange, supportsDurability])
 
   const field = (key: OptionKey, control: React.ReactNode, error?: string) => (
     <Field
@@ -92,7 +97,7 @@ export function AdvancedOptions({ onChange }: Props) {
         {field('maxDocsPerSecond',
           <input type="number" aria-label={t('jobOptions.maxDocsPerSecond')} placeholder={t('jobOptions.unlimited')} {...e(errors.maxDocsPerSecond?.message)} {...form.register('maxDocsPerSecond', nullableNum)} className={inputCls} />,
           errors.maxDocsPerSecond?.message)}
-        {field('durability',
+        {supportsDurability && field('durability',
           <select {...form.register('durability')} aria-label={t('jobOptions.durability')} className={inputCls}>
             <option value="none">{t('jobOptions.durabilityLevel.none')}</option>
             <option value="majority">{t('jobOptions.durabilityLevel.majority')}</option>

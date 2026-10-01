@@ -1,0 +1,14 @@
+{
+  "object ← many-to-one": { "customer": { "name": "Ada" } },
+  "object ← one-to-many, first adapter": { "firstLine": { "quantity": 2 } },
+  "array ← one-to-many (nested many-to-one object)": {
+    "items": [
+      { "lineNo": 1, "product": { "sku": "A-1" } },
+      { "lineNo": 2, "product": { "sku": "B-2" } },
+      { "lineNo": 3, "product": { "sku": "A-1" } }
+    ]
+  },
+  "array ← many-to-one, wrap adapter": { "buyers": [{ "name": "Ada" }] },
+  "object (unbound): grouping": { "shipping": { "street": "1 Main St", "city": "Springfield" } },
+  "array (unbound): literal array, dropNulls": { "phones": ["555-1"] }
+}

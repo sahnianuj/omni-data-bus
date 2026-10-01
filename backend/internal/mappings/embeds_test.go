@@ -39,8 +39,8 @@ func TestAddEmbed_ServiceViewAndStats(t *testing.T) {
 		Kind: c.Kind, Table: c.Table, Join: c.Join, TargetName: "orders", Generate: true,
 	})
 	require.NoError(t, err)
-	require.Len(t, v.Spec.Embeds, 1)
-	e := v.Spec.Embeds[0]
+	require.Len(t, v.Spec.Relations, 1)
+	e := v.Spec.Relations[0]
 	require.Equal(t, e.ID, v.EmbedCandidates[0].EmbedID, "the candidate shows as embedded")
 	require.Len(t, v.EmbedTables[e.ID].Columns, 3)
 	require.Equal(t, &mapping.EmbeddedStats{Tables: 1, TotalColumns: 2, AutoMapped: 2}, v.Stats.Embedded)
@@ -51,7 +51,7 @@ func TestAddEmbed_ServiceViewAndStats(t *testing.T) {
 	// The saved spec round-trips through Update (embedded sources are known columns).
 	got, err := f.svc.Update(ctx, ws, "u1", f.project, v.ID, v.Version, UpdateInput{Spec: v.Spec})
 	require.NoError(t, err)
-	require.Len(t, got.Spec.Embeds, 1)
+	require.Len(t, got.Spec.Relations, 1)
 
 	// Unknown table or parent column: clear errors.
 	_, err = f.svc.AddEmbed(ctx, ws, "u1", f.project, v.ID, 0, automap.EmbedInput{Kind: c.Kind, Table: mapping.TableRef{Schema: "shop", Name: "nope"}, Join: c.Join})

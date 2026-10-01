@@ -1,0 +1,7 @@
+path,type,required,example,source,transform,constant,status,issues
+orderId,integer,yes,1,orders.order_id,,,mapped,
+status,string,yes,paid,orders.status,trim → lower,,mapped,REFERENCE_NULLABLE
+note,string,,x,,,,unmapped,REFERENCE_FIELD_UNMAPPED
+items,array<object>,yes,,order_items (one-to-many),,,bound,RELATION_NO_INDEX
+items[].sku,string,yes,A,order_items.sku,,,mapped,
+internal,string,,,,,"""v2""",constant,REFERENCE_EXTRA_FIELD

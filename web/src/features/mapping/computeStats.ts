@@ -1,6 +1,66 @@
 import { leaves } from '@/features/docschema/docschemaOps'
+import { boundRelations, fieldScopes } from '@/features/composer/scope'
 import { srcKey } from './embeds'
-import type { MappingSpec, MappingStats } from './types'
+import type { DocField, MappingSpec, MappingStats } from './types'
+
+export type NodeScore = NonNullable<MappingStats['byNode']>[number]
+
+const scalar = (t: DocField['type']) => t !== 'object' && t !== 'array'
+
+/** Relation ids parents first, then by id (mapping.Depths); a cycle or a missing parent sorts last. */
+function relationOrder(spec: MappingSpec): string[] {
+  const byId = new Map(spec.relations.map((r) => [r.id, r]))
+  const depth = (id: string, seen = new Set<string>()): number => {
+    const p = byId.get(id)?.parentId
+    if (!p) return 1
+    if (seen.has(id) || !byId.has(p)) return Infinity
+    seen.add(id)
+    return depth(p, seen) + 1
+  }
+  return [...byId.keys()].map((id) => [id, depth(id)] as const).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([id]) => id)
+}
+
+/**
+ * The score per bound scope, root first (OC-049 AC5), mirroring mapping.ByNode: each scope's
+ * single-value fields and unbound arrays of values, and how many have an active mapping or aggregate.
+ */
+export function byNode(spec: MappingSpec): NodeScore[] {
+  const scopes = fieldScopes(spec)
+  const bound = boundRelations(spec)
+  const mapped = new Set([...spec.fieldMappings.filter((m) => m.state === 'active').map((m) => m.targetFieldId), ...(spec.aggregates ?? []).map((a) => a.targetFieldId)])
+  const paths = new Map<string, string>()
+  const walk = (f: DocField, prefix: string) => {
+    for (const c of f.children ?? []) {
+      const p = prefix ? `${prefix}.${c.name}` : c.name
+      paths.set(c.id, p)
+      walk(c, p)
+      if (c.items) walk(c.items, p)
+    }
+  }
+  walk(spec.docSchema.root, '')
+  const out: NodeScore[] = [{ nodeId: 'fld_root', path: 'root', mapped: 0, total: 0 }]
+  const at = new Map<string, number>([['', 0]])
+  for (const id of relationOrder(spec)) {
+    const r = spec.relations.find((x) => x.id === id)!
+    if (r.lookupOnly || !r.targetFieldId || !paths.has(r.targetFieldId)) continue
+    at.set(id, out.length)
+    out.push({ nodeId: r.targetFieldId, relationId: id, path: paths.get(r.targetFieldId)!, mapped: 0, total: 0 })
+  }
+  const visit = (f: DocField) => {
+    for (const c of f.children ?? []) {
+      const leaf = scalar(c.type) || (c.type === 'array' && !bound.has(c.id) && (!c.items || scalar(c.items.type)))
+      const i = at.get(scopes.get(c.id) ?? '')
+      if (leaf && i !== undefined) {
+        out[i]!.total++
+        if (mapped.has(c.id)) out[i]!.mapped++
+      }
+      visit(c)
+      if (c.items) visit(c.items)
+    }
+  }
+  visit(spec.docSchema.root)
+  return out
+}
 
 /**
  * Live mapping score; mirrors mapping.ComputeStatsWith (parity: computeStats.test.ts). Columns
@@ -31,8 +91,8 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
     totalTargetLeaves: 0, mappedTargetLeaves: 0, requiredTargetUnmapped: 0, autoMapRatio: 0, coverageRatio: 0, averageConfidence: 0,
   }
   const mapped = (k: string) => manual.has(k) || auto.has(k) || suggested.has(k)
-  // The parent's join columns of its many-to-one embeds: an unmapped one is carried by the object.
-  const carried = new Set(spec.embeds.filter((e) => e.kind === 'many-to-one').flatMap((e) => e.join.map((j) => j.parent)))
+  // The parent's join columns of its many-to-one relations: an unmapped one is carried by the object.
+  const carried = new Set(spec.relations.filter((e) => e.kind === 'many-to-one').flatMap((e) => (e.join ?? []).map((j) => j.parent)))
   for (const c of columns) {
     if (ignored.has(c)) {
       st.ignored++
@@ -55,12 +115,12 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
     st.coverageRatio = (st.autoMapped + st.manuallyMapped) / st.totalSourceColumns
   }
   if (confN > 0) st.averageConfidence = confSum / confN
-  if (spec.embeds.length > 0 && embedded) {
-    const e = { tables: spec.embeds.length, totalColumns: 0, autoMapped: 0, manuallyMapped: 0, suggested: 0, unmappedSource: 0 }
-    for (const emb of spec.embeds) {
-      const joins = new Set(emb.join.map((j) => j.child))
+  if (spec.relations.length > 0 && embedded) {
+    const e = { tables: spec.relations.length, totalColumns: 0, autoMapped: 0, manuallyMapped: 0, suggested: 0, unmappedSource: 0 }
+    for (const emb of spec.relations) {
+      const joins = new Set((emb.join ?? []).map((j) => j.child))
       for (const c of embedded[emb.id] ?? []) {
-        const k = srcKey({ column: c, embed: emb.id })
+        const k = srcKey({ column: c, relation: emb.id })
         if (joins.has(c) && !mapped(k)) continue // an unmapped join column is the relation itself, not data to map
         e.totalColumns++
         if (manual.has(k)) e.manuallyMapped++
@@ -71,5 +131,6 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
     }
     st.embedded = e
   }
+  if (spec.relations.length > 0) st.byNode = byNode(spec)
   return st
 }

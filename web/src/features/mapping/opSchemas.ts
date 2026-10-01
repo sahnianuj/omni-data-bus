@@ -78,6 +78,7 @@ export const opSchemas = {
   mask: z.object({ keepLast: z.number().int().min(0).optional(), char: z.string().optional() }),
   hash: z.object({ algo: z.enum(['sha256', 'sha1']).optional() }),
   expression: z.object({ expr: z.string().trim().min(1, 'Enter an expression') }),
+  array: z.object({ dropNulls: z.boolean().optional() }),
 } as const
 
 export type OpName = keyof typeof opSchemas
@@ -86,7 +87,7 @@ export const opCategories: { id: string; ops: OpName[] }[] = [
   { id: 'convert', ops: ['toString', 'parseInteger', 'parseNumber', 'parseBoolean'] },
   { id: 'text', ops: ['trim', 'lower', 'upper', 'substring', 'replace', 'concat', 'split'] },
   { id: 'datetime', ops: ['toDatetime', 'formatDatetime'] },
-  { id: 'values', ops: ['default', 'nullIf', 'constant', 'lookup', 'round', 'jsonParse'] },
+  { id: 'values', ops: ['default', 'nullIf', 'constant', 'lookup', 'round', 'jsonParse', 'array'] },
   { id: 'privacy', ops: ['mask', 'hash'] },
   { id: 'advanced', ops: ['expression'] },
 ]

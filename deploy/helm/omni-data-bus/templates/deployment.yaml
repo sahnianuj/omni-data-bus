@@ -1,3 +1,4 @@
+{{- include "odb.checkOutput" . }}
 {{- range $component := splitList " " (include "odb.components" .) }}
 {{- $v := index $.Values $component }}
 ---
@@ -77,6 +78,9 @@ spec:
           volumeMounts:
             - { name: secrets, mountPath: /etc/odb/secrets, readOnly: true }
             - { name: tmp, mountPath: /tmp }
+            {{- if $.Values.directoryTarget.enabled }}
+            - { name: odb-out, mountPath: {{ $.Values.directoryTarget.mountPath }} }
+            {{- end }}
       volumes:
         - name: secrets
           secret:
@@ -87,6 +91,11 @@ spec:
               - { key: meta-password, path: meta-password }
         - name: tmp
           emptyDir: { sizeLimit: 64Mi }
+        {{- if $.Values.directoryTarget.enabled }}
+        - name: odb-out
+          persistentVolumeClaim:
+            claimName: {{ include "odb.outputClaim" $ }}
+        {{- end }}
       {{- with $.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

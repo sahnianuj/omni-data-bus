@@ -2,11 +2,14 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/schema"
@@ -47,6 +50,25 @@ func PreviewSQL(req source.PreviewRequest) string {
 		cols[i] = selectExpr(c)
 	}
 	sql := "SELECT " + strings.Join(cols, ", ") + " FROM " + pgx.Identifier{req.Schema, req.Table}.Sanitize()
+	if len(req.DistinctOn) > 0 {
+		// A grouped driving table (OC-063): one row per group, its first in OrderBy.
+		on := make([]string, len(req.DistinctOn))
+		for i, c := range req.DistinctOn {
+			on[i] = pgx.Identifier{c}.Sanitize()
+		}
+		order := append([]string(nil), on...)
+		for _, o := range req.OrderBy {
+			if !contains(req.DistinctOn, o) {
+				order = append(order, pgx.Identifier{o}.Sanitize())
+			}
+		}
+		groups := "SELECT DISTINCT ON (" + strings.Join(on, ", ") + ") " + strings.Join(cols, ", ") + " FROM " +
+			pgx.Identifier{req.Schema, req.Table}.Sanitize() + " ORDER BY " + strings.Join(order, ", ")
+		if req.Random {
+			return "SELECT * FROM (" + groups + ") g ORDER BY random() LIMIT $1"
+		}
+		return groups + " LIMIT $1"
+	}
 	if req.Random {
 		if req.RowEstimate >= tablesampleMinRows {
 			// Block sampling reads ~p% of pages; aim for 10× the rows needed, then LIMIT.
@@ -97,4 +119,38 @@ func (s *pgSession) Preview(ctx context.Context, req source.PreviewRequest) ([][
 		out = append(out, vals)
 	}
 	return out, rows.Err()
+}
+
+// KeyCountSQL counts rows per key value over the first $1 distinct values (OC-042 cardinality
+// detection): the largest group and the number of groups.
+func KeyCountSQL(schemaName, table string, columns []string) string {
+	cols := make([]string, len(columns))
+	notNull := make([]string, len(columns))
+	for i, c := range columns {
+		cols[i] = pgx.Identifier{c}.Sanitize()
+		notNull[i] = cols[i] + " IS NOT NULL"
+	}
+	return "SELECT coalesce(max(c), 0), count(*) FROM (SELECT count(*) AS c FROM " + pgx.Identifier{schemaName, table}.Sanitize() +
+		" WHERE " + strings.Join(notNull, " AND ") + " GROUP BY " + strings.Join(cols, ", ") + " LIMIT $1) odb_k"
+}
+
+// MaxRowsPerKey implements source.KeyCounter in a read-only transaction with a statement
+// timeout; a timeout returns source.ErrQueryTimeout.
+func (s *pgSession) MaxRowsPerKey(ctx context.Context, schemaName, table string, columns []string, sample int, timeout time.Duration) (int64, int64, error) {
+	tx, err := s.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	ms := max(timeout.Milliseconds(), 1)
+	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = "+strconv.FormatInt(ms, 10)); err != nil {
+		return 0, 0, err
+	}
+	var maxPer, keys int64
+	err = tx.QueryRow(ctx, KeyCountSQL(schemaName, table, columns), sample).Scan(&maxPer, &keys)
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) && pe.Code == "57014" { // query_canceled: statement timeout
+		return 0, 0, source.ErrQueryTimeout
+	}
+	return maxPer, keys, err
 }

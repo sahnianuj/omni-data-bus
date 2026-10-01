@@ -313,7 +313,7 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
   /** A new design arrived (import, sample, generate): show the diff, then replace or merge. */
   const offer = (schema: DocSchema, warnings: string[] = []) => setIncoming({ schema, diff: schemaDiff(spec.docSchema, schema), warnings })
 
-  const applyIncoming = async (strategy: 'replace' | 'merge') => {
+  const applyIncoming = async (strategy: 'replace' | 'merge' | 'reconcile') => {
     if (!incoming) return
     setBusy(true)
     try {
@@ -599,6 +599,9 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
           <DialogFooter>
             <Button variant="secondary" loading={busy} onClick={() => void applyIncoming('merge')}>
               {t('designer.merge')}
+            </Button>
+            <Button variant="secondary" loading={busy} onClick={() => void applyIncoming('reconcile')}>
+              {t('designer.reconcile')}
             </Button>
             <Button loading={busy} onClick={() => void applyIncoming('replace')}>
               {t('designer.replace')}

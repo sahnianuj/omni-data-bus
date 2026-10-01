@@ -89,6 +89,18 @@ all:
   pdb:
     maxUnavailable: 1
 
+# Directory targets (OC-038): a volume mounted at /data/odb-out in every pod, so users can pick
+# folders there in the Target step (the server also allows its user's home folder). With
+# mode: split and more than one worker, the claim must be ReadWriteMany.
+directoryTarget:
+  enabled: false
+  mountPath: /data/odb-out
+  persistence:
+    existingClaim: ""
+    storageClass: ""
+    size: 50Gi
+    accessMode: ReadWriteOnce
+
 service:
   type: ClusterIP
   port: 8080

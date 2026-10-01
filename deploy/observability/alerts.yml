@@ -39,3 +39,12 @@ groups:
         annotations:
           summary: Live progress can't be read from the metadata store
           description: The event hub keeps failing to read job progress documents; monitors stop updating. Check metadata store connectivity (/readyz).
+
+      - alert: OmniDataBusMixedVersions
+        # Normal for a few minutes during a rolling upgrade (OC-057); not after it (OC-058).
+        expr: count(count by (version) (oc_build_info)) > 1
+        for: 30m
+        labels: { severity: warn }
+        annotations:
+          summary: Nodes have been running different Omni-Data-Bus versions for 30 minutes
+          description: 'Check which pods run which version (sum by (version) (oc_build_info)) and finish or roll back the upgrade.'

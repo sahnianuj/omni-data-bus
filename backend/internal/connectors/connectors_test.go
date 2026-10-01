@@ -42,7 +42,7 @@ func TestRegistry_AC1_UnknownType(t *testing.T) {
 	require.Equal(t, 422, p.Status)
 	require.Equal(t, problem.CodeUnsupportedSource, p.Code)
 	_, err = NewRegistry[stub](RoleTarget).Get("mongodb")
-	require.Equal(t, problem.CodeUnsupportedTarget, problem.From(err).Code)
+	require.Equal(t, problem.CodeTargetKindUnknown, problem.From(err).Code)
 }
 
 func TestRegistry_AC1_DuplicatePanics(t *testing.T) {

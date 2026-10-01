@@ -5,6 +5,7 @@ import { Link, useOutletContext } from 'react-router'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import type { Project } from '@/features/projects/api'
+import { DirectoryBrowser } from './DirectoryBrowser'
 import { emptyKeyspace, KeyspacePicker, type KeyspaceValue } from './KeyspacePicker'
 
 /** /projects/:projectId/target/keyspaces — browse and create keyspaces on the project's target (OC-013, OC-014). */
@@ -35,7 +36,11 @@ export function KeyspacesPage() {
         <p className="max-w-2xl text-[13px] text-muted">{t('targets.intro')}</p>
       </div>
       <div className="max-w-4xl rounded-[var(--radius-card)] border border-border bg-surface p-5">
-        <KeyspacePicker connId={project.target.id} value={value} onChange={setValue} />
+        {project.target.type === 'directory' ? (
+          <DirectoryBrowser connId={project.target.id} root={project.target.name} />
+        ) : (
+          <KeyspacePicker connId={project.target.id} value={value} onChange={setValue} />
+        )}
       </div>
     </div>
   )

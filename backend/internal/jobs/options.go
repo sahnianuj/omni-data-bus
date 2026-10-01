@@ -53,6 +53,8 @@ type Options struct {
 	// resumed run is consistent, and the mapping version it was taken from.
 	Specs           map[string]json.RawMessage `json:"specs,omitempty"`
 	MappingVersions map[string]int64           `json:"mappingVersions,omitempty"`
+	// PlanHashes are each mapping's execution plan hash when the job was created (OC-037).
+	PlanHashes map[string]string `json:"planHashes,omitempty"`
 	// TargetEmpty lists mappings whose collection was empty at the start (OC-030).
 	TargetEmpty map[string]bool `json:"targetEmpty,omitempty"`
 

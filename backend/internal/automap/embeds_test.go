@@ -51,17 +51,17 @@ func TestAddEmbed_AC2_GeneratesItemsAndAutomapsScoped(t *testing.T) {
 		names = append(names, c.Name)
 	}
 	require.Equal(t, []string{"orderId", "orderDate", "total"}, names)
-	require.Equal(t, got.Embeds, []mapping.Embed{e})
+	require.Equal(t, got.Relations, []mapping.Relation{e})
 	require.Equal(t, 500, e.Limit)
 
 	// Auto-mapped inside the embed only, from the orders columns.
-	inEmbed := mapping.EmbedFields(&got)
+	inEmbed := mapping.RelationFields(&got)
 	var embedded []mapping.FieldMapping
 	for _, m := range got.FieldMappings {
-		if mapping.EmbedSources(m) {
+		if mapping.UsesAnyRelation(m) {
 			embedded = append(embedded, m)
 			require.Equal(t, e.ID, inEmbed[m.TargetFieldID], "targets a field of the embed")
-			require.Equal(t, e.ID, m.Sources[0].Embed)
+			require.Equal(t, e.ID, m.Sources[0].Relation)
 		} else {
 			require.Empty(t, inEmbed[m.TargetFieldID], "parent columns never map into the embed")
 		}
@@ -79,7 +79,7 @@ func TestAddEmbed_AC2_GeneratesItemsAndAutomapsScoped(t *testing.T) {
 	again := Run(&got, Columns(customer), Options{Mode: ModeReset})
 	n := 0
 	for _, m := range again.FieldMappings {
-		if mapping.EmbedSources(m) {
+		if mapping.UsesAnyRelation(m) {
 			n++
 		} else {
 			require.Empty(t, inEmbed[m.TargetFieldID])
@@ -106,7 +106,7 @@ func TestAddEmbed_ManyToOne_MovesKeyIntoObject(t *testing.T) {
 	spec.FieldMappings = Run(&spec, Columns(orders), Options{}).FieldMappings
 	rootField := func(s mapping.Spec, col string) bool {
 		for _, m := range s.FieldMappings {
-			if len(m.Sources) == 1 && m.Sources[0].Embed == "" && m.Sources[0].Column == col {
+			if len(m.Sources) == 1 && m.Sources[0].Relation == "" && m.Sources[0].Column == col {
 				return true
 			}
 		}
@@ -130,7 +130,7 @@ func TestAddEmbed_ManyToOne_MovesKeyIntoObject(t *testing.T) {
 	require.Equal(t, []string{"customerId", "name", "total"}, names)
 	var embedded []string
 	for _, m := range got.FieldMappings {
-		if mapping.EmbedSources(m) {
+		if mapping.UsesAnyRelation(m) {
 			embedded = append(embedded, m.Sources[0].Column)
 		}
 	}
@@ -151,4 +151,57 @@ func TestAddEmbed_ManyToOne_MovesKeyIntoObject(t *testing.T) {
 	require.Equal(t, 3, st.TotalSourceColumns)
 	require.Zero(t, st.UnmappedSource)
 	require.Equal(t, &mapping.EmbeddedStats{Tables: 1, TotalColumns: 3, AutoMapped: 3}, st.Embedded)
+}
+
+// OC-069: in a grouped mapping the canvas nests a per-row relation under the group's rows, so
+// a product lookup or object lands in each line next to its productId, not on the document.
+func TestAddEmbed_UnderGroupRows_OC069(t *testing.T) {
+	col := func(name, jt string, pk bool) schema.Column {
+		return schema.Column{Name: name, UDTName: "int4", JSONType: jt, IsPrimaryKey: pk}
+	}
+	lines := &schema.Table{Name: "Order Details", PrimaryKey: []string{"order_id", "line_no"}, Columns: []schema.Column{
+		col("order_id", schema.TypeInteger, true), col("line_no", schema.TypeInteger, true),
+		col("product_id", schema.TypeInteger, false), col("quantity", schema.TypeInteger, false),
+	}}
+	product := &schema.Table{Name: "product", PrimaryKey: []string{"product_id"}, Columns: []schema.Column{
+		col("product_id", schema.TypeInteger, true), {Name: "sku", UDTName: "varchar", JSONType: schema.TypeString},
+	}}
+	table := mapping.TableRef{Schema: "shop", Name: "Order Details"}
+	item := docschema.DocField{ID: "f_line", Name: "[]", Type: docschema.Object, Children: []docschema.DocField{{ID: "f_pid", Name: "productId", Type: docschema.Integer}}}
+	spec := mapping.Spec{
+		SpecVersion: 2, Mode: mapping.ModeComposed, Root: &mapping.Root{Table: table, GroupBy: []string{"order_id"}},
+		DocSchema: docschema.Schema{Root: docschema.DocField{ID: docschema.RootID, Name: "$", Type: docschema.Object, Children: []docschema.DocField{
+			{ID: "f_items", Name: "items", Type: docschema.Array, Items: &item},
+		}}},
+		Key:       mapping.KeySpec{Template: "order::{order_id}"},
+		Relations: []mapping.Relation{{ID: "rel_lines", Group: true, TargetFieldID: "f_items"}},
+	}
+	spec.Normalize()
+	related := func(_, name string) *schema.Table {
+		if name == "product" {
+			return product
+		}
+		return lines
+	}
+	join := []mapping.JoinPair{{Parent: "product_id", Child: "product_id"}}
+	for _, lookup := range []bool{true, false} {
+		in := EmbedInput{Kind: mapping.EmbedManyToOne, Table: mapping.TableRef{Schema: "shop", Name: "product"}, Join: join, ParentID: "rel_lines", TargetName: "product", Generate: true, LookupOnly: lookup}
+		got, added, _, err := AddRelation(spec, related, in, docschema.GenerateOptions{})
+		require.NoError(t, err, "lookup=%v", lookup)
+		require.Equal(t, "rel_lines", added[0].Parent())
+		var names []string
+		for _, c := range got.DocSchema.Find("f_line").Children {
+			names = append(names, c.Name)
+		}
+		if lookup {
+			require.Contains(t, names, "productSku", "lookup fields sit in each line")
+		} else {
+			require.Contains(t, names, "product", "the product object sits in each line")
+		}
+		var root []string
+		for _, c := range got.DocSchema.Root.Children {
+			root = append(root, c.Name)
+		}
+		require.Equal(t, []string{"items"}, root, "nothing lands on the document")
+	}
 }

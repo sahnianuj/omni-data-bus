@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P0 | 8 | OC-037, OC-010 | Not started |
+| E9 Relationship Mapping | P0 | 8 | OC-037, OC-010 | Implemented |
 
 ## User story
 As a **data engineer**, I want the tool to show every way my root table connects to other tables, across several hops, through junction tables, and through relationships I define myself when the database has no foreign key, so that I can pick the right path to build an order document that contains all of its products.
@@ -99,3 +99,11 @@ For each one-to-many or many-to-many hop, the child's join columns (the junction
 | Test | Location | Verifies |
 |---|---|---|
 | `RelatedTree.test.tsx` › `AC6: hops, junctions and virtual badge` | `src/features/mapping/RelatedTree.test.tsx` | |
+
+## Implementation notes (2026-09-29)
+- Package `internal/relations`: `graph.go` (Build, Paths: breadth-first, bounded by expanding only the paths kept at each level; ~0.9 ms for 1,000 tables), `junction.go`, `service.go` (graph endpoint, CRUD, cardinality detection), `handlers.go`. Index advice lives in `internal/mapping/advice.go` (`LeadingIndex`, `IndexAdvice`) so validation and the plan share it; relations with unindexed lookups get a `RELATION_NO_INDEX` warning in validation (an error for an explicit sorted-merge relation, OC-046).
+- Store: `store.Relationships` (memstore + cbstore). Couchbase keeps one document per relationship (`<projectId>::<relId>`) plus a per-project index document `relidx::<projectId>` (KV-only listing, as for mappings). Provisioning step 4 creates the `relationships` collection on existing metadata stores; deleting a project deletes its relationships.
+- Routes use `{id}` for the project (`/projects/{id}/relationships[/{rid}]`, `POST …/relationships/detect`): chi can't mix wildcard names at one position. The API tests are in `internal/relations/handlers_test.go` (feature packages own their handlers in this repo), not `internal/httpapi/relationships_test.go`.
+- Cardinality detection is `source.KeyCounter` (PostgreSQL: `MaxRowsPerKey`, read-only transaction, `statement_timeout`); the result also reports the From side and a `warning` when the chosen cardinality contradicts the data.
+- Virtual relationships appear in the mapping view's embed candidates (`virtual: <id>`) and in the graph; the web Related tables panel is now `RelatedTree.tsx` (+ `VirtualRelationshipDialog.tsx`).
+- Dev seed `deploy/compose/seed/source/03-relations.sql` adds a `sales` schema to try every Phase 2 feature (junction with payload, composite-key junction without a leading index, a text join without a foreign key).

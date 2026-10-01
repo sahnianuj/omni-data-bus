@@ -56,6 +56,8 @@ type MappingCheckpoint struct {
 	Written int64 `json:"written"`
 	Skipped int64 `json:"skipped"`
 	Failed  int64 `json:"failed"`
+	// Pages are extra page documents of split arrays (OC-046), counted apart from rows.
+	Pages int64 `json:"pages,omitempty"`
 	// State and Strategy describe the position for readers of the stored document.
 	State    string `json:"state,omitempty"`
 	Strategy string `json:"strategy,omitempty"`
@@ -241,8 +243,8 @@ type checkpointer struct {
 }
 
 type pendingAck struct {
-	lastKey                  []any
-	written, skipped, failed int64
+	lastKey                         []any
+	written, skipped, failed, pages int64
 }
 
 func newCheckpointer(m *MappingCheckpoint) *checkpointer {
@@ -259,13 +261,18 @@ func newCheckpointer(m *MappingCheckpoint) *checkpointer {
 //
 // Invariant: every row with a key ≤ LastKey in the partition has a final outcome.
 func (c *checkpointer) ack(part int, seq uint64, lastKey []any, written, skipped, failed int64) int {
+	return c.ackPages(part, seq, lastKey, written, skipped, failed, 0)
+}
+
+// ackPages is ack with the batch's split page documents (OC-046).
+func (c *checkpointer) ackPages(part int, seq uint64, lastKey []any, written, skipped, failed, pages int64) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if part < 0 || part >= len(c.pending) {
 		return 0
 	}
 	p := &c.mapping.Partitions[part]
-	c.pending[part][seq] = pendingAck{lastKey, written, skipped, failed}
+	c.pending[part][seq] = pendingAck{lastKey, written, skipped, failed, pages}
 	advanced := 0
 	for {
 		a, ok := c.pending[part][p.Seq+1]
@@ -281,6 +288,7 @@ func (c *checkpointer) ack(part int, seq uint64, lastKey []any, written, skipped
 		c.mapping.Written += a.written
 		c.mapping.Skipped += a.skipped
 		c.mapping.Failed += a.failed
+		c.mapping.Pages += a.pages
 	}
 }
 

@@ -14,6 +14,8 @@ type Doc struct {
 	Value []byte
 	// SourceKey is the row's primary key, for dead-lettering a failed write (OC-026).
 	SourceKey []any
+	// Page marks an extra page document of the previous document's split array (OC-046).
+	Page bool
 }
 
 // Outcome of one document write.
@@ -35,6 +37,10 @@ const (
 	CodeKeyspaceMissing      = "TARGET_KEYSPACE_MISSING"
 	CodePermissionDenied     = "TARGET_PERMISSION_DENIED"
 	CodeDurabilityImpossible = "DURABILITY_IMPOSSIBLE"
+	// Directory targets (OC-040).
+	CodeDiskFull         = "TARGET_DISK_FULL"
+	CodeLocationMissing  = "TARGET_LOCATION_MISSING"
+	CodeKeyPathCollision = "KEY_PATH_COLLISION"
 )
 
 // WriteResult is one document's final outcome.
@@ -50,10 +56,14 @@ type WriteResult struct {
 
 // WriteOptions configure a writer (from the mapping and the job options).
 type WriteOptions struct {
-	Bucket, Scope, Collection string
-	Mode                      string // upsert | insert | replace
-	Durability                string // none | majority | majorityAndPersistActive | persistToMajority
-	Expiry                    time.Duration
+	// Location is where the documents go; its Kind matches the connector (OC-036).
+	Location Location
+	// The run the writer belongs to, recorded by targets that describe their output (a
+	// directory's _odb/run.json and manifest, OC-039).
+	JobID, MappingID, PlanHash, KeyTemplate string
+	Mode                                    string // upsert | insert | replace
+	Durability                              string // none | majority | majorityAndPersistActive | persistToMajority
+	Expiry                                  time.Duration
 	// Concurrency is the maximum number of in-flight KV operations (AIMD may lower it).
 	Concurrency int
 	// OnConcurrency is told when adaptive concurrency changes (job log, OC-028 AC7).
@@ -77,4 +87,10 @@ type DocReader interface {
 // dedicated connection, so migration traffic doesn't share KV connections with the UI.
 type WriterOpener interface {
 	OpenWriter(ctx context.Context, cfg json.RawMessage, creds connectors.Credentials, opts WriteOptions) (DocWriter, error)
+}
+
+// DocLimiter is implemented by writers whose target limits document size below Couchbase's
+// 20 MiB (a directory's maxDocBytes): the size guard (OC-046) uses it.
+type DocLimiter interface {
+	MaxDocBytes() int64
 }

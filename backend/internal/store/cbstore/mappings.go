@@ -25,6 +25,7 @@ type mappingDoc struct {
 	SourceSchema string              `json:"sourceSchema"`
 	SourceTable  string              `json:"sourceTable"`
 	Target       store.MappingTarget `json:"target"`
+	Location     store.Location      `json:"location"`
 	Spec         json.RawMessage     `json:"spec"`
 	AutomapStats json.RawMessage     `json:"automapStats,omitempty"`
 	Status       string              `json:"status"`
@@ -35,11 +36,13 @@ type mappingDoc struct {
 }
 
 func (d mappingDoc) toMapping() store.Mapping {
-	return store.Mapping{
+	m := store.Mapping{
 		ID: d.ID, WorkspaceID: store.WorkspaceID(d.WorkspaceID), ProjectID: d.ProjectID, SourceSchema: d.SourceSchema,
-		SourceTable: d.SourceTable, Target: d.Target, Spec: d.Spec, AutomapStats: d.AutomapStats, Status: d.Status,
+		SourceTable: d.SourceTable, Target: d.Target, Location: d.Location, Spec: d.Spec, AutomapStats: d.AutomapStats, Status: d.Status,
 		CreatedBy: d.CreatedBy, CreatedAt: parseTS(d.CreatedAt), UpdatedAt: parseTS(d.UpdatedAt), Version: d.Version,
 	}
+	m.NormalizeLocation() // a 1.0 document has only target; it isn't rewritten until the next save
+	return m
 }
 
 type mapIndexEntry struct {
@@ -104,9 +107,10 @@ func (r mappings) Create(ctx context.Context, ws store.WorkspaceID, m store.Mapp
 		m.ID = uuid.Must(uuid.NewV7()).String()
 	}
 	now := formatTS(r.s.clock.Now())
+	m.NormalizeLocation()
 	doc := mappingDoc{
 		Type: "mapping", ID: m.ID, WorkspaceID: string(ws), ProjectID: m.ProjectID, SourceSchema: m.SourceSchema,
-		SourceTable: m.SourceTable, Target: m.Target, Spec: m.Spec, AutomapStats: m.AutomapStats, Status: m.Status,
+		SourceTable: m.SourceTable, Target: m.Target, Location: m.Location, Spec: m.Spec, AutomapStats: m.AutomapStats, Status: m.Status,
 		CreatedBy: m.CreatedBy, CreatedAt: now, UpdatedAt: now, Version: 1,
 	}
 	c := r.s.coll("mappings")
@@ -192,7 +196,8 @@ func (r mappings) Update(ctx context.Context, ws store.WorkspaceID, m store.Mapp
 	if d.Version != m.Version {
 		return store.Mapping{}, store.ErrVersionConflict
 	}
-	d.Target, d.Spec, d.AutomapStats, d.Status = m.Target, m.Spec, m.AutomapStats, m.Status
+	m.SetLocation(store.UpdatedLocation(d.toMapping(), m))
+	d.Target, d.Location, d.Spec, d.AutomapStats, d.Status = m.Target, m.Location, m.Spec, m.AutomapStats, m.Status
 	d.UpdatedAt = formatTS(r.s.clock.Now())
 	d.Version++
 	if _, err := r.s.coll("mappings").Replace(d.ID, d, &gocb.ReplaceOptions{Cas: cas, Context: ctx}); err != nil {

@@ -102,7 +102,7 @@ func TestVerify_AC3_Integration(t *testing.T) {
 		Latest: func(context.Context, store.WorkspaceID, string) (store.DiscoverySnapshot, *schema.Snapshot, error) {
 			return store.DiscoverySnapshot{}, snap, nil
 		},
-		CountTarget: func(context.Context, store.WorkspaceID, string, store.MappingTarget) (int64, error) {
+		CountTarget: func(context.Context, store.WorkspaceID, string, store.Location) (int64, error) {
 			var n int64
 			q, err := cl.Query(fmt.Sprintf("SELECT RAW COUNT(*) FROM sandbox.%s.customer", scope), &gocb.QueryOptions{ScanConsistency: gocb.QueryScanConsistencyRequestPlus})
 			if err != nil {

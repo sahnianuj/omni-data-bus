@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -34,9 +35,10 @@ func TestPreflight_AC2_ValidationErrorsBlock(t *testing.T) {
 	require.Contains(t, c.Label, "shop.customer", "the failing mapping is named")
 	require.Contains(t, c.Detail, "Required field email")
 
-	// Creating the job refuses with PREFLIGHT_FAILED and the checklist.
+	// Creating the job refuses with MAPPING_INVALID listing the issue, and the checklist (OC-049 AC6).
 	_, pre, err := f.svc.Create(ctx, ws, "u1", f.project.ID, DefaultOptions())
-	require.True(t, problem.HasCode(err, problem.CodePreflightFailed))
+	require.True(t, problem.HasCode(err, problem.CodeMappingInvalid))
+	require.Contains(t, problem.From(err).FieldErrors[0].Message, "Required field email")
 	require.False(t, pre.OK)
 	jobs, _, _ := f.st.Jobs().List(ctx, ws, "", store.Page{})
 	require.Empty(t, jobs)
@@ -125,4 +127,21 @@ func TestPreflight_UnreadableAndNoReadyMappings(t *testing.T) {
 	require.NoError(t, err)
 	_, err = g.pre.Run(ctx, ws, "u1", g.project.ID, DefaultOptions())
 	require.True(t, problem.HasCode(err, problem.CodeNoReadyMappings))
+}
+
+func TestCreate_OC037_RecordsPlanHashes(t *testing.T) {
+	f := newFixture(t)
+	f.svc.PlanHash = func(_ context.Context, _ store.WorkspaceID, m store.Mapping) (string, error) {
+		if m.SourceTable == "page_view" {
+			return "", errors.New("no snapshot")
+		}
+		return "hash-" + m.SourceTable, nil
+	}
+	v, _, err := f.svc.Create(ctx, ws, "u1", f.project.ID, DefaultOptions())
+	require.NoError(t, err)
+	j, err := f.st.Jobs().Get(ctx, ws, v.ID)
+	require.NoError(t, err)
+	opts, err := ParseOptions(j.Options)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{f.maps["customer"].ID: "hash-customer"}, opts.PlanHashes)
 }

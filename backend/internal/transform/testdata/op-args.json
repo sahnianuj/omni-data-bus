@@ -300,6 +300,18 @@
    "op": "expression",
    "args": {},
    "valid": false
+  },
+  {
+   "op": "array",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "array",
+   "args": {
+    "dropNulls": true
+   },
+   "valid": true
   }
  ]
 }

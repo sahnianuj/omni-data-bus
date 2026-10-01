@@ -68,7 +68,7 @@ func TestWriter_CloseRunsTheConnectionCloser(t *testing.T) {
 
 func TestOpenWriter_RejectsBadConfigAndDeniedHosts(t *testing.T) {
 	c := New()
-	o := target.WriteOptions{Bucket: "b", Scope: "s", Collection: "c", Mode: "upsert"}
+	o := target.WriteOptions{Location: target.Location{Kind: target.KindCouchbase, Bucket: "b", Scope: "s", Collection: "c"}, Mode: "upsert"}
 	_, err := c.OpenWriter(context.Background(), json.RawMessage(`{"connectionString":""}`), connectors.Credentials{Password: "pw"}, o)
 	require.Error(t, err)
 

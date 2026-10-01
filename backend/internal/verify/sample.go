@@ -146,6 +146,10 @@ type MappingResult struct {
 	Counts    Counts        `json:"counts"`
 	Sample    *SampleResult `json:"sample,omitempty"`
 	Error     string        `json:"error,omitempty"`
+	// TargetKind names what was counted (couchbase: documents in a collection, directory:
+	// files in a folder), and Integrity is a directory's manifest check (OC-041).
+	TargetKind string     `json:"targetKind,omitempty"`
+	Integrity  *Integrity `json:"integrity,omitempty"`
 	// Stats of the run, for the report.
 	AvgDocBytes    int64   `json:"avgDocBytes"`
 	ThroughputAvg  float64 `json:"throughputAvg"`
@@ -161,9 +165,10 @@ func (r *MappingResult) Decide() {
 		r.Result = PassedWithWarnings
 	case r.Sample != nil && (r.Sample.Missing > 0 || float64(r.Sample.Mismatched) > 0.01*float64(max(r.Sample.Checked, 1))):
 		r.Result = Failed
-	case !r.Counts.Reconciled:
+	case !r.Counts.Reconciled, r.Integrity != nil && r.Integrity.Missing > 0:
 		r.Result = Failed
-	case (r.Sample != nil && (r.Sample.Mismatched > 0 || r.Sample.SourceChanged > 0)) || hasRealWarning(r.Counts.Warnings):
+	case (r.Sample != nil && (r.Sample.Mismatched > 0 || r.Sample.SourceChanged > 0)) || hasRealWarning(r.Counts.Warnings),
+		r.Integrity != nil && r.Integrity.Mismatched > 0:
 		r.Result = PassedWithWarnings
 	default:
 		r.Result = Passed
@@ -177,4 +182,20 @@ func hasRealWarning(ws []string) bool {
 		}
 	}
 	return false
+}
+
+// Integrity is a manifest check: listed documents sampled against the stored files (OC-041).
+type Integrity struct {
+	Listed     int              `json:"listed"`
+	Checked    int              `json:"checked"`
+	Missing    int              `json:"missing"`
+	Mismatched int              `json:"mismatched"`
+	Issues     []IntegrityIssue `json:"issues"`
+}
+
+// IntegrityIssue is one document that doesn't check out: missing, or hash_mismatch.
+type IntegrityIssue struct {
+	Key     string `json:"key"`
+	Path    string `json:"path"`
+	Problem string `json:"problem"`
 }

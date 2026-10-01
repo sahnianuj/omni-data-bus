@@ -12,14 +12,17 @@ import (
 	"omnidatabus/internal/connectors/source/postgres"
 	"omnidatabus/internal/connectors/target"
 	"omnidatabus/internal/connectors/target/couchbase"
+	"omnidatabus/internal/connectors/target/directory"
 	"omnidatabus/internal/crypto"
 	"omnidatabus/internal/discovery"
+	"omnidatabus/internal/documents"
 	"omnidatabus/internal/events"
 	"omnidatabus/internal/httpapi"
 	"omnidatabus/internal/jobs"
 	"omnidatabus/internal/keyspaces"
 	"omnidatabus/internal/mappings"
 	"omnidatabus/internal/projects"
+	"omnidatabus/internal/relations"
 	"omnidatabus/internal/store"
 )
 
@@ -55,10 +58,14 @@ func Features(d Deps) []httpapi.Registrar {
 	conns := connections.NewService(d.Store, d.Sealer, d.Sources, d.Targets, guard, nil)
 	disc := discovery.NewService(d.Store, conns.OpenSource, nil)
 	maps := mappings.NewService(d.Store, disc, conns.OpenSource, conns.OpenKeyspaces)
+	maps.StatLocation = conns.StatLocation
+	maps.CaseSensitive = conns.CaseSensitive
 	pre := &jobs.Preflighter{
 		Store: d.Store, Validate: maps.Validate, TestConn: conns.TestStored, OpenSource: conns.OpenSource,
-		OpenKeyspaces: conns.OpenKeyspaces, Latest: disc.Latest,
+		Target: conns.PreflightTarget, Latest: disc.Latest,
 	}
+	jobsSvc := jobs.NewService(d.Store, pre, nil)
+	jobsSvc.PlanHash = maps.PlanHash
 	return []httpapi.Registrar{
 		auth.Handlers{Svc: d.Auth, Cookies: d.Cookies},
 		projects.Handlers{Svc: projects.NewService(d.Store, d.Sealer, guard)},
@@ -66,10 +73,13 @@ func Features(d Deps) []httpapi.Registrar {
 		connections.Handlers{Svc: conns},
 		discovery.Handlers{Svc: disc},
 		keyspaces.Handlers{Open: conns.OpenKeyspaces, Audit: d.Store.Audit()},
+		keyspaces.LocationHandlers{Svc: conns, Audit: d.Store.Audit()},
 		mappings.Handlers{Svc: maps},
-		jobs.Handlers{Svc: jobs.NewService(d.Store, pre, nil), Audit: &audit.Recorder{Store: d.Store.Audit()}},
+		relations.Handlers{Svc: relations.NewService(d.Store, disc, conns.OpenSource)},
+		jobs.Handlers{Svc: jobsSvc, Audit: &audit.Recorder{Store: d.Store.Audit()}},
 		events.Handlers{Store: d.Store, Hub: d.hub()},
 		audit.Handlers{Store: d.Store.Audit()},
+		documents.Handlers{Store: d.Store, Targets: conns},
 	}
 }
 
@@ -84,12 +94,14 @@ func APIMiddleware(d Deps) []func(http.Handler) http.Handler {
 	return append(mw, auth.CSRF(d.PublicURL))
 }
 
-// Registries returns the source and target connectors this build supports.
-// PostgreSQL (OC-009) and Couchbase (OC-012) register here.
-func Registries() (*source.Registry, *target.Registry) {
+// Registries returns the source and target connectors this build supports: PostgreSQL
+// (OC-009), Couchbase (OC-012) and directories (OC-036/OC-038). directoryRoots are the areas a
+// directory target may be in; nil means directory.DefaultRoots (the home folder and /data).
+func Registries(directoryRoots []string) (*source.Registry, *target.Registry) {
 	sources := source.NewRegistry()
 	sources.Register(postgres.New())
 	targets := target.NewRegistry()
 	targets.Register(couchbase.New())
+	targets.Register(directory.New(directoryRoots))
 	return sources, targets
 }

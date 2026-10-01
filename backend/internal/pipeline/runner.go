@@ -18,6 +18,7 @@ import (
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/observability"
 	"omnidatabus/internal/pipeline/flowctl"
+	"omnidatabus/internal/plan"
 	"omnidatabus/internal/problem"
 	"omnidatabus/internal/progress"
 	"omnidatabus/internal/related"
@@ -63,8 +64,8 @@ type Deps struct {
 	// PersistEvery and PersistBatches set the checkpoint cadence (default 5 s / 50 batches).
 	PersistEvery   time.Duration
 	PersistBatches int
-	// CountTarget counts a collection's documents (verification, OC-030); nil = skip.
-	CountTarget func(ctx context.Context, ws store.WorkspaceID, connectionID string, t store.MappingTarget) (int64, error)
+	// CountTarget counts the documents at a location (verification, OC-030); nil = skip.
+	CountTarget func(ctx context.Context, ws store.WorkspaceID, connectionID string, loc store.Location) (int64, error)
 }
 
 // Runner implements jobs.Runner.
@@ -313,12 +314,13 @@ func (e *execution) run(base context.Context) jobs.Outcome {
 	}
 	var infos []progress.MappingProgress
 	for _, m := range maps {
+		schemaName, table := m.Driving()
 		mp := progress.MappingProgress{
-			MappingID: m.ID, Table: m.SourceSchema + "." + m.SourceTable,
-			Target: m.Target.Bucket + "." + m.Target.Scope + "." + m.Target.Collection, TotalKind: progress.TotalEstimate,
+			MappingID: m.ID, Table: schemaName + "." + table,
+			Target: m.Where().String(), TotalKind: progress.TotalEstimate,
 		}
 		if snap != nil {
-			if t := snap.Table(m.SourceSchema, m.SourceTable); t != nil && t.RowEstimate != nil {
+			if t := snap.Table(schemaName, table); t != nil && t.RowEstimate != nil {
 				mp.Total = *t.RowEstimate
 			}
 		}
@@ -446,42 +448,6 @@ func (e *execution) publish(ctx context.Context) {
 	}
 }
 
-// used lists the columns the mapping needs: mapped sources, the key template, the key, and
-// every column when an expression may read row.<any>.
-func used(spec *mapping.Spec, t *schema.Table, key []string) []bool {
-	need := map[string]bool{}
-	all := false
-	for _, fm := range spec.FieldMappings {
-		if fm.State != mapping.StateActive || mapping.EmbedSources(fm) {
-			continue
-		}
-		for _, s := range fm.Sources {
-			need[s.Column] = true
-		}
-		for _, st := range fm.Transforms {
-			if st.Op == "expression" {
-				all = true
-			}
-		}
-	}
-	if kt, err := mapping.ParseKeyTemplate(spec.Key.Template); err == nil {
-		for _, c := range kt.Columns() {
-			need[c] = true
-		}
-	}
-	for _, k := range key {
-		need[k] = true
-	}
-	for _, c := range related.ParentColumns(spec) {
-		need[c] = true
-	}
-	out := make([]bool, len(t.Columns))
-	for i, c := range t.Columns {
-		out[i] = all || need[c.Name]
-	}
-	return out
-}
-
 // sensitive are columns whose mappings mask or hash them: their values are masked in stored
 // error samples (OC-026 AC1).
 func sensitive(spec *mapping.Spec) map[string]bool {
@@ -522,8 +488,10 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 	ws := e.job.WorkspaceID
 	tr := e.tracker
 	log := e.log.With("mapping_id", m.ID)
+	// A composed mapping is driven by its spec's root table (OC-047).
+	srcSchema, srcTable := m.Driving()
 	parent, mspan := observability.Tracer().Start(parent, "job.mapping", trace.WithAttributes(
-		attribute.String("mapping.id", m.ID), attribute.String("mapping.source", m.SourceSchema+"."+m.SourceTable)))
+		attribute.String("mapping.id", m.ID), attribute.String("mapping.source", srcSchema+"."+srcTable)))
 	defer mspan.End()
 	// Phase spans: prepare, then migrate (with one event per batch), then verify.
 	_, prep := observability.Tracer().Start(parent, "mapping.prepare")
@@ -534,11 +502,11 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		tr.SetPhase(m.ID, progress.PhaseFailed)
 		mspan.SetStatus(codes.Error, code)
 		log.Warn("mapping failed", "code", code, "detail", msg)
-		e.fail(code, m.SourceSchema+"."+m.SourceTable+": "+msg)
+		e.fail(code, srcSchema+"."+srcTable+": "+msg)
 	}
 	var t *schema.Table
 	if snap != nil {
-		t = snap.Table(m.SourceSchema, m.SourceTable)
+		t = snap.Table(srcSchema, srcTable)
 	}
 	if t == nil {
 		failMapping(CodeSourceTableMissing, "the table isn't in the latest schema snapshot")
@@ -550,35 +518,35 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		return
 	}
 	spec.Normalize()
-	startedAt := d.Now()
-	relTables := func(schemaName, table string) *schema.Table { return snap.Table(schemaName, table) }
-	embedTables := related.Tables(&spec, relTables)
-	compile := func() (*transform.Program, error) {
-		p, issues := transform.Compile(&spec, t, transform.Options{Now: startedAt, Related: embedTables})
-		if p == nil {
-			msgs := make([]string, 0, len(issues))
-			for _, i := range issues {
-				if i.Severity == mapping.SeverityError {
-					msgs = append(msgs, i.Message)
-				}
-			}
-			return nil, errors.New(strings.Join(msgs, "; "))
-		}
-		return p, nil
-	}
-	// Embedded tables must exist before anything else can be checked.
-	plans, err := related.Plans(&spec, t, relTables)
-	if err != nil {
-		failMapping(CodeSourceTableMissing, err.Error())
+	// One execution plan, the same the preview and the headless runner build (OC-037).
+	pl, issues, err := plan.Compile(plan.Input{
+		Spec: &spec, Root: mapping.TableRef{Schema: srcSchema, Name: srcTable}, Table: t,
+		Related: func(schemaName, table string) *schema.Table { return snap.Table(schemaName, table) },
+		Options: transform.Options{Now: d.Now()},
+	})
+	var perr *plan.Error
+	switch {
+	case errors.As(err, &perr) && perr.Code == plan.CodeRelatedTableMissing:
+		failMapping(CodeSourceTableMissing, err.Error()) // related tables must exist before anything else
 		return
-	}
-	if _, err := compile(); err != nil {
+	case err != nil:
 		failMapping(CodeMappingInvalid, err.Error())
 		return
+	case pl.Program == nil:
+		failMapping(CodeMappingInvalid, plan.ErrorMessages(issues))
+		return
 	}
+	log.Debug("mapping plan", "plan_hash", pl.Hash, "columns", len(pl.Columns), "relations", len(pl.Relations))
 
 	key := readKey(t)
-	read := source.TableRead{Schema: m.SourceSchema, Table: m.SourceTable, Columns: t.Columns, Key: key, Project: used(&spec, t, key)}
+	read := source.TableRead{Schema: srcSchema, Table: srcTable, Columns: t.Columns, Key: key, Project: pl.Project(key...)}
+	if g := spec.GroupBy(); len(g) > 0 {
+		// One document per group (OC-063): the read pages, counts, checkpoints and retries by
+		// the group-by columns, one row (the first by primary key) per group; the group's rows
+		// come through its relation.
+		read.Key, read.Distinct, read.Within, read.Project = g, true, key, pl.Project(g...)
+		key = g // partitions split on the group column, so no group spans two
+	}
 
 	e.sink.Describe(m.ID, TableInfo{Columns: columnNames(t), Sensitive: sensitive(&spec)})
 
@@ -624,14 +592,14 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 	}
 	defer func() { _ = rs.Close() }()
 	var resolver *related.Resolver
-	if len(plans) > 0 {
+	if pl.HasRelations() {
 		rr, ok := rs.(source.RelatedReader)
 		if !ok {
 			failMapping(CodeSourceUnsupported, "this source can't read embedded tables")
 			return
 		}
 		// Embedded rows are read in the same snapshot as their parents (OC-021 AC5).
-		resolver = &related.Resolver{Plans: plans, Reader: rr, Concurrency: related.DefaultConcurrency}
+		resolver = &related.Resolver{Plans: pl.Lookups(), Reader: rr, Concurrency: related.DefaultConcurrency}
 	}
 	if k > 1 && rs.SnapshotID() == "" {
 		e.event(parent, "warning", read.Schema+"."+read.Table+": snapshot export unavailable; reading with one reader")
@@ -702,7 +670,8 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 			return
 		}
 		tr.SetTotal(m.ID, int64(len(keys)), true)
-	} else if progress.CountExactly(e.opts.ExactCount, t.SizeBytes) {
+	} else if progress.CountExactly(e.opts.ExactCount, t.SizeBytes) || (read.Distinct && e.opts.ExactCount != "never") {
+		// Grouped (OC-063): the row estimate isn't a document count, so count the groups.
 		go func() {
 			cctx, cancel := context.WithTimeout(parent, 10*time.Minute)
 			defer cancel()
@@ -725,7 +694,8 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 	}
 
 	w, err := d.OpenWriter(parent, ws, tgtID, target.WriteOptions{
-		Bucket: m.Target.Bucket, Scope: m.Target.Scope, Collection: m.Target.Collection, Mode: e.opts.WriteMode,
+		Location: m.Where(), Mode: e.opts.WriteMode,
+		JobID: e.job.ID, MappingID: m.ID, PlanHash: pl.Hash, KeyTemplate: spec.Key.Template,
 		Durability: e.opts.Durability, Expiry: time.Duration(spec.ExpirySec) * time.Second, Concurrency: e.opts.WriteConcurrency,
 		OnConcurrency: func(limit int, reason string) {
 			e.metrics.SetConcurrency(e.opts.WriteConcurrency, limit)
@@ -737,6 +707,9 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		return
 	}
 	defer func() { _ = w.Close() }()
+	if dl, ok := w.(target.DocLimiter); ok {
+		pl.SetMaxDocBytes(dl.MaxDocBytes())
+	}
 	e.metrics.SetConcurrency(e.opts.WriteConcurrency, e.opts.WriteConcurrency)
 	prep.End()
 	tr.SetPhase(m.ID, progress.PhaseMigrating)
@@ -806,20 +779,20 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		}
 	}()
 	if resolver != nil {
-		// Embed lookups for one batch run while the readers fetch the next ones.
+		// Relation lookups for one batch run while the readers fetch the next ones.
 		resolver.Do = func(ctx context.Context, read func() ([][]any, error)) ([][]any, error) {
 			return readWithRetry(ctx, cfg.withDefaults(), 0, read)
 		}
 		resolved = make(chan *source.Batch, RowsChanCap)
 		go func() {
-			err := ResolveEmbeds(ctx, resolver, EmbedWorkers, counted, resolved)
+			err := ResolveRelations(ctx, resolver, RelationWorkers, counted, resolved)
 			if err != nil && ctx.Err() == nil {
 				failMapping(CodeSourceReadFailed, err.Error())
 			}
 		}()
 	}
 	go func() {
-		trf := Transformer{MappingID: m.ID, Workers: d.TransformWorkers, NewProgram: compile, KeyIdx: keyIdx}
+		trf := Transformer{MappingID: m.ID, Workers: d.TransformWorkers, NewProgram: pl.NewProgram, KeyIdx: keyIdx}
 		if err := trf.Run(ctx, resolved, docs); err != nil && ctx.Err() == nil {
 			failMapping(CodeMappingInvalid, err.Error())
 		}
@@ -842,7 +815,7 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		mig.AddEvent("batch", trace.WithAttributes(attribute.Int("partition", a.Partition), attribute.Int64("seq", int64(a.Seq)), //nolint:gosec // batch sequence numbers fit
 			attribute.Int64("written", a.Written), attribute.Int64("skipped", a.Skipped), attribute.Int64("failed", a.Failed)))
 		log.Debug("batch written", "partition", a.Partition, "seq", a.Seq, "written", a.Written, "skipped", a.Skipped, "failed", a.Failed)
-		n := ckp.ack(a.Partition, a.Seq, a.LastKey, a.Written, a.Skipped, a.Failed)
+		n := ckp.ackPages(a.Partition, a.Seq, a.LastKey, a.Written, a.Skipped, a.Failed, a.Pages)
 		tr.Acked(m.ID, a.Written, a.Skipped, a.Failed, a.Bytes)
 		if n > 0 {
 			e.persisted(e.persist.advanced(ctx, n, false))
@@ -906,7 +879,7 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		tr.SetPhase(m.ID, progress.PhaseVerifying)
 		vctx, vspan := observability.Tracer().Start(parent, "mapping.verify")
 		e.saveVerification(parent, e.verifyMapping(vctx, verifyInput{
-			mappingID: m.ID, read: read, keyIdx: keyIdx, sr: sr, compile: compile, plans: plans, writer: w, target: m.Target,
+			mappingID: m.ID, read: read, keyIdx: keyIdx, sr: sr, compile: pl.NewProgram, plans: pl.Lookups(), writer: w, target: m.Where(),
 			counts: final, rowsRead: processedBefore + rowsRead.Load(), col: col,
 		}))
 		vspan.End()

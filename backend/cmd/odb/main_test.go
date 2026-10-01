@@ -28,7 +28,8 @@ func TestVersion_AC1_PrintsVersion(t *testing.T) {
 	t.Setenv("OC_ENV_FILE", t.TempDir()+"/none")
 	var out, errOut bytes.Buffer
 	require.Equal(t, 0, run([]string{"--version"}, &out, &errOut))
-	require.Equal(t, "odb dev (commit none)\n", out.String())
+	// A plain `go build` (no -ldflags) reports dev/none and doesn't crash (OC-058 AC1).
+	require.Contains(t, out.String(), "Omni-Data-Bus dev (dev)\nCommit: none  Built: unknown")
 }
 
 func TestAdmin_AC8_UsageAndUnknownCommand(t *testing.T) {

@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E10 Document Composer | P0 | 5 | OC-047, OC-022, OC-017 | Not started |
+| E10 Document Composer | P0 | 5 | OC-047, OC-022, OC-017 | Implemented |
 
 ## User story
 As a **data engineer** composing a custom document, I want to see real sample documents with their nested arrays filled, get clear errors and warnings on the exact node that has a problem, and have the tool auto-map fields within each bound object or array, so that I can finish a complex mapping quickly and trust the result.
@@ -92,3 +92,12 @@ As a **data engineer** composing a custom document, I want to see real sample do
 |---|---|---|
 | `TestJobsCreate_AC6_BlockedByComposerErrors` | `internal/httpapi/jobs_test.go` | |
 | `TestExports_AC6_BlockedByComposerErrors` | `internal/httpapi/exports_test.go` | |
+
+## Implementation notes (2026-09-30)
+- `internal/preview`: relation reads are capped at 50 rows per parent (51 are read, so a cut shows), except relations whose aggregates or split pages need every row; per-node stats (`rows`, `total` for arrays directly under the root, `truncated`, `dangling`, `adapterDiscarded`) keyed by dotted path (`items`, `items.product`); `Trim`; the worst case's size estimate; and the reads (`Related`, `RowsByKey`, `WorstCaseRows`). `POST …/preview` takes `rootKey` (driving-table column → value) and `worstCase` (a relation id); items gain `stats` and `path` (directory targets), the result `worstCase {relationId, path, rows, estimatedBytes}`. The cap applies to canvas previews too.
+- Sources gain `source.RelatedCounter` (PostgreSQL): `CountRelated` — one correlated `count(*)` per key, in key order — and `TopRelated` — `GROUP BY` the join key `ORDER BY count DESC LIMIT 1` under a 5 s context. The root row is then read by key (`ReadKeys`).
+- Validation: issues carry `nodePath` and `relationId` (`mapping.Annotate`); new `ARRAY_UNBOUND_EMPTY` (warning) and `DOC_SIZE_RISK` (the composed name of `EMBED_DOC_SIZE`); `ADAPTER_DISCARDS_ROWS` is a row warning. The tree marks nodes ⛔/⚠ and the Problems panel selects the node on click.
+- Scoped auto-map: `automap.RunScope` (candidates: the bound relation's columns and junction payload, or the root's; targets: the unmapped fields of that scope only) and `automap.RunAll` (the root, then each bound scope, parents first). `POST …/automap` takes `nodeId` or `allScopes`; stats gain `byNode` (Go `mapping.ByNode`, TS `byNode` in `computeStats`, parity through `stats-cases.json`).
+- AC6: starting a job with validation errors is `422 MAPPING_INVALID` listing each error (`fieldErrors`: `schema.table: node` → `CODE: message`), with the pre-flight checklist still attached; it replaces `PREFLIGHT_FAILED` when validation errors are among the failures (a missing target location is left to the pre-flight). The test is in `internal/jobs/handlers_test.go`, where the jobs handlers are tested.
+- **Open:** `TestExports_AC6_BlockedByComposerErrors` — the export endpoint arrives with OC-050/OC-055, which must apply the same gate.
+- Integration tests (`internal/preview/composed_integration_test.go`, tag `integration`) run against the dev PostgreSQL: AC1 builds order 1001 in ~0.15 s; AC2 finds the customer with 1,240 orders, shows 50 of them and estimates the full document.

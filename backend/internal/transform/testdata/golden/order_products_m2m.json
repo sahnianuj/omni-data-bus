@@ -1,0 +1,7 @@
+{
+  "orderId": 1001,
+  "products": [
+    { "sku": "A", "name": "Pen", "quantity": 2, "unitPrice": 9.5 },
+    { "sku": "B", "name": "Pad", "quantity": 1, "unitPrice": 3.25 }
+  ]
+}

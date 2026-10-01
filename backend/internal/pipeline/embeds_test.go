@@ -78,12 +78,12 @@ func peopleWithVisits(limit int) *mapping.Spec {
 			{ID: "f_page", Name: "page", Type: docschema.String},
 		}},
 	})
-	s.Embeds = []mapping.Embed{{
+	s.Relations = []mapping.Relation{{
 		ID: "emb_v", Kind: mapping.EmbedOneToMany, Table: mapping.TableRef{Schema: "hr", Name: "visits"},
 		Join: []mapping.JoinPair{{Parent: "id", Child: "person_id"}}, OrderBy: []mapping.OrderColumn{{Column: "visit_id"}}, Limit: limit, TargetFieldID: "f_visits",
 	}}
 	s.FieldMappings = append(s.FieldMappings, mapping.FieldMapping{
-		ID: "m_page", TargetFieldID: "f_page", Sources: []mapping.SourceRef{{Column: "page", Embed: "emb_v"}}, State: mapping.StateActive,
+		ID: "m_page", TargetFieldID: "f_page", Sources: []mapping.SourceRef{{Column: "page", Relation: "emb_v"}}, State: mapping.StateActive,
 	})
 	s.Normalize()
 	return s
@@ -118,20 +118,20 @@ func TestEmbedResolver_AC3_OneQueryPerEmbedPerBatch(t *testing.T) {
 		}
 		rows = append(rows, []any{id, "n", "30"})
 	}
-	got, err := r.Resolve(context.Background(), rows)
+	got, _, err := r.Resolve(context.Background(), rows)
 	require.NoError(t, err)
 	require.Len(t, fr.calls, 1, "exactly one query for the batch")
 	require.Equal(t, 800, fr.calls[0].keys, "with the distinct keys")
-	require.Equal(t, visitsFor(7), got["emb_v"][6], "grouped per parent row")
-	require.Equal(t, visitsFor(7), got["emb_v"][806], "repeated parents get the same rows")
-	require.Nil(t, got["emb_v"][3], "id 4 has no visits")
+	require.Equal(t, visitsFor(7), values(got[6]["emb_v"]), "grouped per parent row")
+	require.Equal(t, visitsFor(7), values(got[806]["emb_v"]), "repeated parents get the same rows")
+	require.Nil(t, got[3]["emb_v"], "id 4 has no visits")
 
 	// A null join key has no rows and isn't queried.
 	fr.calls = nil
-	got, err = r.Resolve(context.Background(), [][]any{{nil, "n", "1"}})
+	got, _, err = r.Resolve(context.Background(), [][]any{{nil, "n", "1"}})
 	require.NoError(t, err)
 	require.Empty(t, fr.calls)
-	require.Nil(t, got["emb_v"][0])
+	require.Nil(t, got[0]["emb_v"])
 }
 
 func TestEmbedResolver_AC5_UsesSharedSnapshot(t *testing.T) {
@@ -171,4 +171,16 @@ func TestEmbeds_MissingTableFailsTheMapping(t *testing.T) {
 	require.Equal(t, CodeSourceTableMissing, o.Fatal.Code)
 	require.Contains(t, o.Fatal.Message, "hr.visits")
 	_ = store.JobFailed
+}
+
+// values are a related set's rows as plain values.
+func values(set *source.RelatedSet) [][]any {
+	if set == nil {
+		return nil
+	}
+	out := make([][]any, len(set.Rows))
+	for i, r := range set.Rows {
+		out[i] = r.Values
+	}
+	return out
 }

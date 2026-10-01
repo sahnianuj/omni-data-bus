@@ -13,11 +13,12 @@ import { hasRole } from '@/features/auth/Can'
 import { useSession } from '@/features/auth/api'
 import { useSchema, type Snapshot } from '@/features/discovery/api'
 import { useBulkCreateMappings, useMappings } from '@/features/mapping/api'
-import { sanitizeCollectionName } from '@/features/mapping/names'
+import { folderName, sanitizeCollectionName } from '@/features/mapping/names'
 import type { MappingSummary } from '@/features/mapping/types'
 import { useScopes } from '@/features/targets/api'
 import { emptyKeyspace, KeyspacePicker, type KeyspaceValue } from '@/features/targets/KeyspacePicker'
-import { validScopeName } from '@/features/targets/names'
+import { formatLocation } from '@/features/targets/kinds'
+import { validFolderName, validScopeName } from '@/features/targets/names'
 import { humanizeCount } from '@/lib/format'
 import type { Project } from '../api'
 
@@ -62,6 +63,10 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
   const session = useSession()
   const canEdit = hasRole(session.data?.role, 'editor')
   const mapped = useMemo(() => new Map(existing.map((m) => [keyOf(m.sourceSchema, m.sourceTable), m])), [existing])
+  // A composed mapping is listed by the table that drives it (OC-047).
+  const drivenBy = useMemo(() => new Map(existing.filter((m) => m.mode === 'composed').map((m) => [keyOf(m.driving.schema, m.driving.name), m])), [existing])
+  const kind = project.target?.type ?? 'couchbase'
+  const isDir = kind === 'directory'
   const first = existing[0]?.target
   const [target, setTarget] = useState<KeyspaceValue>(first ? { bucket: first.bucket, scope: first.scope, collection: '' } : emptyKeyspace)
   const preselect = params.get('select')
@@ -70,7 +75,7 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
   const [deferred, setDeferred] = useState<Record<string, boolean>>({})
   const [query, setQuery] = useState('')
   const bulk = useBulkCreateMappings(project.id)
-  const scopes = useScopes(project.target?.id ?? '', target.bucket)
+  const scopes = useScopes(isDir ? '' : (project.target?.id ?? ''), target.bucket)
   const existingCollections = useMemo(
     () => new Set(scopes.data?.find((s) => s.name === target.scope)?.collections.map((c) => c.name) ?? []),
     [scopes.data, target.scope],
@@ -84,10 +89,12 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
     [snapshot, query],
   )
   const tableOf = (r: Row) => snapshot.schemas.find((s) => s.name === r.schema)!.tables.find((x) => x.name === r.table)!
-  const collectionFor = (r: Row) => names[r.key] ?? sanitizeCollectionName(r.table)
-  const willCreate = (r: Row) => !!target.scope && !existingCollections.has(collectionFor(r))
+  const collectionFor = (r: Row) => names[r.key] ?? (isDir ? folderName : sanitizeCollectionName)(r.table)
+  const willCreate = (r: Row) => !isDir && !!target.scope && !existingCollections.has(collectionFor(r))
+  const validName = isDir ? validFolderName : validScopeName
   const chosen = rows.filter((r) => selected.has(r.key) && !mapped.has(r.key))
-  const invalid = chosen.filter((r) => !validScopeName(collectionFor(r)))
+  const invalid = chosen.filter((r) => !validName(collectionFor(r)))
+  const ready = isDir || (!!target.bucket && !!target.scope)
 
   const toggle = (key: string) =>
     setSelected((prev) => {
@@ -102,7 +109,10 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
       chosen.map((r) => ({
         sourceSchema: r.schema,
         sourceTable: r.table,
-        target: { bucket: target.bucket, scope: target.scope, collection: collectionFor(r), createIfMissing: willCreate(r) && (deferred[r.key] ?? true) },
+        // Couchbase keeps the 1.0 target form; other kinds send a 2.0 location (OC-036).
+        ...(isDir
+          ? { location: { kind: 'directory' as const, folder: collectionFor(r), createIfMissing: true } }
+          : { target: { bucket: target.bucket, scope: target.scope, collection: collectionFor(r), createIfMissing: willCreate(r) && (deferred[r.key] ?? true) } }),
       })),
       {
         onSuccess: (results) => {
@@ -123,7 +133,11 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
         <p className="max-w-3xl text-[13px] text-muted">{t('tables.intro')}</p>
       </div>
       <section aria-label={t('tables.targetDefaults')} className="max-w-3xl rounded-[var(--radius-card)] border border-border bg-surface p-4">
-        <KeyspacePicker connId={project.target?.id ?? ''} value={target} onChange={setTarget} scopeOnly />
+        {isDir ? (
+          <p className="text-[13px] text-muted">{t('tables.directoryIntro')}</p>
+        ) : (
+          <KeyspacePicker connId={project.target?.id ?? ''} value={target} onChange={setTarget} scopeOnly />
+        )}
       </section>
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle" aria-hidden />
@@ -138,18 +152,19 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
               </th>
               <th scope="col" className="px-3 py-2 font-medium">{t('tables.table')}</th>
               <th scope="col" className="px-3 py-2 font-medium">{t('tables.rows')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t('tables.targetCollection')}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t(isDir ? 'tables.targetFolder' : 'tables.targetCollection')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => {
               const tb = tableOf(r)
-              const m = mapped.get(r.key)
-              const checked = !!m || selected.has(r.key)
+              const own = mapped.get(r.key)
+              const m = drivenBy.get(r.key) ?? own
+              const checked = !!own || selected.has(r.key)
               return (
                 <tr key={r.key} className="border-t border-border">
                   <td className="px-3 py-2">
-                    <input type="checkbox" aria-label={t('tables.selectTable', { table: r.key })} checked={checked} disabled={!!m || !canEdit} onChange={() => toggle(r.key)} />
+                    <input type="checkbox" aria-label={t('tables.selectTable', { table: r.key })} checked={checked} disabled={!!own || !canEdit} onChange={() => toggle(r.key)} />
                   </td>
                   <td className="px-3 py-2">
                     <span className="flex items-center gap-2">
@@ -163,15 +178,16 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
                     {m ? (
                       <Link to={`/projects/${project.id}/mappings/${m.id}`} className="flex items-center gap-1.5 text-primary-soft-foreground hover:underline">
                         <CheckCircle2 className="size-3.5 text-success" aria-hidden />
-                        {t('tables.mappedTo', { keyspace: `${m.target.bucket}.${m.target.scope}.${m.target.collection}` })}
+                        {t('tables.mappedTo', { keyspace: formatLocation(m.location) })}
+                        {m.mode === 'composed' ? <Badge tone="primary">{t('composer.badge')}</Badge> : null}
                       </Link>
                     ) : selected.has(r.key) ? (
                       <span className="flex flex-wrap items-center gap-2">
                         <Input
-                          aria-label={t('tables.collectionFor', { table: r.key })}
+                          aria-label={t(isDir ? 'tables.folderFor' : 'tables.collectionFor', { table: r.key })}
                           value={collectionFor(r)}
                           onChange={(e) => { const v = e.target.value; setNames((n) => ({ ...n, [r.key]: v })) }}
-                          invalid={!validScopeName(collectionFor(r))}
+                          invalid={!validName(collectionFor(r))}
                           className="h-8 w-56 font-mono text-xs"
                         />
                         {willCreate(r) ? (
@@ -208,7 +224,7 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
             </Button>
           ) : null}
           {canEdit ? (
-            <Button disabled={!chosen.length || !target.bucket || !target.scope || invalid.length > 0} loading={bulk.isPending} onClick={create}>
+            <Button disabled={!chosen.length || !ready || invalid.length > 0} loading={bulk.isPending} onClick={create}>
               {t('tables.create', { count: chosen.length })}
             </Button>
           ) : null}

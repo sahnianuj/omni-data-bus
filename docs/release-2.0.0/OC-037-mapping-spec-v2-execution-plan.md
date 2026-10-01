@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E7 Foundations 2.0 | P0 | 5 | OC-021, OC-022, OC-025 | Not started |
+| E7 Foundations 2.0 | P0 | 5 | OC-021, OC-022, OC-025 | Implemented |
 
 ## User story
 As a **developer on Omni-Data-Bus**, I want one mapping model that can express nested and many-to-many relations, compiled into one execution plan used by the migration pipeline, the preview and the headless runner, so that relationship mapping (OC-043 – OC-046), the composer (OC-047) and exported scripts (OC-051) all build identical documents.
@@ -95,3 +95,12 @@ type RelationStep struct {
 | Test | Location | Verifies |
 |---|---|---|
 | `upgradeSpec.test.ts` › `AC5: matches server fixtures` | `src/features/mapping/upgradeSpec.test.ts` | Shared `testdata/specs` |
+
+## Implementation notes (as built)
+- **Upgrade on decode.** `Spec.UnmarshalJSON` reads any version and runs `UpgradeV1`. `SourceRef.UnmarshalJSON` accepts `{embed}` as `{relation}`. So every read path gets v2: the mappings service, specs frozen on 1.0 jobs, and bundles later. Nothing is written on read. The CAS and version stay the same (AC3, covered on memstore through the HTTP API and on Couchbase in `internal/store/cbstore/mappings_upgrade_integration_test.go`), and the next save stores v2. `mapping.VersionOf(raw)` reports the stored version without upgrading. `root` is added when the mapping is read or created.
+- **Rename.** In Go and in the API data, `Embed` became `Relation`, `Spec.Embeds` became `Spec.Relations` and `SourceRef.Embed` became `SourceRef.Relation`. The user-facing "embed" action, dialog, candidates and `EMBED_*` issue codes keep their names. On the canvas, a relation is still called an embed.
+- **Not yet supported.** The model accepts every v2 field (`via`, `lookupOnly`, `shape`/`valueColumn`/`keyColumn`, `filter`, `overflow`, `strategy`, `aggregates`, `from: via`). `mapping.Unsupported` and `ValidateRelationTree` reject each one with `RELATION_UNSUPPORTED`, naming the story that adds it (OC-043 to OC-046); those stories remove the matching case. The tree codes are `RELATION_PARENT_MISSING`, `RELATION_CYCLE` and `RELATION_TOO_DEEP`. The depth limit is `OC_MAX_RELATION_DEPTH` (default 4, clamped to 6).
+- **`internal/plan`.** `Compile(Input{Spec, Root, Table, Related, Options})` returns the plan, the compiler's issues, and an `*plan.Error` for a structural failure (`RELATION_*`, or `SOURCE_TABLE_MISSING` for a related table that's gone). The plan holds the root projection, the relation steps in topological order with their columns, the batched lookups, and `NewProgram()` for each transform worker. A `Program` isn't safe for concurrent use, so each worker compiles its own. The pipeline's `ResolveEmbeds` stage is now `ResolveRelations`. `related.Plans` resolves a nested relation's join against its parent relation's table, and adds a child's join columns to its parent's projection. Resolving nested rows at runtime is OC-043.
+- **Hash.** The hash is the SHA-256 of a canonical JSON that covers only what decides the documents: the design, key, type field, null handling, expiry, active field mappings, relation steps and root columns. Auto-map confidence, reasons and rejected suggestions are left out. It is recorded per mapping as `jobs.options.planHashes`, a map rather than a single `planHash`, because a job migrates several mappings.
+- **AC2 parity.** Before the refactor, the 1.0 code wrote `testdata/specs/v1/customer_address_orders.json` and recorded the SHA-256 of all 2,000 documents it built (`internal/pipeline/testdata/plan_parity_1.0.json`). `TestPlan_AC2_V1ParityGolden` reproduces that hash with the upgraded spec through the plan. Its capturing writer means it needs PostgreSQL only.
+- **Web.** `src/features/mapping/upgradeSpec.ts` mirrors `UpgradeV1`. Every mapping response is passed through it (`upgradeView`). `upgradeSpec.test.ts` runs the Go fixtures in `backend/internal/mapping/testdata/specs/{v1,v2}`; empty defaults that Go's encoder writes are compacted before comparing. `api/bundle.schema.json` doesn't exist yet: OC-050 creates it with the v2 spec.

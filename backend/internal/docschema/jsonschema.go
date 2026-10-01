@@ -23,7 +23,7 @@ var silentKeywords = map[string]bool{
 
 var supportedKeywords = map[string]bool{
 	"type": true, "properties": true, "required": true, "items": true, "format": true,
-	"description": true, "$ref": true, "anyOf": true, "oneOf": true,
+	"description": true, "$ref": true, "anyOf": true, "oneOf": true, "const": true,
 }
 
 type jsImporter struct {
@@ -31,6 +31,7 @@ type jsImporter struct {
 	warnings []string
 	warned   map[string]bool
 	stack    []string // $refs being expanded (cycle detection)
+	hints    []ConstantHint
 }
 
 // FromJSONSchema imports a JSON Schema (draft 2020-12 or draft-07 subset, OC-015 way 3):
@@ -60,7 +61,7 @@ func FromJSONSchema(data []byte) (Schema, []string, error) {
 	if f.Children == nil {
 		f.Children = []DocField{}
 	}
-	return Schema{Root: f, Source: SourceJSONSchema}, imp.warnings, nil
+	return Schema{Root: f, Source: SourceJSONSchema, ConstantHints: imp.hints}, imp.warnings, nil
 }
 
 func (imp *jsImporter) warn(path, keyword string) {
@@ -225,7 +226,41 @@ func (imp *jsImporter) field(n *ordered, name, path string) (DocField, bool, err
 	default:
 		f.Type = Any
 	}
+	if f.Type.Scalar() && f.Type != Any {
+		imp.example(n, &f, path)
+	}
 	return f, nullable, nil
+}
+
+// example takes a scalar field's example from const, examples[0] or default (OC-059); const
+// also becomes a constant hint.
+func (imp *jsImporter) example(n *ordered, f *DocField, path string) {
+	var v any
+	if c, ok := n.vals["const"]; ok {
+		v = c
+	} else if ex, ok := n.vals["examples"].([]any); ok && len(ex) > 0 {
+		v = ex[0]
+	} else if d, ok := n.vals["default"]; ok {
+		v = d
+	}
+	switch v.(type) {
+	case string, json.Number, bool:
+	default:
+		return
+	}
+	if s, ok := v.(string); ok {
+		if r := []rune(s); len(r) > MaxExampleRunes {
+			v = string(r[:MaxExampleRunes]) + "…"
+		}
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	f.Example = raw
+	if _, isConst := n.vals["const"]; isConst && !strings.Contains(path, "[]") {
+		imp.hints = append(imp.hints, ConstantHint{FieldID: f.ID, Value: raw, Reason: "schema-const"})
+	}
 }
 
 // kv is one entry of an ordered JSON object.
@@ -286,6 +321,9 @@ func exportField(f *DocField) omap {
 	}
 	if f.Description != "" {
 		m = append(m, kv{"description", f.Description})
+	}
+	if len(f.Example) > 0 {
+		m = append(m, kv{"examples", []json.RawMessage{f.Example}})
 	}
 	switch f.Type {
 	case Object:

@@ -3,6 +3,7 @@ import { projectKeys } from '@/features/projects/api'
 import { api, call } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
 import type { DocSchema, MappingSpec, MappingTarget, MappingView } from './types'
+import { upgradeView } from './upgradeSpec'
 
 export type CreateMappingRequest = components['schemas']['CreateMappingRequest']
 export type MappingPreviewRequest = components['schemas']['MappingPreviewRequest']
@@ -24,7 +25,7 @@ export function useMapping(projectId: string, id: string) {
   return useQuery({
     queryKey: mappingKeys.one(projectId, id),
     staleTime: Infinity, // the workbench owns the live copy; refetch only on reload
-    queryFn: () => call(api.GET('/api/v1/projects/{id}/mappings/{mid}', { params: { path: { id: projectId, mid: id } } })),
+    queryFn: () => fetchMapping(projectId, id),
   })
 }
 
@@ -64,7 +65,7 @@ export function useDeleteMapping(projectId: string) {
 
 /** PUT with If-Match; a stale version is a 412 MAPPING_VERSION_CONFLICT ApiError. */
 export function saveMapping(projectId: string, id: string, version: number, spec: MappingSpec, target?: MappingTarget): Promise<MappingView> {
-  return call(
+  return v2(
     api.PUT('/api/v1/projects/{id}/mappings/{mid}', {
       params: { path: { id: projectId, mid: id }, header: { 'If-Match': `"${version}"` } },
       body: { spec, ...(target ? { target } : {}) },
@@ -73,14 +74,29 @@ export function saveMapping(projectId: string, id: string, version: number, spec
 }
 
 export function fetchMapping(projectId: string, id: string): Promise<MappingView> {
-  return call(api.GET('/api/v1/projects/{id}/mappings/{mid}', { params: { path: { id: projectId, mid: id } } }))
+  return v2(api.GET('/api/v1/projects/{id}/mappings/{mid}', { params: { path: { id: projectId, mid: id } } }))
+}
+
+/** Calls the API and upgrades the returned mapping's spec to v2 (a cached 1.0 response, OC-037 AC5). */
+function v2(req: Parameters<typeof call<MappingView>>[0]): Promise<MappingView> {
+  return call(req).then(upgradeView)
 }
 
 export function runAutomap(projectId: string, id: string, version: number, mode: 'fill' | 'reset'): Promise<MappingView> {
-  return call(
+  return v2(
     api.POST('/api/v1/projects/{id}/mappings/{mid}/automap', {
       params: { path: { id: projectId, mid: id }, header: { 'If-Match': `"${version}"` } },
       body: { mode },
+    }),
+  )
+}
+
+/** Auto-maps one bound scope of a composed document, or all of them from the root down (OC-049). */
+export function runAutomapScope(projectId: string, id: string, version: number, body: { nodeId: string } | { allScopes: true }): Promise<MappingView> {
+  return v2(
+    api.POST('/api/v1/projects/{id}/mappings/{mid}/automap', {
+      params: { path: { id: projectId, mid: id }, header: { 'If-Match': `"${version}"` } },
+      body: { mode: 'fill', ...body },
     }),
   )
 }
@@ -89,7 +105,7 @@ export type AddEmbedRequest = components['schemas']['AddEmbedRequest']
 
 /** Embeds a related table (OC-021), generating and auto-mapping its fields when asked. */
 export function addEmbed(projectId: string, id: string, version: number, body: AddEmbedRequest): Promise<MappingView> {
-  return call(
+  return v2(
     api.POST('/api/v1/projects/{id}/mappings/{mid}/embeds', {
       params: { path: { id: projectId, mid: id }, header: { 'If-Match': `"${version}"` } },
       body,
@@ -97,13 +113,29 @@ export function addEmbed(projectId: string, id: string, version: number, body: A
   )
 }
 
-export function replaceDesign(projectId: string, id: string, version: number, docSchema: DocSchema, strategy: 'replace' | 'merge') {
+export function replaceDesign(projectId: string, id: string, version: number, docSchema: DocSchema, strategy: 'replace' | 'merge' | 'reconcile') {
   return call(
     api.POST('/api/v1/projects/{id}/mappings/{mid}/design', {
       params: { path: { id: projectId, mid: id }, header: { 'If-Match': `"${version}"` } },
       body: { docSchema, strategy },
     }),
   )
+}
+
+export type DesignDiff = components['schemas']['DesignDiff']
+export type ReconcileResult = components['schemas']['ReconcileResult']
+
+/** A revised design with the current field ids kept where fields still exist, and the diff (OC-061). */
+export function reconcileDesign(current: DocSchema, incoming: DocSchema, declined: string[] = []): Promise<ReconcileResult> {
+  return call(api.POST('/api/v1/doc-schemas/reconcile', { body: { current, incoming, ...(declined.length ? { declined } : {}) } }))
+}
+
+/** The mapping sheet (OC-061) as text, through the API client (so the session is sent). */
+export async function mappingSheet(projectId: string, id: string, format: 'csv' | 'md'): Promise<{ text: string; fileName: string }> {
+  const { data, response } = await api.GET('/api/v1/projects/{id}/mappings/{mid}/mapping-sheet', { params: { path: { id: projectId, mid: id }, query: { format } }, parseAs: 'text' })
+  if (!response.ok || typeof data !== 'string') throw new Error(`Export failed (${response.status})`)
+  const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? `mapping-sheet.${format}`
+  return { text: data, fileName }
 }
 
 export function validateMapping(projectId: string, id: string) {
@@ -114,8 +146,17 @@ export function previewMapping(projectId: string, id: string, body: MappingPrevi
   return call(api.POST('/api/v1/projects/{id}/mappings/{mid}/preview', { params: { path: { id: projectId, mid: id } }, body }))
 }
 
-export function inferDocSchema(kind: 'json-sample' | 'json-schema', content: string): Promise<InferResult> {
-  return call(api.POST('/api/v1/doc-schemas/infer', { body: { kind, content } }))
+export type BindingSuggestions = components['schemas']['BindingSuggestions']
+export type BindingSuggestion = components['schemas']['BindingSuggestion']
+export type BindingCandidate = components['schemas']['BindingCandidate']
+
+/** Proposed driving table and bindings for unbound objects and arrays (OC-060); changes nothing. */
+export function suggestBindings(projectId: string, id: string, body: { nodeId?: string; root?: boolean; specOverride?: MappingSpec }): Promise<BindingSuggestions> {
+  return call(api.POST('/api/v1/projects/{id}/mappings/{mid}/suggest-bindings', { params: { path: { id: projectId, mid: id } }, body }))
+}
+
+export function inferDocSchema(kind: 'json-sample' | 'json-schema', content: string, fileName?: string): Promise<InferResult> {
+  return call(api.POST('/api/v1/doc-schemas/infer', { body: { kind, content, ...(fileName ? { fileName } : {}) } }))
 }
 
 export function inferFromCollection(connId: string, target: MappingTarget): Promise<InferResult> {

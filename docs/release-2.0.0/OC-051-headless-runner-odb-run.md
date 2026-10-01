@@ -58,6 +58,8 @@ odb run verify --bundle … --state-dir …   # OC-030/OC-041 verification again
 - `CGO_ENABLED=0` static builds, the same `odb` binary as the server (the `run` subcommand), about 30 MB.
 - Published on each release: `odb_<ver>_<os>_<arch>.tar.gz` plus `SHA256SUMS` plus a cosign signature. The container image is unchanged (`odb run` works in it).
 
+> **From OC-058 (AC7):** the `start` event and `report.json` carry `{version, commit}` from `buildinfo.Get()`; `TestRun_AC7_BuildInfoInStartAndReport` (`internal/headless/progress_test.go`) lands with this story.
+
 ## Acceptance criteria & unit tests
 
 ### AC1 — End-to-end run without the tool

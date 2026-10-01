@@ -57,7 +57,7 @@ func TestEmbedCandidates_AC1_ParentsAndChildren(t *testing.T) {
 	require.InDelta(t, 600, got[1].RowsPerParent, 0.001, "1.2M orders over 2,000 customers")
 
 	// An existing embed is marked.
-	s := Spec{Embeds: []Embed{{ID: "emb_1", Kind: EmbedOneToMany, Table: TableRef{"shop", "orders"}, Join: got[1].Join}}}
+	s := Spec{Relations: []Relation{{ID: "emb_1", Kind: EmbedOneToMany, Table: TableRef{"shop", "orders"}, Join: got[1].Join}}}
 	got = Candidates(snap, snap.Table("shop", "customer"), &s)
 	require.Empty(t, got[0].EmbedID)
 	require.Equal(t, "emb_1", got[1].EmbedID)
@@ -79,7 +79,7 @@ func TestEmbedCandidates_AC1_CompositeFK(t *testing.T) {
 func TestEmbedEstimates_AC6_Warnings(t *testing.T) {
 	snap := shopSnap()
 	customer, orders := snap.Table("shop", "customer"), snap.Table("shop", "orders")
-	e := Embed{ID: "emb_2", Kind: EmbedOneToMany, Table: TableRef{"shop", "orders"}, TargetFieldID: "f_orders", Limit: 100}
+	e := Relation{ID: "emb_2", Kind: EmbedOneToMany, Table: TableRef{"shop", "orders"}, TargetFieldID: "f_orders", Limit: 100}
 	issues := EmbedEstimates(e, customer, orders, "orders")
 	require.Len(t, issues, 1)
 	require.Equal(t, CodeEmbedCardinality, issues[0].Code)
@@ -97,17 +97,17 @@ func TestEmbedEstimates_AC6_Warnings(t *testing.T) {
 	// A small child table raises nothing; many-to-one never does.
 	e.Limit = 1000
 	require.Empty(t, EmbedEstimates(e, customer, snap.Table("shop", "address"), "orders"))
-	require.Empty(t, EmbedEstimates(Embed{Kind: EmbedManyToOne}, customer, orders, "x"))
+	require.Empty(t, EmbedEstimates(Relation{Kind: EmbedManyToOne}, customer, orders, "x"))
 
 	// They reach validation (OC-022) as warnings.
 	s := embedSpec()
-	s.Embeds[1].Limit = 100
+	s.Relations[1].Limit = 100
 	var warns []string
-	for _, i := range ValidateEmbeds(&s, customer, snapRel(snap)) {
+	for _, i := range ValidateRelations(&s, customer, snapRel(snap)) {
 		require.NotEqual(t, SeverityError, i.Severity, i.Message)
 		warns = append(warns, i.Code)
 	}
-	require.Equal(t, []string{CodeEmbedCardinality}, warns)
+	require.Equal(t, []string{CodeEmbedCardinality, CodeRelationNoIndex}, warns, "orders.customer_id has no index in the fixture (OC-042)")
 }
 
 func snapRel(snap *schema.Snapshot) RelatedTables {
@@ -125,7 +125,7 @@ func embedSpec() Spec {
 			}}},
 		}}},
 		Key: KeySpec{Template: "customer::{customer_id}"},
-		Embeds: []Embed{
+		Relations: []Relation{
 			{ID: "emb_1", Kind: EmbedManyToOne, Table: TableRef{"shop", "address"}, Join: []JoinPair{{"address_id", "address_id"}}, TargetFieldID: "f_addr"},
 			{
 				ID: "emb_2", Kind: EmbedOneToMany, Table: TableRef{"shop", "orders"}, Join: []JoinPair{{"customer_id", "customer_id"}}, TargetFieldID: "f_orders",
@@ -134,8 +134,8 @@ func embedSpec() Spec {
 		},
 		FieldMappings: []FieldMapping{
 			{ID: "m1", TargetFieldID: "f_id", Sources: []SourceRef{{Column: "customer_id"}}, Origin: OriginAuto, State: StateActive},
-			{ID: "m2", TargetFieldID: "f_city", Sources: []SourceRef{{Column: "city", Embed: "emb_1"}}, Origin: OriginAuto, State: StateActive},
-			{ID: "m3", TargetFieldID: "f_total", Sources: []SourceRef{{Column: "total", Embed: "emb_2"}}, Origin: OriginManual, State: StateActive},
+			{ID: "m2", TargetFieldID: "f_city", Sources: []SourceRef{{Column: "city", Relation: "emb_1"}}, Origin: OriginAuto, State: StateActive},
+			{ID: "m3", TargetFieldID: "f_total", Sources: []SourceRef{{Column: "total", Relation: "emb_2"}}, Origin: OriginManual, State: StateActive},
 		},
 	}
 	s.Normalize()
@@ -144,11 +144,11 @@ func embedSpec() Spec {
 
 func TestEmbeds_ScopedAndFields(t *testing.T) {
 	s := embedSpec()
-	require.Equal(t, map[string]string{"f_city": "emb_1", "f_total": "emb_2"}, EmbedFields(&s))
-	sc := Scoped(&s, s.Embeds[1])
+	require.Equal(t, map[string]string{"f_city": "emb_1", "f_total": "emb_2"}, RelationFields(&s))
+	sc := Scoped(&s, s.Relations[1])
 	require.Len(t, sc.DocSchema.Root.Children, 1)
 	require.Equal(t, "total", sc.DocSchema.Root.Children[0].Name)
 	require.Equal(t, []FieldMapping{{ID: "m3", TargetFieldID: "f_total", Sources: []SourceRef{{Column: "total"}}, Transforms: []Step{}, Origin: OriginManual, State: StateActive}}, sc.FieldMappings)
-	require.Equal(t, "emb_2", s.Embeds[1].ID)
-	require.Equal(t, DefaultEmbedLimit, Embed{}.EffectiveLimit())
+	require.Equal(t, "emb_2", s.Relations[1].ID)
+	require.Equal(t, DefaultEmbedLimit, Relation{}.EffectiveLimit())
 }

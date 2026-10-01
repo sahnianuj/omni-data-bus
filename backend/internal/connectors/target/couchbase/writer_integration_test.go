@@ -68,7 +68,7 @@ func (it itTarget) cfg() json.RawMessage {
 func (it itTarget) open(t *testing.T, mode, coll string) target.DocWriter {
 	t.Helper()
 	w, err := New().OpenWriter(context.Background(), it.cfg(), connectors.Credentials{Password: it.pass},
-		target.WriteOptions{Bucket: it.bucket, Scope: it.scope, Collection: coll, Mode: mode, Concurrency: 32, Expiry: time.Hour})
+		target.WriteOptions{Location: target.Location{Kind: target.KindCouchbase, Bucket: it.bucket, Scope: it.scope, Collection: coll}, Mode: mode, Concurrency: 32, Expiry: time.Hour})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
 	return w
@@ -103,7 +103,7 @@ func TestWriter_AC2_Integration_AllModes(t *testing.T) {
 	// A missing collection is reported when the writer opens, not after a timeout per document.
 	start := time.Now()
 	_, err = New().OpenWriter(ctx, it.cfg(), connectors.Credentials{Password: it.pass},
-		target.WriteOptions{Bucket: it.bucket, Scope: it.scope, Collection: "no_such_collection", Mode: "upsert"})
+		target.WriteOptions{Location: target.Location{Kind: target.KindCouchbase, Bucket: it.bucket, Scope: it.scope, Collection: "no_such_collection"}, Mode: "upsert"})
 	require.True(t, problem.HasCode(err, target.CodeKeyspaceMissing), "%v", err)
 	require.Less(t, time.Since(start), 10*time.Second)
 }

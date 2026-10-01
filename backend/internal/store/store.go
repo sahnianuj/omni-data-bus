@@ -178,7 +178,7 @@ type Snapshots interface {
 	ListIDs(ctx context.Context, ws WorkspaceID, connectionID string) ([]string, error)
 }
 
-// MappingTarget is where a mapping writes.
+// MappingTarget is where a 1.0 mapping writes (Couchbase only); 2.0 uses Location (OC-036).
 type MappingTarget struct {
 	Bucket          string `json:"bucket"`
 	Scope           string `json:"scope"`
@@ -189,12 +189,14 @@ type MappingTarget struct {
 // Mapping is one source table → target collection mapping of a project (OC-035). Spec and
 // AutomapStats are opaque to the store (internal/mapping owns them).
 type Mapping struct {
-	ID           string          `json:"id"`
-	WorkspaceID  WorkspaceID     `json:"workspaceId"`
-	ProjectID    string          `json:"projectId"`
-	SourceSchema string          `json:"sourceSchema"`
-	SourceTable  string          `json:"sourceTable"`
+	ID           string      `json:"id"`
+	WorkspaceID  WorkspaceID `json:"workspaceId"`
+	ProjectID    string      `json:"projectId"`
+	SourceSchema string      `json:"sourceSchema"`
+	SourceTable  string      `json:"sourceTable"`
+	// Target is the 1.0 Couchbase form of Location, kept in sync by SetLocation; read Where().
 	Target       MappingTarget   `json:"target"`
+	Location     Location        `json:"location"`
 	Spec         json.RawMessage `json:"spec"`
 	AutomapStats json.RawMessage `json:"automapStats,omitempty"`
 	// Status is draft | ready | stale, refreshed by the mapping service on every save.
@@ -211,7 +213,7 @@ type Mappings interface {
 	Create(ctx context.Context, ws WorkspaceID, m Mapping) (Mapping, error)
 	Get(ctx context.Context, ws WorkspaceID, id string) (Mapping, error)
 	ListForProject(ctx context.Context, ws WorkspaceID, projectID string) ([]Mapping, error)
-	// Update saves Target, Spec, AutomapStats and Status; m.Version must equal the stored version.
+	// Update saves Target, Location, Spec, AutomapStats and Status; m.Version must equal the stored version.
 	Update(ctx context.Context, ws WorkspaceID, m Mapping) (Mapping, error)
 	Delete(ctx context.Context, ws WorkspaceID, id string) error
 }
@@ -225,7 +227,9 @@ type Store interface {
 	Connections() Connections
 	Snapshots() Snapshots
 	Mappings() Mappings
+	Relationships() Relationships
 	Jobs() Jobs
+	Nodes() Nodes
 	Ping(ctx context.Context) error
 	Close() error
 }

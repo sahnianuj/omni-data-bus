@@ -20,7 +20,8 @@ import (
 )
 
 func TestNewHandler_AC4_ServesHealthAndVersion(t *testing.T) {
-	h := NewHandler(config.Config{}, slog.New(slog.NewTextHandler(io.Discard, nil)), BuildInfo{Version: "1.2.3", Commit: "abc"}, Deps{})
+	h := NewHandler(config.Config{ExposeBuildInfo: true}, slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BuildInfo{Version: "1.2.3", Commit: "abc", Channel: "release"}, Deps{})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -30,7 +31,8 @@ func TestNewHandler_AC4_ServesHealthAndVersion(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/version", nil))
 	var v map[string]string
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &v))
-	require.Equal(t, map[string]string{"version": "1.2.3", "commit": "abc"}, v)
+	// Anonymous callers get only the release and channel (OC-058 AC2).
+	require.Equal(t, map[string]string{"version": "1.2.3", "channel": "release"}, v)
 }
 
 func TestServe_AC6_StopsOnContextCancel(t *testing.T) {

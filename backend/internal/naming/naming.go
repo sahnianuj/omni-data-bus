@@ -132,3 +132,44 @@ func SingularSnake(name string) string {
 	w[len(w)-1] = Singular(w[len(w)-1])
 	return strings.Join(w, "_")
 }
+
+// CollectionName turns a table name into a valid collection name: snake_case,
+// [a-z0-9_%-] only, no leading "_" or "%", at most 251 characters (Order Details → order_details).
+func CollectionName(table string) string {
+	var b strings.Builder
+	for _, r := range Snake(table) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_', r == '-', r == '%':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r + ('a' - 'A'))
+		default:
+			b.WriteByte('_')
+		}
+	}
+	out := strings.TrimLeft(b.String(), "_%")
+	for strings.Contains(out, "__") {
+		out = strings.ReplaceAll(out, "__", "_")
+	}
+	out = strings.Trim(out, "_")
+	if len(out) > 251 {
+		out = strings.TrimRight(out[:251], "_")
+	}
+	if out == "" {
+		out = "collection"
+	}
+	return out
+}
+
+// FolderName turns a table or collection name into a valid directory folder segment: as
+// CollectionName, without "%" and at most 64 bytes (OC-038 folder rules).
+func FolderName(name string) string {
+	out := strings.ReplaceAll(CollectionName(name), "%", "_")
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	if out = strings.Trim(out, "_"); out == "" {
+		out = "collection"
+	}
+	return out
+}

@@ -1,7 +1,6 @@
 package mappings
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,8 +26,11 @@ func (h Handlers) Routes(r chi.Router) {
 		r.Get("/projects/{id}/mappings/{mid}", h.get)
 		r.Post("/projects/{id}/mappings/{mid}/validate", h.validate)
 		r.Post("/projects/{id}/mappings/{mid}/preview", h.preview)
+		r.Post("/projects/{id}/mappings/{mid}/suggest-bindings", h.suggestBindings)
 		r.Post("/doc-schemas/infer", h.infer)
 		r.Post("/doc-schemas/export", h.export)
+		r.Post("/doc-schemas/reconcile", h.reconcile)
+		r.Get("/projects/{id}/mappings/{mid}/mapping-sheet", h.mappingSheet)
 		r.Post("/connections/{id}/buckets/{bucket}/scopes/{scope}/collections/{collection}/infer-schema", h.inferFromCollection)
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireRole(store.RoleEditor))
@@ -238,6 +240,23 @@ func (h Handlers) preview(w http.ResponseWriter, r *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, res)
 }
 
+func (h Handlers) suggestBindings(w http.ResponseWriter, r *http.Request) {
+	var in SuggestInput
+	if r.ContentLength != 0 {
+		if err := decodeLarge(w, r, &in); err != nil {
+			problem.Write(w, r, err)
+			return
+		}
+	}
+	res, err := h.Svc.SuggestBindings(r.Context(), principal(r).WorkspaceID, httpapi.URLParam(r, "id"), httpapi.URLParam(r, "mid"), in)
+	if err != nil {
+		problem.Write(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httpapi.WriteJSON(w, http.StatusOK, res)
+}
+
 // InferResult is a design derived from a sample, a JSON Schema or existing documents.
 type InferResult struct {
 	DocSchema docschema.Schema `json:"docSchema"`
@@ -246,29 +265,20 @@ type InferResult struct {
 }
 
 type inferRequest struct {
-	Kind    string `json:"kind" validate:"required,oneof=json-sample json-schema"`
-	Content string `json:"content" validate:"required"`
+	Kind     string `json:"kind" validate:"required,oneof=json-sample json-schema"`
+	Content  string `json:"content" validate:"required"`
+	FileName string `json:"fileName,omitempty" validate:"max=255"`
 }
 
+// infer imports a customer design (OC-015, OC-059): the result carries the reference
+// document, examples, constant hints and what was imported.
 func (h Handlers) infer(w http.ResponseWriter, r *http.Request) {
 	var in inferRequest
 	if err := decodeLarge(w, r, &in); err != nil {
 		problem.Write(w, r, err)
 		return
 	}
-	var (
-		s        docschema.Schema
-		warnings []string
-		err      error
-	)
-	if in.Kind == "json-schema" {
-		s, warnings, err = docschema.FromJSONSchema([]byte(in.Content))
-	} else {
-		var docs []json.RawMessage
-		if docs, err = docschema.ParseSamples([]byte(in.Content)); err == nil {
-			s, warnings, err = docschema.InferFromSamples(docs)
-		}
-	}
+	s, warnings, err := docschema.Import(in.Kind, in.Content, in.FileName)
 	if err != nil {
 		problem.Write(w, r, err)
 		return
@@ -323,5 +333,6 @@ func (h Handlers) inferFromCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Source = docschema.SourceCollectionSample
+	docschema.StripExamples(&s) // no production values in the mapping (OC-059)
 	httpapi.WriteJSON(w, http.StatusOK, InferResult{DocSchema: s, Warnings: warnings, Method: method})
 }

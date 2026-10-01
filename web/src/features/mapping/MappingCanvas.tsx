@@ -11,7 +11,7 @@ import { buildEdges, parentMap, type Edge } from './buildEdges'
 import { canConnect } from './canConnect'
 import { canvasLeaves, embedColumns, embedContainer, fieldsById, removeEmbed } from './embeds'
 import { addSource, connect, createFieldAndMap, disconnect, OpError, replaceSource } from './mappingOps'
-import { RelatedTables } from './RelatedTables'
+import { RelatedTree } from './RelatedTree'
 import { selectVisible, type SourceState, type TargetState } from './selectVisible'
 import { useWorkbench } from './store'
 import type { CanvasColumn, DocField, Embed, MappingSpec } from './types'
@@ -113,13 +113,13 @@ export function MappingCanvas() {
   const srcRows = useMemo<SourceRow[]>(() => {
     const shown = new Set(vis.sources)
     const rows: SourceRow[] = tableColumns.filter((c) => shown.has(c.name)).map((c) => ({ kind: 'column', column: c }))
-    for (const e of spec.embeds) {
+    for (const e of spec.relations) {
       const cols = columns.filter((c) => c.embed === e.id && shown.has(c.name))
       if (cols.length === 0 && filtered(filter, search)) continue
       rows.push({ kind: 'embed', embed: e }, ...cols.map((c) => ({ kind: 'column' as const, column: c })))
     }
     return rows
-  }, [tableColumns, columns, spec.embeds, vis.sources, filter, search])
+  }, [tableColumns, columns, spec.relations, vis.sources, filter, search])
   const isFiltered = filtered(filter, search)
   const tRows = useMemo(() => targetRows(spec, isFiltered ? new Set(vis.targets) : null, collapsed), [spec, isFiltered, vis.targets, collapsed])
   const edges = useMemo(() => buildEdges(spec, collapsed, parentMap(spec), issues), [spec, collapsed, issues])
@@ -133,16 +133,16 @@ export function MappingCanvas() {
   const tv = useVirtualizer({ count: tRows.length, getScrollElement: () => tgtRef.current, estimateSize: () => ROW, overscan: 10, initialRect: { width: 320, height: 600 } })
 
   // A newly added embed lands at the end of both lists: scroll both panes so its fields are in view.
-  const seenEmbeds = useRef(new Set(spec.embeds.map((e) => e.id)))
+  const seenEmbeds = useRef(new Set(spec.relations.map((e) => e.id)))
   useEffect(() => {
-    const fresh = spec.embeds.find((e) => !seenEmbeds.current.has(e.id))
-    seenEmbeds.current = new Set(spec.embeds.map((e) => e.id))
+    const fresh = spec.relations.find((e) => !seenEmbeds.current.has(e.id))
+    seenEmbeds.current = new Set(spec.relations.map((e) => e.id))
     if (!fresh) return
     const si = srcRows.findIndex((r) => r.kind === 'embed' && r.embed.id === fresh.id)
     if (si >= 0) sv.scrollToIndex(si, { align: 'start' })
-    const ti = tgtIndex.get(fresh.targetFieldId)
+    const ti = tgtIndex.get(fresh.targetFieldId ?? '')
     if (ti != null) tv.scrollToIndex(ti, { align: 'start' })
-  }, [spec.embeds, srcRows, tgtIndex, sv, tv])
+  }, [spec.relations, srcRows, tgtIndex, sv, tv])
 
   const colByName = useMemo(() => new Map(columns.map((c) => [c.name, c])), [columns])
   const related = (e: Edge) => !!hover && ((hover.kind === 'source' && e.from === hover.id) || (hover.kind === 'target' && e.to === hover.id))
@@ -170,7 +170,7 @@ export function MappingCanvas() {
     const column = colByName.get(columnName)
     if (!column) return
     // An embedded column dropped outside its embed goes into the embed's object.
-    const embed = column.embed ? spec.embeds.find((e) => e.id === column.embed) : undefined
+    const embed = column.embed ? spec.relations.find((e) => e.id === column.embed) : undefined
     const parent = fields.get(parentId)
     const into = embed ? (embedContainer(spec, embed)?.id ?? parentId) : parent?.type === 'array' && parent.items?.type === 'object' ? parent.items.id : parentId
     try {
@@ -203,22 +203,49 @@ export function MappingCanvas() {
     }
   }
 
-  const embedTargets = useMemo(() => new Set(spec.embeds.map((e) => e.targetFieldId)), [spec.embeds])
+  const embedTargets = useMemo(() => new Set(spec.relations.map((e) => e.targetFieldId)), [spec.relations])
   // Which embed (by position) each embedded column and target field belongs to, for its accent color.
   const embedColor = useMemo(() => {
-    const byEmbed = new Map(spec.embeds.map((e, i) => [e.id, i]))
+    const byEmbed = new Map(spec.relations.map((e, i) => [e.id, i]))
     const byField = new Map<string, number>()
     const mark = (f: DocField, i: number) => {
       byField.set(f.id, i)
       for (const k of kidsOf(f) ?? []) mark(k, i)
     }
-    spec.embeds.forEach((e, i) => {
-      const f = fields.get(e.targetFieldId)
+    spec.relations.forEach((e, i) => {
+      const f = fields.get(e.targetFieldId ?? '')
       if (f) mark(f, i)
     })
     return { byEmbed, byField }
-  }, [spec.embeds, fields])
+  }, [spec.relations, fields])
   const colorOf = (embedId: string) => embedColor.byEmbed.get(embedId)
+  /** How deep a relation is nested (0 = under the root, OC-043). */
+  const depthOf = (id: string): number => {
+    let d = 0
+    for (let r = spec.relations.find((x) => x.id === id); r?.parentId && d < 8; r = spec.relations.find((x) => x.id === r!.parentId)) d++
+    return d
+  }
+  /** The source group's title: the table, the field it fills and how (OC-021, OC-043 – OC-045). */
+  const groupLabel = (e: Embed) => {
+    const field = fields.get(e.targetFieldId ?? '')?.name ?? ''
+    if (e.lookupOnly) return t('embed.groupLookup', { table: e.table.name })
+    if (e.kind === 'many-to-many') return t('embed.groupManyMany', { table: e.table.name, field, via: e.via?.table.name ?? '' })
+    if (e.parentId) {
+      const parent = spec.relations.find((x) => x.id === e.parentId)
+      return t('embed.groupNested', { table: e.table.name, field: e.kind === 'one-to-many' ? `${field}[]` : field, parent: parent?.table.name ?? '' })
+    }
+    return t(e.kind === 'one-to-many' ? 'embed.groupMany' : 'embed.groupOne', { table: e.table.name, field })
+  }
+  /** A target field's relation badge, e.g. "↙ order_items" (OC-043). */
+  const relationBadge = useMemo(() => {
+    const out = new Map<string, string>()
+    for (const e of spec.relations) {
+      if (!e.targetFieldId) continue
+      const arrow = e.kind === 'many-to-one' ? '↗' : e.kind === 'many-to-many' ? '↔' : '↙'
+      out.set(e.targetFieldId, `${arrow} ${e.table.name}`)
+    }
+    return out
+  }, [spec.relations])
   const height = Math.max(srcRows.length, tRows.length) * ROW + HEADER
   const yOf = (i: number, scrollTop: number) => HEADER + i * ROW + ROW / 2 - scrollTop
   // Edges to rows scrolled out of view are pinned to the pane's visible edge instead of
@@ -254,7 +281,7 @@ export function MappingCanvas() {
                     style={{ top: v.start, height: ROW, ...embedAccent(colorOf(e.id)) }}
                   >
                     <CornerDownRight className="size-3.5 shrink-0" style={{ color: embedVar(colorOf(e.id) ?? 0) }} aria-hidden />
-                    <span className="truncate">{t(e.kind === 'one-to-many' ? 'embed.groupMany' : 'embed.groupOne', { table: e.table.name, field: fields.get(e.targetFieldId)?.name ?? '' })}</span>
+                    <span className="truncate" style={{ paddingLeft: depthOf(e.id) * 10 }}>{groupLabel(e)}</span>
                     <Can role="editor">
                       <button
                         type="button"
@@ -297,7 +324,10 @@ export function MappingCanvas() {
                   style={{ top: v.start, height: ROW, ...embedAccent(c.embed ? colorOf(c.embed) : undefined, !(selection?.kind === 'column' && selection.name === c.name)) }}
                 >
                   <span className="flex w-3.5 justify-center">{c.isPrimaryKey ? <KeyRound className="size-3.5 text-warning" aria-label={t('explorer.pk')} /> : null}</span>
-                  <span className={cn('truncate font-mono text-xs', c.embed && 'pl-2')}>{c.column ?? c.name}</span>
+                  <span className={cn('truncate font-mono text-xs', c.embed && 'pl-2')}>
+                    {c.from === 'via' ? <span className="text-subtle">{t('filter.via')} </span> : null}
+                    {c.column ?? c.name}
+                  </span>
                   <span className="ml-auto truncate font-mono text-[11px] text-subtle">{c.udtName}</span>
                   {st === 'ignored' ? <EyeOff className="size-3 text-subtle" aria-label={t('mapping.ignored')} /> : null}
                   <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} />
@@ -306,7 +336,7 @@ export function MappingCanvas() {
             })}
           </div>
         </div>
-        <RelatedTables />
+        <RelatedTree />
       </div>
 
       {/* Edges */}
@@ -405,9 +435,9 @@ export function MappingCanvas() {
                     over && (dragOver?.ok ? 'ring-2 ring-inset ring-primary' : 'ring-2 ring-inset ring-danger'),
                     selection?.kind === 'field' && selection.id === r.field.id && 'bg-primary-soft',
                   )}
-                  style={{ top: v.start, height: ROW, paddingLeft: 12 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || (selection?.kind === 'field' && selection.id === r.field.id))) }}
+                  style={{ top: v.start, height: ROW, paddingLeft: 8 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || (selection?.kind === 'field' && selection.id === r.field.id))) }}
                 >
-                  {st ? <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} /> : <span className="size-2.5" />}
+                  {/* A folder tree: every row has the chevron slot first, so a level's names sit one step right of their parent's. */}
                   {!r.leaf ? (
                     <button
                       type="button"
@@ -416,16 +446,19 @@ export function MappingCanvas() {
                         e.stopPropagation()
                         toggleCollapsed(r.field.id)
                       }}
-                      className="text-subtle"
+                      className="shrink-0 text-subtle"
                     >
                       <ChevronRight className={cn('size-3.5 transition-transform', !collapsed.has(r.field.id) && 'rotate-90')} />
                     </button>
-                  ) : null}
+                  ) : (
+                    <span className="w-3.5 shrink-0" />
+                  )}
+                  {st ? <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} /> : <span className="size-2.5 shrink-0" />}
                   <span className="truncate">{r.field.name}</span>
                   {r.field.required ? <span className="text-danger">{t('mapping.requiredMark')}</span> : null}
                   {embedTargets.has(r.field.id) ? (
-                    <span className="rounded-full px-1.5 text-[10px] font-medium text-white" style={{ background: embedVar(embedColor.byField.get(r.field.id) ?? 0) }}>
-                      {t('embed.badge')}
+                    <span className="rounded-full px-1.5 text-[10px] font-medium text-white" title={t('embed.badge')} style={{ background: embedVar(embedColor.byField.get(r.field.id) ?? 0) }}>
+                      {relationBadge.get(r.field.id) ?? t('embed.badge')}
                     </span>
                   ) : null}
                   <span className="ml-auto font-mono text-[11px] text-subtle">{r.field.type === 'array' ? `array<${r.field.items?.type ?? '?'}>` : r.field.type}</span>

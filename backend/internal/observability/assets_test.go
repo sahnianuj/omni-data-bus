@@ -87,5 +87,5 @@ func TestDashboards_AC6_MetricNamesExist(t *testing.T) {
 			}
 		}
 	}
-	require.Equal(t, "OmniDataBusHighErrorRate,OmniDataBusJobStalled,OmniDataBusWriterThrottled,OmniDataBusProgressPollFailing", strings.Join(alerts, ","))
+	require.Equal(t, "OmniDataBusHighErrorRate,OmniDataBusJobStalled,OmniDataBusWriterThrottled,OmniDataBusProgressPollFailing,OmniDataBusMixedVersions", strings.Join(alerts, ","))
 }

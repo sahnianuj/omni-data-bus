@@ -102,3 +102,18 @@ app.kubernetes.io/component: {{ index . 1 }}
   value: {{ $v | quote }}
 {{- end }}
 {{- end }}
+
+{{/* The directory target's claim: an existing one, or the chart's own (pvc.yaml). */}}
+{{- define "odb.outputClaim" -}}
+{{- .Values.directoryTarget.persistence.existingClaim | default (printf "%s-output" (include "odb.fullname" .)) -}}
+{{- end -}}
+
+{{/* Several worker pods writing one folder need a ReadWriteMany claim (OC-038 AC5). */}}
+{{- define "odb.checkOutput" -}}
+{{- $d := .Values.directoryTarget -}}
+{{- if and $d.enabled (eq .Values.mode "split") (not $d.persistence.existingClaim) (ne $d.persistence.accessMode "ReadWriteMany") -}}
+{{- if or (gt (int .Values.worker.replicas) 1) .Values.worker.autoscaling.enabled -}}
+{{- fail "directoryTarget: with mode split and more than one worker, set directoryTarget.persistence.accessMode: ReadWriteMany (or an existingClaim that is ReadWriteMany)" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

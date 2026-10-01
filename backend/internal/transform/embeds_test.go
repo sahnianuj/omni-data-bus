@@ -36,7 +36,7 @@ func embedFixture(nullHandling string, limit int, empty string) (*mapping.Spec, 
 		}}},
 		Key:          mapping.KeySpec{Template: "customer::{customer_id}"},
 		NullHandling: nullHandling,
-		Embeds: []mapping.Embed{
+		Relations: []mapping.Relation{
 			{ID: "emb_1", Kind: mapping.EmbedManyToOne, Table: mapping.TableRef{Schema: "shop", Name: "address"}, Join: []mapping.JoinPair{{Parent: "address_id", Child: "address_id"}}, TargetFieldID: "f_addr"},
 			{
 				ID: "emb_2", Kind: mapping.EmbedOneToMany, Table: mapping.TableRef{Schema: "shop", Name: "orders"}, Join: []mapping.JoinPair{{Parent: "customer_id", Child: "customer_id"}},
@@ -45,9 +45,9 @@ func embedFixture(nullHandling string, limit int, empty string) (*mapping.Spec, 
 		},
 		FieldMappings: []mapping.FieldMapping{
 			{ID: "m1", TargetFieldID: "f_id", Sources: []mapping.SourceRef{{Column: "customer_id"}}, State: mapping.StateActive},
-			{ID: "m2", TargetFieldID: "f_city", Sources: []mapping.SourceRef{{Column: "city", Embed: "emb_1"}}, State: mapping.StateActive},
-			{ID: "m3", TargetFieldID: "f_oid", Sources: []mapping.SourceRef{{Column: "order_id", Embed: "emb_2"}}, State: mapping.StateActive},
-			{ID: "m4", TargetFieldID: "f_date", Sources: []mapping.SourceRef{{Column: "order_date", Embed: "emb_2"}}, State: mapping.StateActive},
+			{ID: "m2", TargetFieldID: "f_city", Sources: []mapping.SourceRef{{Column: "city", Relation: "emb_1"}}, State: mapping.StateActive},
+			{ID: "m3", TargetFieldID: "f_oid", Sources: []mapping.SourceRef{{Column: "order_id", Relation: "emb_2"}}, State: mapping.StateActive},
+			{ID: "m4", TargetFieldID: "f_date", Sources: []mapping.SourceRef{{Column: "order_date", Relation: "emb_2"}}, State: mapping.StateActive},
 		},
 	}
 	spec.Normalize()

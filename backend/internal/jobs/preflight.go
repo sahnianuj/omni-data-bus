@@ -51,12 +51,16 @@ type Check struct {
 
 // PlannedMapping is a mapping the job will migrate, with what the Review step shows.
 type PlannedMapping struct {
-	MappingID   string              `json:"mappingId"`
-	Table       string              `json:"table"`
+	MappingID string `json:"mappingId"`
+	Table     string `json:"table"`
+	// Target is the 1.0 Couchbase form of Location (zero for other kinds).
 	Target      store.MappingTarget `json:"target"`
+	Location    store.Location      `json:"location"`
 	RowEstimate int64               `json:"rowEstimate"`
-	// TargetEmpty: the collection had no documents (or was created) at pre-flight.
+	// TargetEmpty: the location had no documents (or was created) at pre-flight.
 	TargetEmpty bool `json:"targetEmpty,omitempty"`
+
+	avgRowBytes int64 // the source table's average row size (a document size estimate)
 }
 
 // PreflightResult is the checklist plus the plan it validated.
@@ -75,21 +79,24 @@ type (
 	TestConnFunc func(ctx context.Context, ws store.WorkspaceID, userID, connectionID string) (connectors.TestResult, error)
 	// OpenSourceFunc opens a stored source repository.
 	OpenSourceFunc func(ctx context.Context, ws store.WorkspaceID, connectionID string) (source.Session, store.Connection, error)
-	// OpenKeyspacesFunc opens a stored target keyspace browser.
-	OpenKeyspacesFunc func(ctx context.Context, ws store.WorkspaceID, connectionID string) (target.Keyspaces, store.Connection, error)
+	// TargetPreflightFunc runs the target kind's checks for the job's locations
+	// (connections.Service.PreflightTarget, OC-036).
+	TargetPreflightFunc func(ctx context.Context, ws store.WorkspaceID, connectionID string, locs []target.PreflightLocation) ([]target.LocationPreflight, error)
 	// LatestSchemaFunc returns the latest discovery snapshot.
 	LatestSchemaFunc func(ctx context.Context, ws store.WorkspaceID, connectionID string) (store.DiscoverySnapshot, *schema.Snapshot, error)
 )
 
 // Preflighter runs the pre-flight checks (OC-023).
 type Preflighter struct {
-	Store         store.Store
-	Validate      ValidateFunc
-	TestConn      TestConnFunc
-	OpenSource    OpenSourceFunc
-	OpenKeyspaces OpenKeyspacesFunc
-	Latest        LatestSchemaFunc
-	Timeout       time.Duration
+	Store      store.Store
+	Validate   ValidateFunc
+	TestConn   TestConnFunc
+	OpenSource OpenSourceFunc
+	// Target runs the target kind's location checks (Couchbase: the collection exists or is
+	// created, and whether it already holds documents).
+	Target  TargetPreflightFunc
+	Latest  LatestSchemaFunc
+	Timeout time.Duration
 }
 
 // selectMappings returns the job's mappings: the requested IDs, or every ready mapping.
@@ -186,12 +193,13 @@ func (p *Preflighter) Run(ctx context.Context, ws store.WorkspaceID, userID, pro
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			pm, cs := p.mappingChecks(ctx, ws, projectID, tgtID, m, snap, opts)
+			pm, cs := p.mappingChecks(ctx, ws, projectID, m, snap)
 			plan[i] = pm
 			add(cs...)
 		}()
 	}
 	wg.Wait()
+	add(p.targetChecks(ctx, ws, tgtID, maps, plan, opts)...)
 
 	if canWrite != nil && !*canWrite {
 		add(Check{
@@ -241,7 +249,7 @@ func (p *Preflighter) connCheck(ctx context.Context, ws store.WorkspaceID, userI
 
 func (p *Preflighter) targetCheck(ctx context.Context, ws store.WorkspaceID, userID, id string) (Check, *bool) {
 	res, err := p.TestConn(ctx, ws, userID, id)
-	c := testToCheck("target", "Target repository reachable (KV service)", res, err)
+	c := testToCheck("target", "Target repository reachable", res, err)
 	var caps struct {
 		CanWriteDocs *bool `json:"canWriteDocs"`
 	}
@@ -313,9 +321,10 @@ func (p *Preflighter) snapshotCheck(ctx context.Context, ws store.WorkspaceID, s
 	return c
 }
 
-func (p *Preflighter) mappingChecks(ctx context.Context, ws store.WorkspaceID, projectID, tgtID string, m store.Mapping, snap *schema.Snapshot, opts Options) (PlannedMapping, []Check) {
-	table := m.SourceSchema + "." + m.SourceTable
-	pm := PlannedMapping{MappingID: m.ID, Table: table, Target: m.Target}
+func (p *Preflighter) mappingChecks(ctx context.Context, ws store.WorkspaceID, projectID string, m store.Mapping, snap *schema.Snapshot) (PlannedMapping, []Check) {
+	srcSchema, srcTable := m.Driving() // a composed mapping's driving table (OC-047)
+	table := srcSchema + "." + srcTable
+	pm := PlannedMapping{MappingID: m.ID, Table: table, Target: m.Target, Location: m.Where()}
 	var out []Check
 	id := func(s string) string { return "mapping." + table + "." + s }
 
@@ -340,7 +349,7 @@ func (p *Preflighter) mappingChecks(ctx context.Context, ws store.WorkspaceID, p
 
 	var t *schema.Table
 	if snap != nil {
-		t = snap.Table(m.SourceSchema, m.SourceTable)
+		t = snap.Table(srcSchema, srcTable)
 	}
 	tc := Check{ID: id("table"), Label: table + ": source table readable", Status: CheckOK, MappingID: m.ID}
 	switch {
@@ -354,12 +363,12 @@ func (p *Preflighter) mappingChecks(ctx context.Context, ws store.WorkspaceID, p
 	out = append(out, tc)
 	if t != nil && t.RowEstimate != nil {
 		pm.RowEstimate = *t.RowEstimate
+		if *t.RowEstimate > 0 && t.SizeBytes > 0 {
+			pm.avgRowBytes = t.SizeBytes / *t.RowEstimate
+		}
 	}
 
-	// 4. Target keyspace exists (or is created now), and it's empty for insert mode.
-	ksChecks, empty := p.keyspaceCheck(ctx, ws, tgtID, m, opts, id)
-	out = append(out, ksChecks...)
-	pm.TargetEmpty = empty
+	// 4. The target location checks run once for every mapping afterwards (targetChecks).
 
 	// 6. Warnings.
 	if t != nil {
@@ -400,73 +409,43 @@ func hasNotNullUnique(t *schema.Table) bool {
 	return false
 }
 
-// keyspaceCheck also reports whether the collection is known to be empty (verification then
-// compares its count, OC-030).
-func (p *Preflighter) keyspaceCheck(ctx context.Context, ws store.WorkspaceID, tgtID string, m store.Mapping, opts Options, id func(string) string) ([]Check, bool) {
-	table := m.SourceSchema + "." + m.SourceTable
-	ks := m.Target.Bucket + "." + m.Target.Scope + "." + m.Target.Collection
-	c := Check{ID: id("keyspace"), Label: table + ": target " + ks, Status: CheckOK, MappingID: m.ID}
-	keyspaces, _, err := p.OpenKeyspaces(ctx, ws, tgtID)
-	if err != nil {
-		c.Status, c.Detail = CheckFail, errMessage(err)
-		return []Check{c}, false
-	}
-	info, err := keyspaces.Collection(ctx, m.Target.Bucket, m.Target.Scope, m.Target.Collection)
-	switch {
-	case err == nil:
-	case problem.HasCode(err, problem.CodeNotFound) && m.Target.CreateIfMissing:
-		if cerr := createKeyspace(ctx, keyspaces, m.Target); cerr != nil {
-			c.Status, c.Detail = CheckFail, "Couldn't create the collection: "+errMessage(cerr)
-			c.Hint = "Create it in Couchbase, or give the target credential permission to manage scopes and collections."
-			return []Check{c}, false
+// targetChecks runs the target kind's checks for every mapping's location (OC-036): for
+// Couchbase, the collection exists or is created, and a warning when it already holds
+// documents. Check IDs and labels are prefixed with the mapping's table, as in 1.0.
+func (p *Preflighter) targetChecks(ctx context.Context, ws store.WorkspaceID, tgtID string, maps []store.Mapping, plan []PlannedMapping, opts Options) []Check {
+	locs := make([]target.PreflightLocation, len(maps))
+	for i, m := range maps {
+		locs[i] = target.PreflightLocation{
+			MappingID: m.ID, Name: plan[i].Table, Location: m.Where(), CreateIfMissing: m.Where().CreateIfMissing,
+			WriteMode: opts.WriteMode, EstimatedDocs: plan[i].RowEstimate, AvgDocBytes: plan[i].avgRowBytes,
 		}
-		c.Detail = "Created " + ks + "."
-		return []Check{c}, true
-	case problem.HasCode(err, problem.CodeNotFound):
-		c.Status, c.Code = CheckFail, mapping.CodeTargetKeyspaceMissing
-		c.Detail, c.Hint = "The collection doesn't exist.", "Create it, or turn on \"Create when migration starts\" in the Tables step."
-		return []Check{c}, false
-	default:
-		c.Status, c.Detail = CheckFail, errMessage(err)
-		return []Check{c}, false
+	}
+	prefix := func(i int, c target.PreflightCheck) Check {
+		table := plan[i].Table
+		return Check{
+			ID: "mapping." + table + "." + c.ID, Label: table + ": " + c.Label, Status: c.Status,
+			Detail: c.Detail, Hint: c.Hint, Code: c.Code, MappingID: maps[i].ID,
+		}
+	}
+	res, err := p.Target(ctx, ws, tgtID, locs)
+	if err != nil || len(res) != len(maps) {
+		if err == nil {
+			err = errors.New("the target returned no result for some mappings")
+		}
+		out := make([]Check, len(maps))
+		for i := range maps {
+			out[i] = prefix(i, target.PreflightCheck{ID: "keyspace", Label: "target " + locs[i].Location.String(), Status: CheckFail, Detail: errMessage(err)})
+		}
+		return out
 	}
 	var out []Check
-	if info.DocCountEstimate != nil && *info.DocCountEstimate > 0 {
-		w := Check{
-			ID: id("empty"), Label: table + ": target collection is empty", Status: CheckWarn, Code: WarnCollectionHasDoc, MappingID: m.ID,
-			Detail: fmt.Sprintf("%s already holds about %d documents.", ks, *info.DocCountEstimate),
-		}
-		if opts.WriteMode == WriteInsert {
-			w.Code = WarnInsertExisting
-			w.Detail += " Insert mode skips documents whose keys already exist."
-		}
-		out = append(out, w)
-	}
-	return append([]Check{c}, out...), info.DocCountEstimate != nil && *info.DocCountEstimate == 0
-}
-
-// createKeyspace creates the scope (if missing) and the collection.
-func createKeyspace(ctx context.Context, ks target.Keyspaces, t store.MappingTarget) error {
-	scopes, err := ks.ListScopes(ctx, t.Bucket)
-	if err != nil {
-		return err
-	}
-	found := false
-	for _, s := range scopes {
-		if s.Name == t.Scope {
-			found = true
+	for i, r := range res {
+		plan[i].TargetEmpty = r.Empty
+		for _, c := range r.Checks {
+			out = append(out, prefix(i, c))
 		}
 	}
-	if !found {
-		if err := ks.CreateScope(ctx, t.Bucket, t.Scope); err != nil && !errors.Is(err, target.ErrPending) && !problem.HasCode(err, problem.CodeKeyspaceExists) {
-			return err
-		}
-	}
-	err = ks.CreateCollection(ctx, t.Bucket, t.Scope, target.CollectionSpec{Name: t.Collection})
-	if err != nil && (errors.Is(err, target.ErrPending) || problem.HasCode(err, problem.CodeKeyspaceExists)) {
-		return nil
-	}
-	return err
+	return out
 }
 
 // failedChecks summarizes failures for the PREFLIGHT_FAILED problem.

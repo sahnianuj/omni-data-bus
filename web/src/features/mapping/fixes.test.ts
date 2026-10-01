@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { findField } from '@/features/docschema/docschemaOps'
-import { sampleSpec } from '@/test/mapping'
-import { applyFix, groupIssues, issueTarget, selectionForPath } from './fixes'
+import { embedView, sampleSpec } from '@/test/mapping'
+import { addToDesign, applyFix, groupIssues, issueTarget, removeBranch, selectionForPath } from './fixes'
 import type { MappingIssue } from './types'
 
 const issue = (over: Partial<MappingIssue>): MappingIssue => ({ severity: 'error', code: 'X', path: 'p', message: 'm', ...over })
@@ -45,5 +45,50 @@ describe('navigation', () => {
   it('groups by severity', () => {
     const g = groupIssues([issue({ severity: 'warning' }), issue({}), issue({ severity: 'info' })])
     expect([g.error.length, g.warning.length, g.info.length]).toEqual([1, 1, 1])
+  })
+
+  it('OC-070 AC2: add to design', () => {
+    const base = embedView().spec
+    const spec = { ...base, docSchema: { ...base.docSchema, imported: { at: '2026-10-01T00:00:00Z', format: 'sample' as const, samples: 1, fieldCount: 1, fields: [{ path: 'email', type: 'string' as const }] } } }
+    const issue: MappingIssue = { severity: 'info', code: 'REFERENCE_EXTRA_FIELD', path: 'orders', nodePath: 'orders', fieldId: 'f_orders', message: '', fix: { kind: 'add-to-design', label: 'Add to design' } }
+    const next = applyFix(spec, issue)
+    expect(next.docSchema.imported!.fields!.map((f) => `${f.path}:${f.type}`)).toEqual(['email:string', 'orders:array', 'orders[]:object', 'orders[].total:number', 'orders[].orderDate:string'])
+    expect(addToDesign(next, 'f_orders')).toBe(next) // already there
+    expect(addToDesign(base, 'f_orders')).toBe(base) // no imported design
+  })
+
+  it('OC-070 AC3: removing a branch takes its relation along', () => {
+    const spec = embedView().spec
+    const next = removeBranch(spec, 'f_orders')
+    expect(next.relations).toEqual([])
+    expect(findField(next.docSchema, 'f_orders')).toBeUndefined()
+    expect(next.fieldMappings.some((m) => m.id === 'm_total')).toBe(false)
+    // A plain field goes with its mappings.
+    const email = spec.fieldMappings.find((m) => findField(spec.docSchema, m.targetFieldId)?.field.name === 'email')!
+    const plain = removeBranch(spec, email.targetFieldId)
+    expect(findField(plain.docSchema, email.targetFieldId)).toBeUndefined()
+    expect(plain.fieldMappings.some((m) => m.id === email.id)).toBe(false)
+    expect(plain.relations).toHaveLength(1)
+  })
+
+  it('OC-071 AC2: restore and map', () => {
+    const base = embedView().spec
+    const spec = {
+      ...base,
+      docSchema: {
+        ...base.docSchema,
+        imported: { at: '2026-10-01T00:00:00Z', format: 'sample' as const, samples: 1, fieldCount: 4, fields: [{ path: 'orders', type: 'array' as const }, { path: 'orders[]', type: 'object' as const }, { path: 'orders[].total', type: 'number' as const }, { path: 'orders[].orderId', type: 'integer' as const }, { path: 'orders[].orderDate', type: 'string' as const }] },
+      },
+    }
+    const issue: MappingIssue = { severity: 'warning', code: 'REFERENCE_FIELD_UNMAPPED', path: 'orders[].orderId', nodePath: 'orders[].orderId', message: '', fix: { kind: 'restore-field', label: 'Add orderId back (from order_id)', relationId: 'emb_o', columns: ['order_id'] } }
+    const next = applyFix(spec, issue)
+    const item = findField(next.docSchema, 'f_item')!.field
+    expect(item.children!.map((c) => `${c.name}:${c.type}`)).toEqual(['total:number', 'orderId:integer', 'orderDate:string']) // its imported position
+    const id = item.children![1]!.id
+    expect(next.fieldMappings.find((m) => m.targetFieldId === id)?.sources).toEqual([{ relation: 'emb_o', column: 'order_id' }])
+    expect(applyFix(next, issue)).toBe(next) // already back
+
+    const mapped = applyFix(spec, { ...issue, fieldId: 'f_date', fix: { kind: 'map-field', label: 'Map from order_date', relationId: 'emb_o', columns: ['order_date'] } })
+    expect(mapped.fieldMappings.filter((m) => m.targetFieldId === 'f_date').map((m) => m.sources)).toEqual([[{ relation: 'emb_o', column: 'order_date' }]])
   })
 })

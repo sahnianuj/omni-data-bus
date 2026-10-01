@@ -1,0 +1,202 @@
+{
+  "specVersion": 2,
+  "mode": "canvas",
+  "docSchema": {
+    "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+        {
+          "id": "f_oid",
+          "name": "orderId",
+          "type": "integer"
+        },
+        {
+          "id": "f_label",
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "id": "f_items",
+          "name": "items",
+          "type": "array",
+          "items": {
+            "id": "f_item",
+            "name": "item",
+            "type": "object",
+            "children": [
+              {
+                "id": "f_sku",
+                "name": "sku",
+                "type": "string"
+              },
+              {
+                "id": "f_qty",
+                "name": "qty",
+                "type": "integer"
+              }
+            ]
+          }
+        },
+        {
+          "id": "f_cust",
+          "name": "customer",
+          "type": "object",
+          "children": [
+            {
+              "id": "f_cname",
+              "name": "name",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    "source": "manual"
+  },
+  "key": {
+    "template": "order::{order_id}"
+  },
+  "typeField": {
+    "enabled": true,
+    "name": "type",
+    "value": "order"
+  },
+  "nullHandling": "include",
+  "omitUnmapped": true,
+  "expirySec": 86400,
+  "fieldMappings": [
+    {
+      "id": "m_oid",
+      "targetFieldId": "f_oid",
+      "sources": [
+        {
+          "column": "order_id"
+        }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active"
+    },
+    {
+      "id": "m_label",
+      "targetFieldId": "f_label",
+      "sources": [
+        {
+          "column": "order_id"
+        },
+        {
+          "column": "status"
+        }
+      ],
+      "transforms": [
+        {
+          "op": "concat",
+          "args": {
+            "separator": "-"
+          }
+        }
+      ],
+      "origin": "manual",
+      "state": "active",
+      "nullHandling": "omit"
+    },
+    {
+      "id": "m_sku",
+      "targetFieldId": "f_sku",
+      "sources": [
+        {
+          "relation": "emb_items",
+          "column": "sku"
+        }
+      ],
+      "transforms": [
+        {
+          "op": "upper"
+        }
+      ],
+      "origin": "auto",
+      "state": "active"
+    },
+    {
+      "id": "m_qty",
+      "targetFieldId": "f_qty",
+      "sources": [
+        {
+          "relation": "emb_items",
+          "column": "quantity"
+        }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.8,
+      "reason": "synonym"
+    },
+    {
+      "id": "m_cname",
+      "targetFieldId": "f_cname",
+      "sources": [
+        {
+          "relation": "emb_cust",
+          "column": "name"
+        }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+    }
+  ],
+  "relations": [
+    {
+      "id": "emb_items",
+      "parentId": null,
+      "kind": "one-to-many",
+      "table": {
+        "schema": "shop",
+        "name": "order_items"
+      },
+      "join": [
+        {
+          "parent": "order_id",
+          "child": "order_id"
+        }
+      ],
+      "targetFieldId": "f_items",
+      "orderBy": [
+        {
+          "column": "line_no"
+        },
+        {
+          "column": "sku",
+          "desc": true
+        }
+      ],
+      "limit": 50,
+      "empty": "omit"
+    },
+    {
+      "id": "emb_cust",
+      "parentId": null,
+      "kind": "many-to-one",
+      "table": {
+        "schema": "shop",
+        "name": "customer"
+      },
+      "join": [
+        {
+          "parent": "customer_id",
+          "child": "customer_id"
+        },
+        {
+          "parent": "region",
+          "child": "region"
+        }
+      ],
+      "targetFieldId": "f_cust"
+    }
+  ],
+  "aggregates": [],
+  "ignoredColumns": []
+}

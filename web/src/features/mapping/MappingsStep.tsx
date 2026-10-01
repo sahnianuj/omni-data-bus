@@ -1,4 +1,5 @@
-import { ArrowRight, Table2, Trash2 } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { ArrowRight, ChevronDown, Table2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useOutletContext } from 'react-router'
@@ -12,16 +13,32 @@ import type { Project } from '@/features/projects/api'
 import { useDeleteMapping, useMappings } from './api'
 import { ScoreRing } from './ScoreRing'
 import type { MappingSummary } from './types'
+import { formatLocation } from '@/features/targets/kinds'
+import { BAR_VIEWS } from './viewPrefs'
 
 const statusTone = { ready: 'success', draft: 'warning', stale: 'danger' } as const
 
 /** Step 4 (OC-035): the project's mappings, each opening its workbench. */
+/** The document at a glance (OC-062): flat, or what nests in it, and grouping. */
+function useShapeText() {
+  const { t } = useTranslation()
+  return (m: MappingSummary) => {
+    const sh = m.shape
+    const parts: string[] = []
+    if (sh?.arrays) parts.push(t('mappings.shape.arrays', { count: sh.arrays }))
+    if (sh?.objects) parts.push(t('mappings.shape.objects', { count: sh.objects }))
+    const nested = parts.length ? t('mappings.shape.nested', { parts: parts.join(', ') }) : t('mappings.shape.flat')
+    return sh?.groupBy?.length ? `${nested} · ${t('mappings.shape.grouped', { columns: sh.groupBy.join(', ') })}` : nested
+  }
+}
+
 export function MappingsStep() {
   const { t } = useTranslation()
   const project = useOutletContext<Project>()
   const mappings = useMappings(project.id)
   const del = useDeleteMapping(project.id)
   const [removing, setRemoving] = useState<MappingSummary | null>(null)
+  const shapeText = useShapeText()
   return (
     <div className="flex flex-col gap-5 px-8 py-7">
       <div className="flex flex-col gap-1.5">
@@ -53,16 +70,20 @@ export function MappingsStep() {
                   <ScoreRing ratio={auto.autoMapRatio} label={t('mappings.autoScore', { pct: Math.round(auto.autoMapRatio * 100) })} />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="truncate text-[13px] font-medium">
-                      {m.sourceSchema}.{m.sourceTable}
+                      {m.mode === 'composed' ? `${m.driving.schema}.${m.driving.name}` : `${m.sourceSchema}.${m.sourceTable}`}
                       <span className="px-1.5 text-subtle">→</span>
                       <span className="font-mono text-xs">
-                        {m.target.bucket}.{m.target.scope}.{m.target.collection}
+                        {formatLocation(m.location)}
                       </span>
                     </span>
                     <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
                       <Badge tone={statusTone[m.status]}>{t(`mappings.status.${m.status}`)}</Badge>
+                      {m.mode === 'composed' ? <Badge tone="primary">{t('composer.badge')}</Badge> : null}
                       {t('mappings.coverage', { pct: Math.round(m.stats.coverageRatio * 100) })}
                       {m.target.createIfMissing ? <Badge tone="primary">{t('targets.willBeCreated')}</Badge> : null}
+                    </span>
+                    <span className="text-xs text-muted" data-testid="shape">
+                      {shapeText(m)}
                     </span>
                   </div>
                   <Can role="editor">
@@ -70,12 +91,32 @@ export function MappingsStep() {
                       <Trash2 aria-hidden />
                     </Button>
                   </Can>
-                  <Button variant="secondary" size="sm" asChild>
-                    <Link to={`/projects/${project.id}/mappings/${m.id}`} aria-label={t('mappings.openFor', { table: m.sourceTable })}>
-                      {t('mappings.open')}
-                      <ArrowRight aria-hidden />
-                    </Link>
-                  </Button>
+                  <span className="flex items-center">
+                    <Button variant="secondary" size="sm" className="rounded-r-none" asChild>
+                      <Link to={`/projects/${project.id}/mappings/${m.id}`} aria-label={t('mappings.openFor', { table: m.sourceTable })}>
+                        {t('mappings.open')}
+                        <ArrowRight aria-hidden />
+                      </Link>
+                    </Button>
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
+                        <Button variant="secondary" size="sm" className="rounded-l-none border-l border-border px-1.5" aria-label={t('mappings.openIn', { table: m.sourceTable })}>
+                          <ChevronDown aria-hidden />
+                        </Button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content align="end" className="z-50 min-w-48 rounded-md border border-border bg-surface p-1 shadow-lg">
+                          {BAR_VIEWS.map((v) => (
+                            <DropdownMenu.Item key={v} asChild>
+                              <Link to={`/projects/${project.id}/mappings/${m.id}?view=${v}`} className="block rounded px-2 py-1.5 text-[13px] outline-none hover:bg-surface-muted focus:bg-surface-muted">
+                                {t('mappings.openInView', { view: t(`workbench.mode.${v}`) })}
+                              </Link>
+                            </DropdownMenu.Item>
+                          ))}
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+                  </span>
                 </li>
               )
             })}

@@ -59,6 +59,10 @@ var (
 		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 30},
 	}, []string{"route", "method"})
 
+	BuildInfo = factory.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "oc_build_info", Help: "Always 1; labels identify the running build (OC-058).",
+	}, []string{"version", "commit", "channel", "go_version"})
+
 	Jobs = factory.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "oc_jobs", Help: "Jobs that aren't finished, by status (refreshed every 15 s).",
 	}, []string{"status"})

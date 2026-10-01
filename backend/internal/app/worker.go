@@ -1,8 +1,6 @@
 package app
 
 import (
-	"context"
-	"errors"
 	"log/slog"
 
 	"omnidatabus/internal/config"
@@ -24,21 +22,8 @@ func NewWorker(cfg config.Config, st store.Store, sealer crypto.Sealer, sources 
 		Store: st, OpenSource: conns.OpenSource, OpenWriter: conns.OpenWriter, Latest: disc.Latest, Log: logger,
 		MemoryBudgetBytes: int64(cfg.Worker.MemoryBudgetMB) << 20, MaxStoredErrors: cfg.Worker.ErrorsMaxRows,
 		ErrorRetention: cfg.Worker.ErrorRetention,
-		// Verification's collection count (OC-030): best effort, via the Query service.
-		CountTarget: func(ctx context.Context, ws store.WorkspaceID, connID string, t store.MappingTarget) (int64, error) {
-			ks, _, err := conns.OpenKeyspaces(ctx, ws, connID)
-			if err != nil {
-				return 0, err
-			}
-			info, err := ks.Collection(ctx, t.Bucket, t.Scope, t.Collection)
-			if err != nil {
-				return 0, err
-			}
-			if info.DocCountEstimate == nil {
-				return 0, errors.New("the document count isn't available")
-			}
-			return *info.DocCountEstimate, nil
-		},
+		// Verification's document count (OC-030): best effort, through the kind's location browser.
+		CountTarget: conns.CountDocuments,
 	})
 	return jobs.NewWorker(jobs.WorkerConfig{MaxJobs: cfg.Worker.MaxJobs, ShutdownBudget: cfg.ShutdownTimeout * 5 / 6}, st, runner, nil, logger)
 }

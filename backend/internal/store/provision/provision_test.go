@@ -101,8 +101,9 @@ func TestRun_AC1_SkipsAppliedSteps(t *testing.T) {
 	env.version = 1
 	res, err := Run(context.Background(), env, Steps())
 	require.NoError(t, err)
-	require.Equal(t, []string{"2 indexes", "3 job indexes"}, res.Applied)
-	require.Empty(t, env.colls, "step 1 was not re-run")
+	require.Equal(t, []string{"2 indexes", "3 job indexes", "4 relationship collections"}, res.Applied)
+	require.Len(t, env.colls, len(RelationshipCollections), "step 1 was not re-run; step 4 adds the 2.0 collections")
+	require.True(t, env.colls["relationships"])
 }
 
 func TestRun_AC1_SecondRunIsNoop(t *testing.T) {

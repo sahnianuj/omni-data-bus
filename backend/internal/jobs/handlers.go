@@ -100,7 +100,7 @@ func (h Handlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 	p := principal(r)
 	v, pre, err := h.Svc.Create(r.Context(), p.WorkspaceID, p.UserID, httpapi.URLParam(r, "id"), opts)
-	if problem.HasCode(err, problem.CodePreflightFailed) {
+	if problem.HasCode(err, problem.CodePreflightFailed) || problem.HasCode(err, problem.CodeMappingInvalid) {
 		// problem+json with the checklist attached, so the UI can show what failed.
 		pr := problem.From(err)
 		pr.Instance = problem.RequestIDFrom(r)

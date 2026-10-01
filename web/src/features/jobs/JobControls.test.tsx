@@ -78,7 +78,7 @@ describe('JobControls', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled())
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     const dialog = await screen.findByRole('dialog', { name: 'Cancel the migration?' })
-    expect(dialog).toHaveTextContent('Documents already written stay in Couchbase.')
+    expect(dialog).toHaveTextContent('Documents already written stay in the target.')
     expect(calls).toEqual([])
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel migration' }))
     await waitFor(() => expect(calls).toEqual(['cancel']))

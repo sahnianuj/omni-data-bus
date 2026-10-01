@@ -11,6 +11,7 @@ import { Can } from '@/features/auth/Can'
 import { useMappings } from '@/features/mapping/api'
 import type { Project } from '@/features/projects/api'
 import { humanizeCount } from '@/lib/format'
+import { formatLocation, useKindCapabilities } from '@/features/targets/kinds'
 import { AdvancedOptions } from './AdvancedOptions'
 import { defaultJobOptions, useCreateJob, usePreflight, type JobOptions, type PreflightResult } from './api'
 import { PreflightChecklist } from './PreflightChecklist'
@@ -19,6 +20,7 @@ import { PreflightChecklist } from './PreflightChecklist'
 export function ReviewStep() {
   const { t } = useTranslation()
   const project = useOutletContext<Project>()
+  const caps = useKindCapabilities(project.target?.type)
   const mappings = useMappings(project.id)
   const navigate = useNavigate()
   const [options, setOptions] = useState<JobOptions | null>(defaultJobOptions)
@@ -83,7 +85,7 @@ export function ReviewStep() {
                   {ms.map((m) => (
                     <tr key={m.id} className="border-t border-border">
                       <td className="px-3 py-2 font-medium">{m.sourceSchema}.{m.sourceTable}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{m.target.bucket}.{m.target.scope}.{m.target.collection}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{formatLocation(m.location)}</td>
                       <td className="px-3 py-2">
                         {m.status === 'ready' ? <Badge tone="success">{t('review.willMigrate')}</Badge> : <Badge tone="warning">{t('review.notReady')}</Badge>}
                       </td>
@@ -96,7 +98,7 @@ export function ReviewStep() {
           )
         }}
       </AsyncBoundary>
-      <AdvancedOptions onChange={onOptions} />
+      <AdvancedOptions onChange={onOptions} capabilities={caps} />
       {preflight.error ? <ErrorState error={preflight.error} /> : null}
       {create.error ? <ErrorState error={create.error} /> : null}
       {result ? <PreflightChecklist result={result} /> : null}

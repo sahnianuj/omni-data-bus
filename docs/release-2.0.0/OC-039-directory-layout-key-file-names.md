@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E8 Directory Target | P0 | 5 | OC-038, OC-016 | Not started |
+| E8 Directory Target | P0 | 5 | OC-038, OC-016 | Implemented |
 
 ## User story
 As an **application developer consuming the exported files**, I want each document stored at a predictable path derived from its primary key, for example `orders/1001.json`, so that I can open any document directly when I know its key, without scanning or an index service.
@@ -11,7 +11,7 @@ As an **application developer consuming the exported files**, I want each docume
 **In:**
 - Three directory layouts (`flat`, `sharded`, `key-path`) and the folder structure they produce.
 - A reversible, cross-platform file-name encoding of document keys (`pathcodec`), in Go and TypeScript.
-- Directory-friendly key template defaults: the primary key alone.
+- Key template defaults are the same as for Couchbase (`<table>::{pk}`): keys never depend on the target kind (changed 2026-09-29 at the user's request; the earlier PK-only default was removed).
 - An optional manifest (`key → path`) for tools that prefer an index.
 - `odb doc path` CLI and an API to resolve a key to its path.
 
@@ -29,7 +29,7 @@ As an **application developer consuming the exported files**, I want each docume
 The layout is shown as a live example in the Target step: "Document `1001` → `/data/odb-out/orders/1001.json`".
 
 ### Key defaults for directory targets (extends OC-016)
-- The default key template is the primary key only: `{order_id}` for a single-column PK, `{order_id}::{line_no}` for a composite PK. With `key-path`, a composite PK becomes nested folders.
+- The default key template is the same as for Couchbase: `orders::{order_id}`, `order_lines::{order_id}::{line_no}`. With `key-path`, each `::` segment becomes a folder (`orders/1001.json`).
 - The type prefix (`order::`) that 1.0 adds for Couchbase is not added, since the folder already says what the document is. The user can still edit the template.
 - `{$uuid}` keys (no PK) still work and still raise `NON_IDEMPOTENT_KEY`. The UI adds that such files can't be found by primary key.
 
@@ -68,12 +68,12 @@ The layout is shown as a live example in the Target step: "Document `1001` → `
 | `FuzzEncodeDecode` | same | Round trip, no separators in output |
 | `pathcodec.test.ts` › `AC2: matches server fixtures` | `src/lib/pathcodec/pathcodec.test.ts` | |
 
-### AC3 — Directory key defaults
-**Given** a directory target and table `orders(order_id PK)`, **then** the default template is `{order_id}`. **Given** a Couchbase target, **then** it stays `order::{order_id}`.
+### AC3 — Key defaults don't depend on the target
+**Given** table `orders(order_id PK)`, **then** the default template is `orders::{order_id}` for a directory target exactly as for Couchbase (revised 2026-09-29: keys and documents stay the same whatever target is selected).
 
 | Test | Location | Verifies |
 |---|---|---|
-| `TestDefaultKeyTemplate_AC3_ByTargetKind` | `internal/mapping/keytemplate_test.go` | |
+| `TestDefaultKeyTemplate_SameForEveryTargetKind` | `internal/mapping/directory_key_test.go` | |
 
 ### AC4 — Manifest
 **Given** 3 writers writing 10,000 docs with 5 keys written twice (retries), **then** the merged manifest has 10,000 unique sorted lines, and each line's `sha256` matches its file.
@@ -96,3 +96,12 @@ The layout is shown as a live example in the Target step: "Document `1001` → `
 | Test | Location | Verifies |
 |---|---|---|
 | `TestValidate_AC6_CaseCollisionRisk` | `internal/mapping/validate_test.go` | |
+
+## Implementation notes (as built)
+- **`internal/pathcodec`** (Go) and **`web/src/lib/pathcodec`** (TS) run the same fixtures (`backend/internal/pathcodec/testdata/pathcodec.json`, 30 keys). A fuzz round trip ran about 240,000 inputs with no failure. On top of the listed characters, **`~` is always escaped**, so an unescaped `~` can only be the hashed-name marker (`<200 bytes>~<16 hex of sha1>`) and `Decode` stays unambiguous. `MaxName` is 247 bytes, which leaves room for `.json.gz`. In `key-path`, an empty segment (`a::::b`) becomes the folder `%00`.
+- **Layouts:** `directory.Config.DocPath(folder, key)`. `sharded` takes the first 2 + 2 hex characters of `sha1(NFC(key))`. The TS `documentPath` mirrors it, and the Target step shows it as a live example.
+- **`KEY_NAME_HASHED`:** the writer can't raise row warnings. A hashed name is marked `hashed: true` on its manifest line instead. Lookup still works, because the hash is computed from the key.
+- **Key defaults:** `mapping.DefaultKeyTemplate(table)` for every kind (`DefaultKeyTemplateFor` was removed so keys are identical across targets). **Case collisions:** `Validate` probes the target folder (`CaseProber`) and warns with `KEY_CASE_COLLISION_RISK` when a text column is in the key.
+- **Manifest:** one fragment per writer (`_odb/manifest/<mappingId>-<writerId>.jsonl`, where the writer ID is a UUIDv7 and sorts by time). Fragments are merged when the writer closes, at the end of each mapping (and on pause): last write wins, sorted by key, written with an atomic rename. `_odb/run.json` holds the pathcodec version, layout, compression and, per folder, `{mappingId, jobId, planHash, keyTemplate}`.
+- **Lookup:** `odb doc path` and `odb doc get` (`cmd/odb/doc.go`). `get` takes the key template's values in order and reads the layout and template from `run.json`. The API is `GET /projects/{id}/mappings/{mid}/documents/{key}`, not `/mappings/{id}/…`, to match the other mapping routes. The key is the rest of the path, since keys may contain `/`. `404 DOCUMENT_NOT_FOUND` when absent. AC5 tests are in `internal/documents` and `cmd/odb/doc_test.go`.
+- Not done: the Key panel hint that `{$uuid}` files can't be found by primary key.

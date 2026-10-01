@@ -25,7 +25,7 @@ func tables() (parent, address, orders *schema.Table) {
 
 func spec() *mapping.Spec {
 	s := &mapping.Spec{
-		Embeds: []mapping.Embed{
+		Relations: []mapping.Relation{
 			{ID: "a", Kind: mapping.EmbedManyToOne, Table: mapping.TableRef{Schema: "shop", Name: "address"}, Join: []mapping.JoinPair{{Parent: "address_id", Child: "address_id"}}},
 			{
 				ID: "o", Kind: mapping.EmbedOneToMany, Table: mapping.TableRef{Schema: "shop", Name: "orders"}, Join: []mapping.JoinPair{{Parent: "customer_id", Child: "customer_id"}}, Limit: 2,
@@ -33,9 +33,9 @@ func spec() *mapping.Spec {
 			},
 		},
 		FieldMappings: []mapping.FieldMapping{
-			{ID: "m1", Sources: []mapping.SourceRef{{Column: "city", Embed: "a"}}, State: mapping.StateActive},
-			{ID: "m2", Sources: []mapping.SourceRef{{Column: "note", Embed: "o"}}, State: mapping.StateActive, Transforms: []mapping.Step{{Op: "expression"}}},
-			{ID: "m3", Sources: []mapping.SourceRef{{Column: "zip", Embed: "a"}}, State: mapping.StatePending},
+			{ID: "m1", Sources: []mapping.SourceRef{{Column: "city", Relation: "a"}}, State: mapping.StateActive},
+			{ID: "m2", Sources: []mapping.SourceRef{{Column: "note", Relation: "o"}}, State: mapping.StateActive, Transforms: []mapping.Step{{Op: "expression"}}},
+			{ID: "m3", Sources: []mapping.SourceRef{{Column: "zip", Relation: "a"}}, State: mapping.StatePending},
 		},
 		DocSchema: docschema.Schema{Root: docschema.NewRoot()},
 	}
@@ -79,7 +79,7 @@ func TestPlans_ProjectionsAndLimits(t *testing.T) {
 	_, err = Plans(spec(), parent, func(string, string) *schema.Table { return nil })
 	require.ErrorContains(t, err, "shop.address isn't in the latest schema snapshot")
 	bad := spec()
-	bad.Embeds[0].Join[0].Child = "nope"
+	bad.Relations[0].Join[0].Child = "nope"
 	_, err = Plans(bad, parent, rel())
 	require.ErrorContains(t, err, "join column address_id → nope is missing")
 }
@@ -116,18 +116,19 @@ func TestResolve_GroupsKeepsAndNulls(t *testing.T) {
 		wrapped.Add(1)
 		return read()
 	}}
-	got, err := r.Resolve(context.Background(), [][]any{{int32(7), int32(2), "x"}, {int32(8), nil, "y"}})
+	got, fails, err := r.Resolve(context.Background(), [][]any{{int32(7), int32(2), "x"}, {int32(8), nil, "y"}})
 	require.NoError(t, err)
+	require.Empty(t, fails)
 	require.EqualValues(t, 2, fr.calls.Load(), "one query per embed")
 	require.EqualValues(t, 2, wrapped.Load(), "through Do")
-	require.Equal(t, [][]any{{int32(2), "Nice", "06"}}, got["a"][0], "int4 parent key matches")
-	require.Nil(t, got["a"][1], "null key: none")
-	require.Len(t, got["o"][0], 3, "limit+1 kept so truncation shows")
-	require.Nil(t, got["o"][1])
+	require.Equal(t, []source.RelatedRow{{Values: []any{int32(2), "Nice", "06"}}}, got[0]["a"].Rows, "int4 parent key matches")
+	require.Nil(t, got[1]["a"], "null key: none")
+	require.Len(t, got[0]["o"].Rows, 3, "limit+1 kept so truncation shows")
+	require.Nil(t, got[1]["o"])
 	row := Row(got, 0)
-	require.Len(t, row["o"], 3)
+	require.Equal(t, 3, row["o"].Len())
 	require.Nil(t, Row(nil, 0))
-	empty, err := (&Resolver{Plans: plans, Reader: fr}).Resolve(context.Background(), nil)
+	empty, _, err := (&Resolver{Plans: plans, Reader: fr}).Resolve(context.Background(), nil)
 	require.NoError(t, err)
 	require.Empty(t, empty)
 }
@@ -136,14 +137,14 @@ func TestResolve_ErrorsAndCancel(t *testing.T) {
 	parent, _, _ := tables()
 	plans, _ := Plans(spec(), parent, rel())
 	r := &Resolver{Plans: plans, Reader: &fakeReader{err: errors.New("boom")}, Concurrency: 1}
-	_, err := r.Resolve(context.Background(), [][]any{{int32(7), int32(2), "x"}})
+	_, _, err := r.Resolve(context.Background(), [][]any{{int32(7), int32(2), "x"}})
 	require.ErrorContains(t, err, "boom")
 	require.ErrorContains(t, err, "embed ")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	r = &Resolver{Plans: plans, Reader: &fakeReader{delay: time.Second}, Concurrency: 1}
-	_, err = r.Resolve(ctx, [][]any{{int32(7), int32(2), "x"}})
+	_, _, err = r.Resolve(ctx, [][]any{{int32(7), int32(2), "x"}})
 	require.ErrorIs(t, err, context.Canceled)
 }
 

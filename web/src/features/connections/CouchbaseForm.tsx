@@ -30,7 +30,7 @@ const inRange = (min: number, max: number) => (v: string) => /^\d+$/.test(v) && 
 export function CouchbaseForm({ existing, testing, saving, onTest, onSave, onCancel }: ConnectionFormProps) {
   const { t } = useTranslation()
   const cfg = (existing?.config ?? {}) as Record<string, unknown>
-  const storedPassword = !!existing?.secrets.passwordSet
+  const storedPassword = !!existing?.secrets?.passwordSet
   const [advanced, setAdvanced] = useState(false)
 
   const schema = z
@@ -145,7 +145,7 @@ export function CouchbaseForm({ existing, testing, saving, onTest, onSave, onCan
             )}
           />
         ) : null}
-        <CertDropzone label={t('cb.caCert')} storedFingerprint={existing?.secrets.caCertFingerprint} onChange={(pem) => form.setValue('caCertPem', pem)} />
+        <CertDropzone label={t('cb.caCert')} storedFingerprint={existing?.secrets?.caCertFingerprint} onChange={(pem) => form.setValue('caCertPem', pem)} />
       </div>
       <button type="button" aria-expanded={advanced} onClick={() => setAdvanced((v) => !v)} className="flex h-8 items-center justify-between text-[13px] text-muted">
         <span>{t('cb.advanced')}</span>

@@ -1,0 +1,10 @@
+{
+  "orderId": 1001,
+  "orderedAt": "2026-09-01T10:00:00Z",
+  "customerName": "Ada Lovelace",
+  "items": [
+    { "lineNo": 1, "quantity": 2, "unitPrice": 9.5, "orderId": 1001, "product": { "sku": "A-1", "name": "Pen" } },
+    { "lineNo": 2, "quantity": 1, "unitPrice": 3.25, "orderId": 1001, "product": { "sku": "B-2", "name": "Pad" } },
+    { "lineNo": 3, "quantity": 5, "unitPrice": 9.5, "orderId": 1001, "product": { "sku": "A-1", "name": "Pen" } }
+  ]
+}

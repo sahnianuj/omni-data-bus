@@ -32,8 +32,16 @@ else
   make dev-stack
 fi
 
-cleanup() { kill 0 2>/dev/null || true; }
-trap cleanup EXIT INT TERM
+# `kill 0` signals the whole process group, this shell included, so ignore INT/TERM
+# here first; otherwise the TERM re-enters this handler and it loops forever.
+cleanup() {
+  trap '' INT TERM
+  trap - EXIT
+  kill 0 2>/dev/null || true
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 (cd backend && CGO_ENABLED=0 go run ./cmd/odb) &
 (cd web && npm run dev) &

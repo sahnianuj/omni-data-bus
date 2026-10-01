@@ -7,6 +7,8 @@ export function largeSpec(): MappingSpec {
     children: Array.from({ length: 10 }, (_, i) => ({ id: `f${g * 10 + i}`, name: `field${i}`, type: 'string' as const })),
   }))
   return {
+    specVersion: 2,
+    mode: 'canvas',
     docSchema: { source: 'manual', root: { id: 'fld_root', name: '$', type: 'object', children: groups } },
     key: { template: 'x::{col_0}' },
     typeField: { enabled: false, name: 'type', value: '' },
@@ -17,7 +19,8 @@ export function largeSpec(): MappingSpec {
       transforms: i % 3 === 0 ? [{ op: 'trim' }] : [],
       origin: i % 5 === 0 ? 'manual' : 'auto', state: i % 7 === 0 ? 'pending' : 'active',
     })),
-    embeds: [],
+    relations: [],
+    aggregates: [],
     ignoredColumns: [],
   }
 }

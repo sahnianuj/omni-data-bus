@@ -2,9 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
+
+	"omnidatabus/internal/buildinfo"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,12 +40,30 @@ func TestAdminCommands_AC2_Dispatch(t *testing.T) {
 
 func TestVersion_AC1_LdflagsInjected(t *testing.T) {
 	t.Setenv("OC_ENV_FILE", t.TempDir()+"/none")
-	old, oldCommit := version, commit
-	t.Cleanup(func() { version, commit = old, oldCommit })
-	version, commit = "1.4.2", "9f8e7d6"
+	t.Cleanup(buildinfo.Override("v2.0.0", "9f8e7d6c5b", "2026-11-02T14:05:11Z", ""))
 	var out, errOut bytes.Buffer
 	require.Equal(t, 0, run([]string{"--version"}, &out, &errOut))
-	require.Equal(t, "odb 1.4.2 (commit 9f8e7d6)\n", out.String())
+	want := "Omni-Data-Bus 2.0.0 (release)\nCommit: 9f8e7d6  Built: 2026-11-02T14:05:11Z  Go: " + runtime.Version() +
+		"  Platform: " + runtime.GOOS + "/" + runtime.GOARCH + "\n"
+	require.Equal(t, want, out.String())
+
+	out.Reset()
+	require.Equal(t, 0, run([]string{"version"}, &out, &errOut))
+	require.Equal(t, want, out.String())
+
+	out.Reset()
+	require.Equal(t, 0, run([]string{"version", "--json"}, &out, &errOut))
+	var v map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &v))
+	require.Equal(t, "2.0.0", v["version"])
+	require.Equal(t, "release", v["channel"])
+	require.Equal(t, "9f8e7d6c5b", v["commit"])
+	require.NotContains(t, v, "nodes")
+
+	t.Cleanup(buildinfo.Override("v2.0.0-rc.1", "abc", "", ""))
+	out.Reset()
+	require.Equal(t, 0, run([]string{"--version"}, &out, &errOut))
+	require.Contains(t, out.String(), "Omni-Data-Bus 2.0.0-rc.1 (rc)")
 }
 
 func TestHealthcheck_ProbesReadiness(t *testing.T) {

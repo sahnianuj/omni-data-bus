@@ -16,7 +16,8 @@ import { mockSession } from '@/test/session'
 setupMswServer()
 
 const summary = (table: string, collection: string): MappingSummary => ({
-  id: `m-${table}`, sourceSchema: 'shop', sourceTable: table, target: { bucket: 'travel-sample', scope: 'inventory', collection },
+  id: `m-${table}`, sourceSchema: 'shop', sourceTable: table, mode: 'canvas', driving: { schema: 'shop', name: table }, target: { bucket: 'travel-sample', scope: 'inventory', collection },
+  location: { kind: 'couchbase', bucket: 'travel-sample', scope: 'inventory', collection },
   status: 'draft', stats: stats(), automapStats: stats(), version: 1, updatedAt: new Date().toISOString(),
 })
 
@@ -35,7 +36,7 @@ function mappingsServer(initial: MappingSummary[]) {
     http.post('*/api/v1/projects/:pid/mappings:bulk', async ({ request }) => {
       const { items } = (await request.json()) as { items: CreateMappingRequest[] }
       state.bulk.push(items)
-      const results = items.map((i) => ({ sourceSchema: i.sourceSchema, sourceTable: i.sourceTable, mapping: summary(i.sourceTable, i.target.collection) }))
+      const results = items.map((i) => ({ sourceSchema: i.sourceSchema, sourceTable: i.sourceTable, mapping: summary(i.sourceTable, i.target?.collection ?? i.location?.folder ?? '') }))
       state.items = [...state.items, ...results.map((r) => r.mapping)]
       return HttpResponse.json({ results })
     }),
@@ -44,6 +45,19 @@ function mappingsServer(initial: MappingSummary[]) {
 }
 
 describe('TablesStep', () => {
+  it('OC-047: lists a composed mapping by its driving table, with a Composed badge', async () => {
+    mappingsServer([{ ...summary('address', 'orders'), mode: 'composed', driving: { schema: 'shop', name: 'customer' } }])
+    renderRoutes(routes, '/projects/p1/tables')
+    await screen.findByRole('checkbox', { name: 'Select shop.address' })
+    // Both the driving table's row and the mapping's own table's row link to it.
+    const links = await screen.findAllByRole('link', { name: /^Mapped to travel-sample\.inventory\.orders\s*Composed$/ })
+    expect(links).toHaveLength(2)
+    for (const l of links) expect(l).toHaveAttribute('href', '/projects/p1/mappings/m-address')
+    // The driving table can still get a mapping of its own; the mapping's own table can't.
+    expect(screen.getByRole('checkbox', { name: 'Select shop.customer' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Select shop.address' })).toBeDisabled()
+  })
+
   it('AC1: per-row target collection editable', async () => {
     const state = mappingsServer([summary('address', 'address')])
     const { router } = renderRoutes(routes, '/projects/p1/tables')
@@ -81,5 +95,25 @@ describe('TablesStep', () => {
     expect(await screen.findByRole('checkbox', { name: 'Select shop.orders' })).toBeChecked()
     expect(screen.getByRole('textbox', { name: 'Collection for shop.orders' })).toHaveValue('orders')
     expect(screen.getByText('1 table selected')).toBeInTheDocument()
+  })
+
+  it('OC-036: a directory target maps each table to a folder', async () => {
+    mockProject(makeProject({ source: repo('postgres'), target: { id: 'p1::target', type: 'directory', name: '/data/odb-out', lastTestStatus: 'ok' } }))
+    const state = mappingsServer([])
+    renderRoutes(routes, '/projects/p1/tables')
+    expect(await screen.findByText(/one JSON file per document/)).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Target folder' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select shop.customer' }))
+    const folder = screen.getByRole('textbox', { name: 'Folder for shop.customer' })
+    await userEvent.clear(folder)
+    await userEvent.type(folder, '../escape')
+    expect(screen.getByRole('button', { name: 'Create 1 mapping' })).toBeDisabled()
+    await userEvent.clear(folder)
+    await userEvent.type(folder, 'archive/customers')
+    await userEvent.click(screen.getByRole('button', { name: 'Create 1 mapping' }))
+    await waitFor(() => expect(state.bulk).toHaveLength(1))
+    expect(state.bulk[0]).toEqual([
+      { sourceSchema: 'shop', sourceTable: 'customer', location: { kind: 'directory', folder: 'archive/customers', createIfMissing: true } },
+    ])
   })
 })

@@ -93,7 +93,13 @@ func (tr Transformer) apply(p *transform.Program, b *source.Batch) *DocBatch {
 		if len(tr.KeyIdx) > 0 {
 			sk = keyOf(row, tr.KeyIdx)
 		}
-		key, doc, _, rerr := p.ApplyRelated(row, related.Row(b.Related, i), nil)
+		if f, failed := b.RelatedFailures[i]; failed {
+			db.RowErrors = append(db.RowErrors, RowError{
+				MappingID: tr.MappingID, Stage: StageTransform, Code: f.Code, Message: f.Message, SourceKey: sk, Row: row,
+			})
+			continue
+		}
+		key, doc, _, rerr := p.ApplyWith(row, related.Row(b.Related, i), nil)
 		if rerr != nil {
 			db.RowErrors = append(db.RowErrors, RowError{
 				MappingID: tr.MappingID, Stage: StageTransform, Code: rerr.Code, Message: rerr.Message, FieldPath: rerr.FieldPath, SourceKey: sk, Row: row,
@@ -101,16 +107,20 @@ func (tr Transformer) apply(p *transform.Program, b *source.Batch) *DocBatch {
 			continue
 		}
 		db.Docs = append(db.Docs, target.Doc{Key: key, Value: doc, SourceKey: sk})
+		for _, pg := range p.Pages() {
+			db.Docs = append(db.Docs, target.Doc{Key: pg.Key, Value: pg.Doc, SourceKey: sk, Page: true})
+		}
 	}
 	return db
 }
 
-// EmbedWorkers is how many batches have their embeds looked up at once (OC-021).
-const EmbedWorkers = 2
+// RelationWorkers is how many batches have their relations looked up at once (OC-021).
+const RelationWorkers = 2
 
-// ResolveEmbeds attaches each batch's embedded rows (one lookup per embed and batch) and
-// passes it on; it closes out when in closes. The first failed lookup stops it.
-func ResolveEmbeds(ctx context.Context, r *related.Resolver, workers int, in <-chan *source.Batch, out chan<- *source.Batch) error {
+// ResolveRelations attaches each batch's related rows (one lookup per relation and batch, as
+// the execution plan says) and passes it on; it closes out when in closes. The first failed
+// lookup stops it (OC-037: was ResolveEmbeds).
+func ResolveRelations(ctx context.Context, r *related.Resolver, workers int, in <-chan *source.Batch, out chan<- *source.Batch) error {
 	var wg sync.WaitGroup
 	var once sync.Once
 	var failed error
@@ -120,12 +130,12 @@ func ResolveEmbeds(ctx context.Context, r *related.Resolver, workers int, in <-c
 		go func() {
 			defer wg.Done()
 			for b := range in {
-				rel, err := r.Resolve(ctx, b.Rows)
+				rel, fails, err := r.Resolve(ctx, b.Rows)
 				if err != nil {
 					once.Do(func() { failed = err; close(stop) })
 					return
 				}
-				b.Related = rel
+				b.Related, b.RelatedFailures = rel, fails
 				select {
 				case out <- b:
 				case <-ctx.Done():
@@ -150,8 +160,10 @@ type Ack struct {
 	Written   int64
 	Skipped   int64
 	Failed    int64
-	Bytes     int64
-	Errors    []RowError
+	// Pages are written page documents of split arrays (OC-046), not rows.
+	Pages  int64
+	Bytes  int64
+	Errors []RowError
 	// WrittenDocs are the written documents' keys (kept when the job verifies, OC-030).
 	WrittenDocs []WrittenDoc
 	// Fatal is set when a write error makes continuing pointless.
@@ -212,10 +224,32 @@ func (w Writer) write(ctx context.Context, b *DocBatch) Ack {
 	results := w.DocWriter.WriteBatch(ctx, b.Docs)
 	observability.WriterLatency.Observe(time.Since(start).Seconds())
 	observability.WriterInflight.Dec()
+	parent := -1 // the document whose split pages follow
+	parentFailed := false
 	for i, r := range results {
 		observability.WriterOps.WithLabelValues(outcomeLabel[r.Outcome], r.Code).Inc()
 		if r.Attempts > 1 {
 			observability.WriterRetries.WithLabelValues(r.Code).Add(float64(r.Attempts - 1))
+		}
+		if !b.Docs[i].Page {
+			parent, parentFailed = i, false
+		} else {
+			// Pages count apart from rows (OC-046); a failed page fails its row.
+			switch {
+			case r.Outcome == target.Written:
+				a.Pages++
+			case r.Outcome != target.Skipped && !parentFailed && parent >= 0:
+				parentFailed = true
+				if results[parent].Outcome == target.Written {
+					a.Written--
+					a.Failed++
+				}
+				a.Errors = append(a.Errors, RowError{
+					MappingID: w.MappingID, Stage: StageWrite, Code: r.Code, Message: "page " + b.Docs[i].Key + ": " + r.Message,
+					SourceKey: b.Docs[i].SourceKey, Row: []any{json.RawMessage(b.Docs[i].Value)},
+				})
+			}
+			continue
 		}
 		switch r.Outcome {
 		case target.Written:

@@ -26,7 +26,7 @@ func TestVerify_RunVerifiesAndStoresTheResult(t *testing.T) {
 	o.TargetEmpty = map[string]bool{}
 	f := newRunFixture(t, peopleRows(1, 3000, 11), 3000, o)
 	var counted int
-	f.runner.d.CountTarget = func(context.Context, store.WorkspaceID, string, store.MappingTarget) (int64, error) {
+	f.runner.d.CountTarget = func(context.Context, store.WorkspaceID, string, store.Location) (int64, error) {
 		counted++
 		return int64(f.w.count()), nil
 	}
@@ -112,9 +112,9 @@ func TestVerify_TargetCountSettles(t *testing.T) {
 	countPoll = time.Millisecond
 	f := newRunFixture(t, peopleRows(1, 10), 10, opts(100))
 	e := &execution{r: f.runner, job: f.job}
-	seq := func(vals ...int64) func(context.Context, store.WorkspaceID, string, store.MappingTarget) (int64, error) {
+	seq := func(vals ...int64) func(context.Context, store.WorkspaceID, string, store.Location) (int64, error) {
 		i := 0
-		return func(context.Context, store.WorkspaceID, string, store.MappingTarget) (int64, error) {
+		return func(context.Context, store.WorkspaceID, string, store.Location) (int64, error) {
 			v := vals[min(i, len(vals)-1)]
 			i++
 			if v < 0 {
@@ -124,17 +124,17 @@ func TestVerify_TargetCountSettles(t *testing.T) {
 		}
 	}
 	f.runner.d.CountTarget = seq(3, 7, 10)
-	n, ok := e.settledCount(context.Background(), store.MappingTarget{}, 10)
+	n, ok := e.settledCount(context.Background(), store.Location{}, 10)
 	require.True(t, ok)
 	require.EqualValues(t, 10, n, "lagging counts catch up")
 	f.runner.d.CountTarget = seq(12, 12)
-	n, _ = e.settledCount(context.Background(), store.MappingTarget{}, 10)
+	n, _ = e.settledCount(context.Background(), store.Location{}, 10)
 	require.EqualValues(t, 12, n, "more than expected and stable")
 	f.runner.d.CountTarget = seq(-1)
-	_, ok = e.settledCount(context.Background(), store.MappingTarget{}, 10)
+	_, ok = e.settledCount(context.Background(), store.Location{}, 10)
 	require.False(t, ok, "no count at all")
 	f.runner.d.CountTarget = seq(4, -1)
-	n, ok = e.settledCount(context.Background(), store.MappingTarget{}, 10)
+	n, ok = e.settledCount(context.Background(), store.Location{}, 10)
 	require.True(t, ok)
 	require.EqualValues(t, 4, n, "the last count read")
 }

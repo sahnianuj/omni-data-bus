@@ -35,6 +35,7 @@ type opFunc func(v any, ctx *stepCtx) (any, error)
 type stepCtx struct {
 	sources  []any
 	row      func() map[string]any // lazily built column → value map (expressions)
+	scoped   func() map[string]any // the scoped expression environment (OC-047)
 	warnings *[]Warning
 	path     string
 	op       string
@@ -66,6 +67,7 @@ type compileEnv struct {
 	sources int
 	columns []string
 	opts    Options
+	escope  *exprScope // names scoped expressions can read (OC-047)
 }
 
 var same = func(in docschema.FieldType, _ map[string]any) docschema.FieldType { return in }
@@ -101,6 +103,7 @@ func init() {
 		"mask":           {compile: compileMask, typeOut: fixed(docschema.String)},
 		"hash":           {compile: compileHash, typeOut: fixed(docschema.String)},
 		"expression":     {compile: compileExpression, typeOut: fixed(docschema.Any)},
+		"array":          {compile: compileArray, typeOut: fixed(docschema.Array)},
 	}
 }
 

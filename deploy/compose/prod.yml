@@ -23,6 +23,10 @@ x-app: &app
   secrets: [master_key, meta_password]
   read_only: true
   tmpfs: [/tmp]
+  # Directory targets (OC-038): the Target step's folder picker offers /data (and the image
+  # user's home). Files written there live in the odb-out volume.
+  volumes:
+    - odb-out:/data/odb-out
   cap_drop: [ALL]
   security_opt: ["no-new-privileges:true"]
   # Workers drain running jobs for up to 30 s on shutdown (OC-023), then checkpoint.
@@ -71,5 +75,6 @@ secrets:
     file: ${ODB_SECRETS_DIR:-./secrets}/meta_password
 
 volumes:
+  odb-out:
   caddy-data:
   caddy-config:

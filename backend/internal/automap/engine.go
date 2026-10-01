@@ -123,7 +123,7 @@ func Run(spec *mapping.Spec, cols []SourceCol, opts Options) Result {
 	d := opts.Dicts
 	// Fields inside embeds are filled from the embedded tables (RunEmbed), never from the
 	// table's own columns.
-	inEmbed := mapping.EmbedFields(spec)
+	inEmbed := mapping.RelationFields(spec)
 	var leaves []TargetLeaf
 	for _, l := range Leaves(&spec.DocSchema) {
 		if inEmbed[l.FieldID] == "" {
@@ -136,7 +136,7 @@ func Run(spec *mapping.Spec, cols []SourceCol, opts Options) Result {
 	blocked := map[[2]string]bool{}
 	usedSrc, usedTgt := map[string]bool{}, map[string]bool{}
 	for _, m := range spec.FieldMappings {
-		if mapping.EmbedSources(m) {
+		if mapping.UsesAnyRelation(m) {
 			kept = append(kept, m) // the embed's own run owns it
 			continue
 		}
@@ -384,7 +384,7 @@ func Explain(spec *mapping.Spec, cols []SourceCol, d *Dicts) map[string]Explanat
 	out := map[string]Explanation{}
 	for _, m := range spec.FieldMappings {
 		proposed := m.Origin == mapping.OriginAuto || m.Origin == mapping.OriginSuggested || m.Reason == "accepted-suggestion"
-		if !proposed || len(m.Sources) != 1 || m.Sources[0].Embed != "" {
+		if !proposed || len(m.Sources) != 1 || m.Sources[0].Relation != "" {
 			continue
 		}
 		c, okc := byCol[m.Sources[0].Column]

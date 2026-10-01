@@ -83,7 +83,7 @@ func TestJobsHandler_AC2_PreflightFailureListsChecks(t *testing.T) {
 		Preflight PreflightResult `json:"preflight"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	require.Equal(t, "PREFLIGHT_FAILED", body.Code)
+	require.Equal(t, "MAPPING_INVALID", body.Code, "a validation error is named as such (OC-049 AC6)")
 	require.False(t, body.Preflight.OK)
 	require.NotEmpty(t, body.Preflight.Checks)
 }
@@ -133,4 +133,38 @@ func TestErrorsHandler_AC5_SummaryAndFilter(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, call(router(f, store.RoleViewer, "ws-x"), "GET", base+"/summary", "").Code)
 	rec = call(router(f, store.RoleEditor, ws), "POST", "/api/v1/jobs/"+v.ID+"/retry", `{"onlyCodes":["PARSE_FAILED"]}`)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+}
+
+// A mapping with a validation error (here a composer scope error) can't start a migration: 422
+// MAPPING_INVALID listing its issues, before any pre-flight check runs (OC-049 AC6).
+func TestJobsCreate_AC6_BlockedByComposerErrors(t *testing.T) {
+	f := newFixture(t)
+	m := f.maps["customer"]
+	f.issues[m.ID] = []mapping.Issue{
+		{Severity: mapping.SeverityError, Code: mapping.CodeSourceOutOfScope, Path: "items[].productName", NodePath: "items[].productName", Message: "items[].productName reads products.name, but products isn't bound on the path to this field; bind it under items or add a lookup."},
+		{Severity: mapping.SeverityWarning, Code: mapping.CodeArrayUnboundEmpty, Path: "notes", Message: "notes is always empty."},
+		{Severity: mapping.SeverityError, Code: mapping.CodeTargetKeyspaceMissing, Path: "target", Message: "created by the migration"},
+	}
+	h := router(f, store.RoleEditor, ws)
+	rec := call(h, "POST", "/api/v1/projects/"+f.project.ID+"/jobs", "")
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	var p struct {
+		Code        string `json:"code"`
+		FieldErrors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"fieldErrors"`
+		Preflight PreflightResult `json:"preflight"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &p))
+	require.Equal(t, "MAPPING_INVALID", p.Code)
+	require.Len(t, p.FieldErrors, 1, "warnings and a location the job creates don't block")
+	require.Equal(t, "shop.customer: items[].productName", p.FieldErrors[0].Field)
+	require.Contains(t, p.FieldErrors[0].Message, "SOURCE_OUT_OF_SCOPE")
+	require.False(t, p.Preflight.OK, "the checklist goes along")
+	jobs, _, _ := f.st.Jobs().List(ctx, ws, "", store.Page{})
+	require.Empty(t, jobs)
+
+	f.issues[m.ID] = nil
+	require.Equal(t, http.StatusCreated, call(h, "POST", "/api/v1/projects/"+f.project.ID+"/jobs", "").Code)
 }

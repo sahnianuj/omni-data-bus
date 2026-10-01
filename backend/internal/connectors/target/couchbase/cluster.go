@@ -226,6 +226,16 @@ func (g *gocbCluster) SampleScan(ctx context.Context, bucket, scope, collection 
 	return out, res.Err()
 }
 
+func (g *gocbCluster) Get(ctx context.Context, bucket, scope, collection, key string) ([]byte, error) {
+	res, err := g.c.Bucket(bucket).Scope(scope).Collection(collection).Get(key, &gocb.GetOptions{Context: ctx, Timeout: 5 * time.Second, Transcoder: raw})
+	if err != nil {
+		return nil, err
+	}
+	var b []byte
+	err = res.Content(&b)
+	return b, err
+}
+
 func (g *gocbCluster) Exists(ctx context.Context, bucket, scope, collection, key string) (bool, error) {
 	res, err := g.c.Bucket(bucket).Scope(scope).Collection(collection).Exists(key, &gocb.ExistsOptions{Context: ctx, Timeout: 5 * time.Second})
 	if err != nil {

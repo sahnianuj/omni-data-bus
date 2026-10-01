@@ -11,7 +11,7 @@ import { useWorkbench } from './store'
 const verdictTone = { unique: 'success', 'may-collide': 'warning', 'not-idempotent': 'warning' } as const
 
 /** Key & metadata panel at the top of the designer (OC-016). */
-export function KeyPanel({ projectId }: { projectId: string }) {
+export function KeyPanel({ projectId, supportsExpiry = true }: { projectId: string; supportsExpiry?: boolean }) {
   const { t } = useTranslation()
   const spec = useWorkbench((s) => s.history.present)
   const columns = useWorkbench((s) => s.columns)
@@ -115,6 +115,8 @@ export function KeyPanel({ projectId }: { projectId: string }) {
           <input type="checkbox" checked={!spec.omitUnmapped} onChange={(e) => apply((s) => ({ ...s, omitUnmapped: !e.target.checked }))} />
           {t('key.includeUnmapped')}
         </label>
+        {/* Document expiry exists only on kinds that support it (OC-036): not in a directory. */}
+        {supportsExpiry ? (
         <label className="flex flex-col gap-1 text-xs text-muted">
           {t('key.expiry')}
           <input
@@ -133,6 +135,7 @@ export function KeyPanel({ projectId }: { projectId: string }) {
             className="h-8 w-32 rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 font-mono text-xs text-foreground"
           />
         </label>
+        ) : null}
       </div>
       {typeCollision ? <p className="text-xs text-danger">{t('key.typeCollision', { name: spec.typeField.name })}</p> : null}
     </section>

@@ -49,6 +49,7 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("Snapshots", func(t *testing.T) { RunSnapshots(t, newStore) })
 	t.Run("Mappings", func(t *testing.T) { RunMappings(t, newStore) })
 	t.Run("Jobs", func(t *testing.T) { RunJobs(t, newStore) })
+	t.Run("Nodes", func(t *testing.T) { RunNodes(t, newStore) })
 }
 
 // RunMappings covers OC-035: one mapping per table, versioned updates, listing, cascades.
@@ -61,6 +62,34 @@ func RunMappings(t *testing.T, newStore Factory) {
 			Spec:   json.RawMessage(`{"docSchema":{"root":{"id":"fld_root","name":"$","type":"object"}}}`), Status: "draft", CreatedBy: "u1",
 		}
 	}
+
+	t.Run("OC036_Location", func(t *testing.T) {
+		wsA, _ := workspaces()
+		s := newStore(t, NewClock())
+		p, err := s.Projects().Create(ctx, wsA, store.NewProject{Name: "P"})
+		require.NoError(t, err)
+		// A 1.0-style mapping (target only) is stored and read with a Couchbase location.
+		m, err := s.Mappings().Create(ctx, wsA, mk(p, "shop", "orders"))
+		require.NoError(t, err)
+		got, err := s.Mappings().Get(ctx, wsA, m.ID)
+		require.NoError(t, err)
+		require.Equal(t, store.Location{Kind: store.KindCouchbase, Bucket: "shop", Scope: "sales", Collection: "orders", CreateIfMissing: true}, got.Location)
+
+		// Updating only the 1.0 target moves the location with it.
+		got.Target.Collection = "orders_v2"
+		got, err = s.Mappings().Update(ctx, wsA, got)
+		require.NoError(t, err)
+		require.Equal(t, "orders_v2", got.Location.Collection)
+
+		// A directory location clears the 1.0 target.
+		got.SetLocation(store.Location{Kind: store.KindDirectory, Folder: "orders"})
+		_, err = s.Mappings().Update(ctx, wsA, got)
+		require.NoError(t, err)
+		got, err = s.Mappings().Get(ctx, wsA, m.ID)
+		require.NoError(t, err)
+		require.Equal(t, store.Location{Kind: store.KindDirectory, Folder: "orders"}, got.Location)
+		require.Equal(t, store.MappingTarget{}, got.Target)
+	})
 
 	t.Run("AC1_CreateListGetUniquePerTable", func(t *testing.T) {
 		wsA, wsB := workspaces()

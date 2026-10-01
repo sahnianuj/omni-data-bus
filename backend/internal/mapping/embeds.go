@@ -9,13 +9,14 @@ import (
 	"omnidatabus/internal/schema"
 )
 
-// Embed kinds (OC-021).
+// Relation kinds (OC-021; many-to-many from OC-044).
 const (
-	EmbedManyToOne = "many-to-one" // FK on the parent → a nested object
-	EmbedOneToMany = "one-to-many" // child rows referencing the parent → an array of objects
+	EmbedManyToOne     = "many-to-one"  // FK on the parent → a nested object
+	EmbedOneToMany     = "one-to-many"  // child rows referencing the parent → an array of objects
+	RelationManyToMany = "many-to-many" // through a junction table → an array
 )
 
-// Embed limits and empty-array handling.
+// Relation limits and empty-array handling.
 const (
 	DefaultEmbedLimit = 1000
 	MaxEmbedLimit     = 100_000
@@ -28,7 +29,7 @@ const (
 	EmbedDocWarnBytes = 10 << 20
 )
 
-// Embed issue codes.
+// Relation issue codes.
 const (
 	CodeEmbedInvalid      = "EMBED_INVALID"
 	CodeEmbedTableMissing = "EMBED_TABLE_MISSING"
@@ -37,7 +38,9 @@ const (
 	CodeEmbedDuplicate    = "EMBED_DUPLICATE_TARGET"
 	CodeEmbedCardinality  = "EMBED_CARDINALITY"
 	CodeEmbedDocSize      = "EMBED_DOC_SIZE"
-	CodeEmbedScope        = "EMBED_SCOPE"
+	// CodeEmbedScope is the 1.0 name of the scope rule's code; 2.0 reports SOURCE_OUT_OF_SCOPE
+	// for canvas and composed mappings alike (OC-047).
+	CodeEmbedScope = CodeSourceOutOfScope
 )
 
 // TableRef names a source table.
@@ -58,54 +61,148 @@ type JoinPair struct {
 type OrderColumn struct {
 	Column string `json:"column"`
 	Desc   bool   `json:"desc,omitempty"`
+	From   string `json:"from,omitempty"` // "via": a many-to-many junction column (OC-044)
 }
 
-// Embed denormalizes a related table into the document (OC-021): many-to-one as the object
-// field TargetFieldID, one-to-many as the array field TargetFieldID (items are objects). Field
-// mappings inside it use sources {embed: ID, column: …}.
-type Embed struct {
-	ID            string        `json:"id"`
-	Kind          string        `json:"kind"`
-	Table         TableRef      `json:"table"`
-	Join          []JoinPair    `json:"join"`
-	OrderBy       []OrderColumn `json:"orderBy,omitempty"`
-	Limit         int           `json:"limit,omitempty"` // one-to-many; 0 = DefaultEmbedLimit
-	TargetFieldID string        `json:"targetFieldId"`
-	Empty         string        `json:"empty,omitempty"` // one-to-many without rows: array (default) | omit
+// Relation brings a related table into the document (spec v2, OC-037; 1.0's embeds are
+// relations at depth 1): many-to-one as the object field TargetFieldID, one-to-many and
+// many-to-many as the array field TargetFieldID. Relations form a tree through ParentID (nil =
+// a child of the root table). Field mappings read a relation's columns with sources
+// {relation: ID, column: …}.
+type Relation struct {
+	ID       string     `json:"id"`
+	ParentID *string    `json:"parentId"`
+	Kind     string     `json:"kind"`
+	Table    TableRef   `json:"table"`
+	Join     []JoinPair `json:"join,omitempty"`
+	// Via is the junction table of a many-to-many relation (OC-044).
+	Via           *Via   `json:"via,omitempty"`
+	TargetFieldID string `json:"targetFieldId,omitempty"`
+	// LookupOnly relations create no field; their columns can be mapped anywhere in scope.
+	LookupOnly bool `json:"lookupOnly,omitempty"`
+	// Shape of an array relation: objects (default) | scalars (ValueColumn) | keyed (KeyColumn), OC-045.
+	Shape       string        `json:"shape,omitempty"`
+	ValueColumn string        `json:"valueColumn,omitempty"`
+	KeyColumn   string        `json:"keyColumn,omitempty"`
+	OrderBy     []OrderColumn `json:"orderBy,omitempty"`
+	Limit       int           `json:"limit,omitempty"` // arrays; 0 = DefaultEmbedLimit
+	Filter      []Filter      `json:"filter,omitempty"`
+	// Overflow past Limit: truncate (default) | fail | split, OC-046.
+	Overflow string `json:"overflow,omitempty"`
+	// Strategy: auto (default) | batched | sorted-merge, OC-046.
+	Strategy string `json:"strategy,omitempty"`
+	Empty    string `json:"empty,omitempty"` // an array without rows: array (default) | omit
+	// Distinct keeps one item per target row and parent (many-to-many, OC-044); the junction
+	// columns then come from the first row in order.
+	Distinct bool `json:"distinct,omitempty"`
+	// KeepDangling keeps junction rows whose target row is missing, with null target columns
+	// (many-to-many; they're dropped with RELATION_DANGLING by default).
+	KeepDangling bool `json:"keepDangling,omitempty"`
+	// Group marks the relation holding a grouped document's rows (OC-063): a one-to-many from
+	// the driving table to itself on the root's group-by columns, kept in sync by SyncGroup.
+	Group bool `json:"group,omitempty"`
+}
+
+// Parent is the parent relation's ID, "" for a child of the root table.
+func (e Relation) Parent() string {
+	if e.ParentID == nil {
+		return ""
+	}
+	return *e.ParentID
+}
+
+// Via is a many-to-many relation's junction table (OC-044).
+type Via struct {
+	Table      TableRef  `json:"table"`
+	ParentJoin []ViaJoin `json:"parentJoin"`
+	ChildJoin  []ViaJoin `json:"childJoin"`
+	// Columns of the junction exposed to field mappings (sources with from: "via").
+	Columns []string `json:"columns,omitempty"`
+}
+
+// ViaJoin pairs a junction column with a parent (ParentJoin) or child (ChildJoin) column.
+type ViaJoin struct {
+	Parent string `json:"parent,omitempty"`
+	Via    string `json:"via"`
+	Child  string `json:"child,omitempty"`
+}
+
+// Filter is one condition on a relation's rows, pushed down as a bind parameter (OC-045).
+type Filter struct {
+	Column string `json:"column"`
+	Op     string `json:"op"` // eq ne lt lte gt gte in notIn isNull notNull like
+	Value  any    `json:"value,omitempty"`
+	From   string `json:"from,omitempty"` // "via": a junction column
+}
+
+// Aggregate writes a function over a relation's rows into a scalar field (OC-045).
+type Aggregate struct {
+	ID            string `json:"id"`
+	RelationID    string `json:"relationId"`
+	Fn            string `json:"fn"` // count | sum | min | max | avg | first | last
+	Column        string `json:"column,omitempty"`
+	From          string `json:"from,omitempty"` // "via": a many-to-many junction column
+	TargetFieldID string `json:"targetFieldId"`
 }
 
 // EffectiveLimit is the per-parent item limit of a one-to-many embed.
-func (e Embed) EffectiveLimit() int {
+func (e Relation) EffectiveLimit() int {
 	if e.Limit <= 0 {
 		return DefaultEmbedLimit
 	}
 	return e.Limit
 }
 
-// EmbedByID returns the embed with id, or nil.
-func (s *Spec) EmbedByID(id string) *Embed {
-	for i := range s.Embeds {
-		if s.Embeds[i].ID == id {
-			return &s.Embeds[i]
+// RelationByID returns the embed with id, or nil.
+func (s *Spec) RelationByID(id string) *Relation {
+	for i := range s.Relations {
+		if s.Relations[i].ID == id {
+			return &s.Relations[i]
 		}
 	}
 	return nil
 }
 
-// EmbedContainer is the object whose children are an embed's fields: the target object
-// (many-to-one) or the target array's item object (one-to-many); nil when the design doesn't
-// have the right shape.
-func EmbedContainer(d *docschema.Schema, e Embed) *docschema.DocField {
+// RelationContainer is the object whose children are a relation's fields: the target object
+// (many-to-one, or a keyed shape), or the target array's item object (one-to-many and
+// many-to-many as objects); nil when the design doesn't have the right shape, and for a
+// scalars shape (see RelationValueField) or a relation without a field. With a composer
+// adapter (OC-047) a many relation fills an object (first) and a many-to-one relation fills an
+// array's item object (wrap).
+func RelationContainer(d *docschema.Schema, e Relation) *docschema.DocField {
+	if e.LookupOnly || e.TargetFieldID == "" {
+		return nil
+	}
 	f := d.Find(e.TargetFieldID)
 	if f == nil {
 		return nil
 	}
-	switch e.Kind {
-	case EmbedManyToOne:
+	switch adapterOf(f) {
+	case "":
+	case docschema.AdapterFirst:
+		if e.Many() && f.Type == docschema.Object {
+			return f
+		}
+		return nil
+	case docschema.AdapterWrap:
+		if e.Kind == EmbedManyToOne && f.Type == docschema.Array && f.Items != nil && f.Items.Type == docschema.Object {
+			return f.Items
+		}
+		return nil
+	default:
+		return nil
+	}
+	switch {
+	case e.Kind == EmbedManyToOne:
 		if f.Type == docschema.Object {
 			return f
 		}
-	case EmbedOneToMany:
+	case !e.Many():
+	case e.EffectiveShape() == ShapeKeyed:
+		if f.Type == docschema.Object {
+			return f
+		}
+	case e.EffectiveShape() == ShapeObjects:
 		if f.Type == docschema.Array && f.Items != nil && f.Items.Type == docschema.Object {
 			return f.Items
 		}
@@ -113,45 +210,55 @@ func EmbedContainer(d *docschema.Schema, e Embed) *docschema.DocField {
 	return nil
 }
 
-// EmbedFields maps every field inside an embed (not the embed's own target field) to the
-// embed's id.
-func EmbedFields(s *Spec) map[string]string {
+// RelationValueField is the item field of a scalars-shaped relation's array (OC-045): a
+// mapping on it can transform the value column; nil when the design isn't an array of scalars.
+func RelationValueField(d *docschema.Schema, e Relation) *docschema.DocField {
+	if !e.Many() || e.EffectiveShape() != ShapeScalars || e.TargetFieldID == "" {
+		return nil
+	}
+	f := d.Find(e.TargetFieldID)
+	if f == nil || adapterOf(f) != "" || f.Type != docschema.Array || f.Items == nil || !f.Items.Type.Scalar() {
+		return nil
+	}
+	return f.Items
+}
+
+// RelationFields maps every field inside a relation (not the relation's own target field) to
+// the relation whose rows fill it: the nearest one, for fields of nested relations (OC-043).
+func RelationFields(s *Spec) map[string]string {
+	containers := map[string]bool{}
+	for _, e := range s.Relations {
+		if c := RelationContainer(&s.DocSchema, e); c != nil {
+			containers[c.ID] = true // an array's item object holds the fields, it isn't one
+		}
+	}
 	out := map[string]string{}
-	for _, e := range s.Embeds {
-		c := EmbedContainer(&s.DocSchema, e)
-		if c == nil {
-			continue
+	for id, scope := range FieldScopes(s) {
+		if scope != "" && !containers[id] {
+			out[id] = scope
 		}
-		var walk func(f *docschema.DocField)
-		walk = func(f *docschema.DocField) {
-			for i := range f.Children {
-				out[f.Children[i].ID] = e.ID
-				walk(&f.Children[i])
-			}
-			if f.Items != nil && f != c {
-				out[f.Items.ID] = e.ID
-				walk(f.Items)
-			}
-		}
-		walk(c)
 	}
 	return out
 }
 
-// Scoped is the sub-spec of one embed: its fields as the document root and its field mappings
-// with plain column sources (the transform compiler and auto-map run on it).
-func Scoped(s *Spec, e Embed) Spec {
+// Scoped is the sub-spec of one relation: its container's fields as the document root and the
+// mappings of fields in its scope, whose sources of this relation become plain columns (the
+// auto-mapper runs on it). Sources of other relations (ancestors, lookups) keep their relation.
+func Scoped(s *Spec, e Relation) Spec {
 	out := Spec{NullHandling: s.NullHandling, OmitUnmapped: s.OmitUnmapped, DocSchema: docschema.Schema{Root: docschema.NewRoot(), Source: s.DocSchema.Source}}
-	if c := EmbedContainer(&s.DocSchema, e); c != nil {
+	if c := RelationContainer(&s.DocSchema, e); c != nil {
 		out.DocSchema.Root.Children = c.Children
 	}
+	scopes := FieldScopes(s)
 	for _, m := range s.FieldMappings {
-		if !UsesEmbed(m, e.ID) {
+		if scopes[m.TargetFieldID] != e.ID && !UsesRelation(m, e.ID) {
 			continue
 		}
 		m.Sources = append([]SourceRef(nil), m.Sources...)
 		for i := range m.Sources {
-			m.Sources[i].Embed = ""
+			if m.Sources[i].Relation == e.ID {
+				m.Sources[i].Relation = ""
+			}
 		}
 		out.FieldMappings = append(out.FieldMappings, m)
 	}
@@ -159,20 +266,20 @@ func Scoped(s *Spec, e Embed) Spec {
 	return out
 }
 
-// UsesEmbed reports whether a mapping reads from embed id.
-func UsesEmbed(m FieldMapping, id string) bool {
+// UsesRelation reports whether a mapping reads from embed id.
+func UsesRelation(m FieldMapping, id string) bool {
 	for _, s := range m.Sources {
-		if s.Embed == id {
+		if s.Relation == id {
 			return true
 		}
 	}
 	return false
 }
 
-// EmbedSources reports whether a mapping reads from any embed.
-func EmbedSources(m FieldMapping) bool {
+// UsesAnyRelation reports whether a mapping reads from any embed.
+func UsesAnyRelation(m FieldMapping) bool {
 	for _, s := range m.Sources {
-		if s.Embed != "" {
+		if s.Relation != "" {
 			return true
 		}
 	}
@@ -191,6 +298,8 @@ type EmbedCandidate struct {
 	RowsPerParent float64 `json:"rowsPerParent,omitempty"`
 	// EmbedID is set when the spec already embeds this relation.
 	EmbedID string `json:"embedId,omitempty"`
+	// Virtual is the ID of the virtual relationship this candidate comes from (OC-042).
+	Virtual string `json:"virtual,omitempty"`
 }
 
 // Candidates lists the embeddable relations of a table: its foreign keys (many-to-one) and the
@@ -201,7 +310,7 @@ func Candidates(snap *schema.Snapshot, parent *schema.Table, s *Spec) []EmbedCan
 		if s == nil {
 			return ""
 		}
-		for _, e := range s.Embeds {
+		for _, e := range s.Relations {
 			if e.Kind == kind && e.Table == t && sameJoin(e.Join, join) {
 				return e.ID
 			}
@@ -272,7 +381,7 @@ func avgRowBytes(t *schema.Table) float64 {
 
 // EmbedEstimates warns (never errors) about an embed that may produce huge arrays or documents
 // (OC-021 AC6): more child rows per parent than the limit, or an estimated document over 10 MB.
-func EmbedEstimates(e Embed, parent, child *schema.Table, path string) []Issue {
+func EmbedEstimates(e Relation, parent, child *schema.Table, path string) []Issue {
 	if e.Kind != EmbedOneToMany || parent == nil || child == nil {
 		return nil
 	}
@@ -296,104 +405,6 @@ func EmbedEstimates(e Embed, parent, child *schema.Table, path string) []Issue {
 
 // RelatedTables resolves an embed's table (the snapshot, in the service).
 type RelatedTables func(schemaName, table string) *schema.Table
-
-// ValidateEmbeds checks each embed (OC-021 AC7): its table and join columns exist with
-// compatible types, the target field has the right kind, no field is embedded twice, and the
-// order columns exist. Size and cardinality estimates are warnings.
-func ValidateEmbeds(s *Spec, parent *schema.Table, related RelatedTables) []Issue {
-	var out []Issue
-	paths := s.DocSchema.Paths()
-	targets := map[string]string{}
-	ids := map[string]bool{}
-	for _, e := range s.Embeds {
-		path := paths[e.TargetFieldID]
-		if path == "" {
-			path = "embeds." + e.ID
-		}
-		bad := func(code, msg string) {
-			out = append(out, Issue{Severity: SeverityError, Code: code, Path: path, FieldID: e.TargetFieldID, Message: "Embed " + e.ID + ": " + msg})
-		}
-		if e.ID == "" || ids[e.ID] {
-			bad(CodeEmbedInvalid, "every embed needs a unique id.")
-		}
-		ids[e.ID] = true
-		if e.Kind != EmbedManyToOne && e.Kind != EmbedOneToMany {
-			bad(CodeEmbedInvalid, "kind must be many-to-one or one-to-many.")
-			continue
-		}
-		if prev, dup := targets[e.TargetFieldID]; dup {
-			bad(CodeEmbedDuplicate, "field "+path+" is already filled by embed "+prev+".")
-		}
-		targets[e.TargetFieldID] = e.ID
-		if s.DocSchema.Find(e.TargetFieldID) == nil {
-			bad(CodeUnknownTargetField, "the target field isn't in the design.")
-		} else if EmbedContainer(&s.DocSchema, e) == nil {
-			want := "an object"
-			if e.Kind == EmbedOneToMany {
-				want = "an array of objects"
-			}
-			bad(CodeEmbedTargetKind, path+" must be "+want+" for a "+e.Kind+" embed.")
-		}
-		if e.Kind == EmbedOneToMany && (e.Limit < 0 || e.Limit > MaxEmbedLimit) {
-			bad(CodeEmbedInvalid, fmt.Sprintf("limit must be between 1 and %d.", MaxEmbedLimit))
-		}
-		if e.Empty != "" && e.Empty != EmptyArray && e.Empty != EmptyOmit {
-			bad(CodeEmbedInvalid, "empty must be array or omit.")
-		}
-		var child *schema.Table
-		if related != nil {
-			child = related(e.Table.Schema, e.Table.Name)
-		}
-		if child == nil {
-			bad(CodeEmbedTableMissing, "table "+e.Table.String()+" isn't in the latest schema snapshot.")
-			continue
-		}
-		if len(e.Join) == 0 {
-			bad(CodeEmbedJoinInvalid, "set the join columns.")
-		}
-		for _, j := range e.Join {
-			pc, cc := parent.Column(j.Parent), child.Column(j.Child)
-			switch {
-			case pc == nil:
-				bad(CodeEmbedJoinInvalid, "join column "+j.Parent+" isn't in "+parent.Name+".")
-			case cc == nil:
-				bad(CodeEmbedJoinInvalid, "join column "+j.Child+" isn't in "+e.Table.String()+".")
-			case !joinCompatible(*pc, *cc):
-				bad(CodeEmbedJoinInvalid, fmt.Sprintf("%s (%s) and %s (%s) have incompatible types.", j.Parent, pc.UDTName, j.Child, cc.UDTName))
-			}
-		}
-		for _, o := range e.OrderBy {
-			if child.Column(o.Column) == nil {
-				bad(CodeEmbedJoinInvalid, "order column "+o.Column+" isn't in "+e.Table.String()+".")
-			}
-		}
-		out = append(out, EmbedEstimates(e, parent, child, path)...)
-	}
-	// Mappings inside embeds read that embed's table, and fill that embed's fields.
-	inEmbed := EmbedFields(s)
-	for _, m := range s.FieldMappings {
-		if m.State == StateRejected {
-			continue
-		}
-		path := paths[m.TargetFieldID]
-		for _, src := range m.Sources {
-			want := inEmbed[m.TargetFieldID]
-			switch {
-			case src.Embed == "" && want != "":
-				out = append(out, Issue{
-					Severity: SeverityError, Code: CodeEmbedScope, Path: path, FieldID: m.TargetFieldID, FieldMappingID: m.ID,
-					Message: path + " is inside embed " + want + ": map it from that table's columns.",
-				})
-			case src.Embed != "" && src.Embed != want:
-				out = append(out, Issue{
-					Severity: SeverityError, Code: CodeEmbedScope, Path: path, FieldID: m.TargetFieldID, FieldMappingID: m.ID,
-					Message: "Columns of embed " + src.Embed + " can only fill that embed's fields.",
-				})
-			}
-		}
-	}
-	return out
-}
 
 // joinCompatible: the same type, or both integers, or both text-like.
 func joinCompatible(a, b schema.Column) bool {

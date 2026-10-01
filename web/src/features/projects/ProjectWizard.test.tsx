@@ -17,6 +17,21 @@ beforeEach(() => {
 })
 
 describe('ProjectWizard', () => {
+  it('names the target repository by its kind', async () => {
+    const step = () => screen.getByRole('navigation', { name: 'Project steps' })
+    mockProject(makeProject({ source: repo('postgres'), target: repo('directory') }))
+    const dir = renderRoutes(routes, '/projects/p1/source')
+    await waitFor(() => expect(step()).toHaveTextContent('Target repositoryDirectory of JSON files'))
+    dir.unmount()
+    mockProject(makeProject({ source: repo('postgres'), target: repo('couchbase') }))
+    const cb = renderRoutes(routes, '/projects/p1/source')
+    await waitFor(() => expect(step()).toHaveTextContent('Target repositoryCouchbase'))
+    cb.unmount()
+    mockProject(makeProject({ source: repo('postgres') }))
+    renderRoutes(routes, '/projects/p1/source')
+    await waitFor(() => expect(step()).toHaveTextContent('Target repositoryCouchbase or JSON files'))
+  })
+
   it('AC5: resumes at first incomplete step', async () => {
     mockProject(makeProject({ source: repo('postgres') }))
     const { router } = renderRoutes(routes, '/projects/p1')

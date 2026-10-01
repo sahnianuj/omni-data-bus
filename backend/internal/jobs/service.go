@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/problem"
 	"omnidatabus/internal/progress"
 	"omnidatabus/internal/store"
@@ -22,6 +24,9 @@ type Service struct {
 	store     store.Store
 	preflight *Preflighter
 	now       func() time.Time
+	// PlanHash identifies the execution plan of a mapping's (frozen) spec (OC-037); recorded
+	// on the job so runs can be compared. Nil skips it.
+	PlanHash func(ctx context.Context, ws store.WorkspaceID, m store.Mapping) (string, error)
 }
 
 // NewService returns the jobs service.
@@ -79,7 +84,8 @@ func (s *Service) resumeInfo(ctx context.Context, j store.Job, opts Options) *Re
 		m, err := s.store.Mappings().Get(ctx, j.WorkspaceID, id)
 		ref := MappingRef{MappingID: id, Table: id}
 		if err == nil {
-			ref.Table = m.SourceSchema + "." + m.SourceTable
+			srcSchema, srcTable := m.Driving()
+			ref.Table = srcSchema + "." + srcTable
 			if v, ok := opts.MappingVersions[id]; ok && v != m.Version {
 				info.Changed = append(info.Changed, ref)
 			}
@@ -138,6 +144,10 @@ func (s *Service) Create(ctx context.Context, ws store.WorkspaceID, userID, proj
 		return View{}, pre, err
 	}
 	if !pre.OK {
+		// Validation errors come first, listed one by one (OC-049 AC6); the checklist goes along.
+		if err := s.blockInvalid(ctx, ws, projectID, opts.MappingIDs); err != nil {
+			return View{}, pre, err
+		}
 		p := problem.New(http.StatusUnprocessableEntity, problem.CodePreflightFailed, "Pre-flight checks failed", failedChecks(pre))
 		return View{}, pre, p
 	}
@@ -163,6 +173,14 @@ func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, proj
 			return View{}, pre, err
 		}
 		opts.Specs[id], opts.MappingVersions[id] = m.Spec, m.Version
+		if s.PlanHash != nil {
+			if h, err := s.PlanHash(ctx, ws, m); err == nil {
+				if opts.PlanHashes == nil {
+					opts.PlanHashes = map[string]string{}
+				}
+				opts.PlanHashes[id] = h
+			}
+		}
 	}
 	raw, _ := json.Marshal(opts)
 	j, err := s.store.Jobs().Create(ctx, ws, store.Job{
@@ -180,7 +198,7 @@ func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, proj
 	for _, m := range pre.Mappings {
 		snap.Total += m.RowEstimate
 		snap.Mappings = append(snap.Mappings, progress.MappingProgress{
-			MappingID: m.MappingID, Table: m.Table, Target: m.Target.Bucket + "." + m.Target.Scope + "." + m.Target.Collection,
+			MappingID: m.MappingID, Table: m.Table, Target: m.Location.String(),
 			Phase: progress.PhaseQueued, Total: m.RowEstimate, TotalKind: progress.TotalEstimate,
 		})
 	}
@@ -392,4 +410,42 @@ func (g Guard) HasActiveJob(ctx context.Context, ws store.WorkspaceID, projectID
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// blockInvalid refuses to start a job whose mappings have validation errors (OC-049 AC6: a
+// composed mapping's SOURCE_OUT_OF_SCOPE, BINDING_* and the rest): 422 MAPPING_INVALID listing
+// every error. A missing target location isn't one: the pre-flight creates it or reports it.
+func (s *Service) blockInvalid(ctx context.Context, ws store.WorkspaceID, projectID string, ids []string) error {
+	if s.preflight == nil || s.preflight.Validate == nil {
+		return nil
+	}
+	maps, err := selectMappings(ctx, s.store, ws, projectID, ids)
+	if err != nil {
+		return err
+	}
+	var fields []problem.FieldError
+	for _, m := range maps {
+		res, err := s.preflight.Validate(ctx, ws, projectID, m.ID)
+		if err != nil {
+			return err
+		}
+		srcSchema, srcTable := m.Driving()
+		for _, i := range res.Issues {
+			if i.Severity != mapping.SeverityError || i.Code == mapping.CodeTargetKeyspaceMissing {
+				continue
+			}
+			where := i.NodePath
+			if where == "" {
+				where = i.Path
+			}
+			fields = append(fields, problem.FieldError{Field: srcSchema + "." + srcTable + ": " + where, Message: i.Code + ": " + i.Message})
+		}
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	p := problem.New(http.StatusUnprocessableEntity, problem.CodeMappingInvalid, "Fix the mappings first",
+		fmt.Sprintf("%d validation error(s) must be fixed before migrating: %s", len(fields), fields[0].Message))
+	p.FieldErrors = fields
+	return p
 }

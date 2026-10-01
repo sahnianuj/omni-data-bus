@@ -6,8 +6,14 @@ GOLANGCI_VERSION := v2.14.0
 export CGO_ENABLED := 0
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# release for a tag (v2.0.0), rc for a pre-release tag (v2.0.0-rc.1), dev otherwise (OC-058).
+CHANNEL ?= $(shell v='$(VERSION)'; if [[ $$v =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$$ ]]; then echo release; \
+	elif [[ $$v =~ ^v?[0-9]+\.[0-9]+\.[0-9]+-(rc|beta|alpha) ]]; then echo rc; else echo dev; fi)
 IMAGE ?= omni-data-bus:$(VERSION)
-LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
+BUILDINFO := omnidatabus/internal/buildinfo
+LDFLAGS := -s -w -X $(BUILDINFO).version=$(VERSION) -X $(BUILDINFO).commit=$(COMMIT) \
+	-X $(BUILDINFO).buildTime=$(BUILD_TIME) -X $(BUILDINFO).channel=$(CHANNEL)
 HELM_IMAGE := alpine/helm:3.18.4
 HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:latest
 
@@ -73,13 +79,14 @@ test-integration: ## Go integration tests (needs Docker; uses Couchbase 8.0.3 an
 	cd backend && go run ./tools/covergate/cmd/covergate --integration coverage/integration.out
 
 build: ## Build the web app and a single Go binary with the SPA embedded
-	cd web && npm run build
+	cd web && VITE_ODB_VERSION=$(VERSION) npm run build
 	rm -rf backend/internal/httpapi/webdist && cp -R web/dist backend/internal/httpapi/webdist
 	cd backend && CGO_ENABLED=0 go build -tags embedspa -trimpath -ldflags "$(LDFLAGS)" -o bin/odb ./cmd/odb
 	cd backend && go test -tags embedspa -count=1 -run TestEmbeddedSPA ./internal/httpapi
 
 image: ## Build the container image (IMAGE=omni-data-bus:<version>)
-	docker build -f deploy/docker/Dockerfile --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) -t $(IMAGE) .
+	docker build -f deploy/docker/Dockerfile --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) --build-arg CHANNEL=$(CHANNEL) -t $(IMAGE) .
 
 image-test: image ## Check the image: user, entrypoint, files, commands, size < 40 MB
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$(CURDIR)/deploy/docker:/cfg" \

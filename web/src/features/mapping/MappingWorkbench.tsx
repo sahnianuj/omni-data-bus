@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Eye, PanelRight, Redo2, ShieldCheck, Undo2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useOutletContext, useParams } from 'react-router'
+import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 import { toast } from 'sonner'
 import type { StoreApi } from 'zustand'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -14,7 +14,6 @@ import { DocDesigner } from '@/features/docschema/DocDesigner'
 import type { Project } from '@/features/projects/api'
 import { projectKeys } from '@/features/projects/api'
 import { ApiError } from '@/lib/api/client'
-import { cn } from '@/lib/utils'
 import { mappingKeys, runAutomap, saveMapping, useMapping, validateMapping } from './api'
 import { AutomapIntro } from './AutomapIntro'
 import { computeStats } from './computeStats'
@@ -30,6 +29,12 @@ import type { MappingView, SourceColumn } from './types'
 import { UnmappedPanel } from './UnmappedPanel'
 import { useMappingAutosave, type SaveState } from './useMappingAutosave'
 import { ValidationPanel } from './ValidationPanel'
+import { ViewBar } from './ViewBar'
+import { BAR_VIEWS, composerHintDismissed, dismissComposerHint, initialView, rememberView } from './viewPrefs'
+import { formatLocation, useKindCapabilities } from '@/features/targets/kinds'
+import { Composer } from '@/features/composer/Composer'
+import { toCanvas, toComposed } from '@/features/composer/modeSwitch'
+import { CombineRowsDialog } from '@/features/composer/CombineRowsDialog'
 
 const saveTone: Record<SaveState, 'neutral' | 'success' | 'warning' | 'danger'> = { idle: 'neutral', saving: 'neutral', saved: 'success', error: 'danger', conflict: 'danger' }
 
@@ -46,7 +51,9 @@ export function MappingWorkbenchPage() {
 }
 
 function WorkbenchLoader({ project, view }: { project: Project; view: MappingView }) {
-  const table = useSourceTable(project.source?.id ?? '', view.sourceSchema, view.sourceTable)
+  // A composed mapping's root columns are its driving table's (OC-047).
+  const drv = view.spec.mode === 'composed' && view.spec.root ? view.spec.root.table : { schema: view.sourceSchema, name: view.sourceTable }
+  const table = useSourceTable(project.source?.id ?? '', drv.schema, drv.name)
   return <AsyncBoundary query={table}>{(tbl) => <Workbench key={view.id} project={project} view={view} columns={tbl.columns} />}</AsyncBoundary>
 }
 
@@ -61,6 +68,7 @@ export function Workbench({ project, view, columns }: { project: Project; view: 
 }
 
 function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<WorkbenchState> }) {
+  const caps = useKindCapabilities(project.target?.type)
   const { t } = useTranslation()
   const qc = useQueryClient()
   const view = useWorkbench((s) => s.view)
@@ -165,6 +173,55 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
   }
 
   const automap = view.automapStats ?? view.stats
+  const apply = useWorkbench((s) => s.apply)
+  // Canvas and Composer edit the same relation tree; switching sets the spec's mode (OC-048 AC6).
+  const switchMode = (m: WorkbenchMode) => {
+    const spec = store.getState().history.present
+    if (m === 'composer' && spec.mode !== 'composed') apply((s) => toComposed(s, { schema: view.sourceSchema, name: view.sourceTable }))
+    if (m === 'canvas' && spec.mode === 'composed') {
+      const res = toCanvas(spec, { schema: view.sourceSchema, name: view.sourceTable })
+      if ('blocked' in res) {
+        toast.error(t('composer.canvasBlocked', { table: `${res.blocked.schema}.${res.blocked.name}`, own: `${view.sourceSchema}.${view.sourceTable}` }))
+        return
+      }
+      apply(() => res.spec)
+    }
+    setMode(m)
+    rememberView(view.id, m)
+  }
+
+  // Open in the linked, composed or remembered view (OC-062), once.
+  const location = useLocation()
+  const opened = useRef(false)
+  useEffect(() => {
+    if (opened.current) return
+    opened.current = true
+    const want = initialView(view.id, view.spec.mode === 'composed', location.search)
+    if (want !== store.getState().mode) switchMode(want)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on open
+  }, [])
+
+  // Alt+1…3 switch views from anywhere in the workbench.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return
+      const i = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code)
+      if (i < 0) return
+      e.preventDefault()
+      switchMode(BAR_VIEWS[i]!)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // "Combine rows with the same key" from the Canvas opens the result in the Composer (OC-066).
+  const [combining, setCombining] = useState<string[] | null>(null)
+
+  // The Composer is made for nested documents: say so once on the Canvas (OC-062).
+  const [hintOff, setHintOff] = useState(composerHintDismissed)
+  const nested = liveSpec.relations.some((r) => !r.lookupOnly && r.targetFieldId) || (!!liveSpec.docSchema.imported && JSON.stringify(liveSpec.docSchema.root).includes('"type":"array"'))
+  const showComposerHint = mode === 'canvas' && nested && !hintOff
+  const drivingName = liveSpec.mode === 'composed' && liveSpec.root ? `${liveSpec.root.table.schema}.${liveSpec.root.table.name}` : `${view.sourceSchema}.${view.sourceTable}`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -175,10 +232,10 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
           </Link>
         </Button>
         <h1 className="min-w-0 truncate text-[15px] font-semibold">
-          {view.sourceSchema}.{view.sourceTable}
+          {drivingName}
           <span className="px-1.5 text-subtle">→</span>
           <span className="font-mono text-[13px]">
-            {view.target.bucket}.{view.target.scope}.{view.target.collection}
+            {formatLocation(view.location)}
           </span>
         </h1>
         <Badge tone={saveTone[autosave.state]} aria-live="polite">
@@ -223,38 +280,33 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
         </div>
       ) : null}
 
-      <MappingScoreHeader
-        automap={automap}
-        live={live}
-        onFilter={(f) => {
-          setFilter(f)
-          if (mode === 'design') setMode('canvas')
-        }}
-        onRerun={(m) => void rerun(m)}
-        rerunning={rerunning}
-        onRequiredClick={() => {
-          setFilter('required')
-          setMode('table')
-        }}
-      />
-      <AutomapIntro mappingId={view.id} stats={automap} onReview={() => setSide('suggestions')} />
+      <ViewBar mode={mode} onChange={switchMode} />
+      {mode === 'composer' ? null : (
+        <MappingScoreHeader
+          automap={automap}
+          live={live}
+          onFilter={(f) => {
+            setFilter(f)
+            if (mode === 'design') setMode('canvas')
+          }}
+          onRerun={(m) => void rerun(m)}
+          rerunning={rerunning}
+          onRequiredClick={() => {
+            setFilter('required')
+            setMode('table')
+          }}
+        />
+      )}
+      {mode === 'composer' ? null : <AutomapIntro mappingId={view.id} stats={automap} onReview={() => setSide('suggestions')} />}
 
-      <div className="flex items-center gap-3 border-b border-border px-6 py-2">
-        <div role="radiogroup" aria-label={t('workbench.view')} className="flex rounded-[var(--radius-control)] border border-border p-0.5">
-          {(['canvas', 'table', 'design'] as WorkbenchMode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={mode === m}
-              onClick={() => setMode(m)}
-              className={cn('rounded px-3 py-1 text-xs', mode === m ? 'bg-primary-soft text-primary-soft-foreground' : 'text-muted hover:text-foreground')}
-            >
-              {t(`workbench.mode.${m}`)}
-            </button>
-          ))}
-        </div>
-        {mode !== 'design' ? (
+      {mode !== 'design' && mode !== 'composer' ? (
+        <div className="flex items-center gap-3 border-b border-border px-6 py-2">
+          {mode === 'table' ? (
+            <Button size="sm" variant="secondary" onClick={() => switchMode('canvas')}>
+              <ArrowLeft aria-hidden />
+              {t('workbench.backToCanvas')}
+            </Button>
+          ) : null}
           <input
             type="search"
             value={search}
@@ -263,15 +315,34 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
             aria-label={t('workbench.search')}
             className="h-8 w-64 rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]"
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
+      {showComposerHint ? (
+        <div role="status" className="flex flex-wrap items-center gap-2 border-b border-border bg-primary-soft px-6 py-2 text-[13px] text-primary-soft-foreground">
+          <span>{t('workbench.composerHint')}</span>
+          <Button size="sm" onClick={() => switchMode('composer')}>
+            {t('workbench.openComposer')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => {
+              dismissComposerHint()
+              setHintOff(true)
+            }}
+          >
+            {t('workbench.dontShowAgain')}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1">
         {/* Not a <main>: the app shell already has the page's one main landmark. */}
         <div className="flex min-w-0 flex-1 flex-col overflow-x-auto">
-          {mode === 'canvas' ? <MappingCanvas /> : mode === 'table' ? <MappingTable /> : <DocDesigner projectId={project.id} targetConnId={project.target?.id ?? ''} header={<KeyPanel projectId={project.id} />} />}
+          {mode === 'composer' ? <Composer /> : mode === 'canvas' ? <MappingCanvas /> : mode === 'table' ? <MappingTable /> : <DocDesigner projectId={project.id} targetConnId={project.target?.id ?? ''} header={<KeyPanel projectId={project.id} supportsExpiry={caps.supportsExpiry} />} />}
         </div>
-        <aside aria-label={t('workbench.side')} hidden={!sideOpen} className="flex w-80 shrink-0 flex-col border-l border-border">
+        <aside aria-label={t('workbench.side')} hidden={!sideOpen || mode === 'composer'} className="flex w-80 shrink-0 flex-col border-l border-border">
           <Tabs value={side} onValueChange={setSideTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="px-2">
               <TabsTrigger value="suggestions">{t('workbench.suggestions')}</TabsTrigger>
@@ -288,12 +359,22 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
               <UnmappedPanel />
             </TabsContent>
             <TabsContent value="issues" className="min-h-0 flex-1 overflow-y-auto">
-              <ValidationPanel onEnableCreate={() => void enableCreate()} />
+              <ValidationPanel onEnableCreate={() => void enableCreate()} onCombineRows={setCombining} />
             </TabsContent>
           </Tabs>
         </aside>
       </div>
-      <Inspector projectId={project.id} />
+      {mode === 'composer' ? null : <Inspector projectId={project.id} />}
+      {combining ? (
+        <CombineRowsDialog
+          columns={combining}
+          onClose={() => setCombining(null)}
+          onDone={() => {
+            setCombining(null)
+            switchMode('composer')
+          }}
+        />
+      ) : null}
       <PreviewDrawer projectId={project.id} open={previewOpen} onOpenChange={setPreviewOpen} />
     </div>
   )

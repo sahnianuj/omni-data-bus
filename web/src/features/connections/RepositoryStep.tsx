@@ -11,10 +11,13 @@ import { Button } from '@/components/ui/button'
 import { hasRole } from '@/features/auth/Can'
 import { useSession } from '@/features/auth/api'
 import { useProjectConnections, type Project } from '@/features/projects/api'
+import { ApiError } from '@/lib/api/client'
+import { TargetKindPicker } from '@/features/targets/TargetKindPicker'
 import { useSaveConnection, useTestStored, useTestUnsaved } from './api'
 import { CapabilitiesCard, type Capabilities } from './CapabilitiesCard'
 import { ConnectorPicker } from './ConnectorPicker'
 import { connectionUIs } from './registry'
+import { RelocateDialog, type Relocate } from './RelocateDialog'
 import { RepositorySummary } from './RepositorySummary'
 import { TestChecklist, type TestResult } from './TestChecklist'
 import type { Connection, ConnectionPayload } from './types'
@@ -39,27 +42,33 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
   const [type, setType] = useState<string | null>(existing?.type ?? (role === 'source' ? 'postgres' : 'couchbase'))
   const [result, setResult] = useState<{ result: TestResult; saved: boolean; at: string } | null>(null)
   const [pending, setPending] = useState<ConnectionPayload | null>(null)
+  // A kind change refused because mappings still point at the old kind (OC-068).
+  const [moving, setMoving] = useState<{ type: string; payload: ConnectionPayload } | null>(null)
   const testUnsaved = useTestUnsaved(role)
   const save = useSaveConnection(project.id, role)
   const testStored = useTestStored(project.id)
   const ui = type ? connectionUIs[type] : undefined
-  const error = testUnsaved.error ?? save.error ?? testStored.error
+  const error = testUnsaved.error ?? (moving ? null : save.error) ?? testStored.error
   const roleLabel = t(role === 'source' ? 'repo.sourceRole' : 'repo.targetRole')
 
   const runTest = (payload: ConnectionPayload) => {
     if (!type) return
     testUnsaved.mutate({ type, payload }, { onSuccess: (r) => setResult({ result: r, saved: false, at: new Date().toISOString() }) })
   }
-  const doSave = (payload: ConnectionPayload) => {
+  const doSave = (payload: ConnectionPayload, relocate?: Relocate) => {
     if (!type) return
     setPending(null)
     save.mutate(
-      { type, payload },
+      { type, payload, relocate },
       {
         onSuccess: ({ result: r }) => {
+          setMoving(null)
           setResult({ result: r, saved: true, at: new Date().toISOString() })
           setEditing(false)
           toast.success(t('repo.saved', { role: roleLabel }))
+        },
+        onError: (e) => {
+          if (role === 'target' && !relocate && e instanceof ApiError && e.code === 'TARGET_KIND_IN_USE') setMoving({ type, payload })
         },
       },
     )
@@ -89,7 +98,11 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
           </div>
           {editing || !existing ? (
             <>
-              {!existing ? <ConnectorPicker role={role} value={type} onChange={(v) => { setType(v); setResult(null) }} /> : null}
+              {role === 'target' ? (
+                <TargetKindPicker value={type} onChange={(v) => { setType(v); setResult(null) }} />
+              ) : !existing ? (
+                <ConnectorPicker role={role} value={type} onChange={(v) => { setType(v); setResult(null) }} />
+              ) : null}
               {ui ? (
                 <ui.Form
                   key={type}
@@ -127,7 +140,7 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
           {error ? <ErrorState error={error} /> : null}
         </div>
         <div className="flex w-full max-w-[420px] flex-col gap-3">
-          {role === 'target' && (result || existing) ? (
+          {role === 'target' && type === 'couchbase' && (result || existing) ? (
             <CapabilitiesCard caps={(result?.result.capabilities as Capabilities | undefined) ?? null} />
           ) : null}
           {result ? (
@@ -152,6 +165,17 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
             </Link>
           </Button>
         </footer>
+      ) : null}
+      {moving ? (
+        <RelocateDialog
+          projectId={project.id}
+          to={moving.type}
+          open
+          saving={save.isPending}
+          error={save.error instanceof ApiError && save.error.code === 'TARGET_KIND_IN_USE' ? null : save.error}
+          onOpenChange={(o) => !o && setMoving(null)}
+          onConfirm={(rel) => doSave(moving.payload, rel)}
+        />
       ) : null}
       <ConfirmDialog
         open={pending !== null}

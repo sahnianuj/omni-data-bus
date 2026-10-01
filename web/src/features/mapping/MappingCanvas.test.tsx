@@ -91,7 +91,7 @@ describe('MappingCanvas', () => {
     expect(edges().some((e) => e.getAttribute('data-testid') === 'edge-m_total:emb_o:total')).toBe(true)
     drag('emb_o:order_date', screen.getByTestId('target-orders[].orderDate'))
     const m = store.getState().history.present.fieldMappings.find((x) => x.targetFieldId === 'f_date')!
-    expect(m.sources).toEqual([{ column: 'order_date', embed: 'emb_o' }])
+    expect(m.sources).toEqual([{ column: 'order_date', relation: 'emb_o' }])
     // A parent column can't fill an embed field.
     drag('first_name', screen.getByTestId('target-orders[].total'))
     expect(store.getState().history.present.fieldMappings.filter((x) => x.targetFieldId === 'f_total')).toHaveLength(1)
@@ -126,10 +126,10 @@ describe('MappingCanvas', () => {
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
     const many = Array.from({ length: 60 }, (_, i) => scol(`col_${i}`, 'string', { ordinal: i + 1 }))
     const view = embedView()
-    view.spec.embeds = []
+    view.spec.relations = []
     const { store } = renderWorkbench(<MappingCanvas />, view, [...columns, ...many])
     expect(scrolled.every((top) => top === 0)).toBe(true)
-    act(() => store.getState().apply((s) => ({ ...s, embeds: embedView().spec.embeds })))
+    act(() => store.getState().apply((s) => ({ ...s, relations: embedView().spec.relations })))
     await vi.waitFor(() => expect(scrolled.some((top) => top > 0)).toBe(true))
   })
 })

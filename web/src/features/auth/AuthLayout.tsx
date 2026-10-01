@@ -1,17 +1,21 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BuildInfoFooter } from '@/components/BuildInfoFooter'
 import { Logo } from '@/components/Logo'
+import { useBuildInfo } from '@/features/system/buildInfo'
 
 /** Split layout: product story on the left, form card on the right (approved design). */
 export function AuthLayout({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
+  const version = useBuildInfo().data?.version
   const steps = [
     ['auth.steps.one', 'auth.steps.oneBody'],
     ['auth.steps.two', 'auth.steps.twoBody'],
     ['auth.steps.three', 'auth.steps.threeBody'],
   ] as const
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex flex-1">
       <section className="hidden w-[640px] shrink-0 flex-col justify-between bg-[#09090b] px-16 py-14 text-[#fafafa] lg:flex">
         <div className="flex items-center gap-3">
           <Logo size={36} />
@@ -33,9 +37,11 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             ))}
           </ol>
         </div>
-        <span className="text-[13px] text-[#a1a1aa]">{t('auth.release')}</span>
+        <span className="text-[13px] text-[#a1a1aa]">{version ? t('auth.release', { version }) : null}</span>
       </section>
       <main className="flex flex-1 items-center justify-center px-4 py-10">{children}</main>
+      </div>
+      <BuildInfoFooter />
     </div>
   )
 }

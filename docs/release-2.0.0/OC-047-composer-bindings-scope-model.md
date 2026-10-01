@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E10 Document Composer | P0 | 8 | OC-037, OC-043, OC-044 | Not started |
+| E10 Document Composer | P0 | 8 | OC-037, OC-043, OC-044 | Implemented |
 
 ## User story
 As a **data engineer**, I want to define my target JSON structure first and then say which source table or relation feeds each object and array in it, so that I can produce exactly the document my application expects, whatever the source schema looks like.
@@ -98,3 +98,12 @@ A composed mapping is a normal v2 spec with `mode: "composed"`. A binding is sim
 | Test | Location | Verifies |
 |---|---|---|
 | `TestComposed_AC6_CrossScopeExpression` | `internal/transform/composed_test.go` | |
+
+## Implementation notes (2026-09-30)
+- **Bindings.** A binding is the relation whose `targetFieldId` is the node; `docSchema` nodes carry `binding: {relationId, adapter}`. `relationId` is derived: `Spec.Normalize` re-syncs it for composed specs (`mapping.SyncBindings`; TS `syncBindings`), and the plan hash ignores it (`mapping.CanonicalField`) while keeping adapters, so a composed mapping and the equivalent canvas mapping hash equal (AC5).
+- **Adapters.** `first` (object ← one-to-many / many-to-many; row warning `ADAPTER_DISCARDS_ROWS` when rows are left out) and `wrap` (array ← many-to-one: 0 or 1 item). `mapping.RelationContainer` and the web's `embedContainer` understand both, so validation, compilation and the canvas agree.
+- **Literal arrays** use a new transform op `array` `{dropNulls}` over the field's sources (`phones ← [home_phone, mobile_phone]`); the shared op-args fixture and the TS op schemas include it.
+- **Codes.** The scope rule reports `SOURCE_OUT_OF_SCOPE` for canvas and composed mappings alike (the 1.0 value `EMBED_SCOPE` is retired; `mapping.CodeEmbedScope` is an alias). Composed specs (or any node with an adapter) report `BINDING_KIND_MISMATCH` and `BINDING_BROKEN`; canvas specs keep `EMBED_TARGET_KIND` / `EMBED_JOIN_INVALID` and their 1.0 messages.
+- **Expressions.** Besides `value` and `row`, an expression may read the row's columns by bare name, `$root`, `$parent` (the root row at the root) and every relation in scope by its id, the name of the field it fills and its table's name (`items.line_no`), plus a `concat()` helper. A relation name outside the scope is `SOURCE_OUT_OF_SCOPE` at its line/column; a wrong column of `$root` or a relation is caught with a suggestion. Expressions without these names keep the 1.0 struct environment (no throughput change). Plans read every column of the root or a relation when an expression may reach it through these names.
+- **Driving table.** `spec.root` drives a composed mapping (`mapping.SetDrivingTable`, `DrivingTable`); the mapping keeps its identity (`sourceTable`, one mapping per table per project). `store.Mapping.Driving()` feeds the pipeline, pre-flight, retry, job reports and the preview. Changing it to a table missing from the snapshot is a 404; a canvas spec's root is always its own table. Mapping summaries gain `mode` and `driving`; the Tables and Design & map steps show composed mappings by their driving table with a **Composed** badge.
+- **Scope.** `mapping.Scope` (Go) and `scope()` in `web/src/features/composer/scope.ts` share `backend/internal/mapping/testdata/scope-cases.json`; the TS side reuses the canvas's `fieldScopes`/`inScope`, so there is one implementation per language.

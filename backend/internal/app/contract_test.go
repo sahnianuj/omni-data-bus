@@ -58,9 +58,11 @@ func TestContract_SpecRoutesAreRegistered(t *testing.T) {
 	var got []string
 	require.NoError(t, chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		route = strings.TrimSuffix(route, "/")
-		if route == "" || strings.HasSuffix(route, "/*") {
+		if route == "" || route == "/*" { // the SPA
 			return nil
 		}
+		// A trailing wildcard takes the rest of the path as one parameter (a document key).
+		route = strings.TrimSuffix(route, "/*") + map[bool]string{true: "/{key}"}[strings.HasSuffix(route, "/*")]
 		got = append(got, method+" "+route)
 		return nil
 	}))
@@ -80,6 +82,6 @@ func newTestDeps(t testing.TB) Deps {
 	svc, err := auth.NewService(st, auth.Argon2Hasher{Params: auth.Argon2Params{MemoryKiB: 64, Time: 1, Threads: 1, SaltLen: 16, KeyLen: 32}},
 		store.SystemClock{}, auth.Settings{IdleTTL: time.Hour, AbsoluteTTL: 24 * time.Hour, SignupEnabled: true})
 	require.NoError(t, err)
-	sources, targets := Registries()
+	sources, targets := Registries(nil)
 	return Deps{Store: st, Auth: svc, PublicURL: "http://localhost:5173", Sources: sources, Targets: targets}
 }

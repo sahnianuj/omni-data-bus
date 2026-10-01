@@ -227,6 +227,783 @@
       ]
     },
     {
+      "name": "sales",
+      "tables": [
+        {
+          "name": "brands",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "brand_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "name",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "country",
+              "ordinal": 3,
+              "dataType": "character(2)",
+              "udtName": "bpchar",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": 2,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "brand_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [
+            {
+              "schema": "sales",
+              "table": "products",
+              "name": "products_brand_id_fkey",
+              "columns": [
+                "brand_id"
+              ],
+              "refColumns": [
+                "brand_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "brands_pkey",
+              "columns": [
+                "brand_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "customers",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "customer_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "code",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "name",
+              "ordinal": 3,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "email",
+              "ordinal": 4,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "customer_id"
+          ],
+          "uniqueConstraints": [
+            [
+              "code"
+            ]
+          ],
+          "foreignKeys": [],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "customers_code_key",
+              "columns": [
+                "code"
+              ],
+              "unique": true
+            },
+            {
+              "name": "customers_pkey",
+              "columns": [
+                "customer_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "order_items",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "order_item_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "order_id",
+              "ordinal": 2,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "line_no",
+              "ordinal": 3,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "product_id",
+              "ordinal": 4,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "quantity",
+              "ordinal": 5,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "unit_price",
+              "ordinal": 6,
+              "dataType": "numeric(10,2)",
+              "udtName": "numeric",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 10,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "line_total",
+              "ordinal": 7,
+              "dataType": "numeric(12,2)",
+              "udtName": "numeric",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 12,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            },
+            {
+              "name": "status",
+              "ordinal": 8,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "order_item_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [
+            {
+              "name": "order_items_order_id_fkey",
+              "columns": [
+                "order_id"
+              ],
+              "refSchema": "sales",
+              "refTable": "orders",
+              "refColumns": [
+                "order_id"
+              ]
+            },
+            {
+              "name": "order_items_product_id_fkey",
+              "columns": [
+                "product_id"
+              ],
+              "refSchema": "sales",
+              "refTable": "products",
+              "refColumns": [
+                "product_id"
+              ]
+            }
+          ],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "order_items_order_idx",
+              "columns": [
+                "order_id",
+                "line_no"
+              ],
+              "unique": false
+            },
+            {
+              "name": "order_items_pkey",
+              "columns": [
+                "order_item_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "order_tags",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "tag_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "order_id",
+              "ordinal": 2,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            }
+          ],
+          "primaryKey": [
+            "tag_id",
+            "order_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [
+            {
+              "name": "order_tags_order_id_fkey",
+              "columns": [
+                "order_id"
+              ],
+              "refSchema": "sales",
+              "refTable": "orders",
+              "refColumns": [
+                "order_id"
+              ]
+            },
+            {
+              "name": "order_tags_tag_id_fkey",
+              "columns": [
+                "tag_id"
+              ],
+              "refSchema": "sales",
+              "refTable": "tags",
+              "refColumns": [
+                "tag_id"
+              ]
+            }
+          ],
+          "referencedBy": [],
+          "indexes": [
+            {
+              "name": "order_tags_pkey",
+              "columns": [
+                "tag_id",
+                "order_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "orders",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "order_id",
+              "ordinal": 1,
+              "dataType": "bigint",
+              "udtName": "int8",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 64,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "customer_code",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "ordered_at",
+              "ordinal": 3,
+              "dataType": "timestamp with time zone",
+              "udtName": "timestamptz",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "datetime"
+            },
+            {
+              "name": "status",
+              "ordinal": 4,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "order_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [
+            {
+              "schema": "sales",
+              "table": "order_items",
+              "name": "order_items_order_id_fkey",
+              "columns": [
+                "order_id"
+              ],
+              "refColumns": [
+                "order_id"
+              ]
+            },
+            {
+              "schema": "sales",
+              "table": "order_tags",
+              "name": "order_tags_order_id_fkey",
+              "columns": [
+                "order_id"
+              ],
+              "refColumns": [
+                "order_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "orders_pkey",
+              "columns": [
+                "order_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        },
+        {
+          "name": "products",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "product_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "brand_id",
+              "ordinal": 2,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": true,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "sku",
+              "ordinal": 3,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "name",
+              "ordinal": 4,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            },
+            {
+              "name": "list_price",
+              "ordinal": 5,
+              "dataType": "numeric(10,2)",
+              "udtName": "numeric",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": 10,
+              "numericScale": 2,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "number"
+            }
+          ],
+          "primaryKey": [
+            "product_id"
+          ],
+          "uniqueConstraints": [
+            [
+              "sku"
+            ]
+          ],
+          "foreignKeys": [
+            {
+              "name": "products_brand_id_fkey",
+              "columns": [
+                "brand_id"
+              ],
+              "refSchema": "sales",
+              "refTable": "brands",
+              "refColumns": [
+                "brand_id"
+              ]
+            }
+          ],
+          "referencedBy": [
+            {
+              "schema": "sales",
+              "table": "order_items",
+              "name": "order_items_product_id_fkey",
+              "columns": [
+                "product_id"
+              ],
+              "refColumns": [
+                "product_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "products_pkey",
+              "columns": [
+                "product_id"
+              ],
+              "unique": true,
+              "primary": true
+            },
+            {
+              "name": "products_sku_key",
+              "columns": [
+                "sku"
+              ],
+              "unique": true
+            }
+          ]
+        },
+        {
+          "name": "tags",
+          "kind": "table",
+          "rowEstimate": null,
+          "sizeBytes": 0,
+          "readable": true,
+          "columns": [
+            {
+              "name": "tag_id",
+              "ordinal": 1,
+              "dataType": "integer",
+              "udtName": "int4",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": true,
+              "isUnique": true,
+              "maxLength": null,
+              "numericPrecision": 32,
+              "numericScale": 0,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "integer"
+            },
+            {
+              "name": "label",
+              "ordinal": 2,
+              "dataType": "text",
+              "udtName": "text",
+              "nullable": false,
+              "default": null,
+              "isPrimaryKey": false,
+              "isUnique": false,
+              "maxLength": null,
+              "numericPrecision": null,
+              "numericScale": null,
+              "isArray": false,
+              "enumValues": null,
+              "jsonType": "string"
+            }
+          ],
+          "primaryKey": [
+            "tag_id"
+          ],
+          "uniqueConstraints": [],
+          "foreignKeys": [],
+          "referencedBy": [
+            {
+              "schema": "sales",
+              "table": "order_tags",
+              "name": "order_tags_tag_id_fkey",
+              "columns": [
+                "tag_id"
+              ],
+              "refColumns": [
+                "tag_id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "tags_pkey",
+              "columns": [
+                "tag_id"
+              ],
+              "unique": true,
+              "primary": true
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "shop",
       "tables": [
         {

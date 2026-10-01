@@ -132,8 +132,33 @@ type node struct {
 	order    []string
 	children map[string]*node
 	items    *node
-	parents  int // occurrences of the containing object (for required)
-	objects  int // occurrences of this node as an object
+	parents  int             // occurrences of the containing object (for required)
+	objects  int             // occurrences of this node as an object
+	example  json.RawMessage // first non-null scalar, truncated (OC-059)
+	first    json.RawMessage // first non-null scalar, verbatim (constant detection)
+	varies   bool            // a later scalar differed from first
+}
+
+// MaxExampleRunes truncates string examples (OC-059).
+const MaxExampleRunes = 200
+
+// scalar records a scalar value for the field's example and constant detection.
+func (n *node) scalar(v any) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	if n.first == nil {
+		n.first = raw
+		n.example = raw
+		if s, ok := v.(string); ok {
+			if r := []rune(s); len(r) > MaxExampleRunes {
+				n.example, _ = json.Marshal(string(r[:MaxExampleRunes]) + "…")
+			}
+		}
+	} else if !bytes.Equal(n.first, raw) {
+		n.varies = true
+	}
 }
 
 func newNode(name string) *node {
@@ -147,14 +172,17 @@ func (n *node) add(v any) {
 		return
 	case bool:
 		n.kinds[Boolean]++
+		n.scalar(x)
 	case json.Number:
 		if strings.ContainsAny(x.String(), ".eE") {
 			n.kinds[Number]++
 		} else {
 			n.kinds[Integer]++
 		}
+		n.scalar(x)
 	case string:
 		n.kinds[String]++
+		n.scalar(x)
 		n.strings++
 		switch {
 		case isDatetime(x):
@@ -283,8 +311,31 @@ func decodeOrderedAt(dec *json.Decoder, depth int) (any, error) {
 	return tok, nil
 }
 
+// builder collects what building the design reports besides the fields.
+type builder struct {
+	warnings []string
+	hints    []ConstantHint
+}
+
+// discriminators are field names whose imported value is offered as a constant even from a
+// single sample (OC-059).
+var discriminators = map[string]bool{"type": true, "doctype": true, "_type": true, "kind": true, "schemaversion": true, "version": true}
+
+// hint offers a scalar field outside arrays as a constant when its value never changes.
+func (n *node) hint(f *DocField, path string, b *builder) {
+	if n.first == nil || n.varies || n.nulls > 0 || strings.Contains(path, "[]") {
+		return
+	}
+	switch {
+	case discriminators[strings.ToLower(n.name)]:
+		b.hints = append(b.hints, ConstantHint{FieldID: f.ID, Value: n.first, Reason: "discriminator-name"})
+	case n.seen >= 2 && n.seen == n.parents:
+		b.hints = append(b.hints, ConstantHint{FieldID: f.ID, Value: n.first, Reason: "same-in-every-sample"})
+	}
+}
+
 // build turns the accumulated node into a field, collecting warnings for mixed types.
-func (n *node) build(path string, warnings *[]string) DocField {
+func (n *node) build(path string, b *builder) DocField {
 	f := DocField{ID: NewID(), Name: n.name}
 	kinds := make([]FieldType, 0, len(n.kinds))
 	for k := range n.kinds {
@@ -303,9 +354,13 @@ func (n *node) build(path string, warnings *[]string) DocField {
 			names[i] = string(k)
 		}
 		sort.Strings(names)
-		*warnings = append(*warnings, fmt.Sprintf("%s has mixed types (%s); it will accept any value.", path, strings.Join(names, ", ")))
+		b.warnings = append(b.warnings, fmt.Sprintf("%s has mixed types (%s); it will accept any value.", path, strings.Join(names, ", ")))
 	default:
 		f.Type = kinds[0]
+	}
+	if f.Type.Scalar() && f.Type != Any {
+		f.Example = n.example
+		n.hint(&f, path, b)
 	}
 	switch f.Type {
 	case String:
@@ -322,13 +377,13 @@ func (n *node) build(path string, warnings *[]string) DocField {
 		f.Children = []DocField{}
 		for _, k := range n.order {
 			c := n.children[k]
-			cf := c.build(path+"."+k, warnings)
+			cf := c.build(path+"."+k, b)
 			cf.Required = c.seen == c.parents && c.nulls == 0
 			f.Children = append(f.Children, cf)
 		}
 	case Array:
 		if n.items != nil && (n.items.seen > 0 || n.items.nulls > 0) {
-			it := n.items.build(path+"[]", warnings)
+			it := n.items.build(path+"[]", b)
 			f.Items = &it
 		} else {
 			f.Items = &DocField{ID: NewID(), Name: "[]", Type: Any}
@@ -343,6 +398,15 @@ func (n *node) build(path string, warnings *[]string) DocField {
 // sample → required, array items merged across elements, ISO-8601 strings → datetime and
 // UUID strings → string/uuid.
 func InferFromSamples(docs []json.RawMessage) (Schema, []string, error) {
+	s, b, err := inferDocs(docs)
+	if err != nil {
+		return Schema{}, nil, err
+	}
+	s.ConstantHints = b.hints
+	return s, b.warnings, nil
+}
+
+func inferDocs(docs []json.RawMessage) (Schema, *builder, error) {
 	root := newNode(RootName)
 	for i, d := range docs {
 		dec := json.NewDecoder(bytes.NewReader(d))
@@ -354,14 +418,31 @@ func InferFromSamples(docs []json.RawMessage) (Schema, []string, error) {
 		}
 		root.add(obj)
 	}
-	warnings := []string{}
-	f := root.build("$", &warnings)
+	b := &builder{warnings: []string{}}
+	f := root.build("$", b)
 	f.ID, f.Name, f.Type = RootID, RootName, Object
 	if f.Children == nil {
 		f.Children = []DocField{}
 	}
-	for i := range warnings {
-		warnings[i] = strings.TrimPrefix(warnings[i], "$.")
+	for i := range b.warnings {
+		b.warnings[i] = strings.TrimPrefix(b.warnings[i], "$.")
 	}
-	return Schema{Root: f, Source: SourceJSONSample}, warnings, nil
+	return Schema{Root: f, Source: SourceJSONSample}, b, nil
+}
+
+// StripExamples removes every field's example and the reference (designs sampled from a live
+// collection keep no production values, OC-059).
+func StripExamples(s *Schema) {
+	s.Reference, s.ConstantHints = nil, nil
+	var strip func(f *DocField)
+	strip = func(f *DocField) {
+		f.Example = nil
+		for i := range f.Children {
+			strip(&f.Children[i])
+		}
+		if f.Items != nil {
+			strip(f.Items)
+		}
+	}
+	strip(&s.Root)
 }
