@@ -66,9 +66,11 @@ func pgServer(t *testing.T) testServer {
 		}
 		return srv
 	}
+	// The seed the golden snapshot was taken from: the shop schema and the relations demo.
+	seed := "../../../../../deploy/compose/seed/source/"
 	pg, err := tcpostgres.Run(ctx, "postgres:16",
 		tcpostgres.WithDatabase("shop"), tcpostgres.WithUsername("shop_owner"), tcpostgres.WithPassword("shop_owner"),
-		tcpostgres.WithInitScripts("../../../../../deploy/compose/seed/source/01-shop.sql"),
+		tcpostgres.WithInitScripts(seed+"01-shop.sql", seed+"03-relations.sql"),
 		testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(2*time.Minute)))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pg.Terminate(ctx) })

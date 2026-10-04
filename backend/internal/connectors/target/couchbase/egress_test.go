@@ -37,9 +37,12 @@ func (r staticResolver) LookupNetIP(ctx context.Context, network, host string) (
 var exampleHosts = staticResolver{"metadata.evil.example": "169.254.169.254", "internal.example": "10.0.0.8", "gone.example": ""}
 
 // Unit tests never resolve example hosts for real; everything else (localhost in the
-// integration tests) behaves as in production with private networks allowed.
+// integration tests) behaves as in production with private networks allowed. Any port is
+// allowed: testcontainers maps Couchbase to a random host port, outside DefaultPorts.
 func TestMain(m *testing.M) {
-	netguard.SetDefault(&netguard.Dialer{Policy: netguard.Unrestricted(), Resolver: exampleHosts})
+	p := netguard.Unrestricted()
+	p.Ports = []netguard.PortRange{{From: 1, To: 65535}}
+	netguard.SetDefault(&netguard.Dialer{Policy: p, Resolver: exampleHosts})
 	os.Exit(m.Run())
 }
 

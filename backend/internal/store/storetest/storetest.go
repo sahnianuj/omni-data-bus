@@ -52,6 +52,7 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("Nodes", func(t *testing.T) { RunNodes(t, newStore) })
 	t.Run("Exports", func(t *testing.T) { RunExports(t, newStore) })
 	t.Run("Claimable", func(t *testing.T) { RunClaimable(t, newStore) })
+	t.Run("Relationships", func(t *testing.T) { RunRelationships(t, newStore) })
 }
 
 // RunMappings covers OC-035: one mapping per table, versioned updates, listing, cascades.

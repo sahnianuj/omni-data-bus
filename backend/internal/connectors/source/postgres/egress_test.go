@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -18,6 +19,15 @@ type oneIP string
 
 func (r oneIP) LookupNetIP(context.Context, string, string) ([]netip.Addr, error) {
 	return []netip.Addr{netip.MustParseAddr(string(r))}, nil
+}
+
+// TestMain allows any port: testcontainers maps PostgreSQL to a random host port, outside
+// DefaultPorts. Tests that check the guard install their own with withGuard.
+func TestMain(m *testing.M) {
+	p := netguard.Unrestricted()
+	p.Ports = []netguard.PortRange{{From: 1, To: 65535}}
+	netguard.SetDefault(netguard.NewDialer(p))
+	os.Exit(m.Run())
 }
 
 // withGuard installs a restrictive process-wide guard for one test.
