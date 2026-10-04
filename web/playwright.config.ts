@@ -21,7 +21,8 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:18081',
     trace: 'retain-on-failure',
-    video: 'retain-on-failure',
+    // The trace already records every step with DOM snapshots; video only locally.
+    video: process.env.CI ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     actionTimeout: 15_000,
   },

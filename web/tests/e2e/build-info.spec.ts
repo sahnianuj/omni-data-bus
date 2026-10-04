@@ -4,7 +4,7 @@ import { dropScope } from './support/db'
 import { SignIn } from './support/pages'
 
 // OC-058 AC6: the build footer is on every page and never covers the mapping canvas.
-test('AC6: build footer visible, canvas not overlapped', async ({ page }) => {
+test('AC6: build footer visible, canvas not overlapped', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('/signin')
   const footer = page.getByRole('contentinfo', { name: 'Build information' })
   // Anonymous: the release only, no build details to open.

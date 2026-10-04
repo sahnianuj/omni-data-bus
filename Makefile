@@ -19,7 +19,7 @@ LDFLAGS := -s -w -X $(BUILDINFO).version=$(VERSION) -X $(BUILDINFO).commit=$(COM
 HELM_IMAGE := alpine/helm:3.18.4
 HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:latest
 
-.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist test-scripts
+.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e e2e-smoke bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist test-scripts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -134,8 +134,11 @@ helm-test: ## Lint the Helm chart and run its unit tests (via Docker)
 index: ## Regenerate docs/release-1.0.0/INDEX.md from story statuses
 	python3 scripts/update-story-index.py docs/release-1.0.0
 
-e2e: ## End-to-end suite (Playwright) against the built image; E2E_BROWSERS=all adds Firefox and WebKit
+e2e: ## Full end-to-end suite (Playwright) against the built image, local only; E2E_BROWSERS=all adds Firefox and WebKit
 	./scripts/e2e.sh
+
+e2e-smoke: ## The @smoke end-to-end tests CI runs (golden path, build footer, API helper)
+	./scripts/e2e.sh --grep @smoke
 
 DATASET ?= standard
 GATE ?= release

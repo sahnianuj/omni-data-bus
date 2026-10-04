@@ -39,6 +39,16 @@ jobs:
       - if: matrix.language == 'go'
         name: Build
         run: cd backend && CGO_ENABLED=0 go build ./...
+      # Code scanning (GitHub Advanced Security) isn't enabled on this private repo, so the
+      # SARIF upload is refused. Keep the results as a workflow artifact instead; switch to
+      # `upload: always` if code scanning is turned on.
       - uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.language }}
+          upload: never
+          output: sarif-results
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeql-${{ matrix.language }}
+          path: sarif-results
+          retention-days: 14

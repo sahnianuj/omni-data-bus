@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs the Playwright end-to-end suite (OC-034) against the built image.
-#   ./scripts/e2e.sh                 # all specs, Chromium
+#   ./scripts/e2e.sh                 # all specs, Chromium (the full suite runs locally only)
+#   ./scripts/e2e.sh --grep @smoke   # the CI smoke set
 #   ./scripts/e2e.sh golden-path     # specs matching a pattern
-#   E2E_BROWSERS=all ./scripts/e2e.sh   # + Firefox and WebKit (nightly)
+#   E2E_BROWSERS=all ./scripts/e2e.sh   # + Firefox and WebKit
 #   E2E_KEEP=1 ./scripts/e2e.sh      # leave the stack running afterwards
 #   E2E_SKIP_BUILD=1 ./scripts/e2e.sh   # reuse omni-data-bus:e2e
 set -euo pipefail

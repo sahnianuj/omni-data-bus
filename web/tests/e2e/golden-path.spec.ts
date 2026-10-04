@@ -3,7 +3,7 @@ import { docCount, dropScope, rowCount } from './support/db'
 import { uid } from './support/env'
 import { Monitor, Projects, ProjectWizard, Review, SignIn } from './support/pages'
 
-test('AC1: project → repos → map → migrate → verify', async ({ page }) => {
+test('AC1: project → repos → map → migrate → verify', { tag: '@smoke' }, async ({ page }) => {
   await new SignIn(page).signUp()
   const projectId = await new Projects(page).create(`Golden ${uid()}`)
   const wizard = new ProjectWizard(page)

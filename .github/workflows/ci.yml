@@ -21,7 +21,14 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
       # shellcheck (preinstalled) checks migrate.sh here; the bats suites run in runner-bats-*.
-      - run: make test-backend
+      - run: make test-backend 2>&1 | tee backend-test.log
+        shell: bash
+      # The failures, on the run page: the full log buries them among ~60 packages.
+      - if: failure()
+        run: |
+          { echo '### Failed Go tests'; echo '```'
+            grep -E -A20 -e '^(--- FAIL|panic:|FAIL)' -e 'build failed|DATA RACE|coverage gate' backend-test.log | head -300
+            echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
   # Runner E2E (OC-056 AC2): the migrate.sh bats suites (OC-053) on bash 5 and on macOS's bash 3.2.
   runner-bats-linux:
@@ -123,7 +130,7 @@ jobs:
   e2e:
     needs: image-check
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -132,8 +139,9 @@ jobs:
         with: { name: odb-image, path: /tmp }
       - run: docker load -i /tmp/odb-image.tar && docker tag omni-data-bus:ci omni-data-bus:e2e
       - run: cd web && npm ci && npx playwright install --with-deps chromium
-      - name: Playwright (Chromium) against the built image
-        run: E2E_SKIP_BUILD=1 ./scripts/e2e.sh
+      # Only the @smoke set: the full suite (a11y, resilience, every flow) runs locally with `make e2e`.
+      - name: Playwright smoke (Chromium) against the built image
+        run: E2E_SKIP_BUILD=1 ./scripts/e2e.sh --grep @smoke
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

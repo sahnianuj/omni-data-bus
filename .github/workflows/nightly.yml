@@ -1,31 +1,12 @@
 name: Nightly
-# OC-034: the full E2E suite in every browser, and the smoke benchmark with relative regression
-# detection (fails when throughput is 20% below the median of the last 7 nightly runs).
+# OC-034: the smoke benchmark with relative regression detection (fails when throughput is 20%
+# below the median of the last 7 nightly runs). The full E2E suite runs locally (`make e2e`).
 on:
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
 
 jobs:
-  e2e-all-browsers:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: cd web && npm ci && npx playwright install --with-deps
-      - name: Playwright (Chromium, Firefox, WebKit) against a fresh image
-        run: E2E_BROWSERS=all ./scripts/e2e.sh
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-report
-          path: |
-            web/playwright-report
-            web/test-results
-          retention-days: 7
-
   smoke-bench:
     runs-on: ubuntu-latest
     timeout-minutes: 60
