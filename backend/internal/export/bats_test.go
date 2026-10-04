@@ -55,8 +55,10 @@ func batsPath(t *testing.T) string {
 	if p, err := exec.LookPath("bats"); err == nil {
 		return p
 	}
-	if os.Getenv("CI") != "" {
-		t.Fatal("bats is required in CI")
+	// Only the jobs that exist to run these suites (make test-scripts) require bats; plain
+	// backend-test in CI skips them.
+	if os.Getenv("ODB_REQUIRE_BATS") != "" {
+		t.Fatal("bats is required (ODB_REQUIRE_BATS is set)")
 	}
 	t.Skip("bats isn't installed (set BATS or install bats-core)")
 	return ""

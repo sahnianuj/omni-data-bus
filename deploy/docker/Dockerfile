@@ -16,7 +16,8 @@ COPY api/openapi.yaml /src/api/openapi.yaml
 COPY web/ ./
 # The SPA embeds the release it was built for, to notice a server upgrade under an open tab (OC-058).
 ARG VERSION=dev
-RUN VITE_ODB_VERSION=${VERSION} npm run build
+# Source maps (~5 MB) stay out of the image: they'd be embedded in the binary and break the 40 MB budget.
+RUN VITE_ODB_VERSION=${VERSION} npm run build && find dist -name '*.map' -delete
 
 # ── 2. Binary ─────────────────────────────────────────────────────────────────
 # Cross-compiled for the target platform; no cgo, so the result runs on distroless/static.

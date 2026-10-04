@@ -93,7 +93,7 @@ dist: ## Build the odb runner for linux/darwin × amd64/arm64: dist/odb/*.tar.gz
 	VERSION=$(VERSION) LDFLAGS="$(LDFLAGS)" scripts/dist.sh
 
 test-scripts: ## migrate.sh checks: shellcheck on every variant and the bats suites (ODB_TEST_BASH=/bin/bash for 3.2)
-	cd backend && go test -count=1 -run 'TestScriptTemplate|TestMigrateScript_Bats' ./internal/export/
+	cd backend && ODB_REQUIRE_BATS=1 go test -count=1 -run 'TestScriptTemplate|TestMigrateScript_Bats' ./internal/export/
 
 image: ## Build the container image (IMAGE=omni-data-bus:<version>)
 	docker build -f deploy/docker/Dockerfile --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) \
