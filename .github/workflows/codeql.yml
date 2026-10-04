@@ -14,6 +14,8 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     permissions:
+      # codeql-action reads the workflow run when uploading results.
+      actions: read
       contents: read
       security-events: write
     strategy:
