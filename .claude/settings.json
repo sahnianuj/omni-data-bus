@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/gitignore-guard.sh baseline",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/gitignore-guard.sh check",
+            "timeout": 30,
+            "statusMessage": "Checking for files .gitignore doesn't cover"
+          }
+        ]
+      }
+    ]
+  }
+}

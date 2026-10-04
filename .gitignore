@@ -49,6 +49,9 @@ yarn-error.log*
 *.tfstate
 *.tfstate.*
 *.tfplan
+# Terraform inputs (key names, CIDRs, account details); commit an *.example instead.
+*.tfvars
+!*.tfvars.example
 
 # ─── Logs, caches, temp ───────────────────────────────────────────────────────
 *.log
@@ -68,8 +71,11 @@ Thumbs.db
 # Compose smoke-test secrets (generated)
 /deploy/compose/secrets-ci/
 
-# Benchmark runs outside the release results (nightly history, local tries)
+# Benchmark runs outside the release results (nightly history, local tries). Local runs'
+# findings are summarised in bench/results/<release>/local/README.md; the raw runs stay local.
 /bench/history/
+/bench/results/*/local/*
+!/bench/results/*/local/README.md
 
 # ─── All-in-one image packages (make appliance-save) ───────────────────────────
 /dist/
@@ -78,3 +84,6 @@ Thumbs.db
 omni-data-bus-appliance-*.tar.gz
 omni-data-bus-appliance-*.tar.gz.sha256
 odb-backup-*.tar.gz
+
+# Claude Code personal overrides (project hooks live in .claude/settings.json)
+.claude/settings.local.json
