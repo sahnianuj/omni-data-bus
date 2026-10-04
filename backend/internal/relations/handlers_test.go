@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -174,4 +175,59 @@ func TestDetectCardinality_AC4_Timeout(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &d))
 	require.Equal(t, CardinalityUnknown, d.Suggested, "the user must choose")
 	require.Contains(t, d.Warning, "timed out")
+}
+
+func TestRelationshipsAPI_BadRequests(t *testing.T) {
+	f := newAPI(t, ws)
+	base := "/api/v1/projects/" + f.project + "/relationships"
+	graph := "/api/v1/connections/" + store.ConnectionID(f.project, store.RoleSource) + "/relations"
+	for _, path := range []string{
+		graph, graph + "?root=orders", graph + "?root=.orders", graph + "?root=public.orders&depth=0",
+		graph + "?root=public.orders&depth=7", graph + "?root=public.orders&depth=x",
+	} {
+		rec := f.do(http.MethodGet, path, "")
+		require.Equal(t, http.StatusBadRequest, rec.Code, path)
+		require.Equal(t, problem.CodeBadRequest, problemCode(t, rec), path)
+	}
+	for _, c := range []struct{ method, path string }{
+		{http.MethodPost, base}, {http.MethodPost, base + "/detect"}, {http.MethodPut, base + "/r1"},
+	} {
+		rec := f.do(c.method, c.path, "{")
+		require.Equal(t, http.StatusBadRequest, rec.Code, c.method+" "+c.path)
+	}
+
+	rec := f.do(http.MethodPost, base, custCode)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var rel store.Relationship
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &rel))
+	put := func(ifMatch string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, base+"/"+rel.ID, strings.NewReader(custCode))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("If-Match", ifMatch)
+		f.h.ServeHTTP(rec, req)
+		return rec
+	}
+	require.Equal(t, http.StatusBadRequest, put(`"zero"`).Code)
+	require.Equal(t, http.StatusBadRequest, put(`"0"`).Code)
+	require.Equal(t, http.StatusPreconditionFailed, put(`W/"99"`).Code, "a stale version")
+	require.Equal(t, http.StatusOK, put(`"`+strconv.FormatInt(rel.Version, 10)+`"`).Code)
+}
+
+func TestRelationshipsAPI_OtherWorkspaceSeesNothing(t *testing.T) {
+	f := newAPI(t, "ws-other")
+	base := "/api/v1/projects/" + f.project + "/relationships"
+	graph := "/api/v1/connections/" + store.ConnectionID(f.project, store.RoleSource) + "/relations?root=public.orders"
+	for _, c := range []struct{ method, path, body string }{
+		{http.MethodGet, graph, ""},
+		{http.MethodGet, base, ""},
+		{http.MethodGet, base + "/r1", ""},
+		{http.MethodPost, base, custCode},
+		{http.MethodPost, base + "/detect", custCode},
+		{http.MethodPut, base + "/r1", custCode},
+		{http.MethodDelete, base + "/r1", ""},
+	} {
+		rec := f.do(c.method, c.path, c.body)
+		require.Equal(t, http.StatusNotFound, rec.Code, c.method+" "+c.path+": "+rec.Body.String())
+	}
 }

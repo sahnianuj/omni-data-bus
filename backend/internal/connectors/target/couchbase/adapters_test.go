@@ -112,7 +112,10 @@ func TestNewAuthProber_DialsThroughTheEgressGuard(t *testing.T) {
 	require.NotNil(t, p.lookupSRV)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "http://metadata.evil.example:8093/query/service", nil)
 	require.NoError(t, err)
-	_, err = p.do(req, nil)
+	resp, err := p.do(req, nil)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	require.ErrorIs(t, err, netguard.ErrDenied)
 }
 

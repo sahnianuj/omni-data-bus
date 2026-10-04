@@ -4,6 +4,8 @@ COMPOSE := docker compose -f deploy/compose/dev.yml
 GOLANGCI_VERSION := v2.14.0
 # Omni-Data-Bus needs no cgo; disabling it gives static binaries and avoids broken local C toolchains.
 export CGO_ENABLED := 0
+# The race detector is the exception: it needs cgo (and a C compiler), so race runs turn it back on.
+RACE_TEST := CGO_ENABLED=1 go test -race
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -60,7 +62,7 @@ test: test-backend test-budgets test-web test-bench ## Run all unit tests
 
 test-backend: ## Go unit tests with race detector and coverage gate
 	@mkdir -p backend/coverage
-	cd backend && go test -race -coverprofile=coverage/cover.out ./...
+	cd backend && $(RACE_TEST) -coverprofile=coverage/cover.out ./...
 	cd backend && go run ./tools/covergate/cmd/covergate coverage/cover.out
 
 test-budgets: ## Performance budget tests, uninstrumented (they skip under -race and -cover)
@@ -74,11 +76,11 @@ test-web: ## Web unit tests with coverage
 test-integration-ce: ## Go integration tests against Couchbase Server CE, as bundled in the all-in-one image (needs make dev-stack for PostgreSQL)
 	scripts/integration-ce.sh
 test-bench: ## Benchmark harness unit tests (bench/, OC-034)
-	cd bench && go vet ./... && go test -race ./...
+	cd bench && go vet ./... && $(RACE_TEST) ./...
 
 test-integration: ## Go integration tests (needs Docker; uses Couchbase 8.0.3 and PostgreSQL containers)
 	@mkdir -p backend/coverage
-	cd backend && go test -race -tags=integration -count=1 -coverprofile=coverage/integration.out ./...
+	cd backend && $(RACE_TEST) -tags=integration -count=1 -coverprofile=coverage/integration.out ./...
 	cd backend && go run ./tools/covergate/cmd/covergate --integration coverage/integration.out
 
 build: ## Build the web app and a single Go binary with the SPA embedded
@@ -125,7 +127,9 @@ appliance-test: appliance ## Check the all-in-one image: structure, then a full 
 helm-test: ## Lint the Helm chart and run its unit tests (via Docker)
 	docker run --rm -v "$(CURDIR)/deploy/helm:/apps" -w /apps $(HELM_IMAGE) lint omni-data-bus --strict \
 		-f omni-data-bus/tests/required-values.yaml
-	docker run --rm -v "$(CURDIR)/deploy/helm:/apps" $(HELM_UNITTEST_IMAGE) omni-data-bus
+	# As the host user: the image's own user (1000) can't write tests/__snapshot__ in a CI checkout (1001).
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v "$(CURDIR)/deploy/helm:/apps" \
+		$(HELM_UNITTEST_IMAGE) omni-data-bus
 
 index: ## Regenerate docs/release-1.0.0/INDEX.md from story statuses
 	python3 scripts/update-story-index.py docs/release-1.0.0

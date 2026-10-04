@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,9 @@ import (
 )
 
 // memKS is an in-memory keyspace browser: bucket.scope.collection → document count.
+// PreflightKeyspaces checks locations concurrently, so every method holds mu.
 type memKS struct {
+	mu        sync.Mutex
 	colls     map[string]int64
 	scopes    map[string]bool
 	buckets   []target.BucketInfo
@@ -23,10 +26,14 @@ type memKS struct {
 }
 
 func (m *memKS) ListBuckets(context.Context) (target.BucketList, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return target.BucketList{Buckets: m.buckets}, nil
 }
 
 func (m *memKS) ListScopes(_ context.Context, bucket string) ([]target.ScopeInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var out []target.ScopeInfo
 	for s := range m.scopes {
 		if b, name, _ := cut(s); b == bucket {
@@ -54,6 +61,8 @@ func cut(s string) (string, string, bool) {
 }
 
 func (m *memKS) Collection(_ context.Context, b, s, c string) (target.CollectionInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	n, ok := m.colls[b+"."+s+"."+c]
 	if !ok {
 		return target.CollectionInfo{}, problem.New(http.StatusNotFound, problem.CodeNotFound, "Collection not found", "")
@@ -62,12 +71,16 @@ func (m *memKS) Collection(_ context.Context, b, s, c string) (target.Collection
 }
 func (m *memKS) CreateBucket(context.Context, target.BucketSpec) error { return nil }
 func (m *memKS) CreateScope(_ context.Context, b, s string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.scopes[b+"."+s] = true
 	m.created = append(m.created, "scope "+b+"."+s)
 	return nil
 }
 
 func (m *memKS) CreateCollection(_ context.Context, b, s string, spec target.CollectionSpec) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.createErr != nil {
 		return m.createErr
 	}

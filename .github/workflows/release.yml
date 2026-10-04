@@ -145,7 +145,7 @@ jobs:
             CHANNEL=${{ needs.meta.outputs.channel }}
           cache-from: type=gha
       - name: Vulnerability scan (fails on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: odb-scan:local
           severity: HIGH,CRITICAL
@@ -205,7 +205,7 @@ jobs:
       # Most findings are in Couchbase's own image, which we ship unmodified: reported for review,
       # not a release gate (the regular image's scan is).
       - name: Vulnerability report
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: omni-data-bus-appliance:${{ needs.meta.outputs.version }}
           severity: HIGH,CRITICAL
