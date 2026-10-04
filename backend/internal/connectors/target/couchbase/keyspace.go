@@ -102,10 +102,19 @@ func mapErr(err error, kind, name string) error {
 		return notFound("scope", name)
 	case forbidden(err):
 		return &connectors.ConnError{Role: connectors.RoleTarget, Kind: connectors.KindPermission, Cause: err}
+	case enterpriseOnly(err) && kind == "collection":
+		// Community Edition (e.g. the all-in-one image's bundled node, OC-072) has no collection TTL.
+		return problem.New(http.StatusUnprocessableEntity, problem.CodeValidation, "Max expiry needs Enterprise Edition",
+			"This cluster runs Couchbase Server Community Edition, where collections can't have a max expiry. Leave max expiry empty.")
 	case errors.Is(err, gocb.ErrInvalidArgument):
 		return problem.New(http.StatusUnprocessableEntity, problem.CodeValidation, "Invalid request", err.Error())
 	}
 	return classify(err)
+}
+
+// enterpriseOnly reports Couchbase's refusal of an Enterprise-only setting on Community Edition.
+func enterpriseOnly(err error) bool {
+	return strings.Contains(err.Error(), "Supported in enterprise edition only")
 }
 
 // sortNames orders case-insensitively with _default first.

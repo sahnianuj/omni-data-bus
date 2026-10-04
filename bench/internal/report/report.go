@@ -16,7 +16,12 @@ import (
 
 // Result is one benchmark run.
 type Result struct {
-	Dataset     string    `json:"dataset"`
+	Dataset string `json:"dataset"`
+	// Scenario names the run in gate files: the dataset, plus "-<strategy>" when one was forced
+	// (OC-056); empty in 1.0 results (the dataset).
+	Scenario string `json:"scenario,omitempty"`
+	// Target is the target kind: couchbase (1.0's only one) or directory.
+	Target      string    `json:"target,omitempty"`
 	Description string    `json:"description"`
 	Rows        int64     `json:"rows"`
 	ChildRows   int64     `json:"childRows,omitempty"`
@@ -37,7 +42,9 @@ type Result struct {
 	GateFailures      []string         `json:"gateFailures,omitempty"`
 	Regression        *Regression      `json:"regression,omitempty"`
 	Profiles          []string         `json:"profiles,omitempty"`
-	Samples           []analyze.Sample `json:"samples"`
+	// ColdStartSeconds is the median time of `migrate.sh preflight` (the coldstart scenario).
+	ColdStartSeconds float64          `json:"coldStartSeconds,omitempty"`
+	Samples          []analyze.Sample `json:"samples"`
 }
 
 // Regression is the comparison with earlier runs of the same dataset.
@@ -54,7 +61,15 @@ func (r Result) Passed() bool {
 	return len(r.GateFailures) == 0 && (r.Regression == nil || !r.Regression.Regressed)
 }
 
-// Name is the file stem: <date>-<commit>-<dataset>.
+// ScenarioName is the run's scenario (its dataset for 1.0 results).
+func (r Result) ScenarioName() string {
+	if r.Scenario != "" {
+		return r.Scenario
+	}
+	return r.Dataset
+}
+
+// Name is the file stem: <date>-<commit>-<scenario>.
 func (r Result) Name() string {
 	commit := r.ServerCommit
 	if commit == "" || commit == "none" {
@@ -63,7 +78,7 @@ func (r Result) Name() string {
 	if len(commit) > 12 {
 		commit = commit[:12]
 	}
-	return fmt.Sprintf("%s-%s-%s", r.StartedAt.UTC().Format("2006-01-02T150405Z"), commit, r.Dataset)
+	return fmt.Sprintf("%s-%s-%s", r.StartedAt.UTC().Format("2006-01-02T150405Z"), commit, r.ScenarioName())
 }
 
 // Write stores <dir>/<name>.json and <dir>/<name>.md and returns their paths.
@@ -93,7 +108,7 @@ func Markdown(r Result) string {
 	if r.Gates == nil && r.Regression == nil {
 		verdict = "ℹ️ measured (no gates evaluated)"
 	}
-	fmt.Fprintf(&b, "# Benchmark — %s — %s\n\n", r.Dataset, verdict)
+	fmt.Fprintf(&b, "# Benchmark — %s — %s\n\n", r.ScenarioName(), verdict)
 	fmt.Fprintf(&b, "%s\n\n", r.Description)
 	fmt.Fprintf(&b, "| | |\n|---|---|\n")
 	fmt.Fprintf(&b, "| Build | %s (%s) |\n", r.ServerVersion, r.ServerCommit)
@@ -105,6 +120,13 @@ func Markdown(r Result) string {
 	fmt.Fprintf(&b, " |\n| Job | %s — %s in %.0f s |\n", r.JobID, r.JobStatus, r.Seconds)
 	for _, k := range sortedKeys(r.Environment) {
 		fmt.Fprintf(&b, "| %s | %s |\n", k, r.Environment[k])
+	}
+	if r.ColdStartSeconds > 0 {
+		fmt.Fprintf(&b, "\n## Results\n\n| Metric | Value |\n|---|---|\n| `migrate.sh preflight` (median) | %.2f s |\n", r.ColdStartSeconds)
+		return b.String()
+	}
+	if r.Target != "" {
+		fmt.Fprintf(&b, "| Target | %s |\n", r.Target)
 	}
 	m := r.Measured
 	fmt.Fprintf(&b, "\n## Results\n\n| Metric | Value | Gate |\n|---|---|---|\n")

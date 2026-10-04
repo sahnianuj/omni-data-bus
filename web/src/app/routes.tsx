@@ -3,6 +3,7 @@ import type { CrumbHandle } from '@/components/Breadcrumbs'
 import { SignInPage } from '@/features/auth/SignInPage'
 import { SignUpPage } from '@/features/auth/SignUpPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { ExportPage } from '@/features/export/ExportPage'
 import { SchemaExplorerPage } from '@/features/discovery/SchemaExplorerPage'
 import { JobMonitorPage } from '@/features/jobs/JobMonitorPage'
 import { JobsPage } from '@/features/jobs/JobsPage'
@@ -55,6 +56,7 @@ export const routes: RouteObject[] = [
                   { path: 'mappings/:mid', element: <MappingWorkbenchPage /> },
                   { path: 'review', element: <ReviewStep /> },
                   { path: 'migrate', element: <MigrateStep /> },
+                  { path: 'export', element: <ExportPage /> },
                   { path: 'jobs/:jobId', element: <JobMonitorPage /> },
                 ],
               },

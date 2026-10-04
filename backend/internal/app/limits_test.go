@@ -55,3 +55,16 @@ func TestLimitMiddleware_ConnectionTestsPerSession(t *testing.T) {
 	require.False(t, authed)
 	require.Equal(t, "ip:192.0.2.1", key)
 }
+
+func TestMemoryLimit_OC056(t *testing.T) {
+	env := map[string]string{}
+	getenv := func(k string) string { return env[k] }
+	limit, ok := memoryLimit(640, getenv)
+	require.True(t, ok)
+	require.Equal(t, int64(640)<<20, limit)
+	_, ok = memoryLimit(0, getenv)
+	require.False(t, ok, "0 turns it off")
+	env["GOMEMLIMIT"] = "2GiB"
+	_, ok = memoryLimit(640, getenv)
+	require.False(t, ok, "the runtime's own setting wins")
+}

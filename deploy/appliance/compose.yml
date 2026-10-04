@@ -1,0 +1,30 @@
+# Omni-Data-Bus all-in-one image with Docker Compose (OC-074): the same settings as `./run.sh start`.
+#
+#   docker compose -f compose.yml up -d --wait     # start (first start takes 1-3 minutes)
+#   docker compose -f compose.yml down             # stop (data is kept in the odb-data volume)
+name: omni-data-bus
+
+services:
+  omni-data-bus:
+    image: ${ODB_IMAGE:-omni-data-bus-appliance:latest}
+    container_name: omni-data-bus
+    restart: unless-stopped
+    ports:
+      - "${ODB_PORT:-8080}:8080"
+      # Couchbase web console, for support only: this machine only.
+      - "127.0.0.1:8091:8091"
+    volumes:
+      - odb-data:/opt/couchbase/var
+      # JSON files from directory targets land here on this computer (choose /data in the app).
+      - ${ODB_OUTPUT_DIR:-./output}:/data
+    environment:
+      ODB_PUBLIC_URL: ${ODB_PUBLIC_URL:-http://localhost:8080}
+      # Shown in the app next to /data; set it to the same folder as ODB_OUTPUT_DIR.
+      ODB_OUTPUT_HOST_DIR: ${ODB_OUTPUT_DIR:-./output}
+    mem_limit: ${ODB_MEMORY:-4g}
+    # Running migrations drain and checkpoint before Couchbase stops.
+    stop_grace_period: 90s
+
+volumes:
+  odb-data:
+    name: odb-data

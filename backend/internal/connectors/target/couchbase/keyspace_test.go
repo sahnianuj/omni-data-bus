@@ -380,3 +380,12 @@ func TestExistingKeys_AC7(t *testing.T) {
 	_, err = browser(f, SelfManaged).ExistingKeys(ctx, "bad`b", "s", "c", keys)
 	require.Error(t, err)
 }
+
+// OC-072 AC7: Community Edition refuses a collection max expiry; the problem says why and what to do.
+func TestMapErr_OC072_EnterpriseOnlyTTL(t *testing.T) {
+	raw := errors.New(`invalid argument | {"error_text":"{\"errors\":{\"maxTTL\":\"Supported in enterprise edition only\"}}","status_code":400}`)
+	err := mapErr(raw, "collection", "orders")
+	require.True(t, problem.HasCode(err, problem.CodeValidation))
+	require.ErrorContains(t, err, "Community Edition")
+	require.ErrorContains(t, err, "Leave max expiry empty")
+}

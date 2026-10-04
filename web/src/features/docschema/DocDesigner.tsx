@@ -1,7 +1,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Braces, ChevronDown, ChevronRight, Download, FileJson, MoreHorizontal, Plus, Upload } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils'
 import { exportJsonSchema, inferDocSchema, inferFromCollection, replaceDesign } from '@/features/mapping/api'
 import { useWorkbench } from '@/features/mapping/store'
 import type { DocField, DocSchema, FieldType, MappingSpec } from '@/features/mapping/types'
-import { addField, duplicate, move, OpError, remove, rename, setRequired, setType, unwrap, validate, walk, wrap } from './docschemaOps'
+import { addField, duplicate, fieldContainer, insertionPoint, moveRelative, OpError, remove, rename, setRequired, setType, unwrap, validate, walk, wrap, type DropPos } from './docschemaOps'
+import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } from './fieldDrag'
 import { generateFromTable, sampleDocument } from './generate'
 import { schemaDiff, type SchemaDiff } from './schemaDiff'
 import { sniffJson } from './sniffJson'
@@ -32,7 +33,9 @@ function flatten(schema: DocSchema, collapsed: ReadonlySet<string>): Row[] {
     for (const f of parent.children ?? []) {
       const path = prefix ? `${prefix}.${f.name}` : f.name
       out.push({ field: f, depth, path, parentId: parent.id })
-      if (f.type === 'object' && !collapsed.has(f.id)) visit(f, depth + 1, path)
+      // An array of objects lists its item fields under it (OC-081).
+      const into = fieldContainer(f)
+      if (into && !collapsed.has(f.id)) visit(into, depth + 1, f.type === 'array' ? `${path}[]` : path)
     }
   }
   visit(schema.root, 0, '')
@@ -49,13 +52,16 @@ type RowProps = {
   selected: boolean
   collapsed: boolean
   editing: boolean
+  /** Where a field being dragged over this row would land. */
+  dropPos?: DropPos
   onSelect: (id: string, additive: boolean) => void
   onToggle: (id: string) => void
   onStartEdit: (id: string) => void
   onRename: (id: string, name: string) => void
   onType: (id: string, type: FieldType) => void
   onRequired: (id: string, v: boolean) => void
-  onDrop: (draggedId: string, target: Row) => void
+  onDragPos: (id: string, pos: DropPos | null) => void
+  onDrop: (draggedId: string, target: Row, pos: DropPos) => void
   onAction: (action: RowAction, row: Row) => void
 }
 
@@ -78,6 +84,7 @@ function RenameInput({ id, name, onRename }: { id: string; name: string; onRenam
   return (
     <input
       autoFocus
+      onFocus={(e) => e.currentTarget.select()}
       aria-label={t('designer.rename', { name })}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
@@ -98,30 +105,38 @@ export const DesignRow = memo(function DesignRow(p: RowProps) {
   const { t } = useTranslation()
   const f = p.row.field
   const act = (a: RowAction) => () => p.onAction(a, p.row)
+  const container = !!fieldContainer(f)
   return (
     <div
       role="treeitem"
       aria-level={p.row.depth + 1}
       aria-selected={p.selected}
-      aria-expanded={f.type === 'object' ? !p.collapsed : undefined}
+      aria-expanded={container ? !p.collapsed : undefined}
       data-field-id={f.id}
       draggable={!p.editing}
-      onDragStart={(e) => e.dataTransfer.setData('text/x-field', f.id)}
-      onDragOver={(e) => e.preventDefault()}
+      onDragStart={(e) => startFieldDrag(e, f.id)}
+      onDragOver={(e) => {
+        if (!isFieldDrag(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+        p.onDragPos(f.id, dropPosition(e, container))
+      }}
+      onDragLeave={() => p.onDragPos(f.id, null)}
       onDrop={(e) => {
-        const id = e.dataTransfer.getData('text/x-field')
+        const id = e.dataTransfer.getData(DND_FIELD)
+        p.onDragPos(f.id, null)
         if (id) {
           e.preventDefault()
           e.stopPropagation()
-          p.onDrop(id, p.row)
+          p.onDrop(id, p.row, dropPosition(e, container))
         }
       }}
       onClick={(e) => p.onSelect(f.id, e.shiftKey || e.metaKey || e.ctrlKey)}
       onDoubleClick={() => p.onStartEdit(f.id)}
-      className={cn('absolute inset-x-0 flex h-9 items-center gap-2 border-b border-border pr-2 text-[13px]', p.selected && 'bg-primary-soft', p.error && 'bg-danger-soft/40')}
+      className={cn('absolute inset-x-0 flex h-9 items-center gap-2 border-b border-border pr-2 text-[13px]', p.selected && 'bg-primary-soft', p.error && 'bg-danger-soft/40', p.dropPos && dropIndicator[p.dropPos])}
       style={{ top: p.top, paddingLeft: 12 + p.row.depth * 18 }}
     >
-      {f.type === 'object' ? (
+      {container ? (
         <button type="button" onClick={(e) => (e.stopPropagation(), p.onToggle(f.id))} aria-label={t(p.collapsed ? 'mapping.expand' : 'mapping.collapse', { name: f.name })} className="text-subtle">
           <ChevronRight className={cn('size-3.5 transition-transform', !p.collapsed && 'rotate-90')} />
         </button>
@@ -167,15 +182,15 @@ export const DesignRow = memo(function DesignRow(p: RowProps) {
               <DropdownMenu.Item className={menuItem} onSelect={act('rename')}>
                 {t('designer.renameAction')}
               </DropdownMenu.Item>
+              {container ? (
+                <DropdownMenu.Item className={menuItem} onSelect={act('addField')}>
+                  {t('designer.addField')}
+                </DropdownMenu.Item>
+              ) : null}
               {f.type === 'object' ? (
-                <>
-                  <DropdownMenu.Item className={menuItem} onSelect={act('addField')}>
-                    {t('designer.addField')}
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item className={menuItem} onSelect={act('unwrap')}>
-                    {t('designer.unwrap')}
-                  </DropdownMenu.Item>
-                </>
+                <DropdownMenu.Item className={menuItem} onSelect={act('unwrap')}>
+                  {t('designer.unwrap')}
+                </DropdownMenu.Item>
               ) : null}
               <DropdownMenu.Item className={menuItem} onSelect={act('wrap')}>
                 {t('designer.wrap')}
@@ -257,14 +272,9 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
     if (name !== walk(spec.docSchema).find((r) => r.field.id === id)?.field.name) edit((s) => rename(s, id, name))
   })
 
-  const onDrop = useStable((draggedId: string, target: Row) => {
-    if (draggedId === target.field.id) return
-    if (target.field.type === 'object') edit((s) => move(s, draggedId, target.field.id, target.field.children?.length ?? 0))
-    else {
-      const siblings = target.parentId === spec.docSchema.root.id ? spec.docSchema.root.children! : (walk(spec.docSchema).find((r) => r.field.id === target.parentId)?.field.children ?? [])
-      edit((s) => move(s, draggedId, target.parentId, siblings.findIndex((c) => c.id === target.field.id)))
-    }
-  })
+  const [dropAt, setDropAt] = useState<{ id: string; pos: DropPos } | null>(null)
+  const onDragPos = useStable((id: string, pos: DropPos | null) => setDropAt((d) => (pos ? (d?.id === id && d.pos === pos ? d : { id, pos }) : d?.id === id ? null : d)))
+  const onDrop = useStable((draggedId: string, target: Row, pos: DropPos) => edit((s) => moveRelative(s, draggedId, target.field.id, pos)))
   const onToggle = useStable((id: string) =>
     setCollapsed((c) => {
       const next = new Set(c)
@@ -278,13 +288,30 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
   const onAction = useStable((action: RowAction, row: Row) => {
     const id = row.field.id
     if (action === 'rename') setEditing(id)
-    else if (action === 'addField') edit((s) => addField(s, id, 'field', 'string').schema)
+    else if (action === 'addField') addAt(insertionPoint(spec.docSchema, id))
     else if (action === 'unwrap') edit((s) => unwrap(s, id))
     else if (action === 'wrap') edit((s) => wrap(s, selected.has(id) ? [...selected] : [id], 'group').schema)
     else if (action === 'duplicate') edit((s) => duplicate(s, id).schema)
     else if (mapped(id)) setDeleting(id)
     else doRemove(id)
   })
+
+  /** Adds a field where OC-081 puts it, then selects it, shows it and opens its name. */
+  const addAt = (at: { parentId: string; index?: number }) => {
+    let id = ''
+    edit((s) => {
+      const res = addField(s, at.parentId, 'newField', 'string', at.index)
+      id = res.id
+      return res.schema
+    })
+    if (!id) return
+    // Expand the container (an item object's array is the row that collapses).
+    const owner = walk(spec.docSchema).find((r) => r.field.id === at.parentId || r.field.items?.id === at.parentId)?.field.id
+    if (owner) setCollapsed((c) => (c.has(owner) ? new Set([...c].filter((x) => x !== owner)) : c))
+    setSelected(new Set([id]))
+    setEditing(id)
+  }
+  const addTarget = insertionPoint(spec.docSchema, selected.size === 1 ? [...selected][0] : null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -296,6 +323,11 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
     overscan: 12,
     initialRect: { width: 600, height: 600 },
   })
+  // A field being named (just added, say) scrolls into view.
+  useEffect(() => {
+    const i = editing ? rows.findIndex((r) => r.field.id === editing) : -1
+    if (i >= 0) virtualizer.scrollToIndex(i)
+  }, [editing, rows, virtualizer])
 
   const onKeyDown = (e: KeyboardEvent) => {
     const [only] = [...selected]
@@ -459,17 +491,19 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
                   key={r.field.id}
                   row={r}
                   top={v.start}
-                  status={r.field.type === 'object' && (r.field.children?.length ?? 0) > 0 ? undefined : (status.get(r.field.id) ?? 'unmapped')}
+                  status={(fieldContainer(r.field)?.children?.length ?? 0) > 0 ? undefined : (status.get(r.field.id) ?? 'unmapped')}
                   error={errors.get(r.field.id)}
                   selected={selected.has(r.field.id)}
                   collapsed={collapsed.has(r.field.id)}
                   editing={editing === r.field.id}
+                  dropPos={dropAt?.id === r.field.id ? dropAt.pos : undefined}
                   onSelect={onSelect}
                   onToggle={onToggle}
                   onStartEdit={setEditing}
                   onRename={onRename}
                   onType={onType}
                   onRequired={onRequired}
+                  onDragPos={onDragPos}
                   onDrop={onDrop}
                   onAction={onAction}
                 />
@@ -477,9 +511,9 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
             })}
           </div>
           <div className="flex items-center gap-3 px-6 py-3">
-            <Button variant="link" size="sm" className="px-0" onClick={() => edit((s) => addField(s, s.root.id, 'newField', 'string').schema)}>
+            <Button variant="link" size="sm" className="px-0" onClick={() => addAt(addTarget)}>
               <Plus aria-hidden />
-              {t('designer.addField')}
+              {addTarget.label ? t('designer.addFieldTo', { name: addTarget.label }) : t('designer.addField')}
             </Button>
             <span className="text-xs text-subtle">{t('designer.dropHint')}</span>
           </div>

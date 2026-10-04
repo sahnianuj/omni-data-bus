@@ -58,7 +58,9 @@ test('order_detail into one order', async ({ page }) => {
   await expect(doc).toContainText('"lineNo": 2')
   await expect(doc).not.toContainText('"lineNo": 3')
   await expect(doc).not.toContainText('docType')
-  await expect(sample.getByRole('region', { name: 'Reference' })).toContainText('Matches the imported design')
+  // The imported design is shown next to the generated document (differences are listed only
+  // in Strict mode, OC-076).
+  await expect(sample.getByRole('region', { name: 'Reference' })).toContainText('"orderId": 1')
 
   // Saved: grouped, the key on order_id only.
   await expect.poll(async () => (await api.get<{ spec: { root?: { groupBy?: string[] } } }>(`/api/v1/projects/${p.id}/mappings/${ids[0]}`)).spec.root?.groupBy, { timeout: 10_000 }).toEqual(['order_id'])

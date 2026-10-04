@@ -70,6 +70,16 @@ export class Api {
     return (text ? JSON.parse(text) : undefined) as T
   }
 
+  /** Saves and tests the project's PostgreSQL source (the sample database). */
+  async sourceRepo(projectId: string) {
+    await this.send('PUT', `/api/v1/projects/${projectId}/connections/source`, {
+      type: 'postgres',
+      config: { host: env.source.host, port: env.source.port, database: env.source.database, username: env.source.username, sslMode: 'disable', connectTimeoutSec: 10 },
+      secrets: { password: env.source.password },
+    })
+    await this.send('POST', `/api/v1/connections/${encodeURIComponent(`${projectId}::source`)}/test`)
+  }
+
   /** A project with a saved and tested source and target (credentials stored once). */
   async projectWithRepos(
     name = `E2E ${uid()}`,

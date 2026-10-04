@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Can } from '@/features/auth/Can'
+import { addField, insertionPoint, moveRelative, rename, type DropPos } from '@/features/docschema/docschemaOps'
+import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } from '@/features/docschema/fieldDrag'
 import { cn } from '@/lib/utils'
 import { buildEdges, parentMap, type Edge } from './buildEdges'
 import { canConnect } from './canConnect'
@@ -84,6 +86,29 @@ const embedAccent = (n: number | undefined, tint = true): CSSProperties | undefi
 const filtered = (filter: string, search: string) => filter !== 'all' || search.trim() !== ''
 
 /** The mapping canvas (OC-019), with embedded tables' columns as extra source groups (OC-021). */
+/** Names a just-added target field: Enter or leaving keeps what's typed, Escape keeps the default. */
+function NameInput({ id, name, onDone }: { id: string; name: string; onDone: (id: string, name: string) => void }) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState(name)
+  return (
+    <input
+      autoFocus
+      onFocus={(e) => e.currentTarget.select()}
+      aria-label={t('designer.rename', { name })}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onDone(id, draft)}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') onDone(id, draft)
+        if (e.key === 'Escape') onDone(id, name)
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className="h-6 min-w-0 flex-1 rounded border border-border-strong bg-surface px-1.5 text-[13px]"
+    />
+  )
+}
+
 export function MappingCanvas() {
   const { t } = useTranslation()
   const spec = useWorkbench((s) => s.history.present)
@@ -102,6 +127,8 @@ export function MappingCanvas() {
   const [hover, setHover] = useState<{ kind: 'source' | 'target'; id: string } | null>(null)
   const [dragOver, setDragOver] = useState<{ id: string; ok: boolean; reason?: string } | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
+  // Where a target field being dragged would land.
+  const [dropAt, setDropAt] = useState<{ id: string; pos: DropPos } | null>(null)
   const [scroll, setScroll] = useState({ src: 0, tgt: 0 })
   const srcRef = useRef<HTMLDivElement>(null)
   const dragging = useRef<string | null>(null) // the column being dragged
@@ -181,6 +208,55 @@ export function MappingCanvas() {
   }
 
   const fieldType = (id: string) => fields.get(id)?.type
+  /** Dropped a target field: move it beside or into another (Design and Composer drag the same way). */
+  const onMoveField = (id: string, targetId: string, pos: DropPos) => {
+    setDropAt(null)
+    try {
+      apply((s) => {
+        const docSchema = moveRelative(s.docSchema, id, targetId, pos)
+        return docSchema === s.docSchema ? s : { ...s, docSchema }
+      })
+    } catch (e) {
+      if (e instanceof OpError) toast.error(e.message)
+    }
+  }
+  // "Add field" (OC-081): where the selection says, then the new row opens for naming.
+  const [naming, setNaming] = useState<string | null>(null)
+  const addTarget = insertionPoint(spec.docSchema, selection?.kind === 'field' ? selection.id : null)
+  const onAddField = () => {
+    let id = ''
+    try {
+      apply((s) => {
+        const res = addField(s.docSchema, addTarget.parentId, 'newField', 'string', addTarget.index)
+        id = res.id
+        return { ...s, docSchema: res.schema }
+      })
+    } catch (e) {
+      if (e instanceof OpError) toast.error(e.message)
+      return
+    }
+    const owner = [...fields.values()].find((f) => f.id === addTarget.parentId || f.items?.id === addTarget.parentId)?.id
+    if (owner && collapsed.has(owner)) toggleCollapsed(owner)
+    select({ kind: 'field', id })
+    setNaming(id)
+  }
+  const onNamed = (id: string, name: string) => {
+    setNaming(null)
+    try {
+      apply((s) => {
+        const docSchema = rename(s.docSchema, id, name)
+        return docSchema === s.docSchema ? s : { ...s, docSchema }
+      })
+    } catch (e) {
+      if (e instanceof OpError) toast.error(e.message)
+    }
+  }
+  // The field being named scrolls into view.
+  useEffect(() => {
+    const i = naming ? tRows.findIndex((r) => r.field.id === naming) : -1
+    if (i >= 0) tv.scrollToIndex(i)
+  }, [naming, tRows, tv])
+  const isContainer = (f: DocField) => f.type === 'object' || (f.type === 'array' && f.items?.type === 'object')
   const onTargetDragOver = (e: DragEvent, row: TargetRow) => {
     const col = colByName.get(dragging.current ?? '')
     e.preventDefault()
@@ -383,10 +459,13 @@ export function MappingCanvas() {
         className={cn('flex min-w-[240px] flex-1 flex-col border-l border-border', dragOver?.id === '$root' && 'bg-primary-soft/40')}
         onDragOver={(e) => {
           e.preventDefault()
-          setDragOver({ id: '$root', ok: true })
+          if (isFieldDrag(e)) setDropAt(null)
+          else setDragOver({ id: '$root', ok: true })
         }}
         onDrop={(e) => {
           e.preventDefault()
+          const moved = e.dataTransfer.getData(DND_FIELD)
+          if (moved) return onMoveField(moved, spec.docSchema.root.id, 'inside')
           const col = e.dataTransfer.getData('text/x-column')
           setDragOver(null)
           if (col) onCreateAndMap(col, spec.docSchema.root.id)
@@ -412,14 +491,28 @@ export function MappingCanvas() {
                   key={r.field.id}
                   data-testid={`target-${r.path}`}
                   title={over && !dragOver?.ok ? dragOver?.reason : undefined}
+                  draggable={naming !== r.field.id}
+                  onDragStart={(e) => startFieldDrag(e, r.field.id)}
+                  onDragEnd={() => setDropAt(null)}
                   onDragOver={(e) => {
                     e.stopPropagation()
+                    if (isFieldDrag(e)) {
+                      e.preventDefault()
+                      const pos = dropPosition(e, isContainer(r.field))
+                      setDropAt((d) => (d?.id === r.field.id && d.pos === pos ? d : { id: r.field.id, pos }))
+                      return
+                    }
                     onTargetDragOver(e, r)
                   }}
-                  onDragLeave={() => setDragOver(null)}
+                  onDragLeave={() => {
+                    setDragOver(null)
+                    setDropAt((d) => (d?.id === r.field.id ? null : d))
+                  }}
                   onDrop={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
+                    const moved = e.dataTransfer.getData(DND_FIELD)
+                    if (moved) return onMoveField(moved, r.field.id, dropPosition(e, isContainer(r.field)))
                     const col = e.dataTransfer.getData('text/x-column')
                     setDragOver(null)
                     if (!col) return
@@ -433,6 +526,7 @@ export function MappingCanvas() {
                     'absolute left-0 right-0 flex items-center gap-2 pr-3 text-[13px] hover:bg-surface-muted',
                     dim && 'opacity-40',
                     over && (dragOver?.ok ? 'ring-2 ring-inset ring-primary' : 'ring-2 ring-inset ring-danger'),
+                    dropAt?.id === r.field.id && dropIndicator[dropAt.pos],
                     selection?.kind === 'field' && selection.id === r.field.id && 'bg-primary-soft',
                   )}
                   style={{ top: v.start, height: ROW, paddingLeft: 8 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || (selection?.kind === 'field' && selection.id === r.field.id))) }}
@@ -454,7 +548,7 @@ export function MappingCanvas() {
                     <span className="w-3.5 shrink-0" />
                   )}
                   {st ? <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} /> : <span className="size-2.5 shrink-0" />}
-                  <span className="truncate">{r.field.name}</span>
+                  {naming === r.field.id ? <NameInput id={r.field.id} name={r.field.name} onDone={onNamed} /> : <span className="truncate">{r.field.name}</span>}
                   {r.field.required ? <span className="text-danger">{t('mapping.requiredMark')}</span> : null}
                   {embedTargets.has(r.field.id) ? (
                     <span className="rounded-full px-1.5 text-[10px] font-medium text-white" title={t('embed.badge')} style={{ background: embedVar(embedColor.byField.get(r.field.id) ?? 0) }}>
@@ -466,9 +560,12 @@ export function MappingCanvas() {
               )
             })}
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-3 text-xs text-subtle">
-            <Plus className="size-3" aria-hidden />
-            {t('mapping.dropToCreate')}
+          <div className="flex items-center gap-3 px-3 py-2 text-xs text-subtle">
+            <Button variant="link" size="sm" className="h-7 px-0" onClick={onAddField}>
+              <Plus aria-hidden />
+              {addTarget.label ? t('designer.addFieldTo', { name: addTarget.label }) : t('designer.addField')}
+            </Button>
+            <span>{t('mapping.dropToCreate')}</span>
           </div>
         </div>
       </div>

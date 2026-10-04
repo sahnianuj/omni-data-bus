@@ -49,7 +49,7 @@ type Step struct {
 
 // Collections is every collection in the metadata scope (architecture §5): the 1.0 ones, then
 // those added by 2.0 (each created by its own step, so existing stores get them on upgrade).
-var Collections = append(append([]string(nil), collectionsV1...), RelationshipCollections...)
+var Collections = append(append(append([]string(nil), collectionsV1...), RelationshipCollections...), ExportCollections...)
 
 // collectionsV1 are created by step 1.
 var collectionsV1 = []string{
@@ -60,6 +60,16 @@ var collectionsV1 = []string{
 
 // RelationshipCollections hold virtual relationships (OC-042), created by step 4.
 var RelationshipCollections = []string{"relationships"}
+
+// ExportCollections hold export history (OC-055), created by step 5. Reads are KV-only (a
+// per-project index document), so they need no GSI index.
+var ExportCollections = []string{"exports"}
+
+// ClaimIndexes back the version-aware claim loop (OC-057): queued jobs by the oldest worker
+// release that can run them.
+var ClaimIndexes = []string{
+	"CREATE INDEX IF NOT EXISTS idx_jobs_claim ON #{jobs}(status, IFMISSINGORNULL(minWorkerLevel, 0), createdAt, id) WHERE type = 'job'",
+}
 
 // Indexes are the GSI index definitions; #{name} is replaced by the collection's keyspace.
 var Indexes = []string{
@@ -94,6 +104,8 @@ func Steps() []Step {
 		indexStep(2, "indexes", Indexes),
 		indexStep(3, "job indexes", JobIndexes),
 		collectionStep(4, "relationship collections", RelationshipCollections, false),
+		collectionStep(5, "export collections", ExportCollections, false),
+		indexStep(6, "claim index", ClaimIndexes),
 	}
 }
 

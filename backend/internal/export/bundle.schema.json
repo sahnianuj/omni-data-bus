@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omni-data-bus.dev/schemas/bundle-1.json",
+  "title": "Omni-Data-Bus portable migration bundle",
+  "description": "Everything `odb run` needs to run a migration without the tool (OC-050, architecture §6.3). Written as canonical JSON (RFC 8785); integrity.sha256 covers the canonical form without the integrity member.",
+  "type": "object",
+  "required": ["bundleVersion", "odbVersion", "createdAt", "createdBy", "project", "source", "target", "mappings", "relationships", "jobOptions", "sourceFingerprint", "integrity"],
+  "additionalProperties": false,
+  "properties": {
+    "bundleVersion": { "type": "integer", "minimum": 1 },
+    "odbVersion": { "type": "string", "minLength": 1, "description": "Runner versions that may run the bundle, e.g. \">=2.0.0 <3.0.0\", or \"*\"" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "createdBy": { "type": "string" },
+    "project": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+    },
+    "source": { "$ref": "#/$defs/connection" },
+    "target": { "$ref": "#/$defs/connection" },
+    "mappings": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/mapping" } },
+    "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+    "jobOptions": { "$ref": "#/$defs/jobOptions" },
+    "sourceFingerprint": {
+      "type": "object",
+      "required": ["sha256", "tables"],
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "tables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["sha256", "columns"],
+            "additionalProperties": false,
+            "properties": {
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "udtName", "nullable"],
+                  "additionalProperties": false,
+                  "properties": { "name": { "type": "string" }, "udtName": { "type": "string" }, "nullable": { "type": "boolean" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["sha256", "contentSha256"],
+      "additionalProperties": false,
+      "properties": { "sha256": { "$ref": "#/$defs/sha256" }, "contentSha256": { "$ref": "#/$defs/sha256" } }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "connection": {
+      "type": "object",
+      "required": ["type", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["postgres", "couchbase", "directory"] },
+        "name": { "type": "string" },
+        "config": { "type": "object" },
+        "credentials": { "$ref": "#/$defs/credentials" }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["sealed", "plaintext", "external"] },
+        "kdf": {
+          "type": "object",
+          "required": ["alg", "salt", "t", "m", "p"],
+          "additionalProperties": false,
+          "properties": {
+            "alg": { "const": "argon2id" },
+            "salt": { "type": "string" },
+            "t": { "type": "integer", "minimum": 1 },
+            "m": { "type": "integer", "minimum": 1 },
+            "p": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "nonce": { "type": "string" },
+        "ciphertext": { "type": "string" },
+        "values": { "type": "object", "additionalProperties": { "type": "string" } },
+        "refs": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^(env:[A-Za-z_][A-Za-z0-9_]*|file:/.+)$" } }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "sealed" } } }, "then": { "required": ["kdf", "nonce", "ciphertext"] } },
+        { "if": { "properties": { "mode": { "const": "plaintext" } } }, "then": { "required": ["values"] } },
+        { "if": { "properties": { "mode": { "const": "external" } } }, "then": { "required": ["refs"] } }
+      ]
+    },
+    "location": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["couchbase", "directory"] },
+        "bucket": { "type": "string" },
+        "scope": { "type": "string" },
+        "collection": { "type": "string" },
+        "folder": { "type": "string" },
+        "createIfMissing": { "type": "boolean" }
+      }
+    },
+    "mapping": {
+      "type": "object",
+      "required": ["id", "name", "source", "location", "spec", "planHash"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "source": {
+          "type": "object",
+          "required": ["schema", "table"],
+          "additionalProperties": false,
+          "properties": { "schema": { "type": "string" }, "table": { "type": "string" } }
+        },
+        "location": { "$ref": "#/$defs/location" },
+        "spec": {
+          "type": "object",
+          "required": ["specVersion", "docSchema", "key"],
+          "properties": {
+            "specVersion": { "const": 2 },
+            "docSchema": { "type": "object", "not": { "anyOf": [{ "required": ["reference"] }, { "required": ["constantHints"] }] } }
+          }
+        },
+        "planHash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "relationshipEnd": {
+      "type": "object",
+      "required": ["schema", "table", "columns"],
+      "additionalProperties": false,
+      "properties": { "schema": { "type": "string" }, "table": { "type": "string" }, "columns": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["id", "name", "from", "to", "cardinality"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "from": { "$ref": "#/$defs/relationshipEnd" },
+        "to": { "$ref": "#/$defs/relationshipEnd" },
+        "cardinality": { "enum": ["many-to-one", "one-to-one", "one-to-many"] }
+      }
+    },
+    "jobOptions": {
+      "type": "object",
+      "required": ["writeMode", "batchSize", "readParallelism", "writeConcurrency", "tableConcurrency", "durability", "errorPolicy", "exactCount", "verifySampleSize"],
+      "additionalProperties": false,
+      "properties": {
+        "writeMode": { "enum": ["upsert", "insert", "replace"] },
+        "batchSize": { "type": "integer", "minimum": 100, "maximum": 10000 },
+        "readParallelism": { "type": "string", "pattern": "^(auto|[1-8])$" },
+        "writeConcurrency": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "tableConcurrency": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "maxDocsPerSecond": { "type": "integer", "minimum": 1 },
+        "durability": { "enum": ["none", "majority", "majorityAndPersistActive", "persistToMajority"] },
+        "errorPolicy": {
+          "type": "object",
+          "required": ["maxErrors", "maxErrorRatio", "minRowsForRatio"],
+          "additionalProperties": false,
+          "properties": {
+            "maxErrors": { "type": "integer", "minimum": -1 },
+            "maxErrorRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "minRowsForRatio": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "exactCount": { "enum": ["auto", "always", "never"] },
+        "verifySampleSize": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    }
+  }
+}

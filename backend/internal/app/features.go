@@ -6,8 +6,10 @@ import (
 
 	"omnidatabus/internal/audit"
 	"omnidatabus/internal/auth"
+	"omnidatabus/internal/buildinfo"
+	"omnidatabus/internal/config"
 	"omnidatabus/internal/connections"
-	"omnidatabus/internal/connectors"
+	"omnidatabus/internal/connectors/catalog"
 	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/connectors/source/postgres"
 	"omnidatabus/internal/connectors/target"
@@ -17,6 +19,7 @@ import (
 	"omnidatabus/internal/discovery"
 	"omnidatabus/internal/documents"
 	"omnidatabus/internal/events"
+	"omnidatabus/internal/export"
 	"omnidatabus/internal/httpapi"
 	"omnidatabus/internal/jobs"
 	"omnidatabus/internal/keyspaces"
@@ -33,13 +36,34 @@ type Deps struct {
 	Auth      *auth.Service
 	Cookies   auth.CookieSettings
 	PublicURL string
-	Sources   *source.Registry
-	Targets   *target.Registry
-	Ready     map[string]httpapi.Pinger
+	// Bundled is the all-in-one image's Couchbase node, offered as a target (OC-072).
+	Bundled connections.Bundled
+	Sources *source.Registry
+	Targets *target.Registry
+	Ready   map[string]httpapi.Pinger
 	// Hub fans job progress out to SSE subscribers on this node (created on demand).
 	Hub *events.Hub
 	// Now is the clock for rate limits (tests); nil = time.Now.
 	Now func() time.Time
+	// Export configures exported migrations (OC-050..OC-055); Version is this build's.
+	Export  config.ExportConfig
+	Version string
+}
+
+// ExportScript is the script settings for exports: the configured image, download URL and
+// release binaries, with this version's defaults.
+func ExportScript(c config.ExportConfig, version string) export.ScriptConfig {
+	sc := export.ScriptConfig{
+		Image: c.Image, DownloadURL: c.DownloadURL, CosignIdentity: c.CosignIdentity,
+		Dist: export.Dist{Dir: c.DistDir, Version: version},
+	}
+	if sc.Image == "" {
+		sc.Image = "ghcr.io/sahnianuj/omni-data-bus:" + version
+	}
+	if sc.DownloadURL == "" {
+		sc.DownloadURL = "https://github.com/sahnianuj/omni-data-bus/releases/download/v" + version
+	}
+	return sc
 }
 
 func (d Deps) hub() *events.Hub {
@@ -55,7 +79,7 @@ func Features(d Deps) []httpapi.Registrar {
 		return nil
 	}
 	guard := jobs.Guard{Store: d.Store}
-	conns := connections.NewService(d.Store, d.Sealer, d.Sources, d.Targets, guard, nil)
+	conns := connections.NewService(d.Store, d.Sealer, d.Sources, d.Targets, guard, nil).WithBundled(d.Bundled)
 	disc := discovery.NewService(d.Store, conns.OpenSource, nil)
 	maps := mappings.NewService(d.Store, disc, conns.OpenSource, conns.OpenKeyspaces)
 	maps.StatLocation = conns.StatLocation
@@ -66,10 +90,22 @@ func Features(d Deps) []httpapi.Registrar {
 	}
 	jobsSvc := jobs.NewService(d.Store, pre, nil)
 	jobsSvc.PlanHash = maps.PlanHash
+	version := d.Version
+	if version == "" {
+		version = buildinfo.Get().Version
+	}
+	exports := &export.Service{
+		Builder: &export.Builder{
+			Store: d.Store, Sealer: d.Sealer, Validate: maps.Validate, Latest: disc.Latest,
+			IsBundled: conns.IsBundled, Version: version, Now: d.Now,
+		},
+		Store: d.Store, Audit: &audit.Recorder{Store: d.Store.Audit()}, Script: ExportScript(d.Export, version),
+		Version: version, PlanHash: maps.PlanHash, Now: d.Now,
+	}
 	return []httpapi.Registrar{
 		auth.Handlers{Svc: d.Auth, Cookies: d.Cookies},
 		projects.Handlers{Svc: projects.NewService(d.Store, d.Sealer, guard)},
-		connectors.CatalogHandlers{Sources: d.Sources, Targets: d.Targets},
+		catalog.Handlers{Sources: d.Sources, Targets: d.Targets},
 		connections.Handlers{Svc: conns},
 		discovery.Handlers{Svc: disc},
 		keyspaces.Handlers{Open: conns.OpenKeyspaces, Audit: d.Store.Audit()},
@@ -80,6 +116,7 @@ func Features(d Deps) []httpapi.Registrar {
 		events.Handlers{Store: d.Store, Hub: d.hub()},
 		audit.Handlers{Store: d.Store.Audit()},
 		documents.Handlers{Store: d.Store, Targets: conns},
+		export.Handlers{Svc: exports},
 	}
 }
 
@@ -97,11 +134,11 @@ func APIMiddleware(d Deps) []func(http.Handler) http.Handler {
 // Registries returns the source and target connectors this build supports: PostgreSQL
 // (OC-009), Couchbase (OC-012) and directories (OC-036/OC-038). directoryRoots are the areas a
 // directory target may be in; nil means directory.DefaultRoots (the home folder and /data).
-func Registries(directoryRoots []string) (*source.Registry, *target.Registry) {
+func Registries(directoryRoots []string, opts ...directory.Options) (*source.Registry, *target.Registry) {
 	sources := source.NewRegistry()
 	sources.Register(postgres.New())
 	targets := target.NewRegistry()
 	targets.Register(couchbase.New())
-	targets.Register(directory.New(directoryRoots))
+	targets.Register(directory.New(directoryRoots, opts...))
 	return sources, targets
 }

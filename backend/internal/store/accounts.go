@@ -67,6 +67,8 @@ type Session struct {
 	ExpiresAt   time.Time `json:"expiresAt"` // absolute expiry; the store drops the session after it
 	UserAgent   string    `json:"userAgent"`
 	IP          string    `json:"ip"`
+	// StepUpAt is when the user last re-entered their password in this session (OC-052).
+	StepUpAt *time.Time `json:"stepUpAt,omitempty"`
 }
 
 // NewAccount is everything sign-up creates atomically.
@@ -96,6 +98,8 @@ type Sessions interface {
 	Create(ctx context.Context, s Session) error
 	Get(ctx context.Context, id string) (Session, error)
 	Touch(ctx context.Context, id string, at time.Time) error
+	// StepUp records a password re-confirmation in the session (OC-052).
+	StepUp(ctx context.Context, id string, at time.Time) error
 	Delete(ctx context.Context, id string) error
 }
 

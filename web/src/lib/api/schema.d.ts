@@ -143,6 +143,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-confirm the password before a sensitive action (exporting credentials); valid for 5 minutes in this session */
+        post: operations["stepUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard": {
         parameters: {
             query?: never;
@@ -302,6 +319,28 @@ export interface paths {
         put: operations["saveProjectConnection"];
         post?: never;
         delete: operations["deleteProjectConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/connections/target/bundled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make the all-in-one image's bundled Couchbase node the project's target, and test it (OC-072)
+         * @description Only on a server started with OC_BUNDLED_TARGET (the all-in-one image); 404 elsewhere. The password comes from the server's settings and is stored sealed like any other credential.
+         */
+        post: operations["saveBundledTarget"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -988,6 +1027,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exports/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this server can export (OC-050..OC-053) — image, download URL, platforms */
+        get: operations["getExportOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exports/passphrase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A new six-word diceware passphrase (never stored); editors only */
+        post: operations["generatePassphrase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** The project's export history, newest first, with the mappings changed since each export (OC-055) */
+        get: operations["listExports"];
+        put?: never;
+        /** Export the project as configured (its source, target, sealed saved credentials and every ready mapping) as a portable bundle (runtime bundle → .odb.json) or a migrate.sh zip (runtime script). Editors only, after a step-up within 5 minutes (403 STEP_UP_REQUIRED); 422 MAPPING_INVALID, NO_READY_MAPPINGS, PASSPHRASE_WEAK, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
+        post: operations["createExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/runs/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import an odb run report.json (≤ 5 MB) as a read-only external job; 422 REPORT_UNKNOWN_BUNDLE when it isn't from an export of this project */
+        post: operations["importRunReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -1334,6 +1446,11 @@ export interface components {
             };
             /** @description false when nodes run more than one version */
             consistent?: boolean;
+            /**
+             * @description The all-in-one image's bundled Couchbase (OC-072)
+             * @example Couchbase Server CE 8.0.2
+             */
+            bundledStore?: string;
         };
         SignupRequest: {
             /** Format: email */
@@ -2168,11 +2285,31 @@ export interface components {
             path: string;
             /** @description Where "up" goes; "" from an area's top folder */
             parent: string;
-            folders: {
-                name: string;
-                path: string;
-            }[];
+            folders: components["schemas"]["FolderEntry"][];
             canCreate: boolean;
+            where?: components["schemas"]["FolderWhere"];
+            /** @description Path on the user's computer when shared into the all-in-one image (OC-080) */
+            hostPath?: string;
+        };
+        FolderEntry: {
+            name: string;
+            path: string;
+            /** @description The folder on the user's computer when it's shared into the all-in-one image (OC-080) */
+            hostPath?: string;
+            where?: components["schemas"]["FolderWhere"];
+            /** @description An area's label for users, e.g. "Your computer: /Users/ana/omni-data-bus-output" */
+            label?: string;
+        };
+        /**
+         * @description All-in-one image only (OC-080): computer = a folder of the user's computer shared into the container; container = inside the container only. Absent on a regular server.
+         * @enum {string}
+         */
+        FolderWhere: "computer" | "container";
+        SharedFolder: {
+            /** @example /data */
+            path: string;
+            /** @example /Users/ana/omni-data-bus-output */
+            hostPath: string;
         };
         LocationNode: {
             name: string;
@@ -2212,9 +2349,28 @@ export interface components {
             kindCapabilities: components["schemas"]["TargetKindCapabilities"];
             enabled: boolean;
             disabledReason?: string;
+            sharedFolder?: components["schemas"]["SharedFolder"];
         };
         TargetKindList: {
             kinds: components["schemas"]["TargetKind"][];
+            bundled?: components["schemas"]["BundledTarget"];
+        };
+        /** @description The Couchbase node bundled in the all-in-one image (OC-072); absent elsewhere. */
+        BundledTarget: {
+            /** @enum {string} */
+            kind: "couchbase";
+            /** @example Bundled Couchbase (this container) */
+            label: string;
+            /**
+             * @example [
+             *       "sandbox"
+             *     ]
+             */
+            buckets: string[];
+        };
+        BundledTargetSaved: {
+            connection: components["schemas"]["Connection"];
+            test: components["schemas"]["TestResult"];
         };
         /** @description The 1.0 Couchbase form of Location (empty for other kinds). */
         MappingTarget: {
@@ -2348,6 +2504,14 @@ export interface components {
                 arrays: number;
                 objects: number;
                 groupBy?: string[];
+            };
+            /** @description Error issues in the live validation; any makes the status draft (OC-083) */
+            errors: number;
+            warnings: number;
+            /** @description What to fix first (OC-083) */
+            firstError?: {
+                code: string;
+                message: string;
             };
         };
         MappingList: {
@@ -2722,6 +2886,114 @@ export interface components {
             resumable: boolean;
             retryable: boolean;
             resumeInfo?: components["schemas"]["ResumeInfo"];
+            /**
+             * @description external: a run of an exported bundle, imported from its report (OC-055); read-only
+             * @enum {string}
+             */
+            origin?: "external";
+            external?: components["schemas"]["ExternalRun"];
+        };
+        ExternalRun: {
+            runId: string;
+            bundleSha256: string;
+            exportId: string;
+            odb: {
+                version: string;
+                commit: string;
+            };
+            exitCode: number;
+            durationSec: number;
+            docsPerSec: number;
+            errors: {
+                /** Format: int64 */
+                total: number;
+                byCode: {
+                    stage: string;
+                    code: string;
+                    /** Format: int64 */
+                    count: number;
+                }[];
+                samples: {
+                    [key: string]: unknown;
+                }[];
+            };
+            importedBy: string;
+            /** Format: date-time */
+            importedAt: string;
+            mappings: {
+                id: string;
+                name: string;
+                table: string;
+                target: string;
+                phase: string;
+                /** Format: int64 */
+                read: number;
+                /** Format: int64 */
+                written: number;
+                /** Format: int64 */
+                skipped: number;
+                /** Format: int64 */
+                failed: number;
+            }[];
+        };
+        ExportOptions: {
+            version: string;
+            image: string;
+            downloadUrl: string;
+            /** @description Platforms (os_arch) a script can download odb for (checksums known) */
+            downloadable: string[];
+            /** @description Platforms this server can embed odb for */
+            embeddable: string[];
+            maxPerHour: number;
+            minPassphraseLength: number;
+            stepUpWindowSec: number;
+        };
+        /** @description How to package the export. What is exported is the project as configured — its source, target, saved credentials and every ready mapping; change them in the project's steps. The credentials are always sealed with the passphrase. */
+        ExportRequest: {
+            /**
+             * Format: password
+             * @description At least 12 characters and strong (PASSPHRASE_WEAK)
+             */
+            passphrase: string;
+            /** @enum {string} */
+            runtime: "bundle" | "script";
+            script?: {
+                /** @enum {string} */
+                runtime?: "auto" | "binary" | "docker" | "embedded";
+                /** @enum {string} */
+                os?: "linux" | "darwin";
+                /** @enum {string} */
+                arch?: "amd64" | "arm64";
+                includeBundle?: boolean;
+            };
+            jobOptions?: components["schemas"]["JobOptions"];
+        };
+        ExportRecord: {
+            id: string;
+            workspaceId?: string;
+            projectId: string;
+            createdBy: string;
+            createdByEmail: string;
+            /** Format: date-time */
+            createdAt: string;
+            mappingIds: string[];
+            planHashes: {
+                [key: string]: string;
+            };
+            targetType: string;
+            /** @enum {string} */
+            credentialMode: "sealed" | "plaintext" | "external";
+            /** @enum {string} */
+            runtime: "bundle" | "script";
+            odbVersion: string;
+            bundleSha256: string;
+            planHash: string;
+            /** @description Exported mappings changed or deleted since */
+            changed: string[];
+        };
+        ExportHistory: {
+            items: components["schemas"]["ExportRecord"][];
+            nextCursor?: string;
         };
         VerifyDiff: {
             path: string;
@@ -2918,7 +3190,7 @@ export interface components {
          */
         RowErrorCode: "PARSE_FAILED" | "TYPE_MISMATCH" | "EXPR_ERROR" | "NON_FINITE_NUMBER" | "TRANSFORM_INVALID" | "KEY_TEMPLATE_INVALID" | "KEY_NULL_COMPONENT" | "KEY_TOO_LONG" | "KEY_INVALID" | "DOC_TOO_LARGE" | "TEMPORARY_FAILURE_EXHAUSTED" | "WRITE_FAILED" | "DECODE_FAILED" | "KEY_PATH_COLLISION";
         /** @enum {string} */
-        ErrorCode: "INTERNAL" | "VALIDATION_FAILED" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "VERSION_CONFLICT" | "UNAVAILABLE" | "UNAUTHENTICATED" | "SESSION_EXPIRED" | "INVALID_CREDENTIALS" | "EMAIL_TAKEN" | "SIGNUP_DISABLED" | "CSRF_FAILED" | "FORBIDDEN_ROLE" | "RATE_LIMITED" | "INVALID_CURSOR" | "PROJECT_NAME_TAKEN" | "PROJECT_HAS_RUNNING_JOB" | "SOURCE_TYPE_UNSUPPORTED" | "TARGET_TYPE_UNSUPPORTED" | "TARGET_KIND_UNKNOWN" | "TARGET_KIND_DISABLED" | "TARGET_KIND_IN_USE" | "LOCATION_INVALID" | "DIRECTORY_OUTSIDE_ALLOWED_ROOTS" | "DOCUMENT_NOT_FOUND" | "SCHEMA_NOT_DISCOVERED" | "KEYSPACE_EXISTS" | "CAPELLA_BUCKET_CREATE_UNSUPPORTED" | "PROJECT_REPOSITORIES_INCOMPLETE" | "MAPPING_EXISTS" | "MAPPING_VERSION_CONFLICT" | "PREVIEW_TIMEOUT" | "MAPPING_INVALID" | "INVALID_SAMPLE" | "SCHEMA_REF_CYCLE" | "SAMPLING_UNAVAILABLE" | "JOB_INVALID_TRANSITION" | "PREFLIGHT_FAILED" | "NO_READY_MAPPINGS" | "RETRY_NOT_POSSIBLE" | "SOURCE_UNREACHABLE" | "SOURCE_DNS" | "SOURCE_TIMEOUT" | "SOURCE_TLS" | "SOURCE_AUTH_FAILED" | "SOURCE_DB_NOT_FOUND" | "SOURCE_PERMISSION_DENIED" | "SOURCE_UNKNOWN" | "TARGET_UNREACHABLE" | "TARGET_DNS" | "TARGET_TIMEOUT" | "TARGET_TLS" | "TARGET_AUTH_FAILED" | "TARGET_DB_NOT_FOUND" | "TARGET_PERMISSION_DENIED" | "TARGET_UNKNOWN" | "EGRESS_DENIED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_CONCURRENT_OPERATIONS";
+        ErrorCode: "INTERNAL" | "VALIDATION_FAILED" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "VERSION_CONFLICT" | "UNAVAILABLE" | "UNAUTHENTICATED" | "SESSION_EXPIRED" | "INVALID_CREDENTIALS" | "EMAIL_TAKEN" | "SIGNUP_DISABLED" | "CSRF_FAILED" | "FORBIDDEN_ROLE" | "RATE_LIMITED" | "INVALID_CURSOR" | "PROJECT_NAME_TAKEN" | "PROJECT_HAS_RUNNING_JOB" | "SOURCE_TYPE_UNSUPPORTED" | "TARGET_TYPE_UNSUPPORTED" | "TARGET_KIND_UNKNOWN" | "TARGET_KIND_DISABLED" | "TARGET_KIND_IN_USE" | "LOCATION_INVALID" | "DIRECTORY_OUTSIDE_ALLOWED_ROOTS" | "DOCUMENT_NOT_FOUND" | "SCHEMA_NOT_DISCOVERED" | "KEYSPACE_EXISTS" | "CAPELLA_BUCKET_CREATE_UNSUPPORTED" | "PROJECT_REPOSITORIES_INCOMPLETE" | "MAPPING_EXISTS" | "MAPPING_VERSION_CONFLICT" | "PREVIEW_TIMEOUT" | "MAPPING_INVALID" | "INVALID_SAMPLE" | "SCHEMA_REF_CYCLE" | "SAMPLING_UNAVAILABLE" | "JOB_INVALID_TRANSITION" | "PREFLIGHT_FAILED" | "NO_READY_MAPPINGS" | "RETRY_NOT_POSSIBLE" | "SOURCE_UNREACHABLE" | "SOURCE_DNS" | "SOURCE_TIMEOUT" | "SOURCE_TLS" | "SOURCE_AUTH_FAILED" | "SOURCE_DB_NOT_FOUND" | "SOURCE_PERMISSION_DENIED" | "SOURCE_UNKNOWN" | "TARGET_UNREACHABLE" | "TARGET_DNS" | "TARGET_TIMEOUT" | "TARGET_TLS" | "TARGET_AUTH_FAILED" | "TARGET_DB_NOT_FOUND" | "TARGET_PERMISSION_DENIED" | "TARGET_UNKNOWN" | "EGRESS_DENIED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_CONCURRENT_OPERATIONS" | "BUNDLED_TARGET_NOT_EXPORTABLE" | "PASSPHRASE_WEAK" | "STEP_UP_REQUIRED" | "REPORT_UNKNOWN_BUNDLE" | "EXPORT_TOO_LARGE";
     };
     responses: {
         /** @description Error */
@@ -3139,6 +3411,32 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionResponse"];
                 };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    stepUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: password */
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Confirmed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Problem"];
         };
@@ -3454,6 +3752,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    saveBundledTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Replaced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundledTargetSaved"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundledTargetSaved"];
+                };
             };
             default: components["responses"]["Problem"];
         };
@@ -4672,6 +5002,137 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateJobResult"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getExportOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportOptions"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    generatePassphrase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        passphrase: string;
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listExports: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportHistory"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description The file, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                    "application/zip": string;
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    importRunReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    report: string;
+                };
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description The external job */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
                 };
             };
             default: components["responses"]["Problem"];

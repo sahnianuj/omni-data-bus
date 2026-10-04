@@ -1,4 +1,4 @@
-import { ArrowRight, Play, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Download, Play, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useOutletContext } from 'react-router'
@@ -115,6 +115,12 @@ export function ReviewStep() {
             {t('review.summary', { rows: humanizeCount(result.totalRows), mode: t(`jobOptions.${options?.writeMode ?? 'upsert'}`) })}
           </p>
         ) : null}
+        <Button variant="ghost" asChild title={t('review.exportHint')}>
+          <Link to={`/projects/${project.id}/export`}>
+            <Download aria-hidden />
+            {t('review.export')}
+          </Link>
+        </Button>
         <Can role="editor">
           <Button variant="secondary" disabled={!options} loading={preflight.isPending} onClick={check}>
             <ShieldCheck aria-hidden />

@@ -1,0 +1,8 @@
+Omni-Data-Bus all-in-one image
+
+This image bundles Couchbase Server Community Edition, unmodified, from the official
+couchbase/server image. Couchbase Server Community Edition is licensed by Couchbase, Inc. under
+its own license terms, which are included in this image at /opt/couchbase/LICENSE.txt. Couchbase is a trademark of Couchbase, Inc.
+
+Before delivering this image to a customer, confirm with Couchbase that the Community Edition
+license allows this redistribution for your use (see OC-072, "Licensing check").

@@ -28,6 +28,7 @@ func (h Handlers) Routes(r chi.Router) {
 			r.Post("/target-kinds/directory/folders", h.makeFolder)
 			r.Post("/connections/{id}/test", h.testStored)
 			r.Put("/projects/{id}/connections/{role}", h.save)
+			r.Post("/projects/{id}/connections/target/bundled", h.saveBundled)
 			r.Delete("/projects/{id}/connections/{role}", h.remove)
 		})
 	})
@@ -111,6 +112,21 @@ func (h Handlers) save(w http.ResponseWriter, r *http.Request) {
 	httpapi.WriteJSON(w, status, ToDTO(conn))
 }
 
+// saveBundled makes the all-in-one image's Couchbase node the project's target (OC-072).
+func (h Handlers) saveBundled(w http.ResponseWriter, r *http.Request) {
+	p := principal(r)
+	conn, created, res, err := h.Svc.SaveBundled(r.Context(), p.WorkspaceID, p.UserID, httpapi.URLParam(r, "id"))
+	if err != nil {
+		problem.Write(w, r, err)
+		return
+	}
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	httpapi.WriteJSON(w, status, map[string]any{"connection": ToDTO(conn), "test": res})
+}
+
 func (h Handlers) get(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.Svc.Get(r.Context(), principal(r).WorkspaceID, httpapi.URLParam(r, "id"))
 	if err != nil {
@@ -136,7 +152,11 @@ func (h Handlers) remove(w http.ResponseWriter, r *http.Request) {
 
 // targetKinds lists the target kinds with their capabilities (OC-036).
 func (h Handlers) targetKinds(w http.ResponseWriter, _ *http.Request) {
-	httpapi.WriteJSON(w, http.StatusOK, map[string]any{"kinds": h.Svc.TargetKinds()})
+	out := map[string]any{"kinds": h.Svc.TargetKinds()}
+	if b := h.Svc.BundledTarget(); b != nil {
+		out["bundled"] = b
+	}
+	httpapi.WriteJSON(w, http.StatusOK, out)
 }
 
 // folders serves the Target step's folder picker (OC-038).

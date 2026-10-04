@@ -5,6 +5,8 @@ import type { components } from '@/lib/api/schema'
 export type TargetKind = components['schemas']['TargetKind']
 export type TargetKindCapabilities = components['schemas']['TargetKindCapabilities']
 export type Location = components['schemas']['Location']
+export type BundledTarget = components['schemas']['BundledTarget']
+export type SharedFolder = components['schemas']['SharedFolder']
 
 /** Couchbase capabilities, assumed while /target-kinds loads (1.0 behavior). */
 export const couchbaseCapabilities: TargetKindCapabilities = {
@@ -16,13 +18,35 @@ export const couchbaseCapabilities: TargetKindCapabilities = {
   locationLevels: ['bucket', 'scope', 'collection'],
 }
 
+const targetKindsQuery = {
+  queryKey: ['target-kinds'],
+  staleTime: Infinity,
+  queryFn: async () => call(api.GET('/api/v1/target-kinds')),
+}
+
 /** The target kinds this server supports, with what each can do (OC-036). */
 export function useTargetKinds() {
-  return useQuery({
-    queryKey: ['target-kinds'],
-    staleTime: Infinity,
-    queryFn: async () => (await call(api.GET('/api/v1/target-kinds'))).kinds,
-  })
+  return useQuery({ ...targetKindsQuery, select: (d) => d.kinds })
+}
+
+/** The all-in-one image's bundled Couchbase node, offered as a target (OC-072); undefined elsewhere. */
+export function useBundledTarget(): BundledTarget | undefined {
+  return useQuery({ ...targetKindsQuery, select: (d) => d.bundled }).data
+}
+
+/** The folder of the user's computer shared into the all-in-one image (OC-080); undefined elsewhere. */
+export function useSharedFolder(): SharedFolder | undefined {
+  return useTargetKinds().data?.find((k) => k.type === 'directory')?.sharedFolder
+}
+
+/** Where a server path is on the user's computer ("" when it isn't under the shared folder). */
+export function hostPathOf(path: string, shared: SharedFolder | undefined): string {
+  if (!shared || !path) return ''
+  const root = shared.path.replace(/\/+$/, '')
+  if (path !== root && !path.startsWith(root + '/')) return ''
+  const rest = path.slice(root.length)
+  const win = shared.hostPath.includes('\\')
+  return shared.hostPath.replace(/[\\/]+$/, '') + (win ? rest.replaceAll('/', '\\') : rest)
 }
 
 /** Capabilities of a target kind; Couchbase's until the kinds load (or for an unknown kind). */

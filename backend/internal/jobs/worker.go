@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"os"
 	"sync"
@@ -25,6 +26,17 @@ type WorkerConfig struct {
 	StaleAfter        time.Duration // a heartbeat older than this is reaped, default 30 s
 	ReaperInterval    time.Duration // default 15 s
 	ShutdownBudget    time.Duration // time to drain and requeue on SIGTERM, default 25 s
+	// Version is this worker's release (buildinfo): it only claims jobs whose MinWorkerVersion
+	// it meets (OC-057). A development build claims everything.
+	Version string
+}
+
+// level is the worker's version level for the claim query.
+func (c WorkerConfig) level() int {
+	if l, ok := store.VersionLevel(c.Version); ok {
+		return l
+	}
+	return math.MaxInt32
 }
 
 func (c WorkerConfig) withDefaults() WorkerConfig {
@@ -149,7 +161,7 @@ func (w *Worker) ClaimOnce(ctx context.Context) int {
 	if free <= 0 {
 		return 0
 	}
-	cands, err := w.store.Jobs().ListByStatus(ctx, []string{store.JobQueued}, 10)
+	cands, err := w.store.Jobs().ListClaimable(ctx, w.cfg.level(), 10)
 	if err != nil {
 		w.log.Warn("claim: list queued jobs", "err", err)
 		return 0

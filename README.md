@@ -39,6 +39,8 @@ Couchbase with a live progress bar, and can be paused, resumed and verified.
 - [Testing](#testing)
 - [Make targets](#make-targets)
 - [Building and deploying](#building-and-deploying)
+  - [All-in-one image (app + Couchbase CE)](#all-in-one-image-app--couchbase-ce)
+  - [Running an exported migration (`migrate.sh`, `odb run`)](#running-an-exported-migration-migratesh-odb-run)
 - [Working on a story (contributor workflow)](#working-on-a-story-contributor-workflow)
 - [Troubleshooting](#troubleshooting)
 - [Documentation map](#documentation-map)
@@ -60,6 +62,7 @@ Couchbase with a live progress bar, and can be paused, resumed and verified.
 | Migration | Snapshot-consistent parallel streaming, batching, retries, dead-letter log, pause/resume, crash recovery | OC-023 – OC-029 |
 | Live progress | Progress bar, throughput, ETA, per-table progress, live error feed | OC-027, OC-028 |
 | Verification | Count reconciliation, sampled document comparison, downloadable report | OC-030 |
+| Portable runner | Export the project as configured as a `migrate.sh` script (or a bundle) that runs anywhere without the tool, its saved credentials sealed with a passphrase; import the run's report back | OC-050 – OC-055 |
 
 ## How it works
 
@@ -310,6 +313,12 @@ The UI walks you through a project step by step (see the design preview linked f
    a target collection per table, review the auto-mapping score, map remaining fields on the
    canvas, preview documents, then press **Migrate** and watch the progress bar.
 
+8. **Export** *(optional)* — Review → *Export…* opens the Export page; *New export* builds a `migrate.sh` that
+   runs the migration on another machine without this tool. It exports the project exactly as
+   configured — source, target, saved credentials and every ready mapping, shown read-only with a
+   link to each step to change them — and asks only for a passphrase (which seals the credentials)
+   and how the script runs. Afterwards *Import report* adds the run's `report.json` to the project's runs. See [Running an exported migration](#running-an-exported-migration-migratesh-odb-run).
+
 Roles: **owner** and **editor** can change things; **viewer** is read-only.
 
 ## Security model
@@ -366,9 +375,13 @@ Coverage gates: Go packages ≥ 80% (≥ 90% for automap/transform/pipeline), we
 | `make dev-stack` / `dev-stack-down` / `dev-reset` | Start / stop / wipe the containers |
 | `make run-backend` / `run-web` | Run one side only |
 | `make test`, `test-backend`, `test-web`, `test-integration` | Tests |
+| `make test-integration-ce` | Integration tests against Couchbase Server Community Edition (as bundled in the all-in-one image) |
+| `make appliance` / `appliance-save` / `appliance-push` / `appliance-test` | Build, package, push and test the [all-in-one image](#all-in-one-image-app--couchbase-ce) |
 | `make lint` | Linters and type checks |
 | `make gen` / `check-gen` | Regenerate TypeScript API types / fail if stale |
 | `make build` | Build the web app and a single binary with the web app embedded (`backend/bin/odb`) |
+| `make dist` | Build the `odb` runner for linux/darwin × amd64/arm64 with `SHA256SUMS` (`dist/odb/`) |
+| `make test-scripts` | `migrate.sh` checks: shellcheck on every variant and the bats suites (`ODB_TEST_BASH=/bin/bash` for bash 3.2) |
 | `make index` | Regenerate `docs/release-1.0.0/INDEX.md` from story statuses |
 
 ## Building and deploying
@@ -393,6 +406,71 @@ Coverage gates: Go packages ≥ 80% (≥ 90% for automap/transform/pipeline), we
   into Grafana and load `deploy/observability/alerts.yml` into Prometheus. With tracing on, the
   request ID in an error (the problem `instance`) is the trace ID, and every log line carries
   `trace_id`.
+
+### All-in-one image (app + Couchbase CE)
+
+For handing the tool to a customer who has no Couchbase cluster: **one Docker image** holds Omni-Data-Bus and a single-node **Couchbase Server Community Edition** that stores the app's data and is offered as a migration target (*Use the bundled Couchbase* on the Target step). The customer loads one file and runs one command; everything lives in one Docker volume. Built from [`deploy/appliance/`](deploy/appliance/).
+
+| Use | When |
+|---|---|
+| All-in-one image | A customer (or a laptop) without Couchbase; evaluations; one machine, one team |
+| Regular image + Capella / your cluster | Production with your own Couchbase; several API or worker nodes ([Docker Compose](deploy/compose/README.md)) |
+| Helm chart | Kubernetes ([chart README](deploy/helm/omni-data-bus/README.md)) |
+
+**1. Prerequisites.** Docker with buildx (Docker Desktop includes it). To build for the other CPU (an amd64 image on an Apple-silicon Mac, or the reverse), buildx needs QEMU: Docker Desktop has it; on Linux run `docker run --privileged --rm tonistiigi/binfmt --install all` once. The target machine needs 4 GB of memory for Docker.
+
+**2. Build** for this machine, or for the customer's CPU (most servers are `amd64`):
+
+<!-- docs-test -->
+```bash
+make appliance                 # this machine's CPU
+make appliance ARCH=amd64      # Intel/AMD servers
+```
+
+It builds the regular image for that platform, then `omni-data-bus-appliance:<version>` on top of `couchbase/server:community-8.0.2` (pinned by digest) with the same `odb` binary.
+
+**3. Try it:**
+
+```bash
+ODB_IMAGE=omni-data-bus-appliance:<version> deploy/appliance/run.sh start    # → http://localhost:8080
+deploy/appliance/run.sh stop
+```
+
+**4. Package** it to share:
+
+<!-- docs-test -->
+```bash
+make appliance-save ARCH=amd64    # or ARCH=arm64, or ARCH=all for both
+```
+
+`dist/appliance/` then holds everything the customer needs: `omni-data-bus-appliance-<version>-<arch>.tar.gz` (about 500 MB), its `.sha256`, `run.sh`, `compose.yml` and the customer guide `README.md`.
+
+**5. Share** the `dist/appliance/` folder (a file share, a USB drive, or the assets of a GitHub release, which the release workflow attaches for every tag). For customers who can pull from a registry instead:
+
+```bash
+make appliance-push REGISTRY=registry.example.com/team    # both CPUs as one multi-arch image
+```
+
+**6. The customer** follows [`deploy/appliance/README.md`](deploy/appliance/README.md): `./run.sh load`, `./run.sh start`, open http://localhost:8080. It also covers sign-in, stopping, upgrading, backups, troubleshooting and removal.
+
+**7. Test** a build: `make appliance-test` (image structure, then a full start / sign-up / bundled target / stop / restart / crash / memory-floor smoke test, about 3 minutes); `make test-integration-ce` runs the Go integration suite against Couchbase CE.
+
+**Licensing.** The image redistributes Couchbase Server Community Edition unmodified, under Couchbase's [Community Edition license](https://www.couchbase.com/community-license-agreement/) (included in the image at `/opt/couchbase/LICENSE.txt`). Before delivering it to a customer, confirm with Couchbase that this use is covered.
+
+### Running an exported migration (`migrate.sh`, `odb run`)
+
+An export (OC-053) is a zip with `migrate.sh` and a `README.md` written for that export. The script carries the mappings as a portable bundle and runs **`odb run`**, the same pipeline as the server (documents are byte-identical), with no web app, metadata store or access to the tool:
+
+```bash
+export ODB_BUNDLE_PASSPHRASE='…'      # sealed exports (or leave unset to be asked)
+./migrate.sh preflight                 # source, credentials, schema drift, target: writes nothing
+./migrate.sh run                       # JSON-lines progress on stdout, logs on stderr
+./migrate.sh resume | status | verify  # continue after Ctrl+C or a crash; summarize; count documents
+```
+
+`migrate.sh` finds `odb` in this order: `ODB_BIN`, a binary embedded in the script (air-gapped sites), `odb` on the `PATH`, Docker, then a download checked against the checksum written into the script. It needs bash 3.2+ (macOS or Linux). Exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration error, 5 cancelled (resume continues). The state directory (`ODB_STATE_DIR`, default `./odb-state`) holds `checkpoint.json`, `errors.jsonl` and `report.json`.
+
+The same works without the script: `odb bundle validate | inspect | diff` and `odb run --bundle bundle.odb.json …` (`odb run help`). Release binaries for linux and darwin come from `make dist` (`dist/odb/odb_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS`; the release workflow signs `SHA256SUMS` with cosign and attaches them to the GitHub release). Point the server's `OC_EXPORT_DIST_DIR` at that folder so scripts carry the checksums. The other export settings are in `.env.example`.
 
 ## Working on a story (contributor workflow)
 
@@ -422,4 +500,9 @@ Coverage gates: Go packages ≥ 80% (≥ 90% for automap/transform/pipeline), we
 | [`docs/release-1.0.0/INDEX.md`](docs/release-1.0.0/INDEX.md) | **Progress:** all stories grouped by priority, sizes, status |
 | [`docs/release-1.0.0/00-architecture.md`](docs/release-1.0.0/00-architecture.md) | Tech decisions, architecture, domain model, API conventions, NFRs, testing strategy, Definition of Done |
 | `docs/release-1.0.0/OC-0NN-*.md` | One user story each: implementation detail, acceptance criteria, named tests |
+| [`docs/release-2.0.0/INDEX.md`](docs/release-2.0.0/INDEX.md) | **2.0 progress:** stories by phase, sizes, status; [architecture](docs/release-2.0.0/00-architecture.md) and NFRs (§7) |
+| [`docs/user-guide/`](docs/user-guide/README.md) | **User guide (2.0):** directory targets, relationship mapping, the document composer, running migrations outside the tool. The in-app **?** icons link here. |
+| [`docs/upgrade/1.0-to-2.0.md`](docs/upgrade/1.0-to-2.0.md) | Upgrading 1.0 → 2.0: prerequisites (1.0.1, backup), what changes, Helm values, rollback |
+| [`bench/README.md`](bench/README.md) | Performance benchmark and release gates (1.0: OC-034; 2.0: OC-056, [`bench/gates-2.0.0.json`](bench/gates-2.0.0.json)) |
 | [`api/openapi.yaml`](api/openapi.yaml) | REST API contract |
+| [`deploy/appliance/README.md`](deploy/appliance/README.md) | Customer guide for the all-in-one image (load, start, sign in, upgrade, back up, remove) |

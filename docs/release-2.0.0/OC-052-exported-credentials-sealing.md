@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E11 Portable Runner | P0 | 5 | OC-050, OC-006, OC-033 | Not started |
+| E11 Portable Runner | P0 | 5 | OC-050, OC-006, OC-033 | Implemented |
 
 ## User story
 As a **security-conscious operator**, I want the source and target credentials baked into an exported migration so that it runs without extra setup, but protected by a passphrase by default. I also want the option to reference my own secret store instead, or knowingly accept plain text, so that exported scripts don't leak database passwords.
@@ -11,7 +11,7 @@ As a **security-conscious operator**, I want the source and target credentials b
 **In:**
 - Three credential modes (`sealed` default, `plaintext`, `external`), described in [architecture D4](00-architecture.md#d4--credentials-in-exported-bundles-are-sealed-by-default).
 - Server-side unsealing of project credentials (OC-006) and re-sealing for export, without the plaintext ever reaching the browser.
-- Runner-side unlock: prompt, env var, passphrase file, or Kubernetes Secret.
+- Runner-side unlock: prompt, env var, or passphrase file (which can be a mounted secret).
 - Guard rails: role, step-up re-authentication, audit, passphrase strength, and warnings.
 
 **Out:** HSM or KMS-bound bundles (post-2.0), and credential rotation inside a bundle (re-export instead).
@@ -40,8 +40,19 @@ As a **security-conscious operator**, I want the source and target credentials b
 - Generated scripts start with a banner comment `# WARNING: contains plaintext database credentials`, and the runner prints the same to stderr.
 - Workspace policy `exports.allowPlaintext` (default **true**, because the customer requires it; admins can switch it off) → `403 PLAINTEXT_EXPORT_DISABLED`.
 
-### Kubernetes
-- For the Kubernetes kit (OC-054), `sealed` puts the passphrase, and `plaintext` the credentials, into a `Secret` manifest that is generated **separately** from the ConfigMap holding the bundle, so GitOps users can manage it in their own secret store (for example Sealed Secrets or External Secrets). `external` refs of the form `file:` map naturally to Secret volume mounts.
+## Results (2026-10-02)
+- `internal/export/seal.go` (argon2id t=3 m=64 MiB p=1, AES-256-GCM), runner unlock in `internal/headless/creds.go` (passphrase file → `ODB_BUNDLE_PASSPHRASE` → no-echo prompt), external refs `env:`/`file:`.
+- Guard rails in `internal/export/service.go`: editor role, step-up within 5 minutes (`POST /auth/step-up`, recorded on the session as `stepUpAt`), 10 exports per user per hour, `bundle.exported` audit event, plaintext confirmation by project name.
+- The leak scanner finds no credential or passphrase in the bundle, script, README, history, audit log, server logs or responses in sealed and external modes.
+
+### Changes from the plan
+- Passphrase strength: there is no zxcvbn here. The server and the dialog share one rule (`PassphraseProblem` / `passphrase.ts`): at least 12 characters, not a common password, and about 50 bits estimated (diceware words count 12.9 bits each; repeats and runs count little). *Generate* is server-side (`POST /exports/passphrase`, six EFF words, 77 bits).
+- The workspace policy `exports.allowPlaintext` is the server setting `OC_EXPORTS_ALLOW_PLAINTEXT` (default true): there are no per-workspace settings yet.
+- The AAD is the bundle's `contentSha256` (see OC-050).
+- API tests are in `internal/export/handlers_test.go`.
+
+### Change (user decision, 2026-10-02): always sealed
+The export uses the project's saved source and target credentials and always seals them with the passphrase; the dialog offers no plaintext or external-reference choice, and the API doesn't take a credential mode. `OC_EXPORTS_ALLOW_PLAINTEXT` and `PLAINTEXT_EXPORT_DISABLED` are gone. The bundle format and `odb run` still read plaintext and external blocks (for bundles made by other tooling), so those runner tests stay.
 
 ## Acceptance criteria & unit tests
 

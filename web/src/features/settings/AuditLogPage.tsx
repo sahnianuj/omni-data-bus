@@ -12,7 +12,7 @@ import { relativeTime } from '@/lib/format'
 import { useAuditLog, type AuditEvent } from './api'
 
 /** Action categories for the filter; each is an action prefix. */
-const categories = ['', 'auth.', 'project.', 'connection.', 'keyspace.', 'mapping.', 'job.', 'report.'] as const
+const categories = ['', 'auth.', 'project.', 'connection.', 'keyspace.', 'mapping.', 'job.', 'report.', 'bundle.', 'run.'] as const
 
 const selectClass =
   'h-9 rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30'

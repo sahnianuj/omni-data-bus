@@ -4,6 +4,7 @@ import axe from 'axe-core'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
+import { maximizeStore } from '@/lib/maximize'
 import { composedSpec, mockComposer, mockOrdersMapping } from '@/test/composer'
 import { mappingView, mockMapping } from '@/test/mapping'
 import { server, setupMswServer } from '@/test/msw'
@@ -31,9 +32,10 @@ describe('ViewBar', () => {
     expect(within(bar).getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['Canvas', 'Composer', 'Design'])
     expect(tab('Design')).toHaveAttribute('title', 'Fields, document key and JSON Schema. (Alt+3)')
     expect(tab('Composer')).toHaveAccessibleDescription('Design a nested document; fill arrays and objects from related tables or grouped rows.')
-    // The first control under the page header, before the score header.
-    const header = bar.parentElement!.querySelector('header')!
-    expect(header.nextElementSibling).toBe(bar)
+    // The first row under the page header, before the score header.
+    const row = bar.parentElement!
+    const header = row.parentElement!.querySelector('header')!
+    expect(header.nextElementSibling).toBe(row)
     const res = await axe.run(bar, { rules: { 'color-contrast': { enabled: false } } })
     expect(res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([])
   })
@@ -105,5 +107,28 @@ describe('ViewBar', () => {
     expect(within(screen.getByRole('tablist', { name: 'View' })).getAllByRole('tab').every((t) => t.getAttribute('aria-selected') === 'false')).toBe(true)
     await userEvent.click(back)
     expect(tab('Canvas')).toHaveAttribute('aria-selected', 'true')
+  })
+  it('maximize height hides the page chrome while the workbench is open', async () => {
+    mockOrdersMapping()
+    const wb = renderRoutes(routes, '/projects/p1/mappings/m1')
+    await userEvent.click(await screen.findByRole('button', { name: 'Maximize height' }))
+    expect(screen.queryByRole('button', { name: /Search or jump to/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Project steps' })).toBeInTheDocument()
+    expect(window.localStorage.getItem('oc-workbench-maximized')).toBe('true')
+    await userEvent.click(screen.getByRole('button', { name: 'Restore height' }))
+    expect(screen.getByRole('button', { name: /Search or jump to/ })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Maximize height' }))
+    wb.unmount()
+
+    // Other pages keep their chrome even while the choice is remembered.
+    renderRoutes(routes, '/projects/p1/mappings')
+    expect(await screen.findByRole('button', { name: /Search or jump to/ })).toBeInTheDocument()
+    maximizeStore.setState({ maximized: false })
+  })
+
+  it('OC-083: ?panel=issues opens the Issues tab', async () => {
+    mockOrdersMapping()
+    renderRoutes(routes, '/projects/p1/mappings/m1?view=canvas&panel=issues')
+    expect(await screen.findByRole('tab', { name: /^Issues/ })).toHaveAttribute('aria-selected', 'true')
   })
 })

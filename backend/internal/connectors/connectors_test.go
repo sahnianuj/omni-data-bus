@@ -3,21 +3,14 @@ package connectors
 import (
 	"context"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"omnidatabus/internal/auth"
-	"omnidatabus/internal/httpapi"
 	"omnidatabus/internal/problem"
 )
 
@@ -49,30 +42,6 @@ func TestRegistry_AC1_DuplicatePanics(t *testing.T) {
 	r := NewRegistry[stub](RoleSource)
 	r.Register(stub{Descriptor{Type: "postgres"}})
 	require.Panics(t, func() { r.Register(stub{Descriptor{Type: "postgres"}}) })
-}
-
-func TestConnectorsHandler_AC2_ListsDescriptors(t *testing.T) {
-	src := NewRegistry[stub](RoleSource)
-	src.Register(stub{Descriptor{Type: "postgres", Role: RoleSource, DisplayName: "PostgreSQL"}})
-	src.Register(stub{Descriptor{Type: "mysql", Role: RoleSource, DisplayName: "MySQL"}})
-	tgt := NewRegistry[stub](RoleTarget)
-	tgt.Register(stub{Descriptor{Type: "couchbase", Role: RoleTarget, DisplayName: "Couchbase"}})
-	withUser := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), auth.Principal{UserID: "u"})))
-		})
-	}
-	h := httpapi.NewRouter(httpapi.Options{
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Middleware: []func(http.Handler) http.Handler{withUser},
-		Features: []httpapi.Registrar{CatalogHandlers{Sources: src, Targets: tgt}},
-	})
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/connectors", nil))
-	require.Equal(t, http.StatusOK, rec.Code)
-	var body map[string][]Descriptor
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	require.Equal(t, []string{"MySQL", "PostgreSQL"}, []string{body["sources"][0].DisplayName, body["sources"][1].DisplayName}, "sorted by display name")
-	require.Equal(t, "couchbase", body["targets"][0].Type)
 }
 
 type pgErr struct{ code string }

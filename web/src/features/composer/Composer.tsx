@@ -34,6 +34,7 @@ import { SamplePane } from './SamplePane'
 import { ScoreHeader } from './ScoreHeader'
 import { SourcesPane } from './SourcesPane'
 import { SuggestionsPanel } from './SuggestionsPanel'
+import { HelpLink } from '@/components/HelpLink'
 
 type DialogState =
   | { kind: 'bind'; nodeId: string; table: TableRef; lookup: boolean }
@@ -357,7 +358,10 @@ export function Composer() {
         <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)_340px]">
           <div className="flex min-h-0 flex-col border-r border-border">{sources}</div>
           <div className="flex min-h-0 flex-col overflow-hidden">
-            <h2 className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-muted">{t('composer.document')}</h2>
+            <div className="flex items-center gap-1.5 px-3 pt-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">{t('composer.document')}</h2>
+              <HelpLink topic="composer" />
+            </div>
             {document}
           </div>
           <div className="flex min-h-0 flex-col overflow-y-auto border-l border-border">{inspector}</div>

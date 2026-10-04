@@ -53,6 +53,18 @@ export function useSaveConnection(projectId: string, role: 'source' | 'target') 
   })
 }
 
+/** Makes the all-in-one image's bundled Couchbase the project's target and tests it (OC-072). */
+export function useSaveBundled(projectId: string) {
+  const invalidate = useInvalidateProject(projectId)
+  return useMutation({
+    mutationFn: async () => {
+      const { connection: conn, test: result } = await call(api.POST('/api/v1/projects/{id}/connections/target/bundled', { params: { path: { id: projectId } } }))
+      return { conn, result }
+    },
+    onSettled: invalidate,
+  })
+}
+
 export function useTestStored(projectId: string) {
   const invalidate = useInvalidateProject(projectId)
   return useMutation({

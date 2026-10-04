@@ -181,3 +181,32 @@ func TestLoad_EgressPolicy(t *testing.T) {
 		require.ErrorContains(t, err, k)
 	}
 }
+
+// OC-072: the all-in-one image passes the bundled node's password as a file.
+func TestLoad_BundledTarget_OC072(t *testing.T) {
+	cfg, err := Load(prodEnv())
+	require.NoError(t, err)
+	require.Empty(t, cfg.Bundled.Target, "nothing bundled outside the appliance")
+
+	pass := filepath.Join(t.TempDir(), "cb_admin_password")
+	require.NoError(t, os.WriteFile(pass, []byte("generated\n"), 0o600))
+	e := prodEnv()
+	e["OC_BUNDLED_TARGET"], e["OC_BUNDLED_TARGET_PASSWORD_FILE"] = "couchbase://127.0.0.1", pass
+	e["OC_BUNDLED_STORE"] = "Couchbase Server CE 8.0.2"
+	cfg, err = Load(e)
+	require.NoError(t, err)
+	require.Equal(t, BundledConfig{
+		Store: "Couchbase Server CE 8.0.2", Target: "couchbase://127.0.0.1", TargetUsername: "Administrator",
+		TargetPassword: "generated", TargetBuckets: []string{"sandbox"},
+	}, cfg.Bundled)
+}
+
+// OC-080: the all-in-one image names the folders shared with the user's computer.
+func TestLoad_DirectoryShared_OC080(t *testing.T) {
+	e := prodEnv()
+	e["OC_DIRECTORY_SHARED"] = "/data=/Users/ana/omni-data-bus-output"
+	cfg, err := Load(e)
+	require.NoError(t, err)
+	require.Equal(t, []string{"/data=/Users/ana/omni-data-bus-output"}, cfg.Directory.Shared)
+	require.False(t, cfg.Directory.ContainerOnly)
+}

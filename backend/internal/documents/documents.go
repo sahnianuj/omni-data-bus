@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -59,6 +60,11 @@ type DocumentView struct {
 func (h Handlers) document(w http.ResponseWriter, r *http.Request) {
 	p := principal(r)
 	projectID, key := httpapi.URLParam(r, "id"), chi.URLParam(r, "*")
+	// The web app sends the key percent-encoded (orders%3A%3A1001), and chi hands the wildcard
+	// back still encoded: decode it, or no key with "::" (every default key) would be found.
+	if k, err := url.PathUnescape(key); err == nil {
+		key = k
+	}
 	m, err := h.Store.Mappings().Get(r.Context(), p.WorkspaceID, httpapi.URLParam(r, "mid"))
 	if err == nil && m.ProjectID != projectID {
 		err = errNoMapping

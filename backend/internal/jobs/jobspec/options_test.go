@@ -1,4 +1,4 @@
-package jobs
+package jobspec
 
 import (
 	"encoding/json"

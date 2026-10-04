@@ -91,7 +91,7 @@ func TestRun_AC1_AppliesAllOnEmpty(t *testing.T) {
 	require.Equal(t, 0, res.From)
 	require.Equal(t, len(Steps()), res.To)
 	require.Len(t, env.colls, len(Collections))
-	require.Len(t, env.stmts, len(Indexes)+len(JobIndexes))
+	require.Len(t, env.stmts, len(Indexes)+len(JobIndexes)+len(ClaimIndexes))
 	require.Contains(t, env.stmts[0], "`b`.`meta`.`projects`", "placeholders expanded")
 	require.NotContains(t, strings.Join(env.stmts, " "), "#{")
 }
@@ -101,9 +101,10 @@ func TestRun_AC1_SkipsAppliedSteps(t *testing.T) {
 	env.version = 1
 	res, err := Run(context.Background(), env, Steps())
 	require.NoError(t, err)
-	require.Equal(t, []string{"2 indexes", "3 job indexes", "4 relationship collections"}, res.Applied)
-	require.Len(t, env.colls, len(RelationshipCollections), "step 1 was not re-run; step 4 adds the 2.0 collections")
+	require.Equal(t, []string{"2 indexes", "3 job indexes", "4 relationship collections", "5 export collections", "6 claim index"}, res.Applied)
+	require.Len(t, env.colls, len(RelationshipCollections)+len(ExportCollections), "step 1 was not re-run; steps 4 and 5 add the 2.0 collections")
 	require.True(t, env.colls["relationships"])
+	require.True(t, env.colls["exports"])
 }
 
 func TestRun_AC1_SecondRunIsNoop(t *testing.T) {
@@ -170,6 +171,6 @@ func (e *errEnv) CreateCollection(context.Context, string, string) error { retur
 
 func TestPlan_AC8_ListsEverything(t *testing.T) {
 	items := Plan(newFake(), Steps())
-	require.Len(t, items, 1+len(Collections)+len(Indexes)+len(JobIndexes))
+	require.Len(t, items, 1+len(Collections)+len(Indexes)+len(JobIndexes)+len(ClaimIndexes))
 	require.Equal(t, "scope meta", items[0])
 }

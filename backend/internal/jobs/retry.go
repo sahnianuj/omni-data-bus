@@ -20,6 +20,9 @@ func (s *Service) Retry(ctx context.Context, ws store.WorkspaceID, userID, id st
 	if err != nil {
 		return View{}, PreflightResult{}, err
 	}
+	if j.Origin == OriginExternal {
+		return View{}, PreflightResult{}, errExternal
+	}
 	if j.Status != store.JobFailed && j.Status != store.JobCompletedWithErrors {
 		return View{}, PreflightResult{}, retryNotPossible("Only a failed job, or one that completed with errors, has rows to retry.")
 	}

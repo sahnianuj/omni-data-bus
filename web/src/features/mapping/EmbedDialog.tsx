@@ -10,6 +10,7 @@ import { addEmbed, type AddEmbedRequest } from './api'
 import { FilterChips, type FilterColumn } from './FilterChips'
 import { useWorkbench, useWorkbenchStore } from './store'
 import type { JunctionCandidate, RelationFilter, SourceColumn } from './types'
+import { HelpLink } from '@/components/HelpLink'
 
 const selectCls = 'h-8 w-full rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]'
 
@@ -151,7 +152,10 @@ export function EmbedDialog({ plan, onClose }: { plan: EmbedPlan; onClose: () =>
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle>{title}</DialogTitle>
+            <HelpLink topic="embed" />
+          </div>
           <DialogDescription>
             {t('embed.description', { table: `${last.table.schema}.${last.table.name}` })}
             {plan.parentLabel ? ` ${t('embed.under', { parent: plan.parentLabel })}` : ''}

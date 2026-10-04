@@ -6,6 +6,13 @@
 //
 //	cd bench && go run ./cmd/odbbench --dataset smoke --gate integrity
 //	cd bench && go run ./cmd/odbbench --dataset standard --gate release   # release checklist (AC10)
+//
+// 2.0 (OC-056) adds the directory, nested and skewed datasets, `coldstart` (times an exported
+// migrate.sh preflight) and `gate`, which judges the committed results against gates-2.0.0.json:
+//
+//	cd bench && go run ./cmd/odbbench --dataset directory --directory /data/odb-out/bench --gate integrity --out results/2.0.0
+//	cd bench && go run ./cmd/odbbench coldstart --script ./export/migrate.sh --out results/2.0.0
+//	cd bench && go run ./cmd/odbbench gate --gates gates-2.0.0.json --results results/2.0.0
 package main
 
 import (
@@ -47,6 +54,7 @@ type options struct {
 	minDocsPerSec, maxRSSMB         float64
 	maxLatency, timeout, profileFor time.Duration
 	env                             multiFlag
+	strategy                        string
 }
 
 type multiFlag []string
@@ -55,6 +63,14 @@ func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
 func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "gate":
+			os.Exit(gateCmd(os.Args[2:], os.Stdout, os.Stderr))
+		case "coldstart":
+			os.Exit(coldStartCmd(os.Args[2:], os.Stdout, os.Stderr))
+		}
+	}
 	o := parseFlags(os.Args[1:])
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -77,7 +93,7 @@ func parseFlags(args []string) options {
 	fs.StringVar(&o.metrics, "metrics", "http://localhost:19092/metrics", "the worker's Prometheus /metrics URL (for RSS); empty = skip")
 	fs.StringVar(&o.pprof, "pprof", "", "the worker's pprof base URL (OC_PPROF_ADDR), e.g. http://localhost:16060; captures CPU and heap profiles at 50%")
 	fs.StringVar(&o.psql, "psql", "docker exec -i omni-connect-dev-source-pg-1 psql -U shop_owner -d shop", "command that runs psql against the source (SQL on stdin)")
-	fs.StringVar(&o.datasetName, "dataset", "smoke", "narrow | standard | wide | embed | smoke")
+	fs.StringVar(&o.datasetName, "dataset", "smoke", "narrow | standard | wide | embed | smoke; 2.0: directory | nested | skewed")
 	fs.Int64Var(&o.rows, "rows", 0, "override the dataset's row count (0 = the dataset's own)")
 	fs.StringVar(&o.generate, "generate", "auto", "auto (when the table is missing or has another row count) | always | never")
 	fs.StringVar(&o.gate, "gate", "none", "release (every gate) | integrity (no loss + verification) | none")
@@ -98,6 +114,9 @@ func parseFlags(args []string) options {
 	fs.StringVar(&o.tgt.Password, "target-password", "password", "Couchbase password")
 	fs.StringVar(&o.tgt.Bucket, "bucket", "sandbox", "target bucket (a bench_<time> scope is created in it)")
 	fs.BoolVar(&o.tgt.Capella, "capella", false, "the target is Couchbase Capella")
+	fs.StringVar(&o.tgt.Directory, "directory", "", "write to a directory target at this path, as the worker sees it (the directory dataset; a bench_<time> folder is added)")
+	fs.StringVar(&o.tgt.Durability, "durability", "file", "the directory target's durability: none | file | file+dir")
+	fs.StringVar(&o.strategy, "strategy", "", "force the embed's strategy: batched | sorted-merge (the skewed dataset; empty = auto)")
 	fs.StringVar(&o.jobOptions, "job-options", `{}`, "extra job options as JSON, e.g. {\"batchSize\":2000,\"writeConcurrency\":128}")
 	fs.StringVar(&o.out, "out", "results", "results directory")
 	fs.DurationVar(&o.timeout, "timeout", 3*time.Hour, "give up after this long")
@@ -115,6 +134,15 @@ func run(ctx context.Context, o options, log io.Writer) (report.Result, error) {
 	d, err := dataset.Get(o.datasetName, o.rows)
 	if err != nil {
 		return report.Result{}, err
+	}
+	if d.Release != "" && o.gate == "release" {
+		return report.Result{}, fmt.Errorf("%s is a %s scenario: run it with --gate integrity, then judge it with `odbbench gate`", d.Name, d.Release)
+	}
+	if d.Directory != (o.tgt.Directory != "") {
+		return report.Result{}, fmt.Errorf("--directory is for (and required by) the directory dataset")
+	}
+	if o.strategy != "" && d.Embed == nil {
+		return report.Result{}, fmt.Errorf("--strategy needs a dataset with an embed")
 	}
 	gates, err := gatesFor(o)
 	if err != nil {
@@ -137,32 +165,43 @@ func run(ctx context.Context, o options, log io.Writer) (report.Result, error) {
 		return report.Result{}, err
 	}
 	stamp := time.Now().UTC()
+	tgt := o.tgt
+	if tgt.Directory != "" {
+		tgt.Directory = strings.TrimRight(tgt.Directory, "/") + fmt.Sprintf("/bench_%d", stamp.Unix())
+	}
 	logf(log, "server %s (%s); setting up project", ver.Version, ver.Commit)
-	projectID, err := c.Project(ctx, fmt.Sprintf("bench %s %s", d.Name, stamp.Format(time.RFC3339)), o.src, o.tgt)
+	projectID, err := c.Project(ctx, fmt.Sprintf("bench %s %s", d.Name, stamp.Format(time.RFC3339)), o.src, tgt)
 	if err != nil {
 		return report.Result{}, fmt.Errorf("project: %w", err)
 	}
 	scope := fmt.Sprintf("bench_%d", stamp.Unix())
-	mappingID, err := c.Mapping(ctx, projectID, dataset.Schema, d.Table, o.tgt.Bucket, scope)
+	mappingID, err := c.Mapping(ctx, projectID, dataset.Schema, d.Table, tgt.Location(scope, d.Table))
 	if err != nil {
 		return report.Result{}, err
 	}
 	if d.Embed != nil {
-		if err := c.EmbedArray(ctx, projectID, mappingID, dataset.Schema, d.Embed.Table, "customer_id", d.Embed.PerParent*10); err != nil {
+		if err := c.AddEmbed(ctx, projectID, mappingID, d.EmbedRequest(o.strategy)); err != nil {
 			return report.Result{}, fmt.Errorf("embed: %w", err)
 		}
 	}
 
 	res := report.Result{
-		Dataset: d.Name, Description: d.Description, Rows: d.Rows, ChildRows: d.ChildRows(),
+		Dataset: d.Name, Scenario: scenario(d, o.strategy), Target: "couchbase", Description: d.Description, Rows: d.Rows, ChildRows: d.ChildRows(),
 		ServerVersion: ver.Version, ServerCommit: ver.Commit, Options: jobOpts, Environment: environment(o),
+	}
+	if d.Directory {
+		res.Target = "directory"
 	}
 	job, err := c.StartJob(ctx, projectID, jobOpts)
 	if err != nil {
 		return res, fmt.Errorf("start job: %w", err)
 	}
 	res.JobID, res.StartedAt = job.ID, time.Now().UTC()
-	logf(log, "job %s started → %s.%s.%s", job.ID, o.tgt.Bucket, scope, d.Table)
+	if tgt.Directory != "" {
+		logf(log, "job %s started → %s/%s", job.ID, tgt.Directory, d.Table)
+	} else {
+		logf(log, "job %s started → %s.%s.%s", job.ID, tgt.Bucket, scope, d.Table)
+	}
 
 	// Progress latency, over the job's SSE stream (the UI's view).
 	var latencies []time.Duration
@@ -268,6 +307,14 @@ func run(ctx context.Context, o options, log io.Writer) (report.Result, error) {
 	}
 	logf(log, "wrote %s and %s", jp, mp)
 	return res, nil
+}
+
+// scenario is the run's name in gate files: the dataset, plus the forced strategy.
+func scenario(d dataset.Dataset, strategy string) string {
+	if strategy == "" {
+		return ""
+	}
+	return d.Name + "-" + strategy
 }
 
 func gatesFor(o options) (*analyze.Gates, error) {
@@ -382,7 +429,7 @@ func prepare(ctx context.Context, o options, d dataset.Dataset, log io.Writer) e
 		return nil
 	case "auto":
 		out, err := psql(ctx, o.psql, d.CountSQL())
-		if err == nil && strings.TrimSpace(out) == strconv.FormatInt(d.Rows, 10) {
+		if err == nil && d.Generated(out) {
 			logf(log, "dataset %s already has %d rows; not regenerating", d.Name, d.Rows)
 			return nil
 		}

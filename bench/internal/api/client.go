@@ -127,6 +127,37 @@ type Source struct {
 type Target struct {
 	ConnectionString, Username, Password, Bucket string
 	Capella                                      bool
+	// Directory, when set, makes the target a directory (2.0) under that path, as the worker sees
+	// it; Durability is its durability level ("file" when empty).
+	Directory, Durability string
+}
+
+// Location is where a mapping of table writes: a collection in the bucket's scope, or a folder
+// named after the table in the directory target.
+func (t Target) Location(scope, table string) map[string]any {
+	if t.Directory != "" {
+		return map[string]any{"kind": "directory", "folder": table, "createIfMissing": true}
+	}
+	return map[string]any{"kind": "couchbase", "bucket": t.Bucket, "scope": scope, "collection": table, "createIfMissing": true}
+}
+
+func (t Target) connection() map[string]any {
+	if t.Directory != "" {
+		durability := t.Durability
+		if durability == "" {
+			durability = "file"
+		}
+		return map[string]any{"type": "directory", "config": map[string]any{"path": t.Directory, "createIfMissing": true, "durability": durability}}
+	}
+	deployment := "self-managed"
+	if t.Capella {
+		deployment = "capella"
+	}
+	return map[string]any{
+		"type":    "couchbase",
+		"config":  map[string]any{"connectionString": t.ConnectionString, "username": t.Username, "deployment": deployment, "kvTimeoutMs": 10000, "connectTimeoutMs": 30000},
+		"secrets": map[string]string{"password": t.Password},
+	}
 }
 
 // Project creates a project with its repositories saved and tested, and the source discovered.
@@ -145,15 +176,7 @@ func (c *Client) Project(ctx context.Context, name string, src Source, tgt Targe
 	}, nil); err != nil {
 		return "", err
 	}
-	deployment := "self-managed"
-	if tgt.Capella {
-		deployment = "capella"
-	}
-	if err := c.Do(ctx, http.MethodPut, "/api/v1/projects/"+p.ID+"/connections/target", map[string]any{
-		"type":    "couchbase",
-		"config":  map[string]any{"connectionString": tgt.ConnectionString, "username": tgt.Username, "deployment": deployment, "kvTimeoutMs": 10000, "connectTimeoutMs": 30000},
-		"secrets": map[string]string{"password": tgt.Password},
-	}, nil); err != nil {
+	if err := c.Do(ctx, http.MethodPut, "/api/v1/projects/"+p.ID+"/connections/target", tgt.connection(), nil); err != nil {
 		return "", err
 	}
 	for _, side := range []string{"source", "target"} {
@@ -190,8 +213,9 @@ func (c *Client) discover(ctx context.Context, connID string) error {
 	return nil
 }
 
-// Mapping creates the table's mapping into bucket.scope.<table> (collection created on start).
-func (c *Client) Mapping(ctx context.Context, projectID, schema, table, bucket, scope string) (string, error) {
+// Mapping creates the table's mapping writing to location (see Target.Location; the collection
+// or folder is created on start).
+func (c *Client) Mapping(ctx context.Context, projectID, schema, table string, location map[string]any) (string, error) {
 	var res struct {
 		Results []struct {
 			Mapping *struct {
@@ -201,8 +225,7 @@ func (c *Client) Mapping(ctx context.Context, projectID, schema, table, bucket, 
 		} `json:"results"`
 	}
 	err := c.Do(ctx, http.MethodPost, "/api/v1/projects/"+projectID+"/mappings:bulk", map[string]any{"items": []map[string]any{{
-		"sourceSchema": schema, "sourceTable": table,
-		"target": map[string]any{"bucket": bucket, "scope": scope, "collection": table, "createIfMissing": true},
+		"sourceSchema": schema, "sourceTable": table, "location": location,
 	}}}, &res)
 	if err != nil {
 		return "", err
@@ -217,9 +240,8 @@ func (c *Client) Mapping(ctx context.Context, projectID, schema, table, bucket, 
 	return res.Results[0].Mapping.ID, nil
 }
 
-// EmbedArray embeds child (joined on child.fk = parent.id) into the mapping as an array field
-// with generated, auto-mapped fields.
-func (c *Client) EmbedArray(ctx context.Context, projectID, mappingID, schema, child, fk string, limit int) error {
+// AddEmbed adds a relation to the mapping: body is an AddEmbedRequest (e.g. Dataset.EmbedRequest).
+func (c *Client) AddEmbed(ctx context.Context, projectID, mappingID string, body map[string]any) error {
 	path := "/api/v1/projects/" + projectID + "/mappings/" + mappingID
 	var m struct {
 		Version int64 `json:"version"`
@@ -227,11 +249,7 @@ func (c *Client) EmbedArray(ctx context.Context, projectID, mappingID, schema, c
 	if err := c.Do(ctx, http.MethodGet, path, nil, &m); err != nil {
 		return err
 	}
-	return c.Do(ctx, http.MethodPost, path+"/embeds", map[string]any{
-		"kind": "one-to-many", "table": map[string]string{"schema": schema, "name": child},
-		"join": []map[string]string{{"parent": "id", "child": fk}}, "targetName": child,
-		"orderBy": []map[string]any{{"column": "id"}}, "limit": limit, "generate": true,
-	}, nil, "If-Match", fmt.Sprintf(`"%d"`, m.Version))
+	return c.Do(ctx, http.MethodPost, path+"/embeds", body, nil, "If-Match", fmt.Sprintf(`"%d"`, m.Version))
 }
 
 // Progress is the part of a job's progress snapshot the benchmark reads.

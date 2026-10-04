@@ -18,6 +18,8 @@ x-env: &env
   OC_SIGNUP_ENABLED: "true"
   OC_ALLOW_PRIVATE_NETWORKS: "true"
   OC_LOG_LEVEL: info
+  # Exported scripts' docker runtime runs this stack's image (export-script.spec.ts, OC-056).
+  OC_EXPORT_IMAGE: ${ODB_IMAGE:-omni-data-bus:e2e}
 
 x-app: &app
   image: ${ODB_IMAGE:-omni-data-bus:e2e}

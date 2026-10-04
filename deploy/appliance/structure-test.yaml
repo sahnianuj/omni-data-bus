@@ -1,0 +1,63 @@
+# container-structure-test config for the all-in-one image (OC-072, OC-073 AC1).
+#   make appliance-test   (or: container-structure-test test --image omni-data-bus-appliance:<v> --config deploy/appliance/structure-test.yaml)
+schemaVersion: 2.0.0
+
+metadataTest:
+  entrypoint: ["/usr/bin/tini", "--", "/usr/local/bin/odb-appliance"]
+  exposedPorts: ["8080", "8091"]
+  volumes: ["/opt/couchbase/var"]
+  envVars:
+    - key: OC_HTTP_ADDR
+      value: ":8080"
+    - key: ODB_CB_VERSION
+      value: '^\d+\.\d+\.\d+$'
+      isRegex: true
+  labels:
+    - key: io.omnidatabus.couchbase.edition
+      value: community
+    - key: io.omnidatabus.couchbase.version
+      value: '^\d+\.\d+\.\d+$'
+      isRegex: true
+    - key: org.opencontainers.image.title
+      value: Omni-Data-Bus (all-in-one)
+
+fileExistenceTests:
+  - name: odb binary
+    path: /usr/local/bin/odb
+    shouldExist: true
+    isExecutableBy: any
+  - name: supervisor
+    path: /usr/local/bin/odb-appliance
+    shouldExist: true
+    isExecutableBy: any
+  - name: tini
+    path: /usr/bin/tini
+    shouldExist: true
+  - name: shared Couchbase init script
+    path: /usr/local/lib/odb/cb-init.sh
+    shouldExist: true
+  - name: Couchbase CE license (unchanged from the base image)
+    path: /opt/couchbase/LICENSE.txt
+    shouldExist: true
+  - name: our notice about the bundled Couchbase
+    path: /usr/share/doc/omni-data-bus/NOTICE
+    shouldExist: true
+
+commandTests:
+  - name: "same odb binary as the regular image: reports its version"
+    command: /usr/local/bin/odb
+    args: ["--version"]
+    expectedOutput: ['^Omni-Data-Bus \S+ \((release|rc|dev)\)']
+  - name: Couchbase is Community Edition
+    command: head
+    args: ["-n", "1", "/opt/couchbase/LICENSE.txt"]
+    expectedOutput: ['^Community Edition License Agreement']
+  - name: the app runs as the couchbase user (uid 1000), not root
+    command: id
+    args: ["-u", "couchbase"]
+    expectedOutput: ['^1000\s*$']
+  - name: show-credentials before the first start explains itself
+    command: /usr/local/bin/odb-appliance
+    args: ["show-credentials"]
+    exitCode: 1
+    expectedError: ['not initialized yet']

@@ -43,11 +43,13 @@ const (
 	CodeRepositoriesIncomplete = "PROJECT_REPOSITORIES_INCOMPLETE"
 	CodeMappingExists          = "MAPPING_EXISTS"
 	CodeMappingVersionConflict = "MAPPING_VERSION_CONFLICT"
-	CodePreviewTimeout         = "PREVIEW_TIMEOUT"
-	CodeMappingInvalid         = "MAPPING_INVALID"
-	CodeInvalidSample          = "INVALID_SAMPLE"
-	CodeSchemaRefCycle         = "SCHEMA_REF_CYCLE"
-	CodeSamplingUnavailable    = "SAMPLING_UNAVAILABLE"
+	// CodeMappingNewerVersion: a mapping saved by a newer release (OC-057).
+	CodeMappingNewerVersion = "MAPPING_NEWER_VERSION"
+	CodePreviewTimeout      = "PREVIEW_TIMEOUT"
+	CodeMappingInvalid      = "MAPPING_INVALID"
+	CodeInvalidSample       = "INVALID_SAMPLE"
+	CodeSchemaRefCycle      = "SCHEMA_REF_CYCLE"
+	CodeSamplingUnavailable = "SAMPLING_UNAVAILABLE"
 	// Jobs (OC-023, OC-026).
 	CodeJobInvalidTransition = "JOB_INVALID_TRANSITION"
 	CodePreflightFailed      = "PREFLIGHT_FAILED"
@@ -56,6 +58,12 @@ const (
 	// OC-033 hardening.
 	CodePayloadTooLarge      = "PAYLOAD_TOO_LARGE"
 	CodeTooManyConcurrentOps = "TOO_MANY_CONCURRENT_OPERATIONS"
+	// Exports (OC-050, OC-052, OC-055).
+	CodeBundledTarget       = "BUNDLED_TARGET_NOT_EXPORTABLE"
+	CodePassphraseWeak      = "PASSPHRASE_WEAK"
+	CodeStepUpRequired      = "STEP_UP_REQUIRED"
+	CodeReportUnknownBundle = "REPORT_UNKNOWN_BUNDLE"
+	CodeExportTooLarge      = "EXPORT_TOO_LARGE"
 )
 
 // ConnectorCodes are produced by connectors.ConnError (role × failure kind).
@@ -87,10 +95,11 @@ var All = []string{
 	CodeProjectNameTaken, CodeProjectJobRunning, CodeUnsupportedSource, CodeUnsupportedTarget,
 	CodeTargetKindUnknown, CodeTargetKindDisabled, CodeTargetKindInUse, CodeLocationInvalid, CodeDirectoryOutsideRoots, CodeDocumentNotFound,
 	CodeSchemaNotDiscovered, CodeKeyspaceExists, CodeCapellaBucketCreate,
-	CodeRepositoriesIncomplete, CodeMappingExists, CodeMappingVersionConflict, CodePreviewTimeout, CodeMappingInvalid,
+	CodeRepositoriesIncomplete, CodeMappingExists, CodeMappingVersionConflict, CodeMappingNewerVersion, CodePreviewTimeout, CodeMappingInvalid,
 	CodeInvalidSample, CodeSchemaRefCycle, CodeSamplingUnavailable,
 	CodeJobInvalidTransition, CodePreflightFailed, CodeNoReadyMappings, CodeRetryNotPossible,
 	CodePayloadTooLarge, CodeTooManyConcurrentOps,
+	CodeBundledTarget, CodePassphraseWeak, CodeStepUpRequired, CodeReportUnknownBundle, CodeExportTooLarge,
 }
 
 func init() { All = append(All, ConnectorCodes...) }

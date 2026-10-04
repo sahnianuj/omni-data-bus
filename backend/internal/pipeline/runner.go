@@ -14,7 +14,7 @@ import (
 
 	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/connectors/target"
-	"omnidatabus/internal/jobs"
+	"omnidatabus/internal/jobs/jobspec"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/observability"
 	"omnidatabus/internal/pipeline/flowctl"
@@ -68,7 +68,7 @@ type Deps struct {
 	CountTarget func(ctx context.Context, ws store.WorkspaceID, connectionID string, loc store.Location) (int64, error)
 }
 
-// Runner implements jobs.Runner.
+// Runner implements jobspec.Runner.
 type Runner struct{ d Deps }
 
 // NewRunner returns the pipeline runner.
@@ -109,8 +109,8 @@ func NewRunner(d Deps) *Runner {
 type execution struct {
 	r    *Runner
 	job  store.Job
-	ctl  jobs.Control
-	opts jobs.Options
+	ctl  jobspec.Control
+	opts jobspec.Options
 	// limiter is maxDocsPerSecond, shared by every table of the job (nil = unthrottled).
 	limiter *flowctl.TokenBucket
 
@@ -123,17 +123,17 @@ type execution struct {
 	tracker *progress.Tracker
 	sink    *ErrorSink
 	persist *persister
-	fatal   atomic.Pointer[jobs.Fatal]
+	fatal   atomic.Pointer[jobspec.Fatal]
 	cancel  context.CancelFunc
 	done    chan struct{}
-	outcome jobs.Outcome
+	outcome jobspec.Outcome
 
 	reportMu sync.Mutex
 	report   verify.ReportDoc
 }
 
-// Start implements jobs.Runner.
-func (r *Runner) Start(ctx context.Context, j store.Job, ctl jobs.Control) jobs.Execution {
+// Start implements jobspec.Runner.
+func (r *Runner) Start(ctx context.Context, j store.Job, ctl jobspec.Control) jobspec.Execution {
 	e := &execution{r: r, job: j, ctl: ctl, live: map[string]*checkpointer{}, done: make(chan struct{})}
 	e.log = r.d.Log.With("job_id", j.ID, "project_id", j.ProjectID)
 	go func() {
@@ -144,12 +144,12 @@ func (r *Runner) Start(ctx context.Context, j store.Job, ctl jobs.Control) jobs.
 	return e
 }
 
-func (e *execution) Wait() jobs.Outcome {
+func (e *execution) Wait() jobspec.Outcome {
 	<-e.done
 	return e.outcome
 }
 
-// Checkpoint implements jobs.Execution: the last durably persisted position (the heartbeat
+// Checkpoint implements jobspec.Execution: the last durably persisted position (the heartbeat
 // writes it back unchanged, so it never runs ahead of the stored errors).
 func (e *execution) Checkpoint() json.RawMessage {
 	e.mu.Lock()
@@ -222,7 +222,7 @@ func (e *execution) event(ctx context.Context, kind, msg string) {
 }
 
 func (e *execution) fail(code, msg string) {
-	e.fatal.CompareAndSwap(nil, &jobs.Fatal{Code: code, Message: msg})
+	e.fatal.CompareAndSwap(nil, &jobspec.Fatal{Code: code, Message: msg})
 	e.cancel()
 }
 
@@ -235,7 +235,7 @@ func drained(ch <-chan struct{}) bool {
 	}
 }
 
-func (e *execution) run(base context.Context) jobs.Outcome {
+func (e *execution) run(base context.Context) jobspec.Outcome {
 	ctx, cancel := context.WithCancel(base)
 	e.cancel = cancel
 	defer cancel()
@@ -275,8 +275,8 @@ func (e *execution) run(base context.Context) jobs.Outcome {
 	}()
 	ws := e.job.WorkspaceID
 	var err error
-	if e.opts, err = jobs.ParseOptions(e.job.Options); err != nil {
-		return jobs.Outcome{Fatal: &jobs.Fatal{Code: CodeMappingInvalid, Message: "Invalid job options: " + err.Error()}}
+	if e.opts, err = jobspec.ParseOptions(e.job.Options); err != nil {
+		return jobspec.Outcome{Fatal: &jobspec.Fatal{Code: CodeMappingInvalid, Message: "Invalid job options: " + err.Error()}}
 	}
 	if rate := e.opts.MaxDocsPerSecond; rate != nil {
 		// One bucket for the whole job: tables running in parallel share the rate, so the limit
@@ -297,7 +297,7 @@ func (e *execution) run(base context.Context) jobs.Outcome {
 	for _, id := range e.job.MappingIDs {
 		m, err := d.Store.Mappings().Get(ctx, ws, id)
 		if err != nil {
-			return jobs.Outcome{Fatal: &jobs.Fatal{Code: CodeMappingMissing, Message: "Mapping " + id + " no longer exists."}}
+			return jobspec.Outcome{Fatal: &jobspec.Fatal{Code: CodeMappingMissing, Message: "Mapping " + id + " no longer exists."}}
 		}
 		// A job runs the spec frozen when it was created, so edits while it's paused don't
 		// change a resumed run (OC-029 AC7).
@@ -410,7 +410,7 @@ func (e *execution) run(base context.Context) jobs.Outcome {
 	e.metrics.Observe(final.Written, final.Skipped, final.Failed, 0)
 	e.log.Info("job run ended", "finished", finished, "written", final.Written, "skipped", final.Skipped, "failed", final.Failed)
 	raw, _ := json.Marshal(final)
-	return jobs.Outcome{
+	return jobspec.Outcome{
 		Finished: finished, Failed: failed, Fatal: e.fatal.Load(), Checkpoint: e.latest(), Progress: raw, ErrorsTruncated: truncated,
 	}
 }
@@ -636,7 +636,7 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 	// On resume, an insert-mode re-write of rows written just before the stop reports "exists";
 	// the first 2 batches of each partition count those as written (replayed), not skipped.
 	replayUpTo := make([]uint64, len(cp.Partitions))
-	if !fresh && !cp.Cursor && e.opts.WriteMode == jobs.WriteInsert {
+	if !fresh && !cp.Cursor && e.opts.WriteMode == jobspec.WriteInsert {
 		for i, p := range cp.Partitions {
 			replayUpTo[i] = p.Seq + 2
 		}
@@ -835,7 +835,7 @@ func (e *execution) runMapping(parent context.Context, m store.Mapping, snap *sc
 		}
 		if processed, failed := tr.Totals(); failed > 0 {
 			if over, why := policy.Exceeded(processed, failed); over {
-				e.fail(jobs.ReasonErrorThreshold, why)
+				e.fail(jobspec.ReasonErrorThreshold, why)
 			}
 		}
 	}

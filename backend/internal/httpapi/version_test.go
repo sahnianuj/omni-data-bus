@@ -49,7 +49,7 @@ func TestVersionAPI_AC2_AuthenticatedFull(t *testing.T) {
 	require.Equal(t, "go1.26.8", v["goVersion"])
 	require.Equal(t, "linux/amd64", v["platform"])
 	require.Equal(t, false, v["dirty"])
-	require.EqualValues(t, 4, v["metadataSchemaVersion"], "the latest provisioning step (4: relationships, OC-042)")
+	require.EqualValues(t, 6, v["metadataSchemaVersion"], "the latest provisioning step (6: claim index, OC-057)")
 	require.Equal(t, map[string]any{"api": []any{"2.0.0"}, "worker": []any{"2.0.0"}}, v["nodes"])
 	require.Equal(t, true, v["consistent"])
 }
@@ -114,4 +114,12 @@ func TestRouter_VersionRunsAfterMiddleware(t *testing.T) {
 	require.Equal(t, "2.0.0", v["version"])
 	// Without an explicit handler the router serves the anonymous view of this binary.
 	require.Equal(t, "dev", getVersion(t, NewRouter(Options{Logger: slog.New(slog.DiscardHandler)}))["version"])
+}
+
+// OC-072 AC1: the all-in-one image's footer names its bundled Couchbase.
+func TestVersionAPI_OC072_BundledStore(t *testing.T) {
+	v := getVersion(t, &VersionHandler{Info: testBuild, Authenticated: signedIn, BundledStore: "Couchbase Server CE 8.0.2"})
+	require.Equal(t, "Couchbase Server CE 8.0.2", v["bundledStore"])
+	v = getVersion(t, &VersionHandler{Info: testBuild, Authenticated: signedIn})
+	require.NotContains(t, v, "bundledStore")
 }

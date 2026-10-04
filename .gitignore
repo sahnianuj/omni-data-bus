@@ -70,3 +70,11 @@ Thumbs.db
 
 # Benchmark runs outside the release results (nightly history, local tries)
 /bench/history/
+
+# ─── All-in-one image packages (make appliance-save) ───────────────────────────
+/dist/
+# The same archives (≈500 MB each) and their checksums wherever they're copied, and run.sh
+# backups (all data, including generated passwords), e.g. from deploy/appliance/run.sh backup.
+omni-data-bus-appliance-*.tar.gz
+omni-data-bus-appliance-*.tar.gz.sha256
+odb-backup-*.tar.gz

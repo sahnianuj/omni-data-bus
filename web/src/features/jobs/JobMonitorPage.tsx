@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatBytes, formatRate, humanizeCount } from '@/lib/format'
@@ -55,6 +56,7 @@ function Monitor({ job }: { job: Job }) {
   const [spark, setSpark] = useState<number[]>([])
   const [lastSeq, setLastSeq] = useState(-1)
   const terminal = isTerminal(job.status)
+  const external = job.origin === 'external' ? job.external : undefined
   const { connection } = useJobEvents(job.id, {
     enabled: !terminal,
     onErrorSample: (s) => setFeed((f) => addSamples(f, [s])),
@@ -91,8 +93,9 @@ function Monitor({ job }: { job: Job }) {
       <header className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">{t('monitor.heading', { id: job.id.slice(-6).toUpperCase() })}</h2>
         <JobStatusBadge status={job.status} />
+        {job.origin === 'external' ? <Badge tone="primary" title={t('jobs.externalHint')}>{t('jobs.external')}</Badge> : null}
         <LiveDot connection={connection} terminal={terminal} />
-        <div className="ml-auto flex items-center gap-2">
+        <div className={cn('ml-auto flex items-center gap-2', job.origin === 'external' && 'hidden')}>
           {canNotify ? (
             <Button variant="ghost" size="sm" onClick={() => void Notification.requestPermission()}>
               <Bell aria-hidden />
@@ -103,7 +106,16 @@ function Monitor({ job }: { job: Job }) {
         </div>
       </header>
       <p className="text-[13px] text-muted">{t(terminal ? 'monitor.subtitleDone' : 'monitor.subtitle', { count: p.mappings.length })}</p>
-      {terminal ? <JobSummaryCard job={job} onViewErrors={() => setTab('errors')} /> : null}
+      {external ? (
+        <section aria-label={t('monitor.external.title')} className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-primary/30 bg-primary-soft px-4 py-3 text-[13px]">
+          <p>{t('monitor.external.body', { version: external.odb.version, run: external.runId.slice(0, 8), export: external.bundleSha256.slice(0, 12) })}</p>
+          <p className="text-xs text-muted">
+            {t('monitor.external.exitCode', { code: external.exitCode })} · {t('monitor.external.errors', { count: external.errors.total })}
+          </p>
+        </section>
+      ) : terminal ? (
+        <JobSummaryCard job={job} onViewErrors={() => setTab('errors')} />
+      ) : null}
       <JobProgressBar snapshot={p} status={job.status} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
@@ -138,7 +150,7 @@ function Monitor({ job }: { job: Job }) {
           </TabsTrigger>
           <TabsTrigger value="options">{t('monitor.tab.options')}</TabsTrigger>
           <TabsTrigger value="log">{t('monitor.tab.log')}</TabsTrigger>
-          {terminal ? <TabsTrigger value="output">{t('monitor.tab.output')}</TabsTrigger> : null}
+          {terminal && !external ? <TabsTrigger value="output">{t('monitor.tab.output')}</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="overview" className="flex flex-col gap-5">
           <MappingProgressList projectId={job.projectId} mappings={p.mappings} />

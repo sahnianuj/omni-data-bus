@@ -282,11 +282,16 @@ describe('Composer', () => {
     expect(within(dialog).getByRole('radio', { name: 'Replace productId with the object' })).toBeChecked()
     expect(within(dialog).getByRole('textbox', { name: 'Object name' })).toHaveValue('product')
     expect(await within(dialog).findByRole('checkbox', { name: 'sku' })).toBeChecked()
+    // OC-082 AC2: replacing keeps the key in the object; keeping the field alongside leaves it out.
+    expect(within(dialog).getByRole('checkbox', { name: 'product_id' })).toBeChecked()
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Keep productId and add the object after it' }))
     expect(within(dialog).getByRole('checkbox', { name: 'product_id' })).not.toBeChecked()
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Replace productId with the object' }))
+    expect(within(dialog).getByRole('checkbox', { name: 'product_id' })).toBeChecked()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Embed' }))
 
     await waitFor(() => expect(node(/^product, object, bound to products/)).toBeInTheDocument())
-    expect(within(tree()).queryByRole('treeitem', { name: /^productId,/ })).not.toBeInTheDocument()
+    expect(within(tree()).getAllByRole('treeitem', { name: /^productId,/ }), 'only the object\'s own key').toHaveLength(1)
     await waitFor(() => expect(automaps.at(-1)).toMatchObject({ nodeId: expect.stringMatching(/^fld_/) }))
 
     // And back.
@@ -324,11 +329,11 @@ describe('Composer', () => {
     // The problems panel offers the fix.
     expect(screen.getByRole('button', { name: 'Add quantity back (from quantity)' })).toBeInTheDocument()
 
-    // productId is in the customer's design: Embed keeps it by default.
+    // productId is in the customer's design: Embed still replaces it by default (OC-082), and says so.
     await menu('productId', 'Embed products here…')
     const dialog = await screen.findByRole('dialog', { name: 'Embed products' })
-    expect(within(dialog).getByRole('radio', { name: 'Keep productId and add the object after it' })).toBeChecked()
-    expect(dialog).toHaveTextContent('productId is in the design you imported, so keep it')
+    expect(within(dialog).getByRole('radio', { name: 'Replace productId with the object' })).toBeChecked()
+    expect(dialog).toHaveTextContent('productId is in the design you imported: replacing it moves the key into the object')
   })
 
   it('opens a composed mapping in the composer, driven by its table', async () => {

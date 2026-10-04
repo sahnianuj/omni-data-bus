@@ -51,6 +51,7 @@ type sessionDoc struct {
 	ExpiresAt   string `json:"expiresAt"`
 	UserAgent   string `json:"userAgent"`
 	IP          string `json:"ip"`
+	StepUpAt    string `json:"stepUpAt,omitempty"`
 }
 
 type auditDoc struct {
@@ -79,6 +80,7 @@ func (d sessionDoc) toSession() store.Session {
 	return store.Session{
 		ID: d.ID, UserID: d.UserID, WorkspaceID: d.WorkspaceID, CSRFToken: d.CSRFToken, CreatedAt: parseTS(d.CreatedAt),
 		LastSeenAt: parseTS(d.LastSeenAt), ExpiresAt: parseTS(d.ExpiresAt), UserAgent: d.UserAgent, IP: d.IP,
+		StepUpAt: timePtr(d.StepUpAt),
 	}
 }
 
@@ -233,6 +235,12 @@ func (r sessions) Get(ctx context.Context, id string) (store.Session, error) {
 
 func (r sessions) Touch(ctx context.Context, id string, at time.Time) error {
 	_, err := r.s.coll("sessions").MutateIn(id, []gocb.MutateInSpec{gocb.UpsertSpec("lastSeenAt", formatTS(at), nil)},
+		&gocb.MutateInOptions{Context: ctx, PreserveExpiry: true})
+	return Translate(err, "")
+}
+
+func (r sessions) StepUp(ctx context.Context, id string, at time.Time) error {
+	_, err := r.s.coll("sessions").MutateIn(id, []gocb.MutateInSpec{gocb.UpsertSpec("stepUpAt", formatTS(at), nil)},
 		&gocb.MutateInOptions{Context: ctx, PreserveExpiry: true})
 	return Translate(err, "")
 }

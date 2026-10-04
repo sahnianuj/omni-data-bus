@@ -12,7 +12,7 @@ This document is the shared reference for every story in `docs/release-2.0.0`. I
 |---|---|---|---|
 | 1 | **Directory target** | Migrate into a folder of JSON files, one file per document, named by the document's primary key, so any document can be opened directly by key | OC-036, OC-038 – OC-041 |
 | 2 | **Relationship (array) mapping** | Build one big document from several tables: an order with an `items[]` array, each item carrying its product, across multi-level and many-to-many (junction-table) relations | OC-037, OC-042 – OC-046 |
-| 3 | **Portable runner** | Export a finished mapping as a self-contained bash script (or Kubernetes kit) with the mapping metadata, source credentials and target baked in, and run it in production without the tool; or hand the customer the whole tool as one Docker image with a bundled single-node Couchbase Server CE (no Capella needed) | OC-050 – OC-055, OC-072 – OC-074 |
+| 3 | **Portable runner** | Export a finished mapping as a self-contained bash script with the mapping metadata, source credentials and target baked in, and run it in production without the tool; or hand the customer the whole tool as one Docker image with a bundled single-node Couchbase Server CE (no Capella needed) | OC-050 – OC-053, OC-055, OC-072 – OC-074 (OC-054 Kubernetes kit descoped) |
 | 4 | **Document composer** | Design any target JSON structure from scratch and bind its objects, arrays and fields to source tables and relations | OC-047 – OC-049 |
 
 The workflow in the tool stays the same (Source → Target → Tables → Design & Map → Review → Migrate). Two things are new: the Target step can pick a **directory**, and the Migrate step gains an **Export** tab.
@@ -45,7 +45,7 @@ Both editors work on one model, so a mapping made in one can be opened in the ot
 ### D3 — The exported "script" is a bash wrapper around the same Go binary
 The customer asked for a bash or Python script. We ship a **bash** script (`migrate.sh`) that carries the mapping bundle and runs `odb run` (OC-051), the same pipeline code as the server, in headless mode. We chose this over a Python re-implementation of the pipeline because a second implementation would drift from the tool: type coercion, key templates, transforms and relation assembly would each exist twice, and throughput would drop about 10× for the same hardware.
 
-- `migrate.sh` runs the binary in one of three ways, chosen at run time: a local static binary (downloaded with checksum verification, or embedded for air-gapped sites), a container image pinned by digest, or a Kubernetes Job (OC-054).
+- `migrate.sh` runs the binary in one of two ways, chosen at run time: a local static binary (downloaded with checksum verification, or embedded for air-gapped sites), or a container image pinned by digest. (A generated Kubernetes kit, OC-054, was descoped on 2026-10-01.)
 - The script needs bash ≥ 3.2 (macOS default) plus standard coreutils, and must pass `shellcheck`.
 
 ### D4 — Credentials in exports are sealed by default
@@ -53,9 +53,9 @@ The customer wants credentials baked into the script. We support that, but a scr
 
 | Mode | What is in the file | How the runner unlocks it | Default |
 |---|---|---|---|
-| `sealed` | Credentials encrypted with AES-256-GCM under a key derived with argon2id from an export passphrase | Passphrase from a prompt, `ODB_BUNDLE_PASSPHRASE`, or a mounted Kubernetes Secret | ✅ |
+| `sealed` | Credentials encrypted with AES-256-GCM under a key derived with argon2id from an export passphrase | Passphrase from a prompt, `ODB_BUNDLE_PASSPHRASE`, or a passphrase file (e.g. a mounted secret) | ✅ |
 | `plaintext` | Credentials in clear text | Nothing to unlock | Explicit opt-in: typed confirmation, step-up re-authentication, audit event, warning banner in the file |
-| `external` | Only the names of env vars or Kubernetes Secret keys | Resolved at run time | |
+| `external` | Only the names of env vars or secret files | Resolved at run time | |
 
 Exporting needs the `editor` role and a fresh password confirmation. Every export writes an audit event with its credential mode.
 
@@ -82,7 +82,7 @@ A document's file path is a pure function of its key and the target configuratio
 ┌─────▼─────────────────────────────────────────────────────────────┴───────────┐
 │ odb server (api | worker | all)                                               │
 │   mapping/ ── relations/ (new) ── plan/ (new: spec v2 → ExecutionPlan)        │
-│   export/ (new: bundle, credential sealing, script & k8s kit generation)      │
+│   export/ (new: bundle, credential sealing, script generation)                │
 │   worker pipeline: Reader ─▶ RelationResolver (multi-level) ─▶ Transformer    │
 │                                         ─▶ Writer (couchbase | directory)     │
 └──────┬─────────────────────────┬────────────────────────┬─────────────────────┘
@@ -94,7 +94,7 @@ A document's file path is a pure function of its key and the target configuratio
  migrate.sh ──▶ odb run --bundle (headless: no metadata store, no UI)
                  state dir: checkpoint.json, errors.jsonl, report.json, manifest
                  stdout: JSON-lines progress   stderr: JSON logs
-                 runtimes: local binary │ docker │ Kubernetes Job (+ PVC for output/state)
+                 runtimes: local binary │ docker
 ```
 
 **Headless mode** (OC-051) swaps the three metadata-store dependencies of the pipeline for local ports:
@@ -118,8 +118,8 @@ backend/internal/
 │   ├── couchbase/
 │   └── directory/          # directory target: config, test, browser, writer, reader (OC-038 – OC-041)
 ├── pathcodec/              # reversible key → file-name encoding (OC-039); mirrored in web/src/lib/pathcodec
-├── export/                 # bundle, sealing, script and k8s kit generation (OC-050, OC-052 – OC-055)
-│   └── templates/          # migrate.sh.tmpl, k8s/*.yaml.tmpl, README.md.tmpl
+├── export/                 # bundle, sealing and script generation (OC-050, OC-052, OC-053, OC-055)
+│   └── templates/          # migrate.sh.tmpl, README.md.tmpl
 └── headless/               # odb run: local checkpoint/error/progress ports (OC-051)
 api/bundle.schema.json      # JSON Schema of the portable bundle (OC-050)
 web/src/features/composer/  # document composer (OC-048, OC-049; JSON design import, binding suggestions, conformance OC-059..061; grouping, FK embed OC-063..064)
@@ -215,12 +215,12 @@ A mapping's target location is `{ "folder": "orders" }` (the equivalent of bucke
   "target": { "type": "directory", "config": { "path": "/data/out", "layout": "flat" } },
   "mappings": [ { "id": "…", "name": "orders", "location": { "folder": "orders" }, "spec": { "specVersion": 2 } } ],
   "jobOptions": { "batchSize": 1000, "readers": 4, "writers": 16, "errorThreshold": { "maxErrors": 1000 } },
-  "sourceFingerprint": { "sha256": "…", "tables": { "public.orders": "…" } },
-  "integrity": { "sha256": "…" }
+  "sourceFingerprint": { "sha256": "…", "tables": { "public.orders": { "sha256": "…", "columns": [ { "name": "id", "udtName": "int4", "nullable": false } ] } } },
+  "integrity": { "sha256": "…", "contentSha256": "…" }
 }
 ```
 
-Canonical JSON (sorted keys, no insignificant whitespace) keeps exports diffable and makes `integrity` reproducible.
+Canonical JSON (RFC 8785: sorted keys, shortest numbers) makes `integrity` reproducible; the file is that JSON indented, so exports diff cleanly. `integrity.sha256` covers the whole bundle without `integrity`; `contentSha256` also leaves out the credentials and is the sealed blocks' AAD (OC-050, OC-052). A fingerprint lists the referenced columns so `SCHEMA_DRIFT` can name them offline.
 
 ### 6.4 Headless runner contract (`odb run`)
 
@@ -229,7 +229,7 @@ Canonical JSON (sorted keys, no insignificant whitespace) keeps exports diffable
 | 0 | completed |
 | 2 | completed_with_errors (below the threshold) |
 | 3 | failed: error threshold exceeded or fatal write error |
-| 4 | preflight or configuration error (bad bundle, schema drift, wrong passphrase, target not writable) |
+| 4 | preflight or configuration error (bad bundle, schema drift, wrong passphrase, target not writable, bad command line) |
 | 5 | cancelled (SIGINT or SIGTERM after draining and checkpointing) |
 
 stdout carries one JSON object per line: `{"ts","event":"start|progress|mapping_done|warning|done","jobId","mapping","read","written","failed","docsPerSec","etaSec"}`.
@@ -242,7 +242,7 @@ stdout carries one JSON object per line: `{"ts","event":"start|progress|mapping_
 |---|---|
 | Directory target throughput | ≥ 15,000 files/s for a 1 KB document on local NVMe, 1 worker (8 vCPU), `durability: file` |
 | Nested relation throughput | ≥ 8,000 docs/s for an order with 10 items, each with a product (3 tables, 2 levels) |
-| Memory with relations | Worker RSS < 768 MB with default settings, including relation buffers (`OC_RELATION_MEMORY_MB`, default 256) |
+| Memory with relations | Worker RSS < 768 MB with default settings, including relation buffers (`OC_RELATION_MEMORY_MB`, default 256) and the Go soft memory limit (`OC_MEMORY_LIMIT_MB`, default 640, added by OC-056) |
 | Runner parity | The same bundle produces byte-identical documents from the server pipeline and `odb run` |
 | Runner cold start | `migrate.sh preflight` finishes in < 5 s after the binary is present |
 | Exported file safety | No credential in plain text in any export unless the mode is `plaintext`; checked by a scanner test over every generated artifact |
@@ -255,7 +255,6 @@ stdout carries one JSON object per line: `{"ts","event":"start|progress|mapping_
 |---|---|---|
 | Golden documents | `testdata/golden/*.json` shared by Go and TS | Relation assembly, composer output, and pathcodec |
 | Script tests | `shellcheck`, `bats-core` against bash 3.2 (macOS) and bash 5 (Linux) | `migrate.sh` commands, argument parsing, runtime detection |
-| Kubernetes | `kind` cluster in CI | OC-054 kit: apply, run, kill the pod mid-run, resume, fetch output |
 | Parity | Same fixture DB through server pipeline and `odb run`, then a byte diff | D3 guarantee |
 
 Test naming is unchanged from 1.0 (`Test<Unit>_<AC-id>_<behavior>`).
@@ -266,5 +265,5 @@ Test naming is unchanged from 1.0 (`Test<Unit>_<AC-id>_<behavior>`).
 
 In addition to the [1.0 Definition of Done](../release-1.0.0/00-architecture.md#11-global-definition-of-done):
 - [ ] Any change to the spec or bundle format updates `api/bundle.schema.json` and the golden fixtures, and keeps v1 specs and bundle version 1 readable.
-- [ ] Generated scripts and manifests pass `shellcheck` and `kubeconform` in CI.
+- [ ] Generated scripts pass `shellcheck` in CI.
 - [ ] New pipeline behavior works in both server and headless modes (parity test).

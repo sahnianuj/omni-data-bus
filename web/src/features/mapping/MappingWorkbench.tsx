@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Eye, PanelRight, Redo2, ShieldCheck, Undo2 } from 'lucide-react'
+import { ArrowLeft, Eye, PanelRight, PanelTopClose, PanelTopOpen, Redo2, ShieldCheck, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useOutletContext, useParams } from 'react-router'
@@ -14,6 +14,7 @@ import { DocDesigner } from '@/features/docschema/DocDesigner'
 import type { Project } from '@/features/projects/api'
 import { projectKeys } from '@/features/projects/api'
 import { ApiError } from '@/lib/api/client'
+import { maximizeStore, useMaximizable, useMaximized } from '@/lib/maximize'
 import { mappingKeys, runAutomap, saveMapping, useMapping, validateMapping } from './api'
 import { AutomapIntro } from './AutomapIntro'
 import { computeStats } from './computeStats'
@@ -98,14 +99,19 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
   useEffect(() => {
     store.setState({ flush: async () => void (await saveNow()) })
   }, [store, saveNow])
-  const [side, setSideTab] = useState('suggestions')
-  // Below 1280 px the canvas needs the room, so the panels start closed.
-  const [sideOpen, setSideOpen] = useState(() => !window.matchMedia?.('(max-width: 1279px)').matches)
+  // A "Fix" link (OC-083) opens the Issues tab; otherwise suggestions first.
+  const issuesLink = new URLSearchParams(useLocation().search).get('panel') === 'issues'
+  const [side, setSideTab] = useState(issuesLink ? 'issues' : 'suggestions')
+  // Below 1280 px the canvas needs the room, so the panels start closed (unless a link asks).
+  const [sideOpen, setSideOpen] = useState(() => issuesLink || !window.matchMedia?.('(max-width: 1279px)').matches)
   const setSide = (tab: string) => {
     setSideTab(tab)
     setSideOpen(true)
   }
   const [previewOpen, setPreviewOpen] = useState(false)
+  // Maximized, the page chrome and score strip step aside so the design gets the height.
+  useMaximizable()
+  const maximized = useMaximized()
   const [rerunning, setRerunning] = useState(false)
   const [validating, setValidating] = useState(false)
 
@@ -280,8 +286,23 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
         </div>
       ) : null}
 
-      <ViewBar mode={mode} onChange={switchMode} />
-      {mode === 'composer' ? null : (
+      <ViewBar
+        mode={mode}
+        onChange={switchMode}
+        trailing={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t(maximized ? 'workbench.restoreHeight' : 'workbench.maximizeHeight')}
+            title={t(maximized ? 'workbench.restoreHeight' : 'workbench.maximizeHeight')}
+            aria-pressed={maximized}
+            onClick={maximizeStore.getState().toggle}
+          >
+            {maximized ? <PanelTopOpen aria-hidden /> : <PanelTopClose aria-hidden />}
+          </Button>
+        }
+      />
+      {mode === 'composer' || maximized ? null : (
         <MappingScoreHeader
           automap={automap}
           live={live}
@@ -297,7 +318,7 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
           }}
         />
       )}
-      {mode === 'composer' ? null : <AutomapIntro mappingId={view.id} stats={automap} onReview={() => setSide('suggestions')} />}
+      {mode === 'composer' || maximized ? null : <AutomapIntro mappingId={view.id} stats={automap} onReview={() => setSide('suggestions')} />}
 
       {mode !== 'design' && mode !== 'composer' ? (
         <div className="flex items-center gap-3 border-b border-border px-6 py-2">

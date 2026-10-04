@@ -43,6 +43,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, buildinfo.Get().Text())
 		return 0
 	}
+	// Commands that don't use the server's configuration never read a .env: `odb run` runs on
+	// customer machines and in containers, where a .env in the working directory isn't ours.
+	if fs.NArg() > 0 {
+		switch fs.Arg(0) {
+		case "run":
+			return runRun(fs.Args()[1:], stdout, stderr)
+		case "bundle":
+			return runBundle(fs.Args()[1:], stdout, stderr)
+		case "doc":
+			return runDoc(fs.Args()[1:], stdout, stderr)
+		case "version":
+			return runVersion(fs.Args()[1:], stdout, stderr)
+		}
+	}
 	envFile, err := config.LoadDotEnv(config.DotEnvCandidates()...)
 	if err != nil {
 		fmt.Fprintln(stderr, "reading .env:", err)
@@ -54,12 +68,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return runAdmin(fs.Args()[1:], stdout, stderr)
 		case "healthcheck":
 			return runHealthcheck(fs.Args()[1:], stdout, stderr)
-		case "version":
-			return runVersion(fs.Args()[1:], stdout, stderr)
-		case "doc":
-			return runDoc(fs.Args()[1:], stdout, stderr)
 		default:
-			fmt.Fprintf(stderr, "unknown command %q (commands: admin, doc, healthcheck, version; flags: --version, --role)\n", fs.Arg(0))
+			fmt.Fprintf(stderr, "unknown command %q (commands: admin, bundle, doc, healthcheck, run, version; flags: --version, --role)\n", fs.Arg(0))
 			return 2
 		}
 	}

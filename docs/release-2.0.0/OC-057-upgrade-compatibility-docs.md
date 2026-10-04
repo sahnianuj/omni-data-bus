@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E12 Harden & Ship 2.0 | P0 | 3 | OC-036, OC-037, OC-055 | Not started |
+| E12 Harden & Ship 2.0 | P0 | 3 | OC-036, OC-037, OC-055 | Implemented |
 
 ## User story
 As an **operator running Omni-Data-Bus 1.0**, I want to upgrade to 2.0 in place without losing projects, mappings or job history, and to find clear documentation for the new features, so that my teams can adopt directory targets, relationship mapping, the composer and exported scripts right away.
@@ -29,9 +29,37 @@ As an **operator running Omni-Data-Bus 1.0**, I want to upgrade to 2.0 in place 
 - A 1.0 API pod reading a v2 mapping returns `409 MAPPING_NEWER_VERSION` instead of corrupting it on save. This is a patch for 1.0.x (1.0.1), and the upgrade notes require 1.0.1 before 2.0.
 
 ### Documentation (`docs/user-guide/`)
-- New chapters: *Directory targets* (layouts, file names, lookup by key, volumes in Kubernetes), *Relationship mapping* (nested, many-to-many, shapes, large arrays), *Document composer*, *Running migrations outside the tool* (the script, credential modes, Kubernetes kit, exit codes, resuming, importing reports).
+- New chapters: *Directory targets* (layouts, file names, lookup by key, volumes in containers), *Relationship mapping* (nested, many-to-many, shapes, large arrays), *Document composer*, *Running migrations outside the tool* (the script, credential modes, exit codes, resuming, importing reports).
 - `docs/upgrade/1.0-to-2.0.md`: prerequisites (1.0.1, backup), Helm values diff, rollback notes.
 - The README feature list and screenshots are updated.
+
+## Results (2026-10-02)
+- **Provisioning, now schema version 6.**
+  - Step 4 creates `relationships` (OC-042) and step 5 creates `exports` (OC-055). Both collections are KV-only, so they need no GSI index.
+  - Step 6 adds `idx_jobs_claim` on `jobs(status, IFMISSINGORNULL(minWorkerLevel, 0), createdAt, id)` for the version-aware claim loop.
+  - Every step is idempotent, and nothing bulk-rewrites mappings: v1 specs upgrade on read and save.
+- **Mixed-version workers.**
+  - A job that needs a 2.0 worker records `minWorkerVersion: "2.0.0"` and `minWorkerLevel`. That means any of: a directory target, a composed document, a relation, grouped rows or an aggregate (`mapping.RequiresV2`).
+  - Workers claim through `ListClaimable(level)`, so older workers skip such jobs. Development builds claim everything.
+- **Newer specs.** A mapping whose spec version is newer than the server reads is refused with `409 MAPPING_NEWER_VERSION` instead of being rewritten. 2.0 has the guard for future versions, and the 1.0.1 patch needs the same guard.
+- **Helm.**
+  - New `exports.image` and `exports.downloadUrl` values set what exported scripts run and download (default: the deployed image and this release's binaries).
+  - From OC-056: `worker.memoryLimitMB` (`OC_MEMORY_LIMIT_MB`).
+  - The directory-target volume values come from OC-038.
+- **Docs.**
+  - [`docs/user-guide/`](../user-guide/README.md) has four chapters: directory targets, relationship mapping, the document composer, and running migrations outside the tool.
+  - [`docs/upgrade/1.0-to-2.0.md`](../upgrade/1.0-to-2.0.md) covers the upgrade.
+  - The README documentation map links both.
+  - In-app **?** links sit next to the Target step's directory option, the Embed dialog, the Composer and the Export page (`HelpLink`, `lib/helpLinks.ts`).
+
+### Open
+- **The 1.0.1 patch** can't be built in this repository, which carries 2.0. On the 1.0 line it must backport two things: the claim filter (`minWorkerLevel` and `ListClaimable`, so 1.0.1 workers skip 2.0 jobs) and the `MAPPING_NEWER_VERSION` guard. The upgrade notes require 1.0.1 before 2.0.
+- The README screenshots still show 1.0.
+
+### Changes from the plan
+- The 1.0 fixture isn't a bucket dump. `TestProvision_AC1_UpgradeFrom1_0` and `TestUpgrade_AC2_DataPreserved` (`internal/store/cbstore/upgrade_integration_test.go`) provision a fresh scope with 1.0's steps (1–3), seed it as 1.0 did, then upgrade. Both pass on Couchbase 8.0.3.
+- `TestClaim_AC3_MinWorkerVersion` is a unit test (`internal/jobs/claim_test.go`, memstore). The claim query's contract runs on Couchbase as `storetest` "Claimable".
+- The jobs list didn't need an `origin` index field: no query filters on it. External runs are listed with the rest.
 
 ## Acceptance criteria & unit tests
 

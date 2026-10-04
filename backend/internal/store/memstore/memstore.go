@@ -25,6 +25,7 @@ type Store struct {
 	heads    map[string][]string // connection id → snapshot ids, newest first
 	maps     map[string]store.Mapping
 	rels     map[string]store.Relationship // by RelationshipKey
+	exports  map[string]store.ExportRecord
 	acc      accountsData
 	jobs     jobsState
 	nodes    map[string]store.NodeBeat
@@ -38,7 +39,7 @@ func New(clock store.Clock) *Store {
 	return &Store{
 		clock: clock, projects: map[string]store.Project{}, names: map[string]string{}, conns: map[string]store.Connection{},
 		snaps: map[string]store.DiscoverySnapshot{}, heads: map[string][]string{}, maps: map[string]store.Mapping{}, rels: map[string]store.Relationship{},
-		nodes: map[string]store.NodeBeat{}, acc: newAccountsData(),
+		exports: map[string]store.ExportRecord{}, nodes: map[string]store.NodeBeat{}, acc: newAccountsData(),
 	}
 }
 
@@ -169,6 +170,11 @@ func (r projects) Delete(_ context.Context, ws store.WorkspaceID, id string) err
 	for k, r := range s.rels {
 		if r.ProjectID == id {
 			delete(s.rels, k)
+		}
+	}
+	for k, e := range s.exports {
+		if e.ProjectID == id {
+			delete(s.exports, k)
 		}
 	}
 	return nil

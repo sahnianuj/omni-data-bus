@@ -20,7 +20,27 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      # shellcheck (preinstalled) checks migrate.sh here; the bats suites run in runner-bats-*.
       - run: make test-backend
+
+  # Runner E2E (OC-056 AC2): the migrate.sh bats suites (OC-053) on bash 5 and on macOS's bash 3.2.
+  runner-bats-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: sudo apt-get update && sudo apt-get install -y bats
+      - run: make test-scripts
+
+  runner-bats-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: brew install bats-core shellcheck
+      - run: ODB_TEST_BASH=/bin/bash make test-scripts
 
   backend-integration:
     runs-on: ubuntu-latest
@@ -130,6 +150,17 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version-file: bench/go.mod, cache: false }
       - run: make test-bench
+
+  # Release gates (OC-056 AC4): the committed reference-environment results under
+  # bench/results/2.0.0 against bench/gates-2.0.0.json. Local (indicative) runs don't count;
+  # gates without a reference result yet are reported as pending here and block the release.
+  bench-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: bench/go.mod, cache: false }
+      - run: make bench-gate BENCH_GATE_ARGS="--allow-missing --summary $GITHUB_STEP_SUMMARY"
 
   helm:
     runs-on: ubuntu-latest

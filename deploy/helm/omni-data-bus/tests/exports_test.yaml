@@ -1,0 +1,23 @@
+suite: exported migrations (OC-057)
+templates:
+  - templates/deployment.yaml
+values:
+  - required-values.yaml
+tests:
+  - it: scripts run the deployed image by default
+    set:
+      image: { tag: "2.0.0" }
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_IMAGE, value: "ghcr.io/sahnianuj/omni-data-bus:2.0.0" }
+  - it: a pinned image and a download mirror can be set
+    set:
+      exports: { image: "registry.example.com/odb@sha256:abc", downloadUrl: "https://mirror.example.com/odb" }
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_IMAGE, value: "registry.example.com/odb@sha256:abc" }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_DOWNLOAD_URL, value: "https://mirror.example.com/odb" }

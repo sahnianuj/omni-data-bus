@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"omnidatabus/internal/config"
+	"omnidatabus/internal/connectors/target/directory"
 	"omnidatabus/internal/crypto"
 	"omnidatabus/internal/store"
 	"omnidatabus/internal/store/memstore"
@@ -135,4 +136,11 @@ func TestRegistries_AC1_BothTargetKinds(t *testing.T) {
 		kinds = append(kinds, k.Type)
 	}
 	require.ElementsMatch(t, []string{"couchbase", "directory"}, kinds)
+}
+
+// OC-080: OC_DIRECTORY_SHARED pairs become the directory connector's shared folders.
+func TestDirectoryShared_OC080(t *testing.T) {
+	var cfg config.Config
+	cfg.Directory.Shared = []string{"/data=/Users/ana/out", " /mnt ", "=/nowhere"}
+	require.Equal(t, []directory.Shared{{Path: "/data", HostPath: "/Users/ana/out"}, {Path: "/mnt", HostPath: "/mnt"}}, DirectoryShared(cfg))
 }

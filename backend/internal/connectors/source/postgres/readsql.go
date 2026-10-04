@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -319,6 +320,13 @@ func RelatedSQL(q source.RelatedQuery) string {
 		}
 		p.orders = append(p.orders, col)
 	}
+	// Then a tiebreaker, so an array comes in the same order on every read — the migration,
+	// verification's re-read, a resumed or an exported run: the table's primary key, then the
+	// junction's (OC-056; without it a many-to-many array's order was up to the planner).
+	p.orders = tiebreak(p.orders, p.joins, alias, q.Table.Columns, qual)
+	if q.Via != nil {
+		p.orders = tiebreak(p.orders, p.joins, "j", q.Via.Table.Columns, qual)
+	}
 	where := strings.Join(p.where, " AND ")
 	if q.PerKeyLimit <= 0 {
 		sel := make([]string, len(p.items))
@@ -379,4 +387,19 @@ func filterSQL(col, typ string, f source.FilterCond, next int) (cond string, use
 		op = "=" // validated upstream; never reached
 	}
 	return col + " " + op + " " + param, 1
+}
+
+// tiebreak appends the primary-key columns of cols (as alias.col) that neither the join columns
+// nor orders have yet.
+func tiebreak(orders, joins []string, alias string, cols []schema.Column, qual func(a, col string) string) []string {
+	for _, c := range cols {
+		if !c.IsPrimaryKey {
+			continue
+		}
+		col := qual(alias, c.Name)
+		if !slices.Contains(joins, col) && !slices.Contains(orders, col) && !slices.Contains(orders, col+" DESC") {
+			orders = append(orders, col)
+		}
+	}
+	return orders
 }

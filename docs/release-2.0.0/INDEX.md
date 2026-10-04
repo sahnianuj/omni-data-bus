@@ -8,19 +8,20 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **44** | **218** |
-| ✅ Implemented | 33 | 157 |
+| **Total** | **47** | **225** |
+| ✅ Implemented | 47 | 225 |
 | 🚧 In progress | 0 | 0 |
-| ⬜ Not started | 11 | 61 |
-| Not yet implemented (in progress + not started) | 11 | 61 |
-| **Completion** | 75% | 72% |
+| ⬜ Not started | 0 | 0 |
+| Not yet implemented (in progress + not started) | 0 | 0 |
+| **Completion** | 100% | 100% |
+| 🚫 Descoped (not counted above) | 1 | 5 |
 
 ### By priority
 
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
-| P0 | Must have — release blocker | 26 | 161 | 16 / 105 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 16 | 55 | 15 / 50 |
+| P0 | Must have — release blocker | 26 | 161 | 26 / 161 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 19 | 62 | 19 / 62 |
 | P2 | Nice to have | 2 | 2 | 2 / 2 |
 
 ### By epic
@@ -29,10 +30,10 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 |---|---|---|---|
 | E7 Foundations 2.0 | 3 | 13 | 3 / 13 |
 | E8 Directory Target | 6 | 27 | 6 / 27 |
-| E9 Relationship Mapping | 5 | 37 | 5 / 37 |
-| E10 Document Composer | 18 | 78 | 18 / 78 |
-| E11 Portable Runner | 9 | 50 | 0 / 0 |
-| E12 Harden & Ship 2.0 | 3 | 13 | 1 / 2 |
+| E9 Relationship Mapping | 6 | 39 | 6 / 39 |
+| E10 Document Composer | 20 | 83 | 20 / 83 |
+| E11 Portable Runner | 9 | 50 | 9 / 50 |
+| E12 Harden & Ship 2.0 | 3 | 13 | 3 / 13 |
 
 ## Stories by priority
 
@@ -51,30 +52,30 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 9 | ~~[OC-047](OC-047-composer-bindings-scope-model.md)~~ | ~~Document composer: bindings, scope rules & plan compilation~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
 | 10 | ~~[OC-048](OC-048-composer-workspace-ui.md)~~ | ~~Document composer workspace (UI)~~ | ~~E10 Document Composer~~ | ~~13~~ | ✅ Implemented |
 | 11 | ~~[OC-049](OC-049-composer-preview-validation-automap.md)~~ | ~~Composer preview, validation & scoped auto-map~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
-| 12 | [OC-050](OC-050-portable-migration-bundle.md) | Portable migration bundle format | E11 Portable Runner | 5 | ⬜ Not started |
-| 13 | [OC-051](OC-051-headless-runner-odb-run.md) | Headless runner (`odb run --bundle`) | E11 Portable Runner | 8 | ⬜ Not started |
-| 14 | [OC-052](OC-052-exported-credentials-sealing.md) | Credentials in exported bundles: sealed, plaintext or external | E11 Portable Runner | 5 | ⬜ Not started |
-| 15 | [OC-053](OC-053-executable-bash-script-export.md) | Executable migration script export (`migrate.sh`) | E11 Portable Runner | 8 | ⬜ Not started |
-| 16 | [OC-054](OC-054-kubernetes-execution-kit.md) | Kubernetes execution kit | E11 Portable Runner | 5 | ⬜ Not started |
-| 17 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | E12 Harden & Ship 2.0 | 8 | ⬜ Not started |
-| 18 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | E12 Harden & Ship 2.0 | 3 | ⬜ Not started |
-| 19 | ~~[OC-058](OC-058-release-build-info-footer.md)~~ | ~~Release & build information footer~~ | ~~E7 Foundations 2.0~~ | ~~3~~ | ✅ Implemented |
-| 20 | ~~[OC-059](OC-059-composer-import-target-json.md)~~ | ~~Import a target JSON design into the composer~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
-| 21 | ~~[OC-060](OC-060-composer-binding-suggestions.md)~~ | ~~Suggest bindings for an imported design~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
-| 22 | ~~[OC-063](OC-063-group-rows-into-one-document.md)~~ | ~~One document per group of rows (group the driving table)~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
-| 23 | ~~[OC-065](OC-065-array-items-read-their-own-row.md)~~ | ~~Array items read their own row, never repeat the parent's~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
-| 24 | [OC-072](OC-072-all-in-one-image-couchbase-ce.md) | All-in-one image: Omni-Data-Bus with a bundled Couchbase Server CE node | E11 Portable Runner | 8 | ⬜ Not started |
-| 25 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | E11 Portable Runner | 3 | ⬜ Not started |
-| 26 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | E11 Portable Runner | 3 | ⬜ Not started |
+| 12 | ~~[OC-050](OC-050-portable-migration-bundle.md)~~ | ~~Portable migration bundle format~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
+| 13 | ~~[OC-051](OC-051-headless-runner-odb-run.md)~~ | ~~Headless runner (`odb run --bundle`)~~ | ~~E11 Portable Runner~~ | ~~8~~ | ✅ Implemented |
+| 14 | ~~[OC-052](OC-052-exported-credentials-sealing.md)~~ | ~~Credentials in exported bundles: sealed, plaintext or external~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
+| 15 | ~~[OC-053](OC-053-executable-bash-script-export.md)~~ | ~~Executable migration script export (`migrate.sh`)~~ | ~~E11 Portable Runner~~ | ~~8~~ | ✅ Implemented |
+| 16 | ~~[OC-056](OC-056-e2e-benchmarks-release-gate.md)~~ | ~~End-to-end suite & benchmarks for 2.0 (release gate)~~ | ~~E12 Harden & Ship 2.0~~ | ~~8~~ | ✅ Implemented |
+| 17 | ~~[OC-057](OC-057-upgrade-compatibility-docs.md)~~ | ~~Upgrade from 1.0, compatibility & documentation~~ | ~~E12 Harden & Ship 2.0~~ | ~~3~~ | ✅ Implemented |
+| 18 | ~~[OC-058](OC-058-release-build-info-footer.md)~~ | ~~Release & build information footer~~ | ~~E7 Foundations 2.0~~ | ~~3~~ | ✅ Implemented |
+| 19 | ~~[OC-059](OC-059-composer-import-target-json.md)~~ | ~~Import a target JSON design into the composer~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
+| 20 | ~~[OC-060](OC-060-composer-binding-suggestions.md)~~ | ~~Suggest bindings for an imported design~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
+| 21 | ~~[OC-063](OC-063-group-rows-into-one-document.md)~~ | ~~One document per group of rows (group the driving table)~~ | ~~E10 Document Composer~~ | ~~8~~ | ✅ Implemented |
+| 22 | ~~[OC-065](OC-065-array-items-read-their-own-row.md)~~ | ~~Array items read their own row, never repeat the parent's~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 23 | ~~[OC-072](OC-072-all-in-one-image-couchbase-ce.md)~~ | ~~All-in-one image: Omni-Data-Bus with a bundled Couchbase Server CE node~~ | ~~E11 Portable Runner~~ | ~~8~~ | ✅ Implemented |
+| 24 | ~~[OC-073](OC-073-build-package-share-appliance-image.md)~~ | ~~Build, package and share the all-in-one image~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
+| 25 | ~~[OC-074](OC-074-appliance-customer-run-kit-readme.md)~~ | ~~Customer run kit and README for the all-in-one image~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
+| 26 | ~~[OC-080](OC-080-appliance-directory-target-host-folder.md)~~ | ~~All-in-one image: write directory targets to a folder on the user's computer~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (16 stories, 55 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (19 stories, 62 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
 | 1 | ~~[OC-041](OC-041-directory-verification-document-browser.md)~~ | ~~Directory verification & output document browser~~ | ~~E8 Directory Target~~ | ~~5~~ | ✅ Implemented |
 | 2 | ~~[OC-045](OC-045-array-shapes-filters-aggregates.md)~~ | ~~Array shapes, filters & aggregates~~ | ~~E9 Relationship Mapping~~ | ~~5~~ | ✅ Implemented |
 | 3 | ~~[OC-046](OC-046-large-arrays-overflow-sorted-merge.md)~~ | ~~Large arrays: sorted-merge strategy, overflow policies & document size guard~~ | ~~E9 Relationship Mapping~~ | ~~8~~ | ✅ Implemented |
-| 4 | [OC-055](OC-055-export-ui-run-history.md) | Export dialog, export history & external run reports | E11 Portable Runner | 5 | ⬜ Not started |
+| 4 | ~~[OC-055](OC-055-export-ui-run-history.md)~~ | ~~Export dialog, export history & external run reports~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
 | 5 | ~~[OC-061](OC-061-composer-reference-conformance.md)~~ | ~~Re-import a revised design, conformance check & mapping sheet~~ | ~~E10 Document Composer~~ | ~~5~~ | ✅ Implemented |
 | 6 | ~~[OC-062](OC-062-workbench-view-switcher.md)~~ | ~~Visible, explained workbench views~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
 | 7 | ~~[OC-064](OC-064-expand-foreign-key-into-object.md)~~ | ~~Expand a foreign key into an embedded object (and back)~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
@@ -87,6 +88,9 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 14 | ~~[OC-076](OC-076-reference-box-differences-only-when-strict.md)~~ | ~~Reference box lists differences only when the mapping is strict~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
 | 15 | ~~[OC-078](OC-078-review-checks-up-front-no-start-dialog.md)~~ | ~~Review step: checks up front, Migrate starts without a dialog~~ | ~~E12 Harden & Ship 2.0~~ | ~~2~~ | ✅ Implemented |
 | 16 | ~~[OC-079](OC-079-directory-durability-default-none.md)~~ | ~~Directory targets default to durability "None"~~ | ~~E8 Directory Target~~ | ~~1~~ | ✅ Implemented |
+| 17 | ~~[OC-081](OC-081-add-fields-anywhere-in-the-target-document.md)~~ | ~~Add fields anywhere in the target document, from every view~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 18 | ~~[OC-082](OC-082-embedding-a-foreign-key-removes-the-key-field.md)~~ | ~~Embedding a foreign key removes the key field~~ | ~~E9 Relationship Mapping~~ | ~~2~~ | ✅ Implemented |
+| 19 | ~~[OC-083](OC-083-mapping-card-says-what-to-fix.md)~~ | ~~A mapping card says what to fix, not "Draft"~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 
 ### P2 — Nice to have (2 stories, 2 points)
 
@@ -103,10 +107,10 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 |---|---|---|---|---|---|
 | Phase 0 — 2.0 foundations | ~~OC-058~~, ~~OC-036~~, ~~OC-037~~ | 13 | 3/3 (13 pts) | ✅ Done | Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build |
 | Phase 1 — Directory target | ~~OC-038~~, ~~OC-039~~, ~~OC-040~~, ~~OC-041~~, ~~OC-068~~, ~~OC-079~~ | 27 | 6/6 (27 pts) | ✅ Done | Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key |
-| Phase 2 — Relationship mapping | ~~OC-042~~, ~~OC-043~~, ~~OC-044~~, ~~OC-045~~, ~~OC-046~~ | 37 | 5/5 (37 pts) | ✅ Done | Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises |
-| Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~ | 78 | 18/18 (78 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
-| Phase 4 — Portable runner | OC-050, OC-051, OC-052, OC-053, OC-054, OC-055, OC-072, OC-073, OC-074 | 50 | 0/9 (0 pts) | 🚧 Current | Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE |
-| Phase 5 — Harden & ship 2.0 | ~~OC-078~~, OC-057, OC-056 | 13 | 1/3 (2 pts) | ⬜ Planned | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
+| Phase 2 — Relationship mapping | ~~OC-042~~, ~~OC-043~~, ~~OC-044~~, ~~OC-045~~, ~~OC-046~~, ~~OC-082~~ | 39 | 6/6 (39 pts) | ✅ Done | Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises |
+| Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~, ~~OC-081~~, ~~OC-083~~ | 83 | 20/20 (83 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
+| Phase 4 — Portable runner | ~~OC-050~~, ~~OC-051~~, ~~OC-052~~, ~~OC-053~~, ~~OC-055~~, ~~OC-072~~, ~~OC-073~~, ~~OC-074~~, ~~OC-080~~ | 50 | 9/9 (50 pts) | ✅ Done | Export a finished mapping as a self-contained bash script and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE |
+| Phase 5 — Harden & ship 2.0 | ~~OC-078~~, ~~OC-057~~, ~~OC-056~~ | 13 | 3/3 (13 pts) | ✅ Done | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
 
 ## Stories by phase
 
@@ -135,7 +139,7 @@ _Migrate into a folder of JSON files, one per document, named by primary key; lo
 | 5 | [OC-068](OC-068-move-mappings-on-target-kind-change.md) | Move mappings when the target kind changes | P1 | E8 Directory Target | 3 | OC-036, OC-038 | ✅ Implemented |
 | 6 | [OC-079](OC-079-directory-durability-default-none.md) | Directory targets default to durability "None" | P1 | E8 Directory Target | 1 | OC-038, OC-040 | ✅ Implemented |
 
-### Phase 2 — Relationship mapping — ✅ Done (5/5 stories, 37/37 points)
+### Phase 2 — Relationship mapping — ✅ Done (6/6 stories, 39/39 points)
 
 _Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises._
 
@@ -146,8 +150,9 @@ _Build orders with an items[] array holding each product, through multi-level an
 | 3 | [OC-044](OC-044-many-to-many-junction-arrays.md) | Many-to-many arrays through junction tables | P0 | E9 Relationship Mapping | 8 | OC-042, OC-043 | ✅ Implemented |
 | 4 | [OC-045](OC-045-array-shapes-filters-aggregates.md) | Array shapes, filters & aggregates | P1 | E9 Relationship Mapping | 5 | OC-043 | ✅ Implemented |
 | 5 | [OC-046](OC-046-large-arrays-overflow-sorted-merge.md) | Large arrays: sorted-merge strategy, overflow policies & document size guard | P1 | E9 Relationship Mapping | 8 | OC-043, OC-024 | ✅ Implemented |
+| 6 | [OC-082](OC-082-embedding-a-foreign-key-removes-the-key-field.md) | Embedding a foreign key removes the key field | P1 | E9 Relationship Mapping | 2 | OC-042, OC-064, OC-071 | ✅ Implemented |
 
-### Phase 3 — Document composer — ✅ Done (18/18 stories, 78/78 points)
+### Phase 3 — Document composer — ✅ Done (20/20 stories, 83/83 points)
 
 _Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design._
 
@@ -171,37 +176,48 @@ _Design any target JSON shape from scratch or import the customer's own JSON des
 | 16 | [OC-075](OC-075-unmapped-design-fields-are-info.md) | Unmapped fields of an imported design are information, not warnings | P1 | E10 Document Composer | 1 | OC-061, OC-070, OC-071 | ✅ Implemented |
 | 17 | [OC-076](OC-076-reference-box-differences-only-when-strict.md) | Reference box lists differences only when the mapping is strict | P1 | E10 Document Composer | 1 | OC-061, OC-071, OC-075 | ✅ Implemented |
 | 18 | [OC-077](OC-077-sample-pane-stands-out.md) | Sample pane stands out from the canvas | P2 | E10 Document Composer | 1 | OC-048, OC-049 | ✅ Implemented |
+| 19 | [OC-081](OC-081-add-fields-anywhere-in-the-target-document.md) | Add fields anywhere in the target document, from every view | P1 | E10 Document Composer | 3 | OC-015, OC-048, OC-062 | ✅ Implemented |
+| 20 | [OC-083](OC-083-mapping-card-says-what-to-fix.md) | A mapping card says what to fix, not "Draft" | P1 | E10 Document Composer | 2 | OC-035, OC-049 | ✅ Implemented |
 
-### Phase 4 — Portable runner — 🚧 Current (0/9 stories, 0/50 points)
+### Phase 4 — Portable runner — ✅ Done (9/9 stories, 50/50 points)
 
-_Export a finished mapping as a self-contained bash script or Kubernetes kit and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE._
+_Export a finished mapping as a self-contained bash script and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-050](OC-050-portable-migration-bundle.md) | Portable migration bundle format | P0 | E11 Portable Runner | 5 | OC-036, OC-037, OC-042 | ⬜ Not started |
-| 2 | [OC-051](OC-051-headless-runner-odb-run.md) | Headless runner (`odb run --bundle`) | P0 | E11 Portable Runner | 8 | OC-050, OC-040, OC-043, OC-029 | ⬜ Not started |
-| 3 | [OC-052](OC-052-exported-credentials-sealing.md) | Credentials in exported bundles: sealed, plaintext or external | P0 | E11 Portable Runner | 5 | OC-050, OC-006, OC-033 | ⬜ Not started |
-| 4 | [OC-053](OC-053-executable-bash-script-export.md) | Executable migration script export (`migrate.sh`) | P0 | E11 Portable Runner | 8 | OC-051, OC-052 | ⬜ Not started |
-| 5 | [OC-054](OC-054-kubernetes-execution-kit.md) | Kubernetes execution kit | P0 | E11 Portable Runner | 5 | OC-053 | ⬜ Not started |
-| 6 | [OC-055](OC-055-export-ui-run-history.md) | Export dialog, export history & external run reports | P1 | E11 Portable Runner | 5 | OC-053, OC-054, OC-052 | ⬜ Not started |
-| 7 | [OC-072](OC-072-all-in-one-image-couchbase-ce.md) | All-in-one image: Omni-Data-Bus with a bundled Couchbase Server CE node | P0 | E11 Portable Runner | 8 | OC-032, OC-036, OC-058 | ⬜ Not started |
-| 8 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072 | ⬜ Not started |
-| 9 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072, OC-073 | ⬜ Not started |
+| 1 | [OC-050](OC-050-portable-migration-bundle.md) | Portable migration bundle format | P0 | E11 Portable Runner | 5 | OC-036, OC-037, OC-042 | ✅ Implemented |
+| 2 | [OC-051](OC-051-headless-runner-odb-run.md) | Headless runner (`odb run --bundle`) | P0 | E11 Portable Runner | 8 | OC-050, OC-040, OC-043, OC-029 | ✅ Implemented |
+| 3 | [OC-052](OC-052-exported-credentials-sealing.md) | Credentials in exported bundles: sealed, plaintext or external | P0 | E11 Portable Runner | 5 | OC-050, OC-006, OC-033 | ✅ Implemented |
+| 4 | [OC-053](OC-053-executable-bash-script-export.md) | Executable migration script export (`migrate.sh`) | P0 | E11 Portable Runner | 8 | OC-051, OC-052 | ✅ Implemented |
+| 5 | ~~[OC-054](OC-054-kubernetes-execution-kit.md)~~ | ~~Kubernetes execution kit~~ | ~~P0~~ | ~~E11 Portable Runner~~ | ~~5~~ | ~~OC-053~~ | 🚫 Descoped |
+| 6 | [OC-055](OC-055-export-ui-run-history.md) | Export dialog, export history & external run reports | P1 | E11 Portable Runner | 5 | OC-053, OC-052 | ✅ Implemented |
+| 7 | [OC-072](OC-072-all-in-one-image-couchbase-ce.md) | All-in-one image: Omni-Data-Bus with a bundled Couchbase Server CE node | P0 | E11 Portable Runner | 8 | OC-032, OC-036, OC-058 | ✅ Implemented |
+| 8 | [OC-073](OC-073-build-package-share-appliance-image.md) | Build, package and share the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072 | ✅ Implemented |
+| 9 | [OC-074](OC-074-appliance-customer-run-kit-readme.md) | Customer run kit and README for the all-in-one image | P0 | E11 Portable Runner | 3 | OC-072, OC-073 | ✅ Implemented |
+| 10 | [OC-080](OC-080-appliance-directory-target-host-folder.md) | All-in-one image: write directory targets to a folder on the user's computer | P0 | E11 Portable Runner | 5 | OC-038, OC-072, OC-074 | ✅ Implemented |
 
-### Phase 5 — Harden & ship 2.0 — ⬜ Planned (1/3 stories, 2/13 points)
+### Phase 5 — Harden & ship 2.0 — ✅ Done (3/3 stories, 13/13 points)
 
 _Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
 | 1 | [OC-078](OC-078-review-checks-up-front-no-start-dialog.md) | Review step: checks up front, Migrate starts without a dialog | P1 | E12 Harden & Ship 2.0 | 2 | OC-023 | ✅ Implemented |
-| 2 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | P0 | E12 Harden & Ship 2.0 | 3 | OC-036, OC-037, OC-055 | ⬜ Not started |
-| 3 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | P0 | E12 Harden & Ship 2.0 | 8 | All P0 stories | ⬜ Not started |
+| 2 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | P0 | E12 Harden & Ship 2.0 | 3 | OC-036, OC-037, OC-055 | ✅ Implemented |
+| 3 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | P0 | E12 Harden & Ship 2.0 | 8 | All P0 stories | ✅ Implemented |
+
+## Descoped
+
+Kept for reference; not counted in any total. Each story file says why.
+
+| ID | Story | Epic | Points |
+|---|---|---|---|
+| [OC-054](OC-054-kubernetes-execution-kit.md) | Kubernetes execution kit | E11 Portable Runner | 5 |
 
 ## Release checklist
 
 - [ ] All P0 stories are Implemented (and P1 stories are Implemented or explicitly descoped with sign-off)
-- [ ] CI green on `main`: lint, unit, integration, contract, E2E (including the kind-cluster runner suite)
+- [ ] CI green on `main`: lint, unit, integration, contract, E2E (including the exported-script runner suite)
 - [ ] OC-056 benchmarks pass every gate on the reference environment; results committed under `bench/results/`
 - [ ] Security review of exported-credential handling (OC-052) and directory path controls (OC-038) completed; no HIGH/CRITICAL vulnerabilities
 - [ ] 1.0 → 2.0 upgrade rehearsed on a copy of a 1.0 metadata bucket (OC-057)

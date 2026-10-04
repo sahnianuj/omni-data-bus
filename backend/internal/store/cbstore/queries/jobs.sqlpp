@@ -24,6 +24,15 @@ WHERE j.type = 'job' AND j.status IN $statuses
 ORDER BY j.createdAt, j.id
 LIMIT $limit
 
+-- name: ListClaimableJobs
+-- Worker-only, cross-workspace: queued jobs this worker's release can run (OC-057). Jobs
+-- written before 2.0 have no minWorkerLevel: every worker may claim them.
+SELECT RAW j
+FROM #{jobs} AS j
+WHERE j.type = 'job' AND j.status = 'queued' AND IFMISSINGORNULL(j.minWorkerLevel, 0) <= $level
+ORDER BY j.createdAt, j.id
+LIMIT $limit
+
 -- name: ListJobErrors
 -- tenant
 SELECT e.*

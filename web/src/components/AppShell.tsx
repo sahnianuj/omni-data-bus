@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet } from 'react-router'
 import { navItems } from '@/app/nav'
+import { useMaximized } from '@/lib/maximize'
 import { storage } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import { Breadcrumbs } from './Breadcrumbs'
@@ -20,6 +21,8 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
   const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState(() => storage.get(SIDEBAR_KEY) === 'true')
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // A maximized workbench takes the top bar's and footer's height.
+  const maximized = useMaximized()
 
   const toggle = () => {
     const next = !collapsed
@@ -89,7 +92,7 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-8">
+        <header hidden={maximized} className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-8">
           <Breadcrumbs />
           <div className="flex items-center gap-2">
             <button
@@ -107,7 +110,7 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
         <main id="main" className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
-        <BuildInfoFooter />
+        {maximized ? null : <BuildInfoFooter />}
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>

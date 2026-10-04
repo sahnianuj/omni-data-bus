@@ -108,6 +108,16 @@ func RunAccounts(t *testing.T, newStore Factory) {
 		require.NoError(t, err)
 		require.True(t, got.LastSeenAt.Equal(later))
 		require.True(t, got.ExpiresAt.Equal(sess.ExpiresAt), "touch keeps the absolute expiry")
+		require.Nil(t, got.StepUpAt)
+
+		// A password re-confirmation is recorded on the session (OC-052).
+		stepped := now.Add(11 * time.Minute)
+		require.NoError(t, s.Sessions().StepUp(ctx, sess.ID, stepped))
+		got, err = s.Sessions().Get(ctx, sess.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got.StepUpAt)
+		require.True(t, got.StepUpAt.Equal(stepped))
+		require.True(t, got.ExpiresAt.Equal(sess.ExpiresAt), "step-up keeps the absolute expiry")
 
 		clock.Advance(2 * time.Hour)
 		_, err = s.Sessions().Get(ctx, sess.ID)

@@ -16,6 +16,7 @@ setupMswServer()
 const mapping = (table: string, status: MappingSummary['status']): MappingSummary => ({
   id: `m-${table}`, sourceSchema: 'shop', sourceTable: table, mode: 'canvas', driving: { schema: 'shop', name: table }, target: { bucket: 'shop', scope: 'sales', collection: table },
   location: { kind: 'couchbase', bucket: 'shop', scope: 'sales', collection: table },
+  errors: 0, warnings: 0,
   status, stats: stats(), version: 1, updatedAt: new Date().toISOString(),
 })
 

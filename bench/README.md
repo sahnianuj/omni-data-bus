@@ -87,6 +87,41 @@ The node bootstrap scripts are in `infra/scripts/`. Wait for `http://<worker>:80
 - [ ] `odbbench --dataset standard --gate release` exits 0 in the reference environment.
 - [ ] `results/<run>.json` and `.md` are committed and linked from the release notes.
 
+## 2.0 scenarios (OC-056)
+
+The 2.0 gates ([architecture §7](../docs/release-2.0.0/00-architecture.md#7-additional-non-functional-requirements-release-gate-validated-by-oc-056)) are in [gates-2.0.0.json](gates-2.0.0.json). Each 2.0 scenario runs with `--gate integrity`, which checks for no loss and a passing verification. `odbbench gate` then judges the results against the file.
+
+| Scenario | Dataset | Shape | Gates |
+|---|---|---|---|
+| `directory` | `--dataset directory --directory /data/odb-out` | 2M flat rows, about 1 KB documents, written to a directory target with `durability: file` | G1 ≥ 15,000 files/s, G4a, G7a |
+| `nested` | `--dataset nested` | 500k orders, each embedding 10 items, each embedding its product (3 tables, 2 levels), written to Couchbase | G2 ≥ 8,000 docs/s, G4b, G7b |
+| `skewed-<strategy>` | `--dataset skewed --strategy batched\|sorted-merge` | 500k customers with all their orders: 5 each, or 500 for 1% of them | G4c, G7c |
+| `fanout-<strategy>` | `--dataset fanout --strategy batched\|sorted-merge` | 100k customers × 500 orders, 50M rows (OC-046 AC5) | G3 sorted-merge ≥ 1.5× batched, G4d, G7d |
+| `coldstart` | `odbbench coldstart --script <export>/migrate.sh` | Median of 5 `migrate.sh preflight` runs, after one untimed run so the binary is present | G5 < 5 s |
+| `standard` | `--dataset standard` (1.0) | OC-034's gating dataset | G6 within 5% of `results/1.0.0/standard.json` |
+
+The memory gates (G4) need the worker's RSS, so the worker must run on Linux. `--directory` is the path as the worker sees it; each run writes to a new `bench_<time>` folder under it.
+
+```bash
+cd bench
+A="--gate integrity --out results/2.0.0 --env reference=true"
+go run ./cmd/odbbench --dataset directory --directory /data/odb-out $A
+go run ./cmd/odbbench --dataset nested $A
+for s in batched sorted-merge; do go run ./cmd/odbbench --dataset skewed --strategy $s $A; done
+for s in batched sorted-merge; do go run ./cmd/odbbench --dataset fanout --strategy $s $A; done
+go run ./cmd/odbbench --dataset standard --gate release --out results/2.0.0 --env reference=true
+# Cold start: export any project with the binary runtime, then, next to its migrate.sh:
+ODB_BUNDLE_PASSPHRASE=... go run ./cmd/odbbench coldstart --script <export>/migrate.sh --out results/2.0.0 --env reference=true
+make -C .. bench-gate                          # exit 0 = every gate passed
+```
+
+To get a cold-start fixture against the dev stack without the UI, run `cd backend && ODB_COLDSTART_OUT=<dir> OC_IT_PG_HOST=localhost OC_IT_PG_PORT=5434 go test -tags=integration -run TestColdStartFixture ./internal/headless/`. It writes `migrate.sh` and `bundle.odb.json` for the golden orders project; build the matching `odb` with `go build -o <dir>/odb ./cmd/odb` and set `ODB_BIN=<dir>/odb`.
+
+`make bench-gate` judges only runs marked `--env reference=true` (`--reference-only`).
+- CI's `bench-gate` job reports gates that have no reference result yet as pending.
+- The release workflow fails on them: a release that has a `bench/gates-<version>.json` ships only when every gate has passed.
+- Local runs are indicative. Keep them under `results/2.0.0/local/` ([what they showed](results/2.0.0/local/README.md)).
+
 ## Profiles
 
 When `--pprof` points at the worker's `OC_PPROF_ADDR`, the harness saves `<run>-cpu.pprof` (30 s by default; see `--profile-seconds`) and `<run>-heap.pprof` next to the results. The profiles aren't committed. Open them with `go tool pprof -http=: <file>`. Never publish `OC_PPROF_ADDR` beyond the benchmark network.

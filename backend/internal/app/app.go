@@ -7,12 +7,16 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	"omnidatabus/internal/auth"
 	"omnidatabus/internal/buildinfo"
 	"omnidatabus/internal/config"
+	"omnidatabus/internal/connections"
+	"omnidatabus/internal/connectors/target/directory"
 	"omnidatabus/internal/crypto"
 	"omnidatabus/internal/httpapi"
 	"omnidatabus/internal/mapping"
@@ -49,7 +53,7 @@ func NewHandler(cfg config.Config, logger *slog.Logger, build BuildInfo, deps De
 // versionHandler serves /api/v1/version from the node registry when a store is wired (OC-058).
 func versionHandler(cfg config.Config, logger *slog.Logger, build BuildInfo, deps Deps) http.Handler {
 	h := &httpapi.VersionHandler{
-		Info: build, Expose: cfg.ExposeBuildInfo, Role: cfg.Role, Logger: logger,
+		Info: build, Expose: cfg.ExposeBuildInfo, Role: cfg.Role, Logger: logger, BundledStore: cfg.Bundled.Store,
 		Authenticated: func(r *http.Request) bool { _, ok := auth.PrincipalFrom(r.Context()); return ok },
 	}
 	if deps.Store != nil {
@@ -146,6 +150,15 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 	return run(ctx, cfg, logger, build, CouchbaseOpener)
 }
 
+// memoryLimit is the soft memory limit to set: OC_MEMORY_LIMIT_MB, unless it's 0 or the
+// runtime's own GOMEMLIMIT is set.
+func memoryLimit(mb int, getenv func(string) string) (int64, bool) {
+	if mb <= 0 || getenv("GOMEMLIMIT") != "" {
+		return 0, false
+	}
+	return int64(mb) << 20, true
+}
+
 // run is Run with the metadata store's opener (tests substitute a fake).
 func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build BuildInfo, open Opener) error {
 	keyring, err := crypto.ParseKeyring(cfg.MasterKey, cfg.MasterKeys, cfg.MasterKeyActive)
@@ -159,6 +172,10 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 	netguard.SetDefault(netguard.NewDialer(policy))
 	mapping.SetMaxRelationDepth(cfg.Worker.MaxRelationDepth)
 	related.SetMemoryLimitMB(cfg.Worker.RelationMemoryMB)
+	if limit, ok := memoryLimit(cfg.Worker.MemoryLimitMB, os.Getenv); ok {
+		debug.SetMemoryLimit(limit)
+		logger.Info("memory limit", "mb", cfg.Worker.MemoryLimitMB)
+	}
 	logger.Info("egress policy", "allow_private_networks", policy.AllowPrivateNetworks, "allow", len(policy.Allow), "deny", len(policy.Deny))
 	flush, err := observability.SetupTracing(ctx, observability.TracingConfig{
 		Endpoint: cfg.Observe.OTLPEndpoint, SampleRatio: cfg.Observe.SampleRatio, Version: build.Version,
@@ -187,7 +204,7 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 	if err != nil {
 		return err
 	}
-	sources, targets := Registries(nil)
+	sources, targets := Registries(nil, directory.Options{Shared: DirectoryShared(cfg), ContainerOnly: cfg.Directory.ContainerOnly})
 	sealer := crypto.NewLocalSealer(keyring)
 	// Workers claim and run migration jobs (OC-023); API-only nodes don't.
 	workerDone := make(chan struct{})
@@ -205,9 +222,14 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 		Auth:      authSvc,
 		Cookies:   auth.CookieSettings{Secure: cfg.Session.CookieSecure, MaxAge: cfg.Session.AbsoluteTTL},
 		PublicURL: cfg.PublicURL,
-		Sources:   sources,
-		Targets:   targets,
-		Ready:     map[string]httpapi.Pinger{"metadata": meta},
+		Bundled: connections.Bundled{
+			ConnStr: cfg.Bundled.Target, Username: cfg.Bundled.TargetUsername, Password: cfg.Bundled.TargetPassword, Buckets: cfg.Bundled.TargetBuckets,
+		},
+		Sources: sources,
+		Targets: targets,
+		Ready:   map[string]httpapi.Pinger{"metadata": meta},
+		Export:  cfg.Export,
+		Version: build.Version,
 	})
 }
 
@@ -256,4 +278,21 @@ func jobCounts(st store.Store) observability.JobLister {
 		}
 		return out, nil
 	}
+}
+
+// DirectoryShared parses OC_DIRECTORY_SHARED ("<container path>=<computer path>" pairs) for the
+// directory connector (OC-080); a pair without "=" shares a folder under the same path.
+func DirectoryShared(cfg config.Config) []directory.Shared {
+	var out []directory.Shared
+	for _, p := range cfg.Directory.Shared {
+		in, host, found := strings.Cut(strings.TrimSpace(p), "=")
+		if in == "" {
+			continue
+		}
+		if !found || host == "" {
+			host = in
+		}
+		out = append(out, directory.Shared{Path: in, HostPath: host})
+	}
+	return out
 }

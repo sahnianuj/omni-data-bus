@@ -11,7 +11,8 @@ import { expandForeignKey, nodeOf, OpError, singularName, type ForeignKey } from
 /**
  * "Embed products here…" (OC-064): replaces a foreign-key field (productId) with the object it
  * refers to, or adds the object alongside it, bound many-to-one through the key, with fields
- * from the chosen columns; the caller auto-maps the new object's scope.
+ * from the chosen columns; the caller auto-maps the new object's scope. Replacing is the default
+ * and keeps the key in the object (OC-082), so it appears once.
  */
 export function EmbedKeyDialog({ fieldId, fk, onClose, onDone }: { fieldId: string; fk: ForeignKey; onClose: () => void; onDone: (objectId: string) => void }) {
   const { t } = useTranslation()
@@ -20,19 +21,25 @@ export function EmbedKeyDialog({ fieldId, fk, onClose, onDone }: { fieldId: stri
   const apply = useWorkbench((s) => s.apply)
   const table = useSourceTable(`${view.projectId}::source`, fk.table.schema, fk.table.name)
   const field = nodeOf(spec, fieldId)
-  // The customer's design has the key field: keep it, or the documents lose it (OC-071).
+  // The customer's design has the key field: say it moves into the object (OC-071, OC-082).
   const inDesign = (() => {
     const path = pathsById(spec.docSchema).get(fieldId)
     return !!path && !!spec.docSchema.imported?.fields?.some((f) => f.path === path)
   })()
-  const [mode, setMode] = useState<'replace' | 'alongside'>(inDesign ? 'alongside' : 'replace')
+  const [mode, setModeState] = useState<'replace' | 'alongside'>('replace')
   const [name, setName] = useState(singularName(fk.table.name))
   const [picked, setPicked] = useState<string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
   const columns = table.data?.columns ?? []
-  // By default every column but the key itself (the id is the field being expanded).
-  const chosen = picked ?? columns.map((c) => c.name).filter((c) => !fk.join.some((j) => j.child === c))
+  // The key column lives in the object when it replaces the field, and stays out of it when the
+  // field is kept alongside (it would be there twice).
+  const isKey = (c: string) => fk.join.some((j) => j.child === c)
+  const chosen = picked ?? columns.map((c) => c.name).filter((c) => mode === 'replace' || !isKey(c))
+  const setMode = (m: 'replace' | 'alongside') => {
+    setModeState(m)
+    if (picked) setPicked(m === 'replace' ? [...new Set([...picked, ...columns.map((c) => c.name).filter(isKey)])] : picked.filter((c) => !isKey(c)))
+  }
 
   const submit = () => {
     try {
@@ -66,7 +73,7 @@ export function EmbedKeyDialog({ fieldId, fk, onClose, onDone }: { fieldId: stri
             <input type="radio" name="embed-mode" checked={mode === 'alongside'} onChange={() => setMode('alongside')} />
             {t('composer.embedKey.alongside', { field: field?.name ?? '' })}
           </label>
-          {inDesign ? <p className={mode === 'replace' ? 'text-xs text-warning' : 'text-xs text-muted'}>{t('composer.embedKey.inDesign', { field: field?.name ?? '' })}</p> : null}
+          {inDesign && mode === 'replace' ? <p className="text-xs text-muted">{t('composer.embedKey.inDesign', { field: field?.name ?? '' })}</p> : null}
         </fieldset>
         <label htmlFor={nameId} className="flex flex-col gap-1 text-xs font-medium text-muted">
           {t('composer.embedKey.name')}

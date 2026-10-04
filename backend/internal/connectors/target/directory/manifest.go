@@ -2,14 +2,12 @@ package directory
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -84,50 +82,6 @@ func (m *fragment) flush() error {
 func (m *fragment) close() error {
 	err := m.flush()
 	return errors.Join(err, m.f.Close())
-}
-
-// MergeManifest folds a mapping's fragments into its manifest: deduplicated by key (the last
-// write wins: the merged file, then fragments in writer order, since writer IDs sort by time),
-// sorted by key, replaced atomically; the fragments are then removed (OC-039 AC4).
-func MergeManifest(root, mapping string) (int, error) {
-	dir := filepath.Join(root, odbDir, manifestDir)
-	frags, err := filepath.Glob(filepath.Join(dir, mapping+"-*.jsonl"))
-	if err != nil {
-		return 0, err
-	}
-	sort.Strings(frags)
-	merged := manifestPath(root, mapping)
-	byKey := map[string]ManifestLine{}
-	for _, f := range append([]string{merged}, frags...) {
-		if err := readLines(f, func(l ManifestLine) { byKey[l.Key] = l }); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return 0, err
-		}
-	}
-	if len(frags) == 0 {
-		return len(byKey), nil
-	}
-	keys := make([]string, 0, len(byKey))
-	for k := range byKey {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var buf bytes.Buffer
-	for _, k := range keys {
-		b, _ := json.Marshal(byKey[k])
-		buf.Write(b)
-		buf.WriteByte('\n')
-	}
-	tmp := merged + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o640); err != nil { //nolint:gosec // shared with the output's readers
-		return 0, err
-	}
-	if err := os.Rename(tmp, merged); err != nil {
-		return 0, err
-	}
-	for _, f := range frags {
-		_ = os.Remove(f)
-	}
-	return len(keys), nil
 }
 
 // readLines calls fn for each line of a manifest file.

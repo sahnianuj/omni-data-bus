@@ -17,7 +17,7 @@ LDFLAGS := -s -w -X $(BUILDINFO).version=$(VERSION) -X $(BUILDINFO).commit=$(COM
 HELM_IMAGE := alpine/helm:3.18.4
 HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:latest
 
-.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-bench coverage build image image-test helm-test e2e bench bench-smoke index
+.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist test-scripts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -70,6 +70,9 @@ test-budgets: ## Performance budget tests, uninstrumented (they skip under -race
 test-web: ## Web unit tests with coverage
 	cd web && npm run test:coverage
 
+
+test-integration-ce: ## Go integration tests against Couchbase Server CE, as bundled in the all-in-one image (needs make dev-stack for PostgreSQL)
+	scripts/integration-ce.sh
 test-bench: ## Benchmark harness unit tests (bench/, OC-034)
 	cd bench && go vet ./... && go test -race ./...
 
@@ -84,6 +87,12 @@ build: ## Build the web app and a single Go binary with the SPA embedded
 	cd backend && CGO_ENABLED=0 go build -tags embedspa -trimpath -ldflags "$(LDFLAGS)" -o bin/odb ./cmd/odb
 	cd backend && go test -tags embedspa -count=1 -run TestEmbeddedSPA ./internal/httpapi
 
+dist: ## Build the odb runner for linux/darwin × amd64/arm64: dist/odb/*.tar.gz + SHA256SUMS (OC-051)
+	VERSION=$(VERSION) LDFLAGS="$(LDFLAGS)" scripts/dist.sh
+
+test-scripts: ## migrate.sh checks: shellcheck on every variant and the bats suites (ODB_TEST_BASH=/bin/bash for 3.2)
+	cd backend && go test -count=1 -run 'TestScriptTemplate|TestMigrateScript_Bats' ./internal/export/
+
 image: ## Build the container image (IMAGE=omni-data-bus:<version>)
 	docker build -f deploy/docker/Dockerfile --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_TIME=$(BUILD_TIME) --build-arg CHANNEL=$(CHANNEL) -t $(IMAGE) .
@@ -93,6 +102,25 @@ image-test: image ## Check the image: user, entrypoint, files, commands, size < 
 		gcr.io/gcp-runtimes/container-structure-test:latest test --image $(IMAGE) --config /cfg/structure-test.yaml
 	@size=$$(docker image inspect $(IMAGE) --format '{{.Size}}'); echo "image size: $$size bytes"; \
 		test $$size -lt 41943040 || (echo "image is larger than 40 MB" && exit 1)
+
+# ─── All-in-one image: app + Couchbase Server CE (OC-072 – OC-074) ──────────────
+ARCH ?= $(shell uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
+APPLIANCE ?= omni-data-bus-appliance
+APPLIANCE_ENV = VERSION=$(VERSION) COMMIT=$(COMMIT) BUILD_TIME=$(BUILD_TIME) CHANNEL=$(CHANNEL) APPLIANCE=$(APPLIANCE)
+
+appliance: ## Build the all-in-one image (app + Couchbase CE) for ARCH=amd64|arm64 (default: this machine)
+	$(APPLIANCE_ENV) scripts/appliance.sh build $(ARCH)
+
+appliance-save: ## Package the all-in-one image to share: dist/appliance/*.tar.gz + checksum + run kit (ARCH=…|all)
+	$(APPLIANCE_ENV) scripts/appliance.sh save $(ARCH)
+
+appliance-push: ## Push the all-in-one image for amd64 and arm64 to REGISTRY=<registry/namespace>
+	$(APPLIANCE_ENV) scripts/appliance.sh push $(REGISTRY)
+
+appliance-test: appliance ## Check the all-in-one image: structure, then a full start/stop/restart smoke test
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$(CURDIR)/deploy/appliance:/cfg" \
+		gcr.io/gcp-runtimes/container-structure-test:latest test --image $(APPLIANCE):$(VERSION) --config /cfg/structure-test.yaml
+	IMAGE=$(APPLIANCE):$(VERSION) deploy/appliance/test/smoke.sh
 
 helm-test: ## Lint the Helm chart and run its unit tests (via Docker)
 	docker run --rm -v "$(CURDIR)/deploy/helm:/apps" -w /apps $(HELM_IMAGE) lint omni-data-bus --strict \
@@ -110,6 +138,10 @@ GATE ?= release
 BENCH_OUT ?= results
 bench: ## Benchmark against a running stack: make bench DATASET=standard GATE=release (see bench/README.md)
 	cd bench && go run ./cmd/odbbench --dataset $(DATASET) --gate $(GATE) --out $(BENCH_OUT) $(BENCH_ARGS)
+
+RELEASE ?= 2.0.0
+bench-gate: ## Judge the committed reference results against bench/gates-$(RELEASE).json (OC-056)
+	cd bench && go run ./cmd/odbbench gate --reference-only --gates gates-$(RELEASE).json --results results/$(RELEASE) $(BENCH_GATE_ARGS)
 
 bench-smoke: ## Nightly smoke benchmark against the e2e stack: integrity gates + 20% regression check
 	cd bench && go run ./cmd/odbbench --dataset smoke --gate integrity --regression-window 7 --regression-tolerance 0.2 \

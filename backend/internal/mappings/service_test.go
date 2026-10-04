@@ -322,6 +322,28 @@ func TestValidate_TargetKeyspaceAndCompileIssues(t *testing.T) {
 	require.Equal(t, mapping.CodeTransformInvalid, saved.Issues[0].Code)
 }
 
+// OC-083: the list says why a mapping isn't ready.
+func TestList_OC083_ErrorSummary(t *testing.T) {
+	f := newFixture(t, true)
+	v := f.create(t, "customer")
+	list, err := f.svc.List(ctx, ws, f.project)
+	require.NoError(t, err)
+	require.Equal(t, mapping.StatusReady, list[0].Status)
+	require.Zero(t, list[0].Errors)
+	require.Nil(t, list[0].FirstError)
+
+	spec := v.Spec
+	spec.FieldMappings[1].Transforms = []mapping.Step{{Op: "replace", Args: map[string]any{"pattern": "(", "regex": true}}}
+	_, err = f.svc.Update(ctx, ws, "u1", f.project, v.ID, 0, UpdateInput{Spec: spec})
+	require.NoError(t, err)
+	list, err = f.svc.List(ctx, ws, f.project)
+	require.NoError(t, err)
+	require.Equal(t, mapping.StatusDraft, list[0].Status)
+	require.Equal(t, 1, list[0].Errors)
+	require.Equal(t, mapping.CodeTransformInvalid, list[0].FirstError.Code)
+	require.NotEmpty(t, list[0].FirstError.Message)
+}
+
 // --- Preview (OC-022) ---
 
 func customerRows() [][]any {
@@ -650,4 +672,19 @@ func TestMappings_UpdateAuditIsThrottledPerMapping(t *testing.T) {
 	_, err := f.svc.Update(ctx, ws, "u1", f.project, v.ID, v.Version, UpdateInput{Spec: v.Spec})
 	require.NoError(t, err)
 	require.Equal(t, 2, count())
+}
+
+// TestMappings_OC057_NewerSpecVersionRefused: a mapping saved by a newer release isn't read (or
+// rewritten) by this one: 409 MAPPING_NEWER_VERSION.
+func TestMappings_OC057_NewerSpecVersionRefused(t *testing.T) {
+	f := newFixture(t, true)
+	v := f.create(t, "customer")
+	m, err := f.st.Mappings().Get(ctx, ws, v.ID)
+	require.NoError(t, err)
+	m.Spec = json.RawMessage(`{"specVersion":3,"mode":"canvas","somethingNew":true}`)
+	_, err = f.st.Mappings().Update(ctx, ws, m)
+	require.NoError(t, err)
+	_, err = f.svc.Get(ctx, ws, f.project, v.ID)
+	require.True(t, problem.HasCode(err, problem.CodeMappingNewerVersion), "%v", err)
+	require.Contains(t, err.Error(), "spec version 3")
 }

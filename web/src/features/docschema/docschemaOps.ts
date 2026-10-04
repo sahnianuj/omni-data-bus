@@ -154,6 +154,28 @@ export function addField(schema: DocSchema, parentId: string, name: string, type
   return { schema: next, id: created!.id }
 }
 
+/** An object that takes new fields: the field itself, or an array of objects' item object. */
+export function fieldContainer(f: DocField | undefined): DocField | undefined {
+  if (f?.type === 'object') return f
+  if (f?.type === 'array' && f.items?.type === 'object') return f.items
+  return undefined
+}
+
+/**
+ * Where "Add field" puts a new field (OC-081): inside the selected object or array of objects
+ * (at the end), right after any other selected field, or at the end of the root. `label` names
+ * the container for the button ("" at the root); an item object goes by its array's name.
+ */
+export function insertionPoint(schema: DocSchema, selectedId?: string | null): { parentId: string; index?: number; label: string } {
+  const refs = walk(schema)
+  const labelOf = (c: DocField): string => (c.id === schema.root.id ? '' : (refs.find((r) => r.field.items?.id === c.id)?.field.name ?? c.name))
+  const ref = selectedId ? refs.find((r) => r.field.id === selectedId) : undefined
+  if (!ref) return { parentId: schema.root.id, label: '' }
+  const into = fieldContainer(ref.field)
+  if (into) return { parentId: into.id, label: labelOf(into) }
+  return { parentId: ref.parent.id, index: ref.index + 1, label: labelOf(ref.parent) }
+}
+
 export function rename(schema: DocSchema, id: string, name: string): DocSchema {
   checkName(name)
   if (siblingsOf(schema, id).some((s) => s.id !== id && s.name === name)) {
@@ -209,6 +231,24 @@ export function move(schema: DocSchema, id: string, parentId: string, index: num
     kids.splice(Math.max(0, Math.min(adj, kids.length)), 0, ref.field)
     return { ...p, children: kids }
   })
+}
+
+export type DropPos = 'before' | 'after' | 'inside'
+
+/**
+ * Moves a field where a drag dropped it: beside another field, or inside an object (or an
+ * array's item object), at the end. Dropping on the root or an array's item row goes inside.
+ */
+export function moveRelative(schema: DocSchema, id: string, targetId: string, pos: DropPos): DocSchema {
+  if (id === targetId) return schema
+  const ref = targetId === schema.root.id ? undefined : findField(schema, targetId)
+  if (pos === 'inside' || !ref || ref.index < 0) {
+    const t = ref ? ref.field : schema.root
+    const into = t.type === 'array' ? t.items : t
+    if (!into || into.type !== 'object') throw new OpError('Fields can only be moved into objects.')
+    return move(schema, id, into.id, into.children?.length ?? 0)
+  }
+  return move(schema, id, ref.parent.id, ref.index + (pos === 'after' ? 1 : 0))
 }
 
 /** Groups sibling fields into a new object (placed where the first one was). */

@@ -1,0 +1,32 @@
+{
+  "dataset": "coldstart",
+  "scenario": "coldstart",
+  "description": "migrate.sh preflight with the binary present",
+  "rows": 0,
+  "startedAt": "2026-10-03T06:30:15.348899Z",
+  "finishedAt": "2026-10-03T06:30:17.590732Z",
+  "durationSeconds": 2.241833,
+  "serverVersion": "",
+  "serverCommit": "",
+  "jobId": "",
+  "jobStatus": "completed",
+  "jobOptions": null,
+  "environment": {
+    "harness": "darwin/amd64, 10 CPU",
+    "host": "10-CPU laptop (macOS, bash 3.2)",
+    "reference": "false",
+    "runtime": "binary"
+  },
+  "averageDocsPerSec": 0,
+  "measured": {
+    "sustainedDocsPerSec": 0,
+    "peakRssBytes": 0,
+    "progressLatencyP95Ns": 0,
+    "progressEvents": 0,
+    "sourceRows": 0,
+    "written": 0,
+    "verification": ""
+  },
+  "coldStartSeconds": 0.445387334,
+  "samples": null
+}

@@ -2,7 +2,9 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E11 Portable Runner | P0 | 5 | OC-053 | Not started |
+| E11 Portable Runner | P0 | 5 | OC-053 | Descoped |
+
+> **Descoped (2026-10-01):** product decision, this kit won't be built for 2.0. The exported `migrate.sh` (OC-053) and the all-in-one image (OC-072 – OC-074) cover running migrations outside the tool. Kept for reference; dependent stories no longer rely on it.
 
 ## User story
 As a **platform engineer**, I want the exported migration to run as a Kubernetes Job that writes JSON documents to a persistent volume (or loads a database), restarts safely from its checkpoint, and reports progress as JSON in its logs, so that we can run production migrations inside our cluster, close to the data.

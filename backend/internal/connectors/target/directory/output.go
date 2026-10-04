@@ -2,6 +2,7 @@ package directory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"net/http"
@@ -68,31 +69,49 @@ func (c *Connector) ListOutput(ctx context.Context, conn target.Conn, loc target
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	var all []target.OutputItem
-	lines, err := ReadManifest(root, mappingID)
-	switch {
-	case err == nil:
-		for _, l := range lines {
-			all = append(all, target.OutputItem{Key: l.Key, Path: l.Path, Bytes: l.Bytes})
+	// The merged manifest is sorted by key: read past the cursor and stop after a page.
+	var page []target.OutputItem
+	err = scanManifest(manifestPath(root, mappingID), func(key string, raw []byte) error {
+		if cursor != "" && key <= cursor {
+			return nil
 		}
-	case errors.Is(err, os.ErrNotExist):
-		if all, err = walkOutput(ctx, cfg, root, dir); err != nil {
-			return nil, "", err
+		var l ManifestLine
+		if err := json.Unmarshal(raw, &l); err != nil {
+			return nil //nolint:nilerr // a torn line is skipped, as readLines does
 		}
-	default:
+		page = append(page, target.OutputItem{Key: l.Key, Path: l.Path, Bytes: l.Bytes})
+		if len(page) > limit {
+			return errPageFull
+		}
+		return nil
+	})
+	if errors.Is(err, errPageFull) {
+		err = nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		all, werr := walkOutput(ctx, cfg, root, dir)
+		if werr != nil {
+			return nil, "", werr
+		}
+		i := 0
+		if cursor != "" {
+			i = sort.Search(len(all), func(i int) bool { return all[i].Key > cursor })
+		}
+		page, err = all[i:min(i+limit+1, len(all))], nil
+	}
+	if err != nil {
 		return nil, "", err
 	}
-	i := sort.Search(len(all), func(i int) bool { return all[i].Key > cursor })
-	if cursor == "" {
-		i = 0
-	}
-	page := all[i:min(i+limit, len(all))]
 	next := ""
-	if i+limit < len(all) {
-		next = page[len(page)-1].Key
+	if len(page) > limit {
+		page = page[:limit]
+		next = page[limit-1].Key
 	}
 	return append([]target.OutputItem{}, page...), next, nil
 }
+
+// errPageFull stops reading the manifest once a page (and one more line) is read.
+var errPageFull = errors.New("page full")
 
 // walkOutput lists a folder's document files, keys decoded from their names.
 func walkOutput(ctx context.Context, cfg Config, root, dir string) ([]target.OutputItem, error) {

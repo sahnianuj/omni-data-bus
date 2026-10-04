@@ -136,7 +136,7 @@ func TestAddEmbed_ManyToOne_MovesKeyIntoObject(t *testing.T) {
 	}
 	require.ElementsMatch(t, []string{"customer_id", "name", "total"}, embedded)
 
-	// The root's foreign key is unmapped; its field stays, and the other root mappings are kept.
+	// The root's foreign key is unmapped and its field removed (OC-082); the other root mappings are kept.
 	require.False(t, rootField(got, "customer_id"))
 	require.True(t, rootField(got, "order_id"))
 	require.True(t, rootField(got, "total"))
@@ -144,13 +144,39 @@ func TestAddEmbed_ManyToOne_MovesKeyIntoObject(t *testing.T) {
 	for _, c := range got.DocSchema.Root.Children {
 		rootNames = append(rootNames, c.Name)
 	}
-	require.Contains(t, rootNames, "customerId")
+	require.NotContains(t, rootNames, "customerId")
+	require.Contains(t, rootNames, "orderId")
 
 	// The score doesn't count the unmapped foreign key; the embedded key counts as mapped.
 	st := mapping.ComputeStatsWith(&got, []string{"order_id", "customer_id", "order_date", "total"}, map[string][]string{e.ID: {"customer_id", "name", "total"}})
 	require.Equal(t, 3, st.TotalSourceColumns)
 	require.Zero(t, st.UnmappedSource)
 	require.Equal(t, &mapping.EmbeddedStats{Tables: 1, TotalColumns: 3, AutoMapped: 3}, st.Embedded)
+}
+
+// OC-082: a key field that something else still fills (here, an expression combining the key with
+// another column) stays when the key moves into the embedded object.
+func TestAddEmbed_KeyFieldWithOtherMappingsStays_OC082(t *testing.T) {
+	customer, orders := embedTables()
+	spec := mapping.Spec{DocSchema: docschema.FromTable(orders, docschema.GenerateOptions{}), Key: mapping.KeySpec{Template: "order::{order_id}"}}
+	spec.Normalize()
+	spec.FieldMappings = Run(&spec, Columns(orders), Options{}).FieldMappings
+	var keyField string
+	for i, m := range spec.FieldMappings {
+		if len(m.Sources) == 1 && m.Sources[0].Column == "customer_id" {
+			keyField = m.TargetFieldID
+			spec.FieldMappings[i].Sources = append(spec.FieldMappings[i].Sources, mapping.SourceRef{Column: "order_id"})
+		}
+	}
+	require.NotEmpty(t, keyField)
+
+	in := EmbedInput{
+		Kind: mapping.EmbedManyToOne, Table: mapping.TableRef{Schema: "shop", Name: "customer"},
+		Join: []mapping.JoinPair{{Parent: "customer_id", Child: "customer_id"}}, TargetName: "customer", Generate: true,
+	}
+	got, _, _, err := AddEmbed(spec, customer, in, docschema.GenerateOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.DocSchema.Find(keyField), "a field combining the key with another column stays")
 }
 
 // OC-069: in a grouped mapping the canvas nests a per-row relation under the group's rows, so

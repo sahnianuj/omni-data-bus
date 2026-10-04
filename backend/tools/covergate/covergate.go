@@ -35,7 +35,7 @@ func DefaultThresholds() Thresholds {
 			"internal/transform": 90,
 			"internal/pipeline":  90,
 		},
-		Exclude: append([]string{"/cmd/", "/tools/", "/gen", "storetest", "/devseed"}, IntegrationGated...),
+		Exclude: append([]string{"/cmd/", "/tools/", "/gen", "storetest", "exporttest", "/devseed"}, IntegrationGated...),
 	}
 }
 

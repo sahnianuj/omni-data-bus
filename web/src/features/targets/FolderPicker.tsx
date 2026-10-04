@@ -1,4 +1,4 @@
-import { ArrowUp, ChevronRight, Folder, FolderOpen, FolderPlus, HardDrive } from 'lucide-react'
+import { AlertTriangle, ArrowUp, Box, ChevronRight, Folder, FolderOpen, FolderPlus, HardDrive, Laptop } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -6,7 +6,10 @@ import { ErrorState } from '@/components/ErrorState'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useFolders, useMakeFolder } from './kinds'
+import { useFolders, useMakeFolder, useSharedFolder } from './kinds'
+
+/** An area's icon: the user's computer, the container only, or the server's own disk (OC-080). */
+const areaIcon = (where?: string) => (where === 'computer' ? Laptop : where === 'container' ? Box : HardDrive)
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void; initialPath?: string; onPick: (path: string) => void }
 
@@ -22,6 +25,7 @@ export function FolderPicker({ open, onOpenChange, initialPath = '', onPick }: P
   const [newName, setNewName] = useState<string | null>(null)
   const listing = useFolders(path, open)
   const make = useMakeFolder()
+  const shared = useSharedFolder()
   const create = () => {
     if (newName === null || !validName(newName)) return
     make.mutate({ parent: path, name: newName.trim() }, { onSuccess: (r) => { setNewName(null); setPath(r.path) } })
@@ -32,7 +36,7 @@ export function FolderPicker({ open, onOpenChange, initialPath = '', onPick }: P
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{t('dir.picker.title')}</DialogTitle>
-          <DialogDescription>{t('dir.picker.description')}</DialogDescription>
+          <DialogDescription>{shared ? t('dir.picker.descriptionShared', { host: shared.hostPath }) : t('dir.picker.description')}</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" aria-label={t('dir.picker.up')} disabled={!path} onClick={() => setPath(listing.data?.parent ?? '')}>
@@ -52,6 +56,13 @@ export function FolderPicker({ open, onOpenChange, initialPath = '', onPick }: P
             ))}
           </nav>
         </div>
+        {!path && listing.data?.folders.some((f) => f.where === 'container') ? (
+          // All-in-one image with no shared folder: files would stay inside the container (OC-080).
+          <p role="note" className="flex items-start gap-2 rounded-md bg-warning-soft px-3 py-2 text-xs text-warning">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            {t('dir.picker.containerOnly')}
+          </p>
+        ) : null}
         <div className="h-72 overflow-y-auto rounded-[var(--radius-card)] border border-border">
           <AsyncBoundary query={listing}>
             {(l) =>
@@ -59,15 +70,25 @@ export function FolderPicker({ open, onOpenChange, initialPath = '', onPick }: P
                 <p className="p-4 text-[13px] text-muted">{t('dir.picker.empty')}</p>
               ) : (
                 <ul aria-label={t('dir.picker.folders')} className="divide-y divide-border">
-                  {l.folders.map((f) => (
-                    <li key={f.path}>
-                      <button type="button" onClick={() => setPath(f.path)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-muted">
-                        {l.path ? <Folder className="size-4 shrink-0 text-muted" aria-hidden /> : <HardDrive className="size-4 shrink-0 text-muted" aria-hidden />}
-                        <span className="flex-1 truncate">{f.name}</span>
-                        <ChevronRight className="size-3.5 text-subtle" aria-hidden />
-                      </button>
-                    </li>
-                  ))}
+                  {l.folders.map((f) => {
+                    const Icon = l.path ? Folder : areaIcon(f.where)
+                    return (
+                      <li key={f.path}>
+                        <button type="button" onClick={() => setPath(f.path)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-muted">
+                          <Icon className="size-4 shrink-0 text-muted" aria-hidden />
+                          {f.label ? (
+                            <span className="flex min-w-0 flex-1 flex-col">
+                              <span className="truncate">{f.label}</span>
+                              <span className="truncate font-mono text-xs text-muted">{f.path}</span>
+                            </span>
+                          ) : (
+                            <span className="flex-1 truncate">{f.name}</span>
+                          )}
+                          <ChevronRight className="size-3.5 text-subtle" aria-hidden />
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               )
             }
@@ -98,7 +119,10 @@ export function FolderPicker({ open, onOpenChange, initialPath = '', onPick }: P
         <DialogFooter className="items-center sm:justify-between">
           <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted">
             <FolderOpen className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">{path || t('dir.picker.noneYet')}</span>
+            <span className="truncate" title={listing.data?.hostPath ? t('dir.onComputer', { host: listing.data.hostPath }) : undefined}>
+              {path || t('dir.picker.noneYet')}
+              {path && listing.data?.hostPath ? <span className="font-sans"> · {t('dir.onComputer', { host: listing.data.hostPath })}</span> : null}
+            </span>
           </span>
           <Button disabled={!path} onClick={() => { onPick(path); onOpenChange(false) }}>
             {t('dir.picker.use')}

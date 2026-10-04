@@ -1,4 +1,4 @@
-import { ArrowRight, Lock } from 'lucide-react'
+import { ArrowRight, Box, Lock } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -12,8 +12,9 @@ import { hasRole } from '@/features/auth/Can'
 import { useSession } from '@/features/auth/api'
 import { useProjectConnections, type Project } from '@/features/projects/api'
 import { ApiError } from '@/lib/api/client'
+import { useBundledTarget } from '@/features/targets/kinds'
 import { TargetKindPicker } from '@/features/targets/TargetKindPicker'
-import { useSaveConnection, useTestStored, useTestUnsaved } from './api'
+import { useSaveBundled, useSaveConnection, useTestStored, useTestUnsaved } from './api'
 import { CapabilitiesCard, type Capabilities } from './CapabilitiesCard'
 import { ConnectorPicker } from './ConnectorPicker'
 import { connectionUIs } from './registry'
@@ -21,6 +22,7 @@ import { RelocateDialog, type Relocate } from './RelocateDialog'
 import { RepositorySummary } from './RepositorySummary'
 import { TestChecklist, type TestResult } from './TestChecklist'
 import type { Connection, ConnectionPayload } from './types'
+import { HelpLink } from '@/components/HelpLink'
 
 type Role = 'source' | 'target'
 
@@ -47,8 +49,10 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
   const testUnsaved = useTestUnsaved(role)
   const save = useSaveConnection(project.id, role)
   const testStored = useTestStored(project.id)
+  const bundled = useBundledTarget()
+  const saveBundled = useSaveBundled(project.id)
   const ui = type ? connectionUIs[type] : undefined
-  const error = testUnsaved.error ?? (moving ? null : save.error) ?? testStored.error
+  const error = testUnsaved.error ?? (moving ? null : save.error) ?? testStored.error ?? saveBundled.error
   const roleLabel = t(role === 'source' ? 'repo.sourceRole' : 'repo.targetRole')
 
   const runTest = (payload: ConnectionPayload) => {
@@ -73,6 +77,15 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
       },
     )
   }
+  const applyBundled = () =>
+    saveBundled.mutate(undefined, {
+      onSuccess: ({ result: r }) => {
+        setType('couchbase')
+        setResult({ result: r, saved: true, at: new Date().toISOString() })
+        setEditing(false)
+        toast.success(t('repo.saved', { role: roleLabel }))
+      },
+    })
   const requestSave = (payload: ConnectionPayload) => (result?.result.ok && !result.saved ? doSave(payload) : setPending(payload))
 
   if (!existing && !canEdit) {
@@ -91,7 +104,10 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
       <div className="flex flex-1 flex-col gap-5 px-8 py-7 xl:flex-row xl:gap-7">
         <div className="flex w-full max-w-[560px] flex-col gap-5">
           <div className="flex flex-col gap-1.5">
-            <h2 className="text-lg font-semibold">{t(role === 'source' ? 'repo.sourceTitle' : 'repo.targetTitle')}</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-lg font-semibold">{t(role === 'source' ? 'repo.sourceTitle' : 'repo.targetTitle')}</h2>
+              {role === 'target' && type === 'directory' ? <HelpLink topic="directoryTarget" /> : null}
+            </div>
             <p className="text-[13px] text-muted">
               {t('repo.intro')} {role === 'source' ? t('repo.sourceIntroExtra') : null}
             </p>
@@ -99,7 +115,19 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
           {editing || !existing ? (
             <>
               {role === 'target' ? (
-                <TargetKindPicker value={type} onChange={(v) => { setType(v); setResult(null) }} />
+                <>
+                  <TargetKindPicker value={type} onChange={(v) => { setType(v); setResult(null) }} />
+                  {bundled && type === 'couchbase' ? (
+                    // The all-in-one image's own Couchbase: no address or password to type (OC-072).
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <Button variant="secondary" size="sm" title={t('repo.bundledHint', { buckets: bundled.buckets.join(', ') })} loading={saveBundled.isPending} onClick={applyBundled}>
+                        <Box aria-hidden />
+                        {t('repo.useBundled')}
+                      </Button>
+                      <span className="text-muted">{t('repo.orEnter')}</span>
+                    </div>
+                  ) : null}
+                </>
               ) : !existing ? (
                 <ConnectorPicker role={role} value={type} onChange={(v) => { setType(v); setResult(null) }} />
               ) : null}

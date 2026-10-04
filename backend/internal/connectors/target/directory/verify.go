@@ -5,17 +5,19 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"io/fs"
+	"io"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"omnidatabus/internal/connectors/target"
 )
 
 // CountDocuments implements target.Counter: the document files under a mapping's folder, at
-// any depth (sharded and key-path layouts nest), without hidden folders (.odb-tmp) or _odb.
+// any depth (sharded and key-path layouts nest), without hidden folders (.odb-tmp) or _odb. It
+// reads directories in batches, so a flat folder of millions of files isn't held in memory.
 func (c *Connector) CountDocuments(ctx context.Context, conn target.Conn, loc target.Location) (int64, error) {
 	cfg, dir, err := c.folderPath(conn, loc.Folder)
 	if err != nil {
@@ -23,26 +25,47 @@ func (c *Connector) CountDocuments(ctx context.Context, conn target.Conn, loc ta
 	}
 	ext := cfg.Ext()
 	var n int64
-	err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		name := d.Name()
-		if d.IsDir() {
-			if p != dir && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, reservedPrefix)) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
+	err = walkBatched(ctx, dir, func(name string) {
 		if strings.HasSuffix(name, ext) && !strings.HasPrefix(name, ".") {
 			n++
 		}
-		return nil
 	})
 	return n, err
+}
+
+// walkBatched calls fn with the name of every file under dir, reading 1,024 entries at a time
+// in directory order, and skips hidden and reserved folders below dir.
+func walkBatched(ctx context.Context, dir string, fn func(name string)) error {
+	f, err := os.Open(dir) //nolint:gosec // inside the allowed target folder
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		entries, err := f.ReadDir(1024)
+		for _, e := range entries {
+			name := e.Name()
+			if !e.IsDir() {
+				fn(name)
+				continue
+			}
+			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, reservedPrefix) {
+				continue
+			}
+			if err := walkBatched(ctx, filepath.Join(dir, name), fn); err != nil {
+				return err
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
 
 // CheckIntegrity implements target.IntegrityChecker: a random sample of the manifest (up to
@@ -56,22 +79,40 @@ func (w *writer) CheckIntegrity(ctx context.Context, sample int) (target.Integri
 	if err := w.manifest.flush(); err != nil {
 		return rep, err
 	}
-	byKey := map[string]ManifestLine{}
+	// One pass over the manifest (the merged file, then fragments in write order): a reservoir
+	// sample of the keys, each with its latest line, and the distinct keys counted by 8-byte
+	// hash, so memory doesn't grow with the documents (architecture §7).
 	frags, _ := filepath.Glob(filepath.Join(w.root, odbDir, manifestDir, w.mapping+"-*.jsonl"))
+	sort.Strings(frags)
+	seen := map[uint64]struct{}{}
+	var lines []ManifestLine
+	slot := map[string]int{} // a sampled key → its index in lines
+	occurrences := 0
 	for _, f := range append([]string{manifestPath(w.root, w.mapping)}, frags...) {
-		if err := readLines(f, func(l ManifestLine) { byKey[l.Key] = l }); err != nil && !errors.Is(err, os.ErrNotExist) {
+		err := readLines(f, func(l ManifestLine) {
+			seen[keyHash(l.Key)] = struct{}{}
+			if i, ok := slot[l.Key]; ok {
+				lines[i] = l // the last write wins
+				return
+			}
+			occurrences++
+			switch {
+			case sample <= 0 || len(lines) < sample:
+				slot[l.Key] = len(lines)
+				lines = append(lines, l)
+			default:
+				if j := rand.IntN(occurrences); j < sample { //nolint:gosec // sampling
+					delete(slot, lines[j].Key)
+					slot[l.Key] = j
+					lines[j] = l
+				}
+			}
+		})
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return rep, err
 		}
 	}
-	lines := make([]ManifestLine, 0, len(byKey))
-	for _, l := range byKey {
-		lines = append(lines, l)
-	}
-	rep.Listed = len(lines)
-	if sample > 0 && len(lines) > sample {
-		rand.Shuffle(len(lines), func(i, j int) { lines[i], lines[j] = lines[j], lines[i] }) //nolint:gosec // sampling
-		lines = lines[:sample]
-	}
+	rep.Listed = len(seen)
 	for _, l := range lines {
 		if ctx.Err() != nil {
 			return rep, ctx.Err()

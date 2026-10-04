@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"omnidatabus/internal/connectors/source"
+	"omnidatabus/internal/schema"
 )
 
 // m2mQuery is orders ↔ products through order_items (OC-044 model).
@@ -91,4 +92,30 @@ func TestRelSQL_SortedMergeRange(t *testing.T) {
 		`SELECT "order_id", "customer_code" FROM "shop"."orders" WHERE "customer_code" COLLATE "C" >= $1::"text" AND "customer_code" COLLATE "C" <= $2::"text" `+
 			`ORDER BY "customer_code" COLLATE "C", "order_id"`, RelatedSQL(q), "text keys compare byte-wise")
 	require.Equal(t, []any{"A", "m"}, relatedArgs(q, nil))
+}
+
+// TestRelSQL_OC056_PrimaryKeyTiebreak: arrays come in the same order on every read: after the
+// relation's own order, the table's primary key, then the junction's — so verification's
+// re-read and an exported run build the same documents as the migration.
+func TestRelSQL_OC056_PrimaryKeyTiebreak(t *testing.T) {
+	pk := func(name, udt string) schema.Column {
+		return schema.Column{Name: name, UDTName: udt, IsPrimaryKey: true}
+	}
+	q := source.RelatedQuery{
+		Table: readOf("tags", nil, pk("tag_id", "int4"), c("label", "text")),
+		Join:  []string{"order_id"},
+		Via: &source.ViaQuery{
+			Table:     readOf("order_tags", nil, pk("order_id", "int8"), pk("tag_id", "int4")),
+			ChildJoin: []source.ViaJoin{{Via: "tag_id", Child: "tag_id"}},
+		},
+	}
+	sql := RelatedSQL(q)
+	require.True(t, strings.HasSuffix(sql, `ORDER BY j."order_id", t."tag_id", j."tag_id"`), sql)
+
+	// A one-to-many with an order keeps it first; a key already ordered isn't repeated.
+	items := source.RelatedQuery{
+		Table: readOf("order_items", nil, pk("order_item_id", "int8"), c("order_id", "int8"), c("line_no", "int4")),
+		Join:  []string{"order_id"}, OrderBy: []source.OrderColumn{{Column: "order_item_id", Desc: true}},
+	}
+	require.True(t, strings.HasSuffix(RelatedSQL(items), `ORDER BY "order_id", "order_item_id" DESC`), RelatedSQL(items))
 }

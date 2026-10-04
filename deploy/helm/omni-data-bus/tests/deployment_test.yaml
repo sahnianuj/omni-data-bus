@@ -23,6 +23,10 @@ tests:
           path: spec.template.spec.containers[0].env
           content: { name: OC_WORKER_MAX_JOBS, value: "2" }
         documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_MEMORY_LIMIT_MB, value: "640" }
+        documentIndex: 1
       - notContains:
           path: spec.template.spec.containers[0].env
           content: { name: OC_WORKER_MAX_JOBS, value: "2" }

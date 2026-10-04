@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E11 Portable Runner | P0 | 8 | OC-050, OC-040, OC-043, OC-029 | Not started |
+| E11 Portable Runner | P0 | 8 | OC-050, OC-040, OC-043, OC-029 | Implemented |
 
 ## User story
 As an **operator running migrations in production**, I want to run an exported bundle with a single binary, with no web app, no metadata database and no network access to the tool, so that I can migrate data inside locked-down environments, including Kubernetes, and get JSON output and logs that I can automate around.
@@ -48,7 +48,7 @@ odb run verify --bundle … --state-dir …   # OC-030/OC-041 verification again
 
 ### Signals & exit
 - `SIGINT`/`SIGTERM`: stop reading, drain in-flight batches (at most 30 s), write the checkpoint and report, and exit 5. A second signal exits immediately (the checkpoint is still valid, at-least-once).
-- Kubernetes sends SIGTERM on eviction, so the Job restarts and resumes from the PVC (OC-054).
+- Orchestrators (Kubernetes, systemd, …) send SIGTERM on eviction or stop; running again with the same `--state-dir` resumes from the checkpoint.
 
 ### Output & logs
 - stdout: progress JSON lines only, so tools can pipe them (`| jq`). stderr: slog JSON logs (text with `--log-format text` for humans), with the 1.0 secret redaction.
@@ -59,6 +59,18 @@ odb run verify --bundle … --state-dir …   # OC-030/OC-041 verification again
 - Published on each release: `odb_<ver>_<os>_<arch>.tar.gz` plus `SHA256SUMS` plus a cosign signature. The container image is unchanged (`odb run` works in it).
 
 > **From OC-058 (AC7):** the `start` event and `report.json` carry `{version, commit}` from `buildinfo.Get()`; `TestRun_AC7_BuildInfoInStartAndReport` (`internal/headless/progress_test.go`) lands with this story.
+
+## Results (2026-10-02)
+- `odb run`, `odb run preflight | status | verify` (`cmd/odb/run.go`, `internal/headless`). A run loads the bundle into an in-memory store and drives the server's own job service and pipeline; the state directory replaces the metadata store's job writes (`store.go`: checkpoint.json, errors.jsonl, stdout events, report.json). No second pipeline implementation exists.
+- Real runs against the dev stack: 10,000 orders (with customer and items) to a directory and to Couchbase; byte-identical to a server job (`TestRun_AC2_ParityWithServer`); SIGKILL at 50 % then resume completes; SIGTERM drains and exits 5; error thresholds give 2 and 3 with real failing rows.
+- `make dist` builds `odb_<ver>_<os>_<arch>.tar.gz` (≈11–12 MB each) and `SHA256SUMS`; the release workflow signs `SHA256SUMS` with cosign (keyless) and attaches everything to the GitHub release.
+
+### Changes from the plan
+- AC6: the pipeline still uses `internal/store`'s interfaces and types — they are the ports, implemented in memory by `odb run`. What it no longer reaches is the HTTP API, `cbstore` and the Couchbase SDK: the run contract moved to `internal/jobs/jobspec` and the connector catalog handler to `internal/connectors/catalog`. `TestImports_AC6_PipelineIsPortable` checks exactly that.
+- `odb run preflight` runs the tool's pre-flight checks, which may create a missing folder or collection the mapping allows creating (no documents are written).
+- `odb run verify` compares each target's document count with the run's written + skipped counts (exact when the target was empty at the start, a lower bound otherwise); the pipeline's own sampled verification is in `report.json`.
+- Directory targets: the runner always allows creating the mapping folders (a fresh machine doesn't have them) and accepts exactly the bundle's (or `--target-path`'s) folder.
+- `TestRun_AC4_ExitCodes` became `TestRun_AC4_ExitCodeClassification` + `TestRun_AC4_FatalAndPreflightExitCodes` (unit, fakes) and `TestRun_AC4_ErrorThresholds` (integration, real rows).
 
 ## Acceptance criteria & unit tests
 

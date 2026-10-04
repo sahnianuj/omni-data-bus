@@ -1,5 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ArrowRight, ChevronDown, Table2, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowRight, ChevronDown, Table2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useOutletContext } from 'react-router'
@@ -77,7 +77,10 @@ export function MappingsStep() {
                       </span>
                     </span>
                     <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                      <Badge tone={statusTone[m.status]}>{t(`mappings.status.${m.status}`)}</Badge>
+                      {/* Edits save automatically: "draft" only means errors are left to fix (OC-083). */}
+                      <Badge tone={statusTone[m.status]} title={m.status === 'ready' ? undefined : t('mappings.statusHint')}>
+                        {m.status === 'draft' && m.errors ? t('mappings.toFix', { count: m.errors }) : t(`mappings.status.${m.status}`)}
+                      </Badge>
                       {m.mode === 'composed' ? <Badge tone="primary">{t('composer.badge')}</Badge> : null}
                       {t('mappings.coverage', { pct: Math.round(m.stats.coverageRatio * 100) })}
                       {m.target.createIfMissing ? <Badge tone="primary">{t('targets.willBeCreated')}</Badge> : null}
@@ -85,6 +88,17 @@ export function MappingsStep() {
                     <span className="text-xs text-muted" data-testid="shape">
                       {shapeText(m)}
                     </span>
+                    {m.firstError ? (
+                      <span className="flex min-w-0 items-center gap-1.5 text-xs text-warning">
+                        <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                        <span className="truncate" title={m.firstError.message}>
+                          {m.errors > 1 ? t('mappings.firstErrorMore', { message: m.firstError.message, count: m.errors - 1 }) : m.firstError.message}
+                        </span>
+                        <Link to={`/projects/${project.id}/mappings/${m.id}?panel=issues`} className="shrink-0 font-medium text-primary hover:underline" aria-label={t('mappings.fixFor', { table: m.sourceTable })}>
+                          {t('mappings.fix')}
+                        </Link>
+                      </span>
+                    ) : null}
                   </div>
                   <Can role="editor">
                     <Button variant="ghost" size="icon" aria-label={t('mappings.delete', { table: m.sourceTable })} onClick={() => setRemoving(m)}>

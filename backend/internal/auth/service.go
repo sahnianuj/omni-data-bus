@@ -20,6 +20,8 @@ type Principal struct {
 	Role        store.MemberRole
 	SessionID   string
 	CSRFToken   string
+	// StepUpAt is the session's last password re-confirmation (nil = none).
+	StepUpAt *time.Time
 }
 
 // Settings configure sessions and sign-up.
@@ -178,8 +180,41 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Principal, er
 	}
 	return Principal{
 		UserID: sess.UserID, WorkspaceID: store.WorkspaceID(sess.WorkspaceID), Role: member.Role,
-		SessionID: id, CSRFToken: sess.CSRFToken,
+		SessionID: id, CSRFToken: sess.CSRFToken, StepUpAt: sess.StepUpAt,
 	}, nil
+}
+
+// StepUpWindow is how long a password re-confirmation authorizes sensitive actions (OC-052).
+const StepUpWindow = 5 * time.Minute
+
+// SteppedUp reports whether p re-confirmed their password within StepUpWindow.
+func (p Principal) SteppedUp(now time.Time) bool {
+	return p.StepUpAt != nil && now.Sub(*p.StepUpAt) <= StepUpWindow
+}
+
+// StepUp re-confirms the signed-in user's password and records it in the session. Failures
+// count toward the sign-in rate limit, like a failed login.
+func (s *Service) StepUp(ctx context.Context, p Principal, password string, meta RequestMeta) error {
+	limitKey := meta.IP + "|stepup|" + p.UserID
+	if ok, wait := s.limiter.Allow(limitKey); !ok {
+		return &RateLimitedError{RetryAfter: wait}
+	}
+	user, err := s.store.Accounts().User(ctx, p.UserID)
+	if err != nil {
+		return err
+	}
+	ok, err := s.hasher.Verify(user.PasswordHash, password)
+	if err != nil || !ok {
+		s.limiter.Fail(limitKey)
+		s.audit(ctx, string(p.WorkspaceID), p.UserID, "auth.stepup.failure", map[string]string{"ip": meta.IP})
+		return ErrInvalidCredentials
+	}
+	s.limiter.Reset(limitKey)
+	if err := s.store.Sessions().StepUp(ctx, p.SessionID, s.clock.Now()); err != nil {
+		return err
+	}
+	s.audit(ctx, string(p.WorkspaceID), p.UserID, "auth.stepup", nil)
+	return nil
 }
 
 // Me describes the signed-in user.

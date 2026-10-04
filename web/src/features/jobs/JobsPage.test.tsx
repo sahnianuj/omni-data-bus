@@ -33,3 +33,19 @@ describe('JobsPage', () => {
     expect(tail[2]).toEqual(['—', '—'])
   })
 })
+
+describe('JobsPage — external runs (OC-055)', () => {
+  it('AC4: external badge', async () => {
+    server.use(
+      http.get('/api/v1/jobs', () =>
+        HttpResponse.json({ items: [job({ id: 'ext', status: 'completed', origin: 'external', finishedAt: new Date().toISOString(), progress: snapshot({ status: 'completed' }) }), job({ id: 'own' })] }),
+      ),
+      http.get('/api/v1/projects', () => HttpResponse.json({ items: [{ id: 'p1', name: 'Shop' }] })),
+    )
+    renderUI(<JobsPage />)
+    await screen.findAllByRole('link', { name: 'Shop' })
+    const [ext, own] = screen.getAllByRole('row').slice(1)
+    expect(within(ext!).getByText('External')).toHaveAttribute('title', expect.stringContaining('report.json'))
+    expect(within(own!).queryByText('External')).not.toBeInTheDocument()
+  })
+})

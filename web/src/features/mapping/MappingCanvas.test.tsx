@@ -1,6 +1,7 @@
 import { act, fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { dragOnto } from '@/test/drag'
 import { withFixedLayout } from '@/test/layout'
 import { columns, embedView, mappingView, renderWorkbench, sampleSpec, scol } from '@/test/mapping'
 import { MappingCanvas } from './MappingCanvas'
@@ -19,6 +20,9 @@ function drag(column: string, onto: HTMLElement) {
   fireEvent.dragOver(onto, { dataTransfer: dt })
   fireEvent.drop(onto, { dataTransfer: dt })
 }
+
+/** Drags a target field onto another row; clientY picks the spot (rows measure 600 px tall here). */
+const dragField = (from: string, onto: string, clientY: number) => dragOnto(screen.getByTestId(`target-${from}`), screen.getByTestId(`target-${onto}`), clientY)
 
 const edges = () => [...document.querySelectorAll('[data-testid^="edge-"]')]
 
@@ -131,5 +135,30 @@ describe('MappingCanvas', () => {
     expect(scrolled.every((top) => top === 0)).toBe(true)
     act(() => store.getState().apply((s) => ({ ...s, relations: embedView().spec.relations })))
     await vi.waitFor(() => expect(scrolled.some((top) => top > 0)).toBe(true))
+  })
+
+  it('target fields drag to a new place, keeping their mappings', () => {
+    const { store } = renderWorkbench(<MappingCanvas />)
+    const spec = () => store.getState().history.present
+    dragField('email', 'customerId', 0) // top edge: before
+    expect(spec().docSchema.root.children!.map((f) => f.name)).toEqual(['email', 'customerId', 'name', 'createdAt', 'age', 'profile'])
+    dragField('age', 'name', 300) // a container's middle: inside
+    expect(spec().docSchema.root.children![2]!.children!.map((f) => f.name)).toEqual(['first', 'last', 'age'])
+    expect(screen.getByTestId('target-name.age')).toBeInTheDocument()
+    expect(spec().fieldMappings.find((m) => m.id === 'm_email')?.targetFieldId).toBe('f_email')
+  })
+
+  it('OC-081 AC3: add field', async () => {
+    const { store } = renderWorkbench(<MappingCanvas />)
+    const root = () => store.getState().history.present.docSchema.root
+    await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+    await userEvent.keyboard('loyalty{Enter}')
+    expect(root().children!.at(-1)!.name).toBe('loyalty')
+    expect(store.getState().selection).toEqual({ kind: 'field', id: root().children!.at(-1)!.id })
+    // A selected object takes the next field inside; Escape keeps the default name.
+    await userEvent.click(screen.getByTestId('target-name'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add field to name' }))
+    await userEvent.keyboard('{Escape}')
+    expect(root().children![1]!.children!.map((f) => f.name)).toEqual(['first', 'last', 'newField'])
   })
 })

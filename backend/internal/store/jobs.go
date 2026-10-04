@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -52,6 +54,15 @@ type Job struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 	StartedAt       *time.Time `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
+	// Origin is "external" for a run of an exported bundle whose report.json was imported
+	// (OC-055); empty for the tool's own jobs. External holds that report's summary.
+	Origin   string          `json:"origin,omitempty"`
+	External json.RawMessage `json:"external,omitempty"`
+	// MinWorkerVersion is the oldest worker release that can run the job ("2.0.0" when it uses
+	// a 2.0-only feature, OC-057); MinWorkerLevel is the same as a number (VersionLevel), which
+	// the claim query compares, so older workers never claim it during a rolling upgrade.
+	MinWorkerVersion string `json:"minWorkerVersion,omitempty"`
+	MinWorkerLevel   int    `json:"minWorkerLevel,omitempty"`
 	// Version increases on every write; Update requires the version that was read (CAS).
 	Version int64 `json:"version"`
 }
@@ -97,7 +108,8 @@ type JobEvent struct {
 // Jobs stores migration jobs and their progress, errors, timelines and worker leases.
 type Jobs interface {
 	// Create stores a queued job and takes the project's active-job lock; while another job of
-	// the project is active it returns &ConflictError{Field: "activeJob"}.
+	// the project is active it returns &ConflictError{Field: "activeJob"}. A job created in a
+	// terminal status (an imported external run) takes no lock.
 	Create(ctx context.Context, ws WorkspaceID, j Job) (Job, error)
 	Get(ctx context.Context, ws WorkspaceID, id string) (Job, error)
 	// GetAny reads a job in any workspace (workers only).
@@ -110,6 +122,9 @@ type Jobs interface {
 	Update(ctx context.Context, j Job) (Job, error)
 	// ListByStatus lists jobs in any workspace with one of statuses, oldest first (workers).
 	ListByStatus(ctx context.Context, statuses []string, limit int) ([]Job, error)
+	// ListClaimable lists queued jobs in any workspace that a worker at workerLevel can run
+	// (MinWorkerLevel ≤ workerLevel), oldest first (the claim loop, OC-057).
+	ListClaimable(ctx context.Context, workerLevel, limit int) ([]Job, error)
 	// ActiveForProject returns the project's non-terminal job, or ErrNotFound.
 	ActiveForProject(ctx context.Context, ws WorkspaceID, projectID string) (Job, error)
 
@@ -135,4 +150,26 @@ type Jobs interface {
 	// AcquireLease takes or renews the named lease for holder until now+ttl; false when another
 	// holder's lease hasn't expired.
 	AcquireLease(ctx context.Context, name, holder string, ttl time.Duration) (bool, error)
+}
+
+// VersionLevel turns a release version into a comparable number: "2.0.0" → 2000000 and
+// "v1.0.1-rc.1" → 1000001. A development build (no release version) is ok=false.
+func VersionLevel(v string) (int, bool) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		v = v[:i]
+	}
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return 0, false
+	}
+	level := 0
+	for _, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 || n > 999 {
+			return 0, false
+		}
+		level = level*1000 + n
+	}
+	return level, true
 }

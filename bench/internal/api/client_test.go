@@ -111,6 +111,18 @@ func TestProject_SetsUpReposTestsAndDiscovers(t *testing.T) {
 	}
 }
 
+func TestTarget_OC056_Directory(t *testing.T) {
+	tgt := Target{Directory: "/data/odb-out/bench_1"}
+	conn := tgt.connection()
+	cfg := conn["config"].(map[string]any)
+	if conn["type"] != "directory" || cfg["durability"] != "file" || cfg["path"] != "/data/odb-out/bench_1" || conn["secrets"] != nil {
+		t.Fatalf("%v", conn)
+	}
+	if loc := tgt.Location("ignored", "files"); loc["kind"] != "directory" || loc["folder"] != "files" {
+		t.Fatalf("%v", loc)
+	}
+}
+
 func TestDiscover_Failure(t *testing.T) {
 	_, c := newFake(t, map[string]func(http.ResponseWriter, *http.Request){
 		"POST /api/v1/connections/x/discover": js(map[string]string{"id": "d1", "status": "failed", "error": "permission denied"}),
@@ -132,11 +144,14 @@ func TestMappingEmbedJobAndReport(t *testing.T) {
 		"GET /api/v1/version": js(map[string]string{"version": "1.0.0", "commit": "abc123"}),
 	})
 	ctx := context.Background()
-	mid, err := c.Mapping(ctx, "p1", "bench", "x", "sandbox", "bench_1")
+	mid, err := c.Mapping(ctx, "p1", "bench", "x", Target{Bucket: "sandbox"}.Location("bench_1", "x"))
 	if err != nil || mid != "m1" {
 		t.Fatalf("%s %v", mid, err)
 	}
-	if err := c.EmbedArray(ctx, "p1", "m1", "bench", "orders", "customer_id", 100); err != nil {
+	if !strings.Contains(f.bodies[0], `"location":{"bucket":"sandbox","collection":"x","createIfMissing":true,"kind":"couchbase","scope":"bench_1"}`) {
+		t.Fatalf("mapping = %s", f.bodies[0])
+	}
+	if err := c.AddEmbed(ctx, "p1", "m1", map[string]any{"join": []map[string]string{{"parent": "id", "child": "customer_id"}}}); err != nil {
 		t.Fatal(err)
 	}
 	embed := f.seen[len(f.seen)-1]
@@ -165,7 +180,7 @@ func TestMapping_ReportsPerTableErrors(t *testing.T) {
 	_, c := newFake(t, map[string]func(http.ResponseWriter, *http.Request){
 		"POST /api/v1/projects/p1/mappings:bulk": js(map[string]any{"results": []any{map[string]any{"error": map[string]string{"title": "no such table"}}}}),
 	})
-	if _, err := c.Mapping(context.Background(), "p1", "bench", "x", "b", "s"); err == nil {
+	if _, err := c.Mapping(context.Background(), "p1", "bench", "x", Target{Directory: "/data/odb-out/b"}.Location("s", "x")); err == nil {
 		t.Fatal("a failed item is an error")
 	}
 }

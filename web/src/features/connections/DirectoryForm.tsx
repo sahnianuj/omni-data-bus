@@ -8,6 +8,7 @@ import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FolderPicker } from '@/features/targets/FolderPicker'
+import { hostPathOf, useSharedFolder } from '@/features/targets/kinds'
 import { documentPath } from '@/lib/pathcodec'
 import { cn } from '@/lib/utils'
 import type { ConnectionFormProps, ConnectionPayload } from './types'
@@ -75,9 +76,13 @@ export function DirectoryForm({ existing, testing, saving, onTest, onSave, onCan
     },
     secrets: {},
   })
+  // All-in-one image: say where the files land on the user's computer (OC-080).
+  const shared = useSharedFolder()
+  const host = hostPathOf(path, shared)
+  const pathHint = !shared ? t('dir.pathHint') : host ? t('dir.onComputer', { host }) : t('dir.pathHintShared', { path: shared.path, host: shared.hostPath })
   return (
     <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
-      <FormField id="dir-path" label={t('dir.path')} hint={t('dir.pathHint')} error={errors.path?.message}>
+      <FormField id="dir-path" label={t('dir.path')} hint={pathHint} error={errors.path?.message}>
         <div className="flex gap-2">
           <Input id="dir-path" placeholder={t('dir.pathPlaceholder')} className="font-mono" invalid={!!errors.path} {...form.register('path')} />
           <Button type="button" variant="secondary" onClick={() => setPicking(true)}>

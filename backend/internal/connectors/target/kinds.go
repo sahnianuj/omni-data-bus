@@ -56,6 +56,9 @@ type KindInfo struct {
 	Capabilities   Capabilities `json:"kindCapabilities"`
 	Enabled        bool         `json:"enabled"`
 	DisabledReason string       `json:"disabledReason,omitempty"`
+	// SharedFolder is the folder of the user's computer a directory target can write to in the
+	// all-in-one image (OC-080).
+	SharedFolder *SharedFolder `json:"sharedFolder,omitempty"`
 }
 
 // Kinds lists the registered target kinds with their capabilities, sorted by display name.
@@ -76,6 +79,9 @@ func kindInfo(c Connector) KindInfo {
 	k := KindInfo{Descriptor: c.Descriptor(), Capabilities: c.Capabilities(), Enabled: true}
 	if a, ok := c.(Availability); ok {
 		k.Enabled, k.DisabledReason = a.Available()
+	}
+	if s, ok := c.(SharedFolderer); ok {
+		k.SharedFolder = s.SharedFolder()
 	}
 	return k
 }
@@ -164,6 +170,13 @@ type Preflighter interface {
 type FolderEntry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
+	// HostPath is the folder on the user's computer when it's shared into the all-in-one image's
+	// container (OC-080); empty otherwise.
+	HostPath string `json:"hostPath,omitempty"`
+	// Where and Label describe an area for users: "computer" (shared), "container" (inside the
+	// container only) or "" (the server's own folders).
+	Where string `json:"where,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 
 // FolderListing is one screen of the folder picker: the areas a directory target may be in
@@ -174,6 +187,22 @@ type FolderListing struct {
 	Parent    string        `json:"parent"`
 	Folders   []FolderEntry `json:"folders"`
 	CanCreate bool          `json:"canCreate"`
+	// Where and HostPath describe Path, as for FolderEntry (OC-080).
+	Where    string `json:"where,omitempty"`
+	HostPath string `json:"hostPath,omitempty"`
+}
+
+// SharedFolder is a folder of the user's computer shared into the all-in-one image (OC-080).
+type SharedFolder struct {
+	Path     string `json:"path"`
+	HostPath string `json:"hostPath"`
+}
+
+// SharedFolderer is implemented by kinds that can write to a folder shared with the user's
+// computer (a directory in the all-in-one image).
+type SharedFolderer interface {
+	SharedFolder() *SharedFolder
+	HostPath(path string) string
 }
 
 // FolderPicker lets users pick a directory target's folder on the server before it's saved

@@ -1,0 +1,106 @@
+{
+  "dataset": "skewed",
+  "scenario": "skewed-sorted-merge",
+  "target": "couchbase",
+  "description": "500k customers with all their orders: 5 each, 1% with 500 (run with --strategy batched and sorted-merge)",
+  "rows": 400000,
+  "childRows": 3980000,
+  "startedAt": "2026-10-03T06:32:51.750056Z",
+  "finishedAt": "2026-10-03T06:33:02.760401Z",
+  "durationSeconds": 11.010345,
+  "serverVersion": "2006732-dirty",
+  "serverCommit": "2006732",
+  "jobId": "01a10077-2914-78dc-a0f9-35ca52fa6665",
+  "jobStatus": "completed",
+  "jobOptions": {},
+  "environment": {
+    "harness": "darwin/amd64, 10 CPU",
+    "host": "10-CPU laptop, Docker Desktop",
+    "reference": "false"
+  },
+  "averageDocsPerSec": 36329.47014830144,
+  "measured": {
+    "sustainedDocsPerSec": 69933.470196118,
+    "peakRssBytes": 422866944,
+    "progressLatencyP95Ns": 936668164,
+    "progressEvents": 12,
+    "sourceRows": 400000,
+    "written": 400000,
+    "verification": "passed"
+  },
+  "gates": {
+    "minDocsPerSec": 0,
+    "maxRssBytes": 0,
+    "maxProgressLatencyP95Ns": 0,
+    "requireNoLoss": true,
+    "requireVerified": true
+  },
+  "samples": [
+    {
+      "at": "2026-10-03T06:32:52.756029Z",
+      "percent": 0,
+      "written": 0,
+      "rssBytes": 405696512
+    },
+    {
+      "at": "2026-10-03T06:32:53.754183Z",
+      "percent": 15.75,
+      "written": 63000,
+      "rssBytes": 422866944
+    },
+    {
+      "at": "2026-10-03T06:32:54.753601Z",
+      "percent": 33.5,
+      "written": 134000,
+      "rssBytes": 415780864
+    },
+    {
+      "at": "2026-10-03T06:32:55.755229Z",
+      "percent": 51.25,
+      "written": 205000,
+      "rssBytes": 413806592
+    },
+    {
+      "at": "2026-10-03T06:32:56.755485Z",
+      "percent": 68.5,
+      "written": 274000,
+      "rssBytes": 419573760
+    },
+    {
+      "at": "2026-10-03T06:32:57.754463Z",
+      "percent": 84,
+      "written": 336000,
+      "rssBytes": 382685184
+    },
+    {
+      "at": "2026-10-03T06:32:58.752414Z",
+      "percent": 99.9,
+      "written": 400000,
+      "rssBytes": 383340544
+    },
+    {
+      "at": "2026-10-03T06:32:59.75448Z",
+      "percent": 99.9,
+      "written": 400000,
+      "rssBytes": 298139648
+    },
+    {
+      "at": "2026-10-03T06:33:00.754746Z",
+      "percent": 99.9,
+      "written": 400000,
+      "rssBytes": 305741824
+    },
+    {
+      "at": "2026-10-03T06:33:01.754087Z",
+      "percent": 99.9,
+      "written": 400000,
+      "rssBytes": 305741824
+    },
+    {
+      "at": "2026-10-03T06:33:02.757466Z",
+      "percent": 100,
+      "written": 400000,
+      "rssBytes": 305741824
+    }
+  ]
+}

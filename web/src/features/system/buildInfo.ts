@@ -41,6 +41,7 @@ export function buildInfoText(v: VersionInfo, userAgent = navigator.userAgent): 
   const nodes = nodeSummary(v)
   const parts = []
   if (v.metadataSchemaVersion !== undefined) parts.push(`Metadata schema: ${v.metadataSchemaVersion}`)
+  if (v.bundledStore) parts.push(`Bundled: ${v.bundledStore}`)
   if (nodes) parts.push(`Nodes: ${nodes}`)
   parts.push(`Browser: ${userAgent}`)
   lines.push(parts.join('   '))

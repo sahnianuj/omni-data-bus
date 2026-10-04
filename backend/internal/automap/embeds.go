@@ -147,7 +147,8 @@ func AddEmbed(spec mapping.Spec, child *schema.Table, in EmbedInput, gen docsche
 //
 // A many-to-one relation moves the key into the object: the embedded row's primary key (the
 // join's child columns) is generated and mapped there, and the parent scope's mappings of the
-// foreign key (the join's parent columns) are removed; the field stays, unmapped.
+// foreign key (the join's parent columns) are removed, and so is a key field left with nothing
+// to hold (OC-082): the key now lives in the object.
 func AddRelation(spec mapping.Spec, rel mapping.RelatedTables, in EmbedInput, gen docschema.GenerateOptions) (mapping.Spec, []mapping.Relation, Result, error) {
 	orig := spec
 	spec = cloneSpec(spec)
@@ -305,10 +306,13 @@ func addOne(spec *mapping.Spec, rel mapping.RelatedTables, in EmbedInput, gen do
 	spec.Relations[len(spec.Relations)-1].TargetFieldID = target.ID
 	e.TargetFieldID = target.ID
 	container.Children = append(container.Children, target)
+	var unmapped []string
 	if e.Kind == mapping.EmbedManyToOne {
-		spec.FieldMappings = unmapForeignKey(spec, e)
+		spec.FieldMappings, unmapped = unmapForeignKey(spec, e)
 	}
 	addAggregates(spec, container, e, child, junction, in.Aggregates, gen)
+	// Last: removing fields moves siblings, and container points into the tree.
+	dropKeyFields(spec, unmapped)
 	if !in.Generate {
 		return e, nil, nil
 	}
@@ -382,21 +386,60 @@ func addAggregates(spec *mapping.Spec, container *docschema.DocField, e mapping.
 }
 
 // unmapForeignKey drops the mappings in the relation's parent scope that copy a join's parent
-// column (the foreign key) as is; expressions that combine it with other columns are kept.
-func unmapForeignKey(spec *mapping.Spec, e mapping.Relation) []mapping.FieldMapping {
+// column (the foreign key) as is, and returns their target fields; expressions that combine it
+// with other columns are kept.
+func unmapForeignKey(spec *mapping.Spec, e mapping.Relation) ([]mapping.FieldMapping, []string) {
 	fk := map[string]bool{}
 	for _, j := range e.Join {
 		fk[j.Parent] = true
 	}
 	scopes := mapping.FieldScopes(spec)
 	out := make([]mapping.FieldMapping, 0, len(spec.FieldMappings))
+	var targets []string
 	for _, m := range spec.FieldMappings {
 		if len(m.Sources) == 1 && m.Sources[0].Relation == e.Parent() && fk[m.Sources[0].Column] && scopes[m.TargetFieldID] == e.Parent() {
+			targets = append(targets, m.TargetFieldID)
 			continue
 		}
 		out = append(out, m)
 	}
-	return out
+	return out, targets
+}
+
+// dropKeyFields removes the foreign-key fields an embed unmapped (OC-082), unless something else
+// still fills them: another mapping or an aggregate. Only scalar fields go.
+func dropKeyFields(spec *mapping.Spec, ids []string) {
+	used := map[string]bool{}
+	for _, m := range spec.FieldMappings {
+		used[m.TargetFieldID] = true
+	}
+	for _, a := range spec.Aggregates {
+		used[a.TargetFieldID] = true
+	}
+	drop := map[string]bool{}
+	for _, id := range ids {
+		if f := spec.DocSchema.Find(id); f != nil && !used[id] && f.Type != docschema.Object && f.Type != docschema.Array {
+			drop[id] = true
+		}
+	}
+	if len(drop) > 0 {
+		dropFields(&spec.DocSchema.Root, drop)
+	}
+}
+
+func dropFields(f *docschema.DocField, ids map[string]bool) {
+	kept := f.Children[:0]
+	for _, c := range f.Children {
+		if ids[c.ID] {
+			continue
+		}
+		dropFields(&c, ids)
+		kept = append(kept, c)
+	}
+	f.Children = kept
+	if f.Items != nil {
+		dropFields(f.Items, ids)
+	}
 }
 
 func joinColumn(e mapping.Relation, column string) bool {

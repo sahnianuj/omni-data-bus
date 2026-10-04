@@ -3,6 +3,7 @@ package app
 import (
 	"log/slog"
 
+	"omnidatabus/internal/buildinfo"
 	"omnidatabus/internal/config"
 	"omnidatabus/internal/connections"
 	"omnidatabus/internal/connectors/source"
@@ -25,5 +26,7 @@ func NewWorker(cfg config.Config, st store.Store, sealer crypto.Sealer, sources 
 		// Verification's document count (OC-030): best effort, through the kind's location browser.
 		CountTarget: conns.CountDocuments,
 	})
-	return jobs.NewWorker(jobs.WorkerConfig{MaxJobs: cfg.Worker.MaxJobs, ShutdownBudget: cfg.ShutdownTimeout * 5 / 6}, st, runner, nil, logger)
+	return jobs.NewWorker(jobs.WorkerConfig{
+		MaxJobs: cfg.Worker.MaxJobs, ShutdownBudget: cfg.ShutdownTimeout * 5 / 6, Version: buildinfo.Get().Version,
+	}, st, runner, nil, logger)
 }

@@ -123,6 +123,17 @@ type Summary struct {
 	// Shape counts the document's arrays and objects bound to tables, and its group-by
 	// columns (OC-062: the mapping list shows "nested: 2 arrays, 1 object").
 	Shape Shape `json:"shape"`
+	// Errors and Warnings count the live validation's issues, and FirstError is what to fix
+	// first (OC-083): the list says why a mapping isn't ready.
+	Errors     int         `json:"errors"`
+	Warnings   int         `json:"warnings"`
+	FirstError *IssueBrief `json:"firstError,omitempty"`
+}
+
+// IssueBrief is one issue in a list row.
+type IssueBrief struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // Shape is a mapping's document shape at a glance.
@@ -422,13 +433,25 @@ func (s *Service) BulkCreate(ctx context.Context, ws store.WorkspaceID, userID, 
 }
 
 func summaryOf(v View) Summary {
-	return Summary{
+	sum := Summary{
 		ID: v.ID, SourceSchema: v.SourceSchema, SourceTable: v.SourceTable, Mode: v.Spec.Mode,
 		Driving: mapping.DrivingTable(&v.Spec, mapping.TableRef{Schema: v.SourceSchema, Name: v.SourceTable}),
 		Target:  v.Target, Location: v.Location, Status: v.Status,
 		AutomapStats: v.AutomapStats, Stats: v.Stats, Version: v.Version, UpdatedAt: v.UpdatedAt,
 		Shape: shapeOf(&v.Spec),
 	}
+	for _, i := range v.Issues {
+		switch i.Severity {
+		case mapping.SeverityError:
+			sum.Errors++
+			if sum.FirstError == nil {
+				sum.FirstError = &IssueBrief{Code: i.Code, Message: i.Message}
+			}
+		case mapping.SeverityWarning:
+			sum.Warnings++
+		}
+	}
+	return sum
 }
 
 // List returns the project's mappings with live stats and status (against the latest snapshot).
@@ -506,6 +529,12 @@ func (s *Service) load(ctx context.Context, ws store.WorkspaceID, projectID, id 
 	}
 	if err != nil {
 		return m, mapping.Spec{}, projectCtx{}, nil, err
+	}
+	if v := mapping.VersionOf(m.Spec); v > mapping.SpecVersion {
+		// Saved by a newer release (during a rolling upgrade, or after a rollback): this
+		// release would drop what it doesn't know on save, so it refuses (OC-057).
+		return m, mapping.Spec{}, projectCtx{}, nil, problem.New(http.StatusConflict, problem.CodeMappingNewerVersion, "Mapping from a newer release",
+			fmt.Sprintf("This mapping was saved by a newer Omni-Data-Bus (spec version %d; this server reads up to %d). Open it on an upgraded server.", v, mapping.SpecVersion))
 	}
 	spec, err := decodeSpec(m.Spec)
 	if err != nil {

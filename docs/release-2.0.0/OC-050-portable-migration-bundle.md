@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E11 Portable Runner | P0 | 5 | OC-036, OC-037, OC-042 | Not started |
+| E11 Portable Runner | P0 | 5 | OC-036, OC-037, OC-042 | Implemented |
 
 ## User story
 As a **data engineer**, I want to export everything needed to run a migration (source and target settings, mappings, relationships and job options) as one versioned, self-describing file, so that the migration can run outside the tool and be reviewed, versioned in git and re-run the same way.
@@ -14,6 +14,8 @@ As a **data engineer**, I want to export everything needed to run a migration (s
 - A source schema fingerprint, used by the runner to detect drift.
 - An integrity hash over canonical JSON.
 - `odb bundle validate | inspect | diff` CLI commands.
+
+- Refuse to export a project whose target is the all-in-one image's bundled Couchbase (`couchbase://127.0.0.1`, saved by *Use the bundled Couchbase*, OC-072): 422 `BUNDLED_TARGET_NOT_EXPORTABLE`, since that address means nothing outside the container. Test `TestExports_AC6_BundledTargetRefused` (deferred here from OC-072 AC6).
 
 **Out:** credential sealing (OC-052; this story writes `credentials.mode: "external"` placeholders), script and kit generation (OC-053/054), and importing a bundle back into the tool as a project (post-2.0).
 
@@ -45,6 +47,22 @@ As a **data engineer**, I want to export everything needed to run a migration (s
 - `odb bundle validate <file>`: schema, integrity, version, and plan compilation. Exit 0 or 4.
 - `odb bundle inspect <file>`: a human summary (source host and DB, target, mappings with row estimates, credential mode). Secrets are never printed.
 - `odb bundle diff <a> <b>`: a semantic diff (mappings, relations, options).
+
+## Results (2026-10-02)
+- `internal/export`: bundle model, RFC 8785 canonical JSON (`canonical.go`, passes the RFC vectors), builder (`build.go`), fingerprint and drift (`fingerprint.go`), schema check and version gate (`validate.go`), shared secret scanner (`scan.go`). `api/bundle.schema.json` is embedded (a test keeps the copy identical). `odb bundle validate | inspect | diff` in `cmd/odb/bundle.go`.
+- Exported twice, bundles differ only in `createdAt`/`integrity`; the file is canonical JSON indented, and re-indenting a bundle keeps it valid (integrity covers the canonical form).
+- Verified through the running server: export → `migrate.sh` → 10,000 files (see OC-053).
+
+### Changes from the plan
+- `integrity` has two hashes: `sha256` (whole bundle) and `contentSha256` (without credentials). The sealed blocks' AAD is `contentSha256`; a hash that covered the ciphertext couldn't also be the ciphertext's AAD.
+- `sourceFingerprint.tables` maps each table to `{sha256, columns[]}` rather than a bare hash, so `SCHEMA_DRIFT` can name the column offline.
+- No *Use directory key defaults* option: keys are the same for every target kind (user decision 2026-09-29), so a directory override only relocates mappings (`connections.Relocated`, OC-068 rules).
+- `odb bundle validate` checks each plan as far as possible without the source (spec decodes, relation tree, key template, location); the full compile happens at preflight against the live schema. `inspect` shows no row estimates (they would make bundles change with table statistics); preflight reports them.
+- The bundled-target refusal applies to the bundle's target: a project on the bundled node can still export with a target override.
+- `POST /projects/{id}/exports` lives in `internal/export/handlers.go` (not `internal/httpapi`), next to the service, like the other feature handlers.
+
+### Change (user decision, 2026-10-02): the project as configured
+An export is the project exactly as configured: its source, target, saved credentials and every ready mapping. There is no target override and no mapping selection — the dialog shows them read-only, each with a link to the step that changes them. `POST /projects/{id}/exports` takes only `passphrase`, `runtime`, `script` and `jobOptions` and rejects anything else (400). AC4 is now `TestBundle_AC4_TargetAsConfigured`. A directory target's path can still differ on the runner machine (`--target-path`, `ODB_TARGET_PATH`); a project on the bundled Couchbase must change its target in the Target step before exporting.
 
 ## Acceptance criteria & unit tests
 

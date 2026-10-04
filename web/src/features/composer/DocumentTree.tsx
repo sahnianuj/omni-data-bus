@@ -1,8 +1,10 @@
-import { AlertTriangle, Braces, Brackets, ChevronDown, ChevronRight, Hash, Link2, MoreHorizontal, OctagonAlert, ToggleLeft, Type as TypeIcon, Calendar, CircleDashed } from 'lucide-react'
+import { AlertTriangle, Braces, Brackets, ChevronDown, ChevronRight, Hash, Link2, MoreHorizontal, OctagonAlert, Plus, ToggleLeft, Type as TypeIcon, Calendar, CircleDashed } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { insertionPoint, moveRelative, type DropPos } from '@/features/docschema/docschemaOps'
+import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } from '@/features/docschema/fieldDrag'
 import { activeFor } from '@/features/mapping/mappingOps'
 import { useWorkbench } from '@/features/mapping/store'
 import type { DocField, MappingIssue, MappingSpec } from '@/features/mapping/types'
@@ -82,7 +84,7 @@ function sourceLabel(spec: MappingSpec, fieldId: string): string | undefined {
 /**
  * The Document pane (OC-048): the composed JSON as an ARIA tree. Nodes show ⛓ their bound
  * table, ← their source, and ⚠/⛔ their issues (OC-049). Keyboard: arrows move and expand,
- * Enter adds a sibling field, Tab a child field (objects and arrays), Alt+↑/↓ reorders, F2
+ * Enter adds a sibling field, Tab a child field (objects and arrays), Alt+↑/↓ or a drag reorders, F2
  * renames, Delete removes (Ctrl+Z undoes); every drag has a menu equivalent.
  */
 export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColumn, onPaste, onDropFile, onGroupRows, embeddable, onEmbed, collapsible, onCollapse }: Props) {
@@ -100,6 +102,8 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
   const selected = selection?.kind === 'field' ? selection.id : spec.docSchema.root.id
   const [editing, setEditing] = useState<string | null>(null)
   const [dropOn, setDropOn] = useState<string | null>(null)
+  // Where a target field being dragged would land.
+  const [dropAt, setDropAt] = useState<{ id: string; pos: DropPos } | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const refs = useRef(new Map<string, HTMLLIElement>())
 
@@ -228,7 +232,15 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
     e.preventDefault()
   }
 
+  // The root and an array's item row only take fields inside; containers inside, before or after.
+  const fieldDropPos = (e: DragEvent, row: Row): DropPos => (row.depth === 0 || row.item ? 'inside' : dropPosition(e, row.field.type === 'object' || row.field.type === 'array'))
   const onDragOver = (e: DragEvent, row: Row) => {
+    if (isFieldDrag(e)) {
+      e.preventDefault()
+      const pos = fieldDropPos(e, row)
+      setDropAt((d) => (d?.id === row.field.id && d.pos === pos ? d : { id: row.field.id, pos }))
+      return
+    }
     const types = e.dataTransfer.types
     const container = row.field.type === 'object' || row.field.type === 'array' || row.depth === 0
     const groupTarget = types.includes(DND_GROUP) && (row.field.type === 'object' || row.field.type === 'array') && row.depth > 0 && !row.item
@@ -240,6 +252,16 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
   const onDrop = (e: DragEvent, row: Row) => {
     e.preventDefault()
     setDropOn(null)
+    setDropAt(null)
+    const moved = e.dataTransfer.getData(DND_FIELD)
+    if (moved) {
+      const pos = fieldDropPos(e, row)
+      run((s) => {
+        const docSchema = moveRelative(s.docSchema, moved, row.field.id, pos)
+        return docSchema === s.docSchema ? s : { ...s, docSchema: { ...docSchema, source: 'manual' } }
+      })
+      return
+    }
     const file = e.dataTransfer.files?.[0]
     if (file && onDropFile) {
       e.stopPropagation()
@@ -260,116 +282,138 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
     if (col) onDropColumn(row.field.id, JSON.parse(col) as { relation: string; column: string; from?: 'via' })
   }
 
+  const addTarget = insertionPoint(spec.docSchema, selected)
+  const addHere = () => {
+    // Open the container first (an item object's array is the row that collapses).
+    const owner = rows.find((r) => r.field.id === addTarget.parentId || (r.field.items?.id === addTarget.parentId && !r.item))?.field.id
+    if (owner && collapsed.has(owner)) toggle(owner)
+    add(addTarget.parentId, 'field', addTarget.index)
+  }
+
   return (
-    <ul role="tree" aria-label={t('composer.document')} onKeyDown={onKey} className="flex flex-col py-1 text-[13px]">
-      {rows.map((row) => {
-        const f = row.field
-        const Icon = typeIcon[f.type] ?? CircleDashed
-        const rel = bound.get(f.id)
-        const src = row.depth > 0 && !row.item ? sourceLabel(spec, f.id) : undefined
-        const found = issuesOf.get(f.id) ?? []
-        const errors = found.filter((i) => i.severity === 'error').length
-        const warnings = found.filter((i) => i.severity === 'warning').length
-        const isSel = f.id === selected
-        const isContainer = f.type === 'object' || f.type === 'array'
-        const name = row.depth === 0 ? '$' : row.item ? t('composer.item') : f.name
-        return (
-          <li
-            key={f.id}
-            ref={(el) => {
-              if (el) refs.current.set(f.id, el)
-              else refs.current.delete(f.id)
-            }}
-            role="treeitem"
-            aria-level={row.depth + 1}
-            aria-selected={isSel}
-            aria-expanded={row.expandable ? !collapsed.has(f.id) : undefined}
-            aria-label={[name, f.type, rel ? t('composer.boundTo', { table: rel.table.name }) : '', src ? t('composer.mappedFrom', { source: src }) : '', errors ? t('composer.errors', { count: errors }) : '', warnings ? t('composer.warnings', { count: warnings }) : ''].filter(Boolean).join(', ')}
-            tabIndex={isSel ? 0 : -1}
-            data-node={f.id}
-            onClick={() => select({ kind: 'field', id: f.id })}
-            onDoubleClick={() => row.depth > 0 && !row.item && setEditing(f.id)}
-            onDragOver={(e) => onDragOver(e, row)}
-            onDragLeave={() => setDropOn((d) => (d === f.id ? null : d))}
-            onDrop={(e) => onDrop(e, row)}
-            className={cn(
-              'group flex h-8 cursor-default items-center gap-1.5 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
-              isSel ? 'bg-primary-soft' : 'hover:bg-surface-muted',
-              dropOn === f.id && 'ring-2 ring-primary',
-            )}
-            style={{ paddingLeft: 8 + row.depth * 16 }}
-          >
-            {row.expandable ? (
-              <button type="button" tabIndex={-1} aria-hidden onClick={(e) => { e.stopPropagation(); toggle(f.id) }} className="text-subtle">
-                {collapsed.has(f.id) ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-              </button>
-            ) : (
-              <span className="w-3.5" />
-            )}
-            {errors || warnings ? (
-              // In front of the name, with what's wrong and how to fix it (OC-071).
-              <span role="img" className="shrink-0" title={found.map((i) => i.message).join('\n')} aria-label={found.map((i) => i.message).join(' ')}>
-                {errors ? <OctagonAlert className="size-3.5 text-danger" /> : <AlertTriangle className="size-3.5 text-warning" />}
-              </span>
-            ) : null}
-            <Icon className="size-3.5 shrink-0 text-subtle" aria-hidden />
-            {editing === f.id ? (
-              <RenameInput
-                name={f.name}
-                label={t('composer.renameField', { name: f.name })}
-                onDone={(next) => {
-                  setEditing(null)
-                  if (next && next !== f.name) run((s) => renameNode(s, f.id, next))
-                  refs.current.get(f.id)?.focus()
-                }}
-              />
-            ) : (
-              <span className={cn('truncate', row.depth === 0 || row.item ? 'text-muted' : 'font-medium')}>{name}</span>
-            )}
-            {rel ? (
-              <span className="flex items-center gap-0.5 rounded bg-primary-soft px-1 text-xs text-primary-soft-foreground" aria-hidden>
-                <Link2 className="size-3" />
-                {rel.group ? t('composer.groupRowsBadge') : rel.table.name}
-                {f.binding?.adapter ? <span className="text-muted">({f.binding.adapter})</span> : null}
-              </span>
-            ) : null}
-            {src ? (
-              <span className="truncate font-mono text-xs text-muted" aria-hidden>
-                ← {src}
-              </span>
-            ) : f.example !== undefined ? (
-              <span className="truncate font-mono text-xs text-muted" aria-hidden title={t('composer.example')}>
-                · {JSON.stringify(f.example)}
-              </span>
-            ) : null}
-            {row.item ? null : (
-              <NodeMenu
-                row={row}
-                open={menuFor === f.id}
-                onOpenChange={(o) => {
-                  setMenuFor(o ? f.id : null)
-                  // Back to the row, unless the action focused something (a new node's name).
-                  if (!o) setTimeout(() => (document.activeElement === document.body || !document.activeElement) && refs.current.get(f.id)?.focus(), 0)
-                }}
-                isContainer={isContainer}
-                bound={!!rel}
-                onAdd={(kind) => add(containerFor(row), kind)}
-                onRename={() => setEditing(f.id)}
-                onBind={() => onBindTable(f.id, !(isContainer && row.depth > 0))}
-                onUnbind={() => run((s) => unbind(s, f.id))}
-                onMap={() => onMapColumn(f.id)}
-                onPaste={() => onPaste(f.id)}
-                onGroupRows={grouped && onGroupRows ? () => onGroupRows(f.id) : undefined}
-                embedTable={embeddable?.(f.id)}
-                onEmbed={onEmbed ? () => onEmbed(f.id) : undefined}
-                onCollapse={onCollapse && collapsible?.(f.id) ? () => onCollapse(f.id) : undefined}
-                onDelete={() => run((s) => deleteNode(s, f.id))}
-              />
-            )}
-          </li>
-        )
-      })}
-    </ul>
+    <>
+      <ul role="tree" aria-label={t('composer.document')} onKeyDown={onKey} className="flex flex-col py-1 text-[13px]">
+        {rows.map((row) => {
+          const f = row.field
+          const Icon = typeIcon[f.type] ?? CircleDashed
+          const rel = bound.get(f.id)
+          const src = row.depth > 0 && !row.item ? sourceLabel(spec, f.id) : undefined
+          const found = issuesOf.get(f.id) ?? []
+          const errors = found.filter((i) => i.severity === 'error').length
+          const warnings = found.filter((i) => i.severity === 'warning').length
+          const isSel = f.id === selected
+          const isContainer = f.type === 'object' || f.type === 'array'
+          const name = row.depth === 0 ? '$' : row.item ? t('composer.item') : f.name
+          return (
+            <li
+              key={f.id}
+              ref={(el) => {
+                if (el) refs.current.set(f.id, el)
+                else refs.current.delete(f.id)
+              }}
+              role="treeitem"
+              aria-level={row.depth + 1}
+              aria-selected={isSel}
+              aria-expanded={row.expandable ? !collapsed.has(f.id) : undefined}
+              aria-label={[name, f.type, rel ? t('composer.boundTo', { table: rel.table.name }) : '', src ? t('composer.mappedFrom', { source: src }) : '', errors ? t('composer.errors', { count: errors }) : '', warnings ? t('composer.warnings', { count: warnings }) : ''].filter(Boolean).join(', ')}
+              tabIndex={isSel ? 0 : -1}
+              data-node={f.id}
+              onClick={() => select({ kind: 'field', id: f.id })}
+              onDoubleClick={() => row.depth > 0 && !row.item && setEditing(f.id)}
+              draggable={row.depth > 0 && !row.item && editing !== f.id}
+              onDragStart={(e) => startFieldDrag(e, f.id)}
+              onDragEnd={() => setDropAt(null)}
+              onDragOver={(e) => onDragOver(e, row)}
+              onDragLeave={() => {
+                setDropOn((d) => (d === f.id ? null : d))
+                setDropAt((d) => (d?.id === f.id ? null : d))
+              }}
+              onDrop={(e) => onDrop(e, row)}
+              className={cn(
+                'group flex h-8 cursor-default items-center gap-1.5 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+                isSel ? 'bg-primary-soft' : 'hover:bg-surface-muted',
+                dropOn === f.id && 'ring-2 ring-primary',
+                dropAt?.id === f.id && dropIndicator[dropAt.pos],
+              )}
+              style={{ paddingLeft: 8 + row.depth * 16 }}
+            >
+              {row.expandable ? (
+                <button type="button" tabIndex={-1} aria-hidden onClick={(e) => { e.stopPropagation(); toggle(f.id) }} className="text-subtle">
+                  {collapsed.has(f.id) ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                </button>
+              ) : (
+                <span className="w-3.5" />
+              )}
+              {errors || warnings ? (
+                // In front of the name, with what's wrong and how to fix it (OC-071).
+                <span role="img" className="shrink-0" title={found.map((i) => i.message).join('\n')} aria-label={found.map((i) => i.message).join(' ')}>
+                  {errors ? <OctagonAlert className="size-3.5 text-danger" /> : <AlertTriangle className="size-3.5 text-warning" />}
+                </span>
+              ) : null}
+              <Icon className="size-3.5 shrink-0 text-subtle" aria-hidden />
+              {editing === f.id ? (
+                <RenameInput
+                  name={f.name}
+                  label={t('composer.renameField', { name: f.name })}
+                  onDone={(next) => {
+                    setEditing(null)
+                    if (next && next !== f.name) run((s) => renameNode(s, f.id, next))
+                    refs.current.get(f.id)?.focus()
+                  }}
+                />
+              ) : (
+                <span className={cn('truncate', row.depth === 0 || row.item ? 'text-muted' : 'font-medium')}>{name}</span>
+              )}
+              {rel ? (
+                <span className="flex items-center gap-0.5 rounded bg-primary-soft px-1 text-xs text-primary-soft-foreground" aria-hidden>
+                  <Link2 className="size-3" />
+                  {rel.group ? t('composer.groupRowsBadge') : rel.table.name}
+                  {f.binding?.adapter ? <span className="text-muted">({f.binding.adapter})</span> : null}
+                </span>
+              ) : null}
+              {src ? (
+                <span className="truncate font-mono text-xs text-muted" aria-hidden>
+                  ← {src}
+                </span>
+              ) : f.example !== undefined ? (
+                <span className="truncate font-mono text-xs text-muted" aria-hidden title={t('composer.example')}>
+                  · {JSON.stringify(f.example)}
+                </span>
+              ) : null}
+              {row.item ? null : (
+                <NodeMenu
+                  row={row}
+                  open={menuFor === f.id}
+                  onOpenChange={(o) => {
+                    setMenuFor(o ? f.id : null)
+                    // Back to the row, unless the action focused something (a new node's name).
+                    if (!o) setTimeout(() => (document.activeElement === document.body || !document.activeElement) && refs.current.get(f.id)?.focus(), 0)
+                  }}
+                  isContainer={isContainer}
+                  bound={!!rel}
+                  onAdd={(kind) => add(containerFor(row), kind)}
+                  onRename={() => setEditing(f.id)}
+                  onBind={() => onBindTable(f.id, !(isContainer && row.depth > 0))}
+                  onUnbind={() => run((s) => unbind(s, f.id))}
+                  onMap={() => onMapColumn(f.id)}
+                  onPaste={() => onPaste(f.id)}
+                  onGroupRows={grouped && onGroupRows ? () => onGroupRows(f.id) : undefined}
+                  embedTable={embeddable?.(f.id)}
+                  onEmbed={onEmbed ? () => onEmbed(f.id) : undefined}
+                  onCollapse={onCollapse && collapsible?.(f.id) ? () => onCollapse(f.id) : undefined}
+                  onDelete={() => run((s) => deleteNode(s, f.id))}
+                />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {/* Outside the tree (a tree owns only treeitems): adds where OC-081 puts it. */}
+      <button type="button" onClick={addHere} className="flex h-7 items-center gap-1.5 px-3 text-xs font-medium text-primary hover:underline">
+        <Plus className="size-3.5" aria-hidden />
+        {addTarget.label ? t('composer.addFieldTo', { name: addTarget.label }) : t('composer.addField')}
+      </button>
+    </>
   )
 }
 
@@ -378,6 +422,7 @@ function RenameInput({ name, label, onDone }: { name: string; label: string; onD
   return (
     <input
       autoFocus
+      onFocus={(e) => e.currentTarget.select()}
       aria-label={label}
       value={value}
       onChange={(e) => setValue(e.target.value)}

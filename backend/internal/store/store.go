@@ -228,6 +228,7 @@ type Store interface {
 	Snapshots() Snapshots
 	Mappings() Mappings
 	Relationships() Relationships
+	Exports() Exports
 	Jobs() Jobs
 	Nodes() Nodes
 	Ping(ctx context.Context) error

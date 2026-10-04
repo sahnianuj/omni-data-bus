@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E11 Portable Runner | P0 | 8 | OC-051, OC-052 | Not started |
+| E11 Portable Runner | P0 | 8 | OC-051, OC-052 | Implemented |
 
 ## User story
 As a **customer's operations engineer**, I want to download one bash script that already contains the mapping, the source credentials and the target (a directory for JSON files, or database credentials), so that I can run the production migration on my own machine or server with a single command, without installing or reaching the Omni-Data-Bus tool.
@@ -11,7 +11,7 @@ As a **customer's operations engineer**, I want to download one bash script that
 **In:**
 - A generated `migrate.sh` with the bundle embedded, which finds or fetches the `odb` binary and runs it.
 - Runtimes: `binary` (download with checksum and signature check, or use a local one), `docker` (image pinned by digest), and `embedded` (the binary inside the script, for air-gapped sites).
-- Commands: `preflight`, `run`, `resume`, `status`, `verify`, `inspect`, `extract`. Kubernetes commands are added by OC-054.
+- Commands: `preflight`, `run`, `resume`, `status`, `verify`, `inspect`, `extract`.
 - A generated `README.md` with run instructions for this specific export.
 - Compatibility with bash 3.2 (macOS) and bash 4/5 (Linux), and `shellcheck` clean.
 
@@ -67,6 +67,19 @@ __ODB_BINARY_BELOW__                       # only with runtime=embedded
 ### Generation
 - The API `POST /projects/{projectId}/exports` with `runtime: "script"` returns `odb-export-<project>-<date>.zip` containing `migrate.sh` (mode 0755), `README.md`, and optionally `bundle.odb.json` (when *Include separate bundle file* is ticked).
 - `embedded` requires choosing os and arch. It adds about 12 MB (gzip'd) to the script.
+
+## Results (2026-10-02)
+- `internal/export/templates/migrate.sh.tmpl` and `README.md.tmpl`; the zip holds `migrate.sh` (0755), `README.md`, optionally `bundle.odb.json`.
+- All 24 variants (runtime × credential mode × target kind) pass `bash -n` and `shellcheck -S style`.
+- The bats suites (`testdata/bats/*.bats`, 13 cases) pass on bash 3.2 (macOS) and bash 5, including a real `./migrate.sh run` against the dev PostgreSQL (10,000 files). `TestMigrateScript_Bats` generates the scripts, stub binaries and a local download server and runs them; `make test-scripts` runs both checks (`ODB_TEST_BASH=/bin/bash` for 3.2). CI installs bats on Linux and runs the suites on macOS too.
+- Through the running server: export (with step-up) → `migrate.sh inspect | preflight | run | status | verify` → `report.json` imported as an external run.
+- Docker runtime against a freshly built image (`ODB_IT_IMAGE=… ODB_TEST_BATS_FILTER="docker runtime"`, PostgreSQL at `host.docker.internal`): 10,000 files in the host folder. It found that `odb` read a `.env` from the working directory before every command (unreadable in the container, exit 2): `odb run`, `bundle`, `doc` and `version` no longer read it, and their usage errors exit 4, never 2.
+
+### Changes from the plan
+- The payload sits in a quoted here-document after `exit`, so it is inert and shellcheck doesn't parse the base64 as code; markers are unchanged.
+- Choosing an OS and architecture embeds odb with any runtime (`auto` then tries it first); `embedded` requires them. Without release binaries on the server (`OC_EXPORT_DIST_DIR`), only the server's own platform can be embedded, and scripts carry no download checksums (they then use `ODB_BIN`, `odb` on the PATH, or Docker).
+- Image and download URL default to `ghcr.io/sahnianuj/omni-data-bus:<version>` and this version's GitHub release (`OC_EXPORT_IMAGE`, `OC_EXPORT_DOWNLOAD_URL`); pin the image by digest in production.
+- Cosign verification (when installed) checks the signed `SHA256SUMS` and that the tarball's checksum is in it.
 
 ## Acceptance criteria & unit tests
 

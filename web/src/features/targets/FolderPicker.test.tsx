@@ -4,10 +4,11 @@ import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
 import { mockCatalog, mockProjectConnections, pgConnection } from '@/test/connections'
-import { server, setupMswServer } from '@/test/msw'
+import { server, setupMswServer, targetKinds } from '@/test/msw'
 import { makeProject, mockProject, repo } from '@/test/projects'
 import { renderRoutes } from '@/test/render'
 import { mockSession } from '@/test/session'
+import { hostPathOf } from './kinds'
 
 setupMswServer()
 
@@ -81,5 +82,62 @@ describe('FolderPicker', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'New folder' }))
     await user.type(within(dialog).getByLabelText('Folder name'), '.secret')
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeDisabled()
+  })
+})
+
+// OC-080: the all-in-one image shares ~/omni-data-bus-output as /data.
+describe('FolderPicker in the all-in-one image', () => {
+  const shared = { path: '/data', hostPath: '/Users/ana/omni-data-bus-output' }
+  const sharedKinds = () => targetKinds({ directoryEnabled: true }).map((k) => (k.type === 'directory' ? { ...k, sharedFolder: shared } : k))
+
+  it('OC-080 AC2: the shared folder is labeled with its place on the computer', async () => {
+    server.use(
+      http.get('*/api/v1/target-kinds', () => HttpResponse.json({ kinds: sharedKinds() })),
+      http.get('*/api/v1/target-kinds/directory/folders', ({ request }) => {
+        const path = new URL(request.url).searchParams.get('path') ?? ''
+        if (!path) return HttpResponse.json({ path: '', parent: '', canCreate: false, folders: [{ name: '/data', path: '/data', where: 'computer', hostPath: shared.hostPath, label: `Your computer: ${shared.hostPath}` }] })
+        return HttpResponse.json({ path, parent: '', canCreate: true, where: 'computer', hostPath: hostPathOf(path, shared), folders: [] })
+      }),
+    )
+    const user = userEvent.setup()
+    renderRoutes(routes, '/projects/p1/target')
+    await user.click(await screen.findByRole('radio', { name: /Directory of JSON files/ }))
+    // The field's hint says where to choose, before anything is picked.
+    expect(screen.getByText("Choose a folder in /data: that's /Users/ana/omni-data-bus-output on your computer.")).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Choose folder…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the output folder' })
+    expect(dialog).toHaveTextContent('Files go to /Users/ana/omni-data-bus-output on your computer.')
+    expect(within(dialog).queryByRole('note')).not.toBeInTheDocument()
+    await user.click(await within(dialog).findByRole('button', { name: /Your computer: \/Users\/ana\/omni-data-bus-output/ }))
+    expect(await within(dialog).findByText(/on your computer: \/Users\/ana\/omni-data-bus-output$/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Use this folder' }))
+    expect(screen.getByLabelText('Folder path')).toHaveValue('/data')
+    expect(screen.getByText('on your computer: /Users/ana/omni-data-bus-output')).toBeInTheDocument()
+  })
+
+  it('OC-080 AC2: nothing shared: warns that files stay in the container', async () => {
+    server.use(
+      http.get('*/api/v1/target-kinds/directory/folders', () =>
+        HttpResponse.json({ path: '', parent: '', canCreate: false, folders: [{ name: '/opt/couchbase/var/odb/home', path: '/opt/couchbase/var/odb/home', where: 'container', label: "Inside the app's container (not visible on your computer)" }] }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderRoutes(routes, '/projects/p1/target')
+    await user.click(await screen.findByRole('radio', { name: /Directory of JSON files/ }))
+    await user.click(screen.getByRole('button', { name: 'Choose folder…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Choose the output folder' })
+    expect(await within(dialog).findByRole('note')).toHaveTextContent('./run.sh start --output <folder>')
+    expect(within(dialog).getByRole('button', { name: /Inside the app's container/ })).toBeInTheDocument()
+  })
+})
+
+describe('hostPathOf', () => {
+  it('OC-080: maps a container path to the computer', () => {
+    const s = { path: '/data', hostPath: '/Users/ana/out' }
+    expect(hostPathOf('/data/orders/2026', s)).toBe('/Users/ana/out/orders/2026')
+    expect(hostPathOf('/data', s)).toBe('/Users/ana/out')
+    expect(hostPathOf('/database', s)).toBe('')
+    expect(hostPathOf('/data/x', undefined)).toBe('')
+    expect(hostPathOf('/data/orders', { path: '/data', hostPath: 'C:\\Users\\ana\\out' })).toBe('C:\\Users\\ana\\out\\orders')
   })
 })

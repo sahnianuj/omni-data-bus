@@ -129,6 +129,23 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         default: { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/step-up:
+    post:
+      tags: [auth]
+      operationId: stepUp
+      summary: Re-confirm the password before a sensitive action (exporting credentials); valid for 5 minutes in this session
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties: { password: { type: string, format: password } }
+      responses:
+        '204': { description: Confirmed }
+        default: { $ref: '#/components/responses/Problem' }
   /api/v1/dashboard:
     get:
       tags: [projects]
@@ -320,6 +337,29 @@ paths:
       security: [{ cookieAuth: [] }]
       responses:
         '204': { description: Deleted with its stored credentials }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/connections/target/bundled:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [connections]
+      operationId: saveBundledTarget
+      summary: Make the all-in-one image's bundled Couchbase node the project's target, and test it (OC-072)
+      description: >-
+        Only on a server started with OC_BUNDLED_TARGET (the all-in-one image); 404 elsewhere. The
+        password comes from the server's settings and is stored sealed like any other credential.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Replaced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BundledTargetSaved' }
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BundledTargetSaved' }
         default: { $ref: '#/components/responses/Problem' }
   /api/v1/connections/{id}/discover:
     parameters:
@@ -1151,6 +1191,81 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CreateJobResult' }
         default: { $ref: '#/components/responses/Problem' }
+  /api/v1/exports/options:
+    get:
+      tags: [exports]
+      operationId: getExportOptions
+      summary: What this server can export (OC-050..OC-053) — image, download URL, platforms
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ExportOptions' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/exports/passphrase:
+    post:
+      tags: [exports]
+      operationId: generatePassphrase
+      summary: A new six-word diceware passphrase (never stored); editors only
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [passphrase], properties: { passphrase: { type: string } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/exports:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [exports]
+      operationId: listExports
+      summary: The project's export history, newest first, with the mappings changed since each export (OC-055)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ExportHistory' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [exports]
+      operationId: createExport
+      summary: >-
+        Export the project as configured (its source, target, sealed saved credentials and every ready mapping) as a
+        portable bundle (runtime bundle → .odb.json) or a migrate.sh zip (runtime script). Editors only, after a step-up
+        within 5 minutes (403 STEP_UP_REQUIRED); 422 MAPPING_INVALID, NO_READY_MAPPINGS, PASSPHRASE_WEAK,
+        BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExportRequest' }
+      responses:
+        '201':
+          description: The file, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers)
+          content:
+            application/json: { schema: { type: string, format: binary } }
+            application/zip: { schema: { type: string, format: binary } }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/runs/import:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [exports]
+      operationId: importRunReport
+      summary: Import an odb run report.json (≤ 5 MB) as a read-only external job; 422 REPORT_UNKNOWN_BUNDLE when it isn't from an export of this project
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [report], properties: { report: { type: string, format: binary } } }
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '201': { description: The external job, content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        default: { $ref: '#/components/responses/Problem' }
   /api/v1/audit:
     get:
       tags: [audit]
@@ -1463,6 +1578,7 @@ components:
             api: { type: array, items: { type: string } }
             worker: { type: array, items: { type: string } }
         consistent: { type: boolean, description: false when nodes run more than one version }
+        bundledStore: { type: string, description: 'The all-in-one image''s bundled Couchbase (OC-072)', example: Couchbase Server CE 8.0.2 }
     SignupRequest:
       type: object
       required: [email, password, displayName]
@@ -2408,10 +2524,31 @@ components:
       properties:
         path: { type: string, description: '"" lists the areas' }
         parent: { type: string, description: 'Where "up" goes; "" from an area''s top folder' }
-        folders:
-          type: array
-          items: { type: object, required: [name, path], properties: { name: { type: string }, path: { type: string } } }
+        folders: { type: array, items: { $ref: '#/components/schemas/FolderEntry' } }
         canCreate: { type: boolean }
+        where: { $ref: '#/components/schemas/FolderWhere' }
+        hostPath: { type: string, description: 'Path on the user''s computer when shared into the all-in-one image (OC-080)' }
+    FolderEntry:
+      type: object
+      required: [name, path]
+      properties:
+        name: { type: string }
+        path: { type: string }
+        hostPath: { type: string, description: 'The folder on the user''s computer when it''s shared into the all-in-one image (OC-080)' }
+        where: { $ref: '#/components/schemas/FolderWhere' }
+        label: { type: string, description: 'An area''s label for users, e.g. "Your computer: /Users/ana/omni-data-bus-output"' }
+    FolderWhere:
+      type: string
+      enum: [computer, container]
+      description: >-
+        All-in-one image only (OC-080): computer = a folder of the user's computer shared into the
+        container; container = inside the container only. Absent on a regular server.
+    SharedFolder:
+      type: object
+      required: [path, hostPath]
+      properties:
+        path: { type: string, example: /data }
+        hostPath: { type: string, example: /Users/ana/omni-data-bus-output }
     LocationNode:
       type: object
       required: [name, level, path, location, leaf, canCreate]
@@ -2456,11 +2593,27 @@ components:
             kindCapabilities: { $ref: '#/components/schemas/TargetKindCapabilities' }
             enabled: { type: boolean }
             disabledReason: { type: string }
+            sharedFolder: { $ref: '#/components/schemas/SharedFolder' }
     TargetKindList:
       type: object
       required: [kinds]
       properties:
         kinds: { type: array, items: { $ref: '#/components/schemas/TargetKind' } }
+        bundled: { $ref: '#/components/schemas/BundledTarget' }
+    BundledTarget:
+      type: object
+      description: The Couchbase node bundled in the all-in-one image (OC-072); absent elsewhere.
+      required: [kind, label, buckets]
+      properties:
+        kind: { type: string, enum: [couchbase] }
+        label: { type: string, example: Bundled Couchbase (this container) }
+        buckets: { type: array, items: { type: string }, example: [sandbox] }
+    BundledTargetSaved:
+      type: object
+      required: [connection, test]
+      properties:
+        connection: { $ref: '#/components/schemas/Connection' }
+        test: { $ref: '#/components/schemas/TestResult' }
     MappingTarget:
       type: object
       description: The 1.0 Couchbase form of Location (empty for other kinds).
@@ -2581,7 +2734,7 @@ components:
         embedCandidates: { type: array, items: { $ref: '#/components/schemas/EmbedCandidate' } }
     MappingSummary:
       type: object
-      required: [id, sourceSchema, sourceTable, mode, driving, target, location, status, stats, version, updatedAt]
+      required: [id, sourceSchema, sourceTable, mode, driving, target, location, status, stats, version, updatedAt, errors, warnings]
       properties:
         id: { type: string }
         sourceSchema: { type: string }
@@ -2603,6 +2756,15 @@ components:
             arrays: { type: integer }
             objects: { type: integer }
             groupBy: { type: array, items: { type: string } }
+        errors: { type: integer, description: 'Error issues in the live validation; any makes the status draft (OC-083)' }
+        warnings: { type: integer }
+        firstError:
+          type: object
+          description: 'What to fix first (OC-083)'
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
     MappingList:
       type: object
       required: [items]
@@ -2992,6 +3154,102 @@ components:
         resumable: { type: boolean }
         retryable: { type: boolean }
         resumeInfo: { $ref: '#/components/schemas/ResumeInfo' }
+        origin: { type: string, enum: [external], description: 'external: a run of an exported bundle, imported from its report (OC-055); read-only' }
+        external: { $ref: '#/components/schemas/ExternalRun' }
+        minWorkerVersion: { type: string, description: 'Oldest worker release that can run the job (2.0.0 when it uses a 2.0-only feature); older workers never claim it (OC-057)' }
+        minWorkerLevel: { type: integer }
+    ExternalRun:
+      type: object
+      required: [runId, bundleSha256, exportId, odb, exitCode, durationSec, docsPerSec, errors, importedBy, importedAt, mappings]
+      properties:
+        runId: { type: string }
+        bundleSha256: { type: string }
+        exportId: { type: string }
+        odb: { type: object, required: [version, commit], properties: { version: { type: string }, commit: { type: string } } }
+        exitCode: { type: integer }
+        durationSec: { type: number }
+        docsPerSec: { type: number }
+        errors:
+          type: object
+          required: [total, byCode, samples]
+          properties:
+            total: { type: integer, format: int64 }
+            byCode:
+              type: array
+              items: { type: object, required: [stage, code, count], properties: { stage: { type: string }, code: { type: string }, count: { type: integer, format: int64 } } }
+            samples: { type: array, items: { type: object, additionalProperties: true } }
+        importedBy: { type: string }
+        importedAt: { type: string, format: date-time }
+        mappings:
+          type: array
+          items:
+            type: object
+            required: [id, name, table, target, phase, read, written, skipped, failed]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              table: { type: string }
+              target: { type: string }
+              phase: { type: string }
+              read: { type: integer, format: int64 }
+              written: { type: integer, format: int64 }
+              skipped: { type: integer, format: int64 }
+              failed: { type: integer, format: int64 }
+    ExportOptions:
+      type: object
+      required: [version, image, downloadUrl, downloadable, embeddable, maxPerHour, minPassphraseLength, stepUpWindowSec]
+      properties:
+        version: { type: string }
+        image: { type: string }
+        downloadUrl: { type: string }
+        downloadable: { type: array, items: { type: string }, description: 'Platforms (os_arch) a script can download odb for (checksums known)' }
+        embeddable: { type: array, items: { type: string }, description: Platforms this server can embed odb for }
+        maxPerHour: { type: integer }
+        minPassphraseLength: { type: integer }
+        stepUpWindowSec: { type: integer }
+    ExportRequest:
+      type: object
+      description: >-
+        How to package the export. What is exported is the project as configured — its source, target, saved
+        credentials and every ready mapping; change them in the project's steps. The credentials are always sealed
+        with the passphrase.
+      required: [passphrase, runtime]
+      properties:
+        passphrase: { type: string, format: password, description: 'At least 12 characters and strong (PASSPHRASE_WEAK)' }
+        runtime: { type: string, enum: [bundle, script] }
+        script:
+          type: object
+          properties:
+            runtime: { type: string, enum: [auto, binary, docker, embedded] }
+            os: { type: string, enum: [linux, darwin] }
+            arch: { type: string, enum: [amd64, arm64] }
+            includeBundle: { type: boolean }
+        jobOptions: { $ref: '#/components/schemas/JobOptions' }
+    ExportRecord:
+      type: object
+      required: [id, projectId, createdBy, createdByEmail, createdAt, mappingIds, planHashes, targetType, credentialMode, runtime, odbVersion, bundleSha256, planHash, changed]
+      properties:
+        id: { type: string }
+        workspaceId: { type: string }
+        projectId: { type: string }
+        createdBy: { type: string }
+        createdByEmail: { type: string }
+        createdAt: { type: string, format: date-time }
+        mappingIds: { type: array, items: { type: string } }
+        planHashes: { type: object, additionalProperties: { type: string } }
+        targetType: { type: string }
+        credentialMode: { type: string, enum: [sealed, plaintext, external] }
+        runtime: { type: string, enum: [bundle, script] }
+        odbVersion: { type: string }
+        bundleSha256: { type: string }
+        planHash: { type: string }
+        changed: { type: array, items: { type: string }, description: Exported mappings changed or deleted since }
+    ExportHistory:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ExportRecord' } }
+        nextCursor: { type: string }
     VerifyDiff:
       type: object
       required: [path, expected, actual]
@@ -3231,6 +3489,7 @@ components:
         - PROJECT_REPOSITORIES_INCOMPLETE
         - MAPPING_EXISTS
         - MAPPING_VERSION_CONFLICT
+        - MAPPING_NEWER_VERSION
         - PREVIEW_TIMEOUT
         - MAPPING_INVALID
         - INVALID_SAMPLE
@@ -3259,3 +3518,8 @@ components:
         - EGRESS_DENIED
         - PAYLOAD_TOO_LARGE
         - TOO_MANY_CONCURRENT_OPERATIONS
+        - BUNDLED_TARGET_NOT_EXPORTABLE
+        - PASSPHRASE_WEAK
+        - STEP_UP_REQUIRED
+        - REPORT_UNKNOWN_BUNDLE
+        - EXPORT_TOO_LARGE

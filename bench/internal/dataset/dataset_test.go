@@ -88,7 +88,59 @@ func TestEmbedSQL_ChildRowsAndForeignKey(t *testing.T) {
 	if All[0].ChildRows() != 0 {
 		t.Fatal("no embed, no child rows")
 	}
-	if d.CountSQL() != "SELECT count(*) FROM bench.customers" {
+	if d.CountSQL() != "SELECT (SELECT count(*) FROM bench.customers) || '/' || (SELECT count(*) FROM bench.orders)" {
 		t.Fatal(d.CountSQL())
+	}
+	if !d.Generated("100/1000\n") || d.Generated("100/0") || d.Generated("100") {
+		t.Fatal("a dataset is generated when both tables are complete")
+	}
+	if flat, _ := Get("smoke", 5); !flat.Generated("5") || flat.CountSQL() != "SELECT count(*) FROM bench.smoke" {
+		t.Fatal("flat")
+	}
+}
+
+func TestNestedSQL_OC056_LookupUnderChildren(t *testing.T) {
+	d, _ := Get("nested", 100)
+	sql := strings.Join(d.SQL(), "\n")
+	for _, want := range []string{
+		"product_id bigint NOT NULL REFERENCES bench.n_products(id)",
+		"order_id bigint NOT NULL REFERENCES bench.n_orders(id)",
+		", 1 + (g * 7919) % 100000\nFROM generate_series(1::bigint, 1000)",
+		"generate_series(1::bigint, 100000) AS g",
+		"ANALYZE bench.n_products",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("missing %q in\n%s", want, sql)
+		}
+	}
+	if strings.Contains(sql, "%%") || strings.Contains(sql, "%!") {
+		t.Fatalf("bad format in\n%s", sql)
+	}
+	drops := []int{strings.Index(sql, "DROP TABLE IF EXISTS bench.n_order_items"), strings.Index(sql, "DROP TABLE IF EXISTS bench.n_orders\n"), strings.Index(sql, "DROP TABLE IF EXISTS bench.n_products")}
+	if drops[0] > drops[1] || drops[1] > drops[2] {
+		t.Fatalf("drop order %v", drops)
+	}
+	req := d.EmbedRequest("")
+	then := req["then"].([]map[string]any)[0]
+	if req["limit"] != 100 || then["kind"] != "many-to-one" || req["strategy"] != nil {
+		t.Fatalf("%v", req)
+	}
+}
+
+func TestSkewedSQL_OC056_OnePercentHeavy(t *testing.T) {
+	d, _ := Get("skewed", 1000)
+	if d.ChildRows() != 10*500+990*5 || d.MaxPerParent() != 500 {
+		t.Fatalf("child rows = %d", d.ChildRows())
+	}
+	sql := strings.Join(d.SQL(), "\n")
+	if !strings.Contains(sql, "CASE WHEN p % 100 = 0 THEN 500 ELSE 5 END") || strings.Contains(sql, "%!") {
+		t.Fatalf("%s", sql)
+	}
+	if d.EmbedRequest("sorted-merge")["strategy"] != "sorted-merge" {
+		t.Fatal("strategy")
+	}
+	dir, _ := Get("directory", 0)
+	if !dir.Directory || dir.Release != "2.0.0" || dir.Embed != nil {
+		t.Fatalf("%+v", dir)
 	}
 }

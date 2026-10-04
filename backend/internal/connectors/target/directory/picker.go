@@ -25,7 +25,7 @@ func (c *Connector) Folders(path string) (target.FolderListing, error) {
 	if strings.TrimSpace(path) == "" {
 		out := target.FolderListing{Folders: []target.FolderEntry{}}
 		for _, r := range c.roots {
-			out.Folders = append(out.Folders, target.FolderEntry{Name: r, Path: r})
+			out.Folders = append(out.Folders, c.area(r))
 		}
 		return out, nil
 	}
@@ -40,7 +40,7 @@ func (c *Connector) Folders(path string) (target.FolderListing, error) {
 	if err != nil {
 		return target.FolderListing{}, problem.New(http.StatusUnprocessableEntity, problem.CodeValidation, "Can't open folder", err.Error())
 	}
-	out := target.FolderListing{Path: abs, Folders: []target.FolderEntry{}, CanCreate: true}
+	out := target.FolderListing{Path: abs, Folders: []target.FolderEntry{}, CanCreate: true, Where: c.where(abs), HostPath: c.hostPath(abs)}
 	if !c.isRoot(abs) {
 		out.Parent = filepath.Dir(abs)
 	}
@@ -49,7 +49,8 @@ func (c *Connector) Folders(path string) (target.FolderListing, error) {
 		if strings.HasPrefix(name, ".") || !isDir(abs, e) {
 			continue
 		}
-		out.Folders = append(out.Folders, target.FolderEntry{Name: name, Path: filepath.Join(abs, name)})
+		child := filepath.Join(abs, name)
+		out.Folders = append(out.Folders, target.FolderEntry{Name: name, Path: child, HostPath: c.hostPath(child)})
 		if len(out.Folders) == pickerMax {
 			break
 		}

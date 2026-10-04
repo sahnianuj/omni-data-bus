@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DocField, DocSchema } from '@/features/mapping/types'
+import { dragOnto } from '@/test/drag'
 import { withFixedLayout } from '@/test/layout'
 import { mappingView, renderWorkbench, sampleSpec } from '@/test/mapping'
 import { server, setupMswServer } from '@/test/msw'
@@ -64,6 +65,48 @@ describe('DocDesigner', () => {
 
     store.getState().undo()
     await waitFor(() => expect(row('customerId')).toBeInTheDocument())
+  })
+
+  it('fields drag before, after or into an object', () => {
+    const { store } = renderWorkbench(designer())
+    dragOnto(row('age'), row('customerId'), 0) // rows measure 600 px: top edge is before
+    expect(names(store)).toEqual(['age', 'customerId', 'name', 'email', 'createdAt', 'profile'])
+    dragOnto(row('customerId'), row('profile'), 590) // bottom edge is after
+    expect(names(store)).toEqual(['age', 'name', 'email', 'createdAt', 'profile', 'customerId'])
+    dragOnto(row('email'), row('name'), 300) // an object's middle is inside
+    expect(store.getState().history.present.docSchema.root.children![1]!.children!.map((f) => f.name)).toEqual(['first', 'last', 'email'])
+  })
+
+  it('OC-081: array items and add field', async () => {
+    const spec = sampleSpec()
+    spec.docSchema.root.children!.push({ id: 'f_items', name: 'items', type: 'array', items: { id: 'f_item', name: '[]', type: 'object', children: [{ id: 'f_sku', name: 'sku', type: 'string' }, { id: 'f_qty', name: 'qty', type: 'integer' }] } })
+    const { store } = renderWorkbench(designer(), mappingView({ spec }))
+    const itemNames = () => store.getState().history.present.docSchema.root.children!.at(-1)!.items!.children!.map((f) => f.name)
+    // AC1: the item fields show one level under the array, and collapse with it.
+    expect(row('sku')).toHaveAttribute('aria-level', '2')
+    expect(row('items')).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse items' }))
+    expect(row('sku')).toBeUndefined()
+    await userEvent.click(screen.getByRole('button', { name: 'Expand items' }))
+
+    // AC3: with the array selected, the button adds into its items and opens the name.
+    expect(screen.getByRole('button', { name: 'Add field' })).toBeInTheDocument()
+    await userEvent.click(row('items'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add field to items' }))
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Rename newField' }), '{Control>}a{/Control}price{Enter}')
+    expect(itemNames()).toEqual(['sku', 'qty', 'price'])
+
+    // With an item field selected, the next one goes right after it.
+    await userEvent.click(row('sku'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add field to items' }))
+    await userEvent.keyboard('{Escape}')
+    expect(itemNames()).toEqual(['sku', 'newField', 'qty', 'price'])
+
+    // AC4: the array's menu adds into its items too.
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for items' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add field' }))
+    await userEvent.keyboard('{Escape}')
+    expect(itemNames()).toHaveLength(5)
   })
 
   it('AC7: drop shows diff dialog and applies merge', async () => {

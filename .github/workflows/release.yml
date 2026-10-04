@@ -1,6 +1,8 @@
 name: Release
 # On a v* tag: test, build and push a signed multi-arch image with an SBOM, scan it, push the Helm
-# chart, and publish a GitHub release. On a PR labelled release-check: the same steps as a dry
+# chart, build the all-in-one image (app + Couchbase CE, OC-073), build the odb runner binaries with
+# a signed SHA256SUMS (OC-051), and publish a GitHub release with the chart, the all-in-one archives
+# and the binaries. On a PR labelled release-check: the same steps as a dry
 # run (nothing is pushed, signed or published).
 on:
   push:
@@ -54,7 +56,47 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: cd web && npm ci
-      - run: make test-backend test-web helm-test
+      - run: sudo apt-get update && sudo apt-get install -y bats
+      - run: make test-backend test-scripts test-web helm-test
+      # A release with a gate file (bench/gates-<version>.json) ships only when every gate passed
+      # in the reference environment (OC-056 AC4).
+      - uses: actions/setup-go@v5
+        with: { go-version-file: bench/go.mod, cache: false }
+      - name: Release gates
+        env: { VERSION: "${{ needs.meta.outputs.version }}" }
+        run: |
+          if [ -f "bench/gates-$VERSION.json" ]; then
+            make bench-gate RELEASE="$VERSION" BENCH_GATE_ARGS="--summary $GITHUB_STEP_SUMMARY"
+          else
+            echo "no bench/gates-$VERSION.json: no performance gates for this release"
+          fi
+
+  # The odb runner for exported migrations (OC-051): static binaries for linux and darwin,
+  # SHA256SUMS signed with cosign (keyless); migrate.sh downloads and checks them (OC-053).
+  binaries:
+    needs: [meta, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # keyless cosign signing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - name: Build (linux, darwin × amd64, arm64)
+        run: >-
+          make dist VERSION=${{ needs.meta.outputs.version }} COMMIT=${{ github.sha }}
+          BUILD_TIME=${{ needs.meta.outputs.build_time }} CHANNEL=${{ needs.meta.outputs.channel }}
+      - name: Smoke test (linux/amd64)
+        run: |
+          tar -xzf "dist/odb/odb_${{ needs.meta.outputs.version }}_linux_amd64.tar.gz" -C /tmp odb
+          /tmp/odb version --json | grep -q '"version": "${{ needs.meta.outputs.version }}"'
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign SHA256SUMS
+        if: needs.meta.outputs.publish == 'true'
+        run: cosign sign-blob --yes --bundle dist/odb/SHA256SUMS.sigstore.json dist/odb/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with: { name: odb-binaries, path: dist/odb/, compression-level: 0 }
 
   image:
     needs: [meta, test]
@@ -126,6 +168,85 @@ jobs:
           cosign sign --yes "$REPO@$DIGEST"
           cosign attest --yes --type spdxjson --predicate sbom.spdx.json "$REPO@$DIGEST"
 
+  # The all-in-one image (OC-073 AC4): pushed multi-arch on top of the regular image the image job
+  # pushed and signed (so that one isn't rebuilt), plus one docker-save archive per CPU for the
+  # release page.
+  appliance:
+    needs: [meta, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      ODB_REF: ${{ needs.meta.outputs.registry }}/omni-data-bus:${{ needs.meta.outputs.version }}
+      REF: ${{ needs.meta.outputs.registry }}/omni-data-bus-appliance:${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - if: needs.meta.outputs.publish == 'true'
+        uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      # The archives: scripts/appliance.sh builds each CPU with the default (docker) builder, which
+      # sees the regular image it just loaded.
+      - name: Build and package (linux/amd64, linux/arm64)
+        env:
+          COMMIT: ${{ github.sha }}
+          BUILD_TIME: ${{ needs.meta.outputs.build_time }}
+          CHANNEL: ${{ needs.meta.outputs.channel }}
+        run: scripts/appliance.sh save all
+      - name: Structure test and smoke test (amd64)
+        run: |
+          docker tag "omni-data-bus-appliance:$VERSION-amd64" "omni-data-bus-appliance:$VERSION"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/deploy/appliance:/cfg" \
+            gcr.io/gcp-runtimes/container-structure-test:latest test --image "omni-data-bus-appliance:$VERSION" --config /cfg/structure-test.yaml
+          IMAGE="omni-data-bus-appliance:$VERSION" deploy/appliance/test/smoke.sh
+      # Most findings are in Couchbase's own image, which we ship unmodified: reported for review,
+      # not a release gate (the regular image's scan is).
+      - name: Vulnerability report
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: omni-data-bus-appliance:${{ needs.meta.outputs.version }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+      - uses: docker/setup-buildx-action@v3
+      - name: Push (linux/amd64, linux/arm64)
+        id: push
+        if: needs.meta.outputs.publish == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/appliance/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.REF }}
+          build-args: |
+            ODB_IMAGE=${{ env.ODB_REF }}
+            VERSION=${{ needs.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ needs.meta.outputs.build_time }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+      - name: SBOM (SPDX, syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: omni-data-bus-appliance:${{ needs.meta.outputs.version }}
+          format: spdx-json
+          output-file: appliance-sbom.spdx.json
+          upload-artifact: false
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the image and attach the SBOM
+        if: needs.meta.outputs.publish == 'true'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          REPO: ${{ needs.meta.outputs.registry }}/omni-data-bus-appliance
+        run: |
+          cosign sign --yes "$REPO@$DIGEST"
+          cosign attest --yes --type spdxjson --predicate appliance-sbom.spdx.json "$REPO@$DIGEST"
+      - uses: actions/upload-artifact@v4
+        with: { name: appliance, path: dist/appliance/, compression-level: 0 }
+
   chart:
     needs: [meta, test]
     runs-on: ubuntu-latest
@@ -149,7 +270,7 @@ jobs:
         with: { name: helm-chart, path: dist/ }
 
   release:
-    needs: [meta, image, chart]
+    needs: [meta, image, chart, appliance, binaries]
     if: needs.meta.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -166,9 +287,13 @@ jobs:
           OUTPUT: CHANGELOG.md
       - uses: actions/download-artifact@v4
         with: { name: helm-chart, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: appliance, path: dist/appliance }
+      - uses: actions/download-artifact@v4
+        with: { name: odb-binaries, path: dist/odb }
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.tgz \
+          gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/appliance/* dist/odb/* \
             --title "Omni-Data-Bus ${{ needs.meta.outputs.version }}" --notes-file CHANGELOG.md

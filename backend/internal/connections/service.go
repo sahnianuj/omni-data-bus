@@ -49,6 +49,7 @@ type Service struct {
 	targets *target.Registry
 	jobs    JobGuard
 	clock   store.Clock
+	bundled *Bundled // the all-in-one image's Couchbase node (OC-072); nil elsewhere
 }
 
 // NewService builds the connections service.
@@ -418,7 +419,7 @@ func (s *Service) kindChange(ctx context.Context, ws store.WorkspaceID, projectI
 		}
 		using = append(using, m.SourceSchema+"."+m.SourceTable+" → "+at.String())
 		if rel != nil {
-			l := relocated(m, at, to, *rel)
+			l := Relocated(m, at, to, *rel)
 			if err := mapping.ValidateLocation(l, to); err != nil {
 				return nil, err
 			}
@@ -435,9 +436,9 @@ func (s *Service) kindChange(ctx context.Context, ws store.WorkspaceID, projectI
 	return nil, p
 }
 
-// relocated is m's location on a target of kind to: the same collection or folder name, made
+// Relocated is m's location on a target of kind to: the same collection or folder name, made
 // valid for that kind (OC-068).
-func relocated(m store.Mapping, at store.Location, to string, rel Relocate) store.Location {
+func Relocated(m store.Mapping, at store.Location, to string, rel Relocate) store.Location {
 	name := at.Collection
 	if at.Kind == store.KindDirectory {
 		segs := strings.Split(strings.Trim(at.Folder, "/"), "/")

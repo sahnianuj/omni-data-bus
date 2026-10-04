@@ -16,6 +16,7 @@ const summary = (over: Partial<MappingSummary>): MappingSummary => ({
   id: 'm1', sourceSchema: 'sales', sourceTable: 'orders', mode: 'canvas', driving: { schema: 'sales', name: 'orders' },
   target: { bucket: 'shop', scope: 'sales', collection: 'orders' }, location: { kind: 'couchbase', bucket: 'shop', scope: 'sales', collection: 'orders' },
   status: 'ready', stats: stats(), version: 1, updatedAt: new Date().toISOString(), shape: { arrays: 0, objects: 0 },
+  errors: 0, warnings: 0,
   ...over,
 })
 
@@ -47,5 +48,27 @@ describe('MappingsStep', () => {
     const items = await screen.findAllByRole('menuitem')
     expect(items.map((i) => i.textContent)).toEqual(['Open in Canvas', 'Open in Composer', 'Open in Design'])
     expect(items[1]).toHaveAttribute('href', '/projects/p1/mappings/m2?view=composer')
+  })
+
+  it('OC-083: a draft card says what to fix and links to it', async () => {
+    server.use(
+      http.get('*/api/v1/projects/:pid/mappings', () =>
+        HttpResponse.json({
+          items: [
+            summary({ status: 'draft', errors: 2, firstError: { code: 'REQUIRED_FIELD_UNMAPPED', message: 'Required field orderId is unmapped.' } }),
+            summary({ id: 'm2', sourceTable: 'customers' }),
+          ],
+        }),
+      ),
+    )
+    renderRoutes(routes, '/projects/p1/mappings')
+    const badge = await screen.findByText('2 to fix')
+    expect(badge).toHaveAttribute('title', expect.stringContaining('saved automatically'))
+    expect(within(badge.closest('li')!).queryByText('Draft')).not.toBeInTheDocument()
+    expect(screen.getByText('Required field orderId is unmapped. (and 1 more)')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Fix the mapping for orders' })).toHaveAttribute('href', '/projects/p1/mappings/m1?panel=issues')
+    // A ready mapping has no fix line.
+    expect(screen.getByText('Ready')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Fix the mapping for customers' })).not.toBeInTheDocument()
   })
 })

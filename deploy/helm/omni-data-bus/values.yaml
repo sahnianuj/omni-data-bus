@@ -60,6 +60,8 @@ worker:
   replicas: 2
   maxJobs: 2                 # OC_WORKER_MAX_JOBS: jobs one pod runs at once
   memoryBudgetMB: 256        # OC_WORKER_MEMORY_BUDGET_MB
+  # OC_MEMORY_LIMIT_MB: the Go soft memory limit; keep it well under resources.limits.memory.
+  memoryLimitMB: 640
   # Running jobs drain for up to 30 s on shutdown, then checkpoint (OC-023): keep this > 30.
   terminationGracePeriodSeconds: 45
   resources:
@@ -100,6 +102,13 @@ directoryTarget:
     storageClass: ""
     size: 50Gi
     accessMode: ReadWriteOnce
+
+# Exported migrations (OC-050 – OC-055). migrate.sh's docker runtime runs `image` (default: the
+# image this chart deploys; pin it by digest, e.g. ghcr.io/org/omni-data-bus@sha256:…) and its
+# binary runtime downloads odb from `downloadUrl` (default: this version's GitHub release).
+exports:
+  image: ""
+  downloadUrl: ""
 
 service:
   type: ClusterIP

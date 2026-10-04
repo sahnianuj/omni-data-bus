@@ -8,6 +8,7 @@ import { Can } from '@/features/auth/Can'
 import { TypeTile } from '@/features/projects/RepoRow'
 import { relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { hostPathOf, useSharedFolder } from '@/features/targets/kinds'
 import type { ConnectionUI } from './registry'
 import type { Connection } from './types'
 
@@ -32,6 +33,9 @@ export function RepositorySummary({
   actions?: ReactNode
 }) {
   const { t } = useTranslation()
+  // A directory target in the all-in-one image: where its folder is on the user's computer (OC-080).
+  const shared = useSharedFolder()
+  const host = conn.type === 'directory' ? hostPathOf(String(conn.config.path ?? ''), shared) : ''
   return (
     <section aria-label={conn.name} className="flex flex-col rounded-[var(--radius-card)] border border-border bg-surface">
       <div className="flex items-start gap-3.5 p-5">
@@ -46,6 +50,7 @@ export function RepositorySummary({
             </Badge>
           </div>
           <span className="truncate font-mono text-[13px] text-muted">{ui.endpoint(conn)}</span>
+          {host ? <span className="truncate text-[13px] text-muted">· {t('dir.onComputer', { host })}</span> : null}
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-4 px-5 pb-5 sm:grid-cols-4">

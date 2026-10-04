@@ -43,6 +43,10 @@ type jobDoc struct {
 	UpdatedAt       string          `json:"updatedAt"`
 	StartedAt       string          `json:"startedAt,omitempty"`
 	FinishedAt      string          `json:"finishedAt,omitempty"`
+	Origin          string          `json:"origin,omitempty"`
+	External        json.RawMessage `json:"external,omitempty"`
+	MinWorkerVer    string          `json:"minWorkerVersion,omitempty"`
+	MinWorkerLevel  int             `json:"minWorkerLevel,omitempty"`
 	Version         int64           `json:"version"`
 }
 
@@ -67,7 +71,8 @@ func (d jobDoc) toJob() store.Job {
 		ReasonDetail: d.ReasonDetail, Options: d.Options, MappingIDs: d.MappingIDs, Checkpoint: d.Checkpoint, Progress: d.Progress,
 		ErrorsTruncated: d.ErrorsTruncated, ClaimedBy: d.ClaimedBy, HeartbeatAt: optTS(d.HeartbeatAt), RetryOf: d.RetryOf,
 		CreatedBy: d.CreatedBy, CreatedAt: parseTS(d.CreatedAt), UpdatedAt: parseTS(d.UpdatedAt), StartedAt: optTS(d.StartedAt),
-		FinishedAt: optTS(d.FinishedAt), Version: d.Version,
+		FinishedAt: optTS(d.FinishedAt), Origin: d.Origin, External: d.External,
+		MinWorkerVersion: d.MinWorkerVer, MinWorkerLevel: d.MinWorkerLevel, Version: d.Version,
 	}
 }
 
@@ -77,7 +82,8 @@ func jobToDoc(j store.Job) jobDoc {
 		ReasonDetail: j.ReasonDetail, Options: j.Options, MappingIDs: j.MappingIDs, Checkpoint: j.Checkpoint, Progress: j.Progress,
 		ErrorsTruncated: j.ErrorsTruncated, ClaimedBy: j.ClaimedBy, HeartbeatAt: fmtOptTS(j.HeartbeatAt), RetryOf: j.RetryOf,
 		CreatedBy: j.CreatedBy, CreatedAt: formatTS(j.CreatedAt), UpdatedAt: formatTS(j.UpdatedAt), StartedAt: fmtOptTS(j.StartedAt),
-		FinishedAt: fmtOptTS(j.FinishedAt), Version: j.Version,
+		FinishedAt: fmtOptTS(j.FinishedAt), Origin: j.Origin, External: j.External,
+		MinWorkerVer: j.MinWorkerVersion, MinWorkerLevel: j.MinWorkerLevel, Version: j.Version,
 	}
 }
 
@@ -105,6 +111,14 @@ func (r jobsRepo) Create(ctx context.Context, ws store.WorkspaceID, j store.Job)
 		j.Status = store.JobQueued
 	}
 	doc := jobToDoc(j)
+	if store.JobTerminal(j.Status) {
+		// An imported external run (OC-055) is finished: it never holds the active-job lock.
+		_, err := r.s.coll("jobs").Insert(j.ID, doc, &gocb.InsertOptions{Context: ctx})
+		if err != nil {
+			return store.Job{}, Translate(err, "id")
+		}
+		return doc.toJob(), nil
+	}
 	err := r.s.tx(func(tx *gocb.TransactionAttemptContext) error {
 		lock := uniqueDoc{Type: "unique", Kind: "activejob", Owner: j.ID, WorkspaceID: string(ws)}
 		if _, err := tx.Insert(r.s.coll("uniques"), activeJobKey(j.ProjectID), lock); err != nil {
@@ -269,6 +283,13 @@ func (r jobsRepo) ListByStatus(ctx context.Context, statuses []string, limit int
 		limit = 100
 	}
 	return r.scan(r.s.query(ctx, "ListJobsByStatus", map[string]any{"statuses": statuses, "limit": limit}))
+}
+
+func (r jobsRepo) ListClaimable(ctx context.Context, workerLevel, limit int) ([]store.Job, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	return r.scan(r.s.query(ctx, "ListClaimableJobs", map[string]any{"level": workerLevel, "limit": limit}))
 }
 
 func (r jobsRepo) ActiveForProject(ctx context.Context, ws store.WorkspaceID, projectID string) (store.Job, error) {

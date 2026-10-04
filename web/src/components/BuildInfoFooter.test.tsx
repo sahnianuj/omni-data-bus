@@ -32,6 +32,14 @@ describe('BuildInfoFooter', () => {
     expect(within(f).queryByText('DEV')).not.toBeInTheDocument()
   })
 
+  it('OC-072 AC1: names the bundled Couchbase in the all-in-one image', async () => {
+    serve({ bundledStore: 'Couchbase Server CE 8.0.2' })
+    renderUI(<BuildInfoFooter />)
+    const f = await footer()
+    expect(await within(f).findByText(/· Couchbase Server CE 8\.0\.2 \(bundled\)$/)).toBeInTheDocument()
+    expect(buildInfoText(sampleVersion({ bundledStore: 'Couchbase Server CE 8.0.2' }), 'UA')).toContain('Bundled: Couchbase Server CE 8.0.2')
+  })
+
   it('AC3: sign-in page shows the release only', async () => {
     mockSession(null)
     server.use(

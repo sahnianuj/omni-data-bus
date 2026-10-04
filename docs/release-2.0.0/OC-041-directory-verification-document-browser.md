@@ -13,7 +13,7 @@ As a **data engineer**, I want the post-migration report to verify the files wri
 - An **Output** tab on a finished job: find a document by primary key, view it, see its path, copy the path.
 - Download a single document, or a small selection, from the browser.
 
-**Out:** downloading the whole output folder from the app (use the volume, `kubectl cp` or OC-054's `fetch` command), and full-text search.
+**Out:** downloading the whole output folder from the app (use the volume, `docker cp` or `kubectl cp`), and full-text search.
 
 ## Implementation details
 

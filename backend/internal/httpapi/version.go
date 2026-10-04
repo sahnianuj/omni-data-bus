@@ -20,6 +20,8 @@ type VersionInfo struct {
 	MetadataSchemaVersion int                 `json:"metadataSchemaVersion"`
 	Nodes                 map[string][]string `json:"nodes"`
 	Consistent            bool                `json:"consistent"`
+	// BundledStore names the Couchbase node bundled in the all-in-one image (OC-072).
+	BundledStore string `json:"bundledStore,omitempty"`
 }
 
 // VersionHandler serves GET /api/v1/version by audience (OC-058): a signed-in caller gets the
@@ -34,6 +36,7 @@ type VersionHandler struct {
 	Nodes         store.Nodes                        // nil: only this node is reported
 	Schema        func(context.Context) (int, error) // nil: 0
 	Role          string                             // this node's OC_ROLE, reported when Nodes is nil
+	BundledStore  string                             // OC_BUNDLED_STORE (OC-072)
 	Logger        *slog.Logger
 	Now           func() time.Time
 
@@ -70,7 +73,7 @@ func (h *VersionHandler) full(ctx context.Context) VersionInfo {
 	if h.cached != nil && now.Before(h.expires) {
 		return *h.cached
 	}
-	v := VersionInfo{Info: h.Info}
+	v := VersionInfo{Info: h.Info, BundledStore: h.BundledStore}
 	role := h.Role
 	if role == "" {
 		role = store.NodeRoleAll

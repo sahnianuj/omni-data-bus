@@ -2,7 +2,11 @@
 export const env = {
   baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:18081',
   // The app reaches the dev stack by service name.
-  source: { host: 'source-pg', port: 5432, database: 'shop', username: 'shop_owner', password: 'shop_owner' },
+  // The all-in-one image (appliance.spec.ts) reaches the dev stack's PostgreSQL through the host.
+  source: {
+    host: process.env.E2E_SOURCE_HOST ?? 'source-pg', port: Number(process.env.E2E_SOURCE_PORT ?? 5432),
+    database: 'shop', username: 'shop_owner', password: 'shop_owner',
+  },
   target: { connectionString: 'couchbase://couchbase', username: 'Administrator', password: 'password', bucket: 'sandbox' },
   // The tests reach the same services through the published ports.
   couchbaseQuery: process.env.E2E_CB_QUERY ?? 'http://localhost:8093/query/service',

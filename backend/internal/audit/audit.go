@@ -15,13 +15,14 @@ import (
 // Actions are every audited action. Each one is recorded by exactly one code path; the
 // coverage test checks that each appears in the code that records it.
 var Actions = []string{
-	"auth.signup", "auth.login.success", "auth.login.failure", "auth.logout",
+	"auth.signup", "auth.login.success", "auth.login.failure", "auth.logout", "auth.stepup", "auth.stepup.failure",
 	"project.create", "project.update", "project.delete",
 	"connection.create", "connection.update", "connection.delete", "connection.test", "connection.discover",
 	"keyspace.create", "location.create", "folder.create", "output.path_rejected",
 	"mapping.create", "mapping.update", "mapping.automap", "mapping.design", "mapping.delete", "mapping.relocate",
 	"job.create", "job.pause", "job.resume", "job.cancel", "job.retry",
 	"report.download",
+	"bundle.exported", "run.imported",
 }
 
 // MappingUpdateEvery throttles "mapping.update": the canvas saves often, so one entry per

@@ -61,8 +61,9 @@ func setup(t *testing.T) (http.Handler, *memstore.Store, *fakeTargets, store.Map
 	require.NoError(t, err)
 	mod := storetest.NewClock().Now()
 	ft := &fakeTargets{docs: map[string]target.Document{
-		"1001":    {Key: "1001", Path: "orders/1001.json", Bytes: 12, ModifiedAt: &mod, Body: json.RawMessage(`{"id":1001}`)},
-		"2026/10": {Key: "2026/10", Path: "orders/2026%2F10.json", Bytes: 9, Body: json.RawMessage(`{"a":1}`)},
+		"1001":      {Key: "1001", Path: "orders/1001.json", Bytes: 12, ModifiedAt: &mod, Body: json.RawMessage(`{"id":1001}`)},
+		"orders::7": {Key: "orders::7", Path: "orders/orders%3A%3A7.json", Bytes: 8, Body: json.RawMessage(`{"id":7}`)},
+		"2026/10":   {Key: "2026/10", Path: "orders/2026%2F10.json", Bytes: 9, Body: json.RawMessage(`{"a":1}`)},
 	}}
 	withPrincipal := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +97,9 @@ func TestGetDocument_AC5_DirectoryAndCouchbase(t *testing.T) {
 
 	// A key with a slash is the rest of the path.
 	require.Equal(t, http.StatusOK, get(h, base+"2026/10").Code)
+	// Keys arrive percent-encoded from the web app (encodeURIComponent): "::" and "/" decode.
+	require.Equal(t, http.StatusOK, get(h, base+"orders%3A%3A7").Code, "a default key, table::id")
+	require.Equal(t, http.StatusOK, get(h, base+"2026%2F10").Code)
 
 	rec = get(h, base+"404")
 	require.Equal(t, http.StatusNotFound, rec.Code)

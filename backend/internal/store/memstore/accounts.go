@@ -153,6 +153,18 @@ func (r sessions) Touch(_ context.Context, id string, at time.Time) error {
 	return nil
 }
 
+func (r sessions) StepUp(_ context.Context, id string, at time.Time) error {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	sess, ok := r.s.acc.sessions[id]
+	if !ok {
+		return store.ErrNotFound
+	}
+	sess.StepUpAt = &at
+	r.s.acc.sessions[id] = sess
+	return nil
+}
+
 func (r sessions) Delete(_ context.Context, id string) error {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()

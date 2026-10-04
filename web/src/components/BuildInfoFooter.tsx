@@ -72,6 +72,7 @@ export function BuildInfoFooter({ className }: { className?: string }) {
   const summary = [t('build.summary', { name: t('app.name'), version: v.version })]
   if (full && v.commit) summary.push(t('build.build', { commit: shortCommit(v.commit) }))
   if (date) summary.push(date)
+  if (v.bundledStore) summary.push(t('build.bundled', { store: v.bundledStore }))
 
   return (
     <footer
@@ -148,6 +149,7 @@ export function BuildDetails({ v }: { v: VersionInfo }) {
         <Row label={t('build.fields.go')}>{v.goVersion}</Row>
         <Row label={t('build.fields.platform')}>{v.platform}</Row>
         <Row label={t('build.fields.schema')}>{v.metadataSchemaVersion ?? t('build.unknown')}</Row>
+        {v.bundledStore ? <Row label={t('build.fields.bundled')}>{v.bundledStore}</Row> : null}
         <Row label={t('build.fields.api')}>{nodes('api')}</Row>
         <Row label={t('build.fields.worker')}>{nodes('worker')}</Row>
       </dl>

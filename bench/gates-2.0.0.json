@@ -1,0 +1,18 @@
+{
+  "release": "2.0.0",
+  "gates": [
+    { "id": "G1", "name": "Directory throughput", "scenario": "directory", "metric": "throughput", "min": 15000 },
+    { "id": "G2", "name": "Nested relations throughput", "scenario": "nested", "metric": "throughput", "min": 8000 },
+    { "id": "G3", "name": "Sorted-merge vs batched", "scenario": "fanout-sorted-merge", "metric": "ratio", "of": "fanout-batched", "min": 1.5 },
+    { "id": "G4a", "name": "Memory (directory)", "scenario": "directory", "metric": "peakRssMB", "max": 768 },
+    { "id": "G4b", "name": "Memory (nested)", "scenario": "nested", "metric": "peakRssMB", "max": 768 },
+    { "id": "G4c", "name": "Memory (skewed, sorted-merge)", "scenario": "skewed-sorted-merge", "metric": "peakRssMB", "max": 768 },
+    { "id": "G4d", "name": "Memory (fan-out, sorted-merge)", "scenario": "fanout-sorted-merge", "metric": "peakRssMB", "max": 768 },
+    { "id": "G5", "name": "Runner cold start", "scenario": "coldstart", "metric": "coldStartSeconds", "max": 5 },
+    { "id": "G6", "name": "1.0 regression (standard)", "scenario": "standard", "metric": "regression", "baseline": "results/1.0.0/standard.json", "tolerance": 0.05 },
+    { "id": "G7a", "name": "No loss (directory)", "scenario": "directory", "metric": "noLoss", "min": 1 },
+    { "id": "G7b", "name": "No loss (nested)", "scenario": "nested", "metric": "noLoss", "min": 1 },
+    { "id": "G7c", "name": "No loss (skewed, sorted-merge)", "scenario": "skewed-sorted-merge", "metric": "noLoss", "min": 1 },
+    { "id": "G7d", "name": "No loss (fan-out, sorted-merge)", "scenario": "fanout-sorted-merge", "metric": "noLoss", "min": 1 }
+  ]
+}

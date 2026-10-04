@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { useProjects } from '@/features/projects/api'
 import { formatDuration, formatRate, humanizeCount, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -49,7 +50,12 @@ export function JobsPage() {
                   const r = rate(j)
                   return (
                     <tr key={j.id} className="border-t border-border hover:bg-surface-muted/50">
-                      <td className="px-3 py-2"><JobStatusBadge status={j.status} /></td>
+                      <td className="px-3 py-2">
+                        <span className="flex items-center gap-1.5">
+                          <JobStatusBadge status={j.status} />
+                          {j.origin === 'external' ? <Badge tone="primary" title={t('jobs.externalHint')}>{t('jobs.external')}</Badge> : null}
+                        </span>
+                      </td>
                       <td className="px-3 py-2">
                         <Link to={`/projects/${j.projectId}/jobs/${j.id}`} className="font-medium text-primary-soft-foreground hover:underline">
                           {name(j.projectId)}

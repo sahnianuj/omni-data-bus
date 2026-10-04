@@ -17,7 +17,7 @@ import (
 // Request limits (OC-033): body size, request rate, and concurrent expensive operations.
 
 // DefaultBodyLimit applies to every request body; LargeBodyLimit to JSON samples, schema
-// exports and connection settings (which can carry certificate bundles).
+// exports, connection settings (which can carry certificate bundles) and imported run reports.
 const (
 	DefaultBodyLimit int64 = 1 << 20
 	LargeBodyLimit   int64 = 6 << 20
@@ -25,7 +25,7 @@ const (
 
 type bodyLimitKey struct{}
 
-var largeBodyRoutes = regexp.MustCompile(`/doc-schemas/(infer|export)$|/projects/[^/]+/connections/[^/]+$|/connections/test$`)
+var largeBodyRoutes = regexp.MustCompile(`/doc-schemas/(infer|export)$|/projects/[^/]+/connections/[^/]+$|/connections/test$|/projects/[^/]+/runs/import$`)
 
 // LargeBody reports whether a request may carry up to LargeBodyLimit.
 func LargeBody(r *http.Request) bool {

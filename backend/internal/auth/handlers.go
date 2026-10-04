@@ -25,6 +25,30 @@ func (h Handlers) Routes(r chi.Router) {
 	r.Post("/auth/login", h.login)
 	r.With(RequireAuth).Post("/auth/logout", h.logout)
 	r.With(RequireAuth).Get("/auth/me", h.me)
+	r.With(RequireAuth).Post("/auth/step-up", h.stepUp)
+}
+
+type stepUpRequest struct {
+	Password string `json:"password" validate:"required"`
+}
+
+// stepUp re-confirms the password before a sensitive action, such as exporting credentials.
+func (h Handlers) stepUp(w http.ResponseWriter, r *http.Request) {
+	var req stepUpRequest
+	if err := httpapi.DecodeJSON(w, r, &req); err != nil {
+		problem.Write(w, r, err)
+		return
+	}
+	p, _ := PrincipalFrom(r.Context())
+	if err := h.Svc.StepUp(r.Context(), p, req.Password, meta(r)); err != nil {
+		var rl *RateLimitedError
+		if errors.As(err, &rl) {
+			w.Header().Set("Retry-After", strconv.Itoa(rl.Seconds()))
+		}
+		problem.Write(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type signupRequest struct {

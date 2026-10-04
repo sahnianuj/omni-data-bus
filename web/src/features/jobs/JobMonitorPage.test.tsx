@@ -100,3 +100,24 @@ describe('JobMonitorPage', () => {
     }
   }, 20_000) // five axe runs; slow under coverage instrumentation
 })
+
+describe('JobMonitorPage — external runs (OC-055)', () => {
+  it('AC4: external badge, no controls', async () => {
+    const ext = job({
+      status: 'completed_with_errors', finishedAt: new Date().toISOString(), origin: 'external',
+      progress: snapshot({ status: 'completed_with_errors', percent: 100, written: 990, failed: 10 }),
+      external: {
+        runId: '01a0fe84-5eda', bundleSha256: 'b'.repeat(64), exportId: 'e1', odb: { version: '2.0.0', commit: 'abc' }, exitCode: 2,
+        durationSec: 300, docsPerSec: 3.3, errors: { total: 10, byCode: [], samples: [] }, importedBy: 'u1', importedAt: new Date().toISOString(), mappings: [],
+      },
+    })
+    mockJob(ext)
+    open()
+    expect(await screen.findByRole('region', { name: 'External run' })).toHaveTextContent('odb 2.0.0')
+    expect(screen.getAllByText('External').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Exit code 2/)).toBeInTheDocument()
+    // Read-only: no pause, resume, retry or cancel, and no output browser (it's the customer's target).
+    for (const name of [/Pause/, /Resume/, /Retry/, /Cancel/]) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Output/ })).not.toBeInTheDocument()
+  })
+})

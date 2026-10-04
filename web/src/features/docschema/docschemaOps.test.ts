@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DocSchema } from '@/features/mapping/types'
-import { addField, duplicate, findField, leaves, move, OpError, pathsById, remove, rename, setDescription, setRequired, setType, unwrap, validate, walk, wrap } from './docschemaOps'
+import { addField, duplicate, findField, insertionPoint, leaves, move, moveRelative, OpError, pathsById, remove, rename, setDescription, setRequired, setType, unwrap, validate, walk, wrap } from './docschemaOps'
 
 const schema = (): DocSchema => ({
   source: 'generated',
@@ -65,6 +65,40 @@ describe('docschemaOps', () => {
     expect(() => move(schema(), 'b', 'b', 0)).toThrow('into itself')
     const clash = addField(schema(), 'b', 'email', 'string').schema
     expect(() => move(clash, 'c', 'b', 0)).toThrow('already has')
+  })
+
+  it('moveRelative drops before, after or inside', () => {
+    const ids = (s: DocSchema) => s.root.children!.map((f) => f.id)
+    expect(ids(moveRelative(schema(), 'c', 'a', 'before'))).toEqual(['c', 'a', 'b', 'd'])
+    expect(ids(moveRelative(schema(), 'a', 'c', 'after'))).toEqual(['b', 'c', 'a', 'd'])
+    expect(ids(moveRelative(schema(), 'd', 'a', 'after'))).toEqual(['a', 'd', 'b', 'c'])
+    expect(findField(moveRelative(schema(), 'c', 'b', 'inside'), 'c')?.path, 'inside goes last').toBe('name.email')
+    expect(findField(moveRelative(schema(), 'c', 'b1', 'after'), 'c')?.path, 'beside a nested field').toBe('name.email')
+    expect(ids(moveRelative(schema(), 'b1', 'fld_root', 'inside')), 'onto the root').toEqual(['a', 'b', 'c', 'd', 'b1'])
+    const s = schema()
+    expect(moveRelative(s, 'c', 'c', 'before')).toBe(s)
+    // An array of objects takes fields into its item object; a scalar array takes none.
+    const objs = schema()
+    objs.root.children![3] = { id: 'd', name: 'tags', type: 'array', items: { id: 'd1', name: '[]', type: 'object', children: [] } }
+    const into = moveRelative(objs, 'c', 'd', 'inside')
+    expect(findField(into, 'c')?.path).toBe('tags[].email')
+    expect(findField(moveRelative(into, 'a', 'd1', 'before'), 'a')?.path, 'item row means inside').toBe('tags[].customerId')
+    expect(() => moveRelative(schema(), 'c', 'd', 'inside')).toThrow('only be moved into objects')
+    expect(() => moveRelative(schema(), 'b', 'b1', 'before')).toThrow('into itself')
+  })
+
+  it('OC-081 AC2: insertionPoint', () => {
+    const s = schema()
+    expect(insertionPoint(s, null)).toEqual({ parentId: 'fld_root', label: '' })
+    expect(insertionPoint(s, 'fld_root'), 'the root itself').toEqual({ parentId: 'fld_root', label: '' })
+    expect(insertionPoint(s, 'b'), 'inside an object').toEqual({ parentId: 'b', label: 'name' })
+    expect(insertionPoint(s, 'b1'), 'after a nested field').toEqual({ parentId: 'b', index: 1, label: 'name' })
+    expect(insertionPoint(s, 'a'), 'after a root field').toEqual({ parentId: 'fld_root', index: 1, label: '' })
+    expect(insertionPoint(s, 'd'), 'a scalar array is a field').toEqual({ parentId: 'fld_root', index: 4, label: '' })
+    s.root.children![3] = { id: 'd', name: 'items', type: 'array', items: { id: 'd1', name: '[]', type: 'object', children: [{ id: 'sku', name: 'sku', type: 'string' }] } }
+    expect(insertionPoint(s, 'd'), 'into the item object').toEqual({ parentId: 'd1', label: 'items' })
+    expect(insertionPoint(s, 'd1'), 'the item row').toEqual({ parentId: 'd1', label: 'items' })
+    expect(insertionPoint(s, 'sku'), 'after an item field').toEqual({ parentId: 'd1', index: 1, label: 'items' })
   })
 
   it('AC6: wrap and unwrap are inverses', () => {

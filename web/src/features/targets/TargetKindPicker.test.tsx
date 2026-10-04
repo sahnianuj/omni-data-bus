@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
-import { mockCatalog, mockProjectConnections, pgConnection } from '@/test/connections'
+import { cbConnection, cbResult, mockCatalog, mockProjectConnections, pgConnection } from '@/test/connections'
 import { server, setupMswServer, targetKinds } from '@/test/msw'
 import { makeProject, mockProject, repo } from '@/test/projects'
 import { renderRoutes } from '@/test/render'
@@ -65,5 +65,37 @@ describe('TargetKindPicker', () => {
     expect(formatLocation({ kind: 'directory', folder: 'orders' })).toBe('📁 orders/')
     expect(formatLocation({ kind: 'directory', folder: '/archive/2026/' })).toBe('📁 archive/2026/')
     expect(formatLocation(undefined)).toBe('')
+  })
+
+  it('OC-072 AC6: the all-in-one image offers its bundled Couchbase', async () => {
+    const bundled = { kind: 'couchbase', label: 'Bundled Couchbase (this container)', buckets: ['sandbox'] }
+    server.use(http.get('*/api/v1/target-kinds', () => HttpResponse.json({ kinds: targetKinds(), bundled })))
+    let posted = 0
+    server.use(
+      http.post('*/api/v1/projects/p1/connections/target/bundled', () => {
+        posted++
+        mockProjectConnections(pgConnection(), cbConnection({ name: 'Bundled Couchbase', config: { deployment: 'self-managed', connectionString: 'couchbase://127.0.0.1', username: 'Administrator', kvTimeoutMs: 2500, connectTimeoutMs: 10000 } }))
+        return HttpResponse.json({ connection: cbConnection({ name: 'Bundled Couchbase' }), test: cbResult }, { status: 201 })
+      }),
+    )
+    renderRoutes(routes, '/projects/p1/target')
+    const use = await screen.findByRole('button', { name: 'Use the bundled Couchbase' })
+    expect(use).toHaveAttribute('title', expect.stringContaining('sandbox'))
+    // Picking the directory kind hides it: it's a Couchbase target.
+    await userEvent.click(screen.getByRole('radio', { name: /Directory of JSON files/ }))
+    expect(screen.queryByRole('button', { name: 'Use the bundled Couchbase' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', { name: /Couchbase cluster/ }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Use the bundled Couchbase' }))
+    await waitFor(() => expect(posted).toBe(1))
+    // Saved and tested: the summary shows instead of the form, with the test result.
+    expect(await screen.findByText('couchbase://127.0.0.1')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Connection string')).not.toBeInTheDocument()
+  })
+
+  it('OC-072 AC6: the regular image has no bundled button', async () => {
+    renderRoutes(routes, '/projects/p1/target')
+    await screen.findByRole('radiogroup', { name: 'Target kind' })
+    expect(screen.queryByRole('button', { name: 'Use the bundled Couchbase' })).not.toBeInTheDocument()
   })
 })

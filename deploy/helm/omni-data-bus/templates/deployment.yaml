@@ -54,6 +54,14 @@ spec:
               value: {{ $.Values.worker.maxJobs | quote }}
             - name: OC_WORKER_MEMORY_BUDGET_MB
               value: {{ $.Values.worker.memoryBudgetMB | quote }}
+            - name: OC_MEMORY_LIMIT_MB
+              value: {{ $.Values.worker.memoryLimitMB | quote }}
+            {{- end }}
+            - name: OC_EXPORT_IMAGE
+              value: {{ $.Values.exports.image | default (include "odb.image" $) | quote }}
+            {{- with $.Values.exports.downloadUrl }}
+            - name: OC_EXPORT_DOWNLOAD_URL
+              value: {{ . | quote }}
             {{- end }}
             {{- include "odb.env" $ | nindent 12 }}
           ports:

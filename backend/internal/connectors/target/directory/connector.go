@@ -39,12 +39,24 @@ const (
 type Connector struct {
 	roots  []string
 	statFS func(path string) (FSInfo, error)
+	opts   Options
 }
 
 // New returns the directory connector. roots are the folders targets may write under; nil
 // means DefaultRoots. There is no setting for it: users pick a folder in the Target step, inside
-// these areas (OC-038).
-func New(roots []string) *Connector {
+// these areas (OC-038). In the all-in-one image, opts names the folders shared with the user's
+// computer, which are then the only areas (OC-080).
+func New(roots []string, opts ...Options) *Connector {
+	var o Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	if len(o.Shared) > 0 {
+		roots = nil
+		for _, s := range o.Shared {
+			roots = append(roots, s.Path)
+		}
+	}
 	if roots == nil {
 		roots = DefaultRoots()
 	}
@@ -54,7 +66,7 @@ func New(roots []string) *Connector {
 			clean = append(clean, filepath.Clean(r))
 		}
 	}
-	return &Connector{roots: clean, statFS: statFS}
+	return &Connector{roots: clean, statFS: statFS, opts: o}
 }
 
 // Descriptor implements target.Connector.
@@ -149,6 +161,9 @@ func (c *Connector) Test(_ context.Context, raw json.RawMessage, _ connectors.Cr
 		if cfg, abs, err = c.parse(raw); err != nil {
 			p := problem.From(err)
 			return fail(p.Code, p.Detail, "Allowed folders: "+strings.Join(c.roots, ", "))
+		}
+		if h := c.hostPath(abs); h != "" {
+			return ok(abs + " · on your computer: " + h)
 		}
 		return ok(abs)
 	})

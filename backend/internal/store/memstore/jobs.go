@@ -59,6 +59,7 @@ func cloneJob(j store.Job) store.Job {
 	j.Checkpoint = slices.Clone(j.Checkpoint)
 	j.Progress = slices.Clone(j.Progress)
 	j.MappingIDs = slices.Clone(j.MappingIDs)
+	j.External = slices.Clone(j.External)
 	return j
 }
 
@@ -70,7 +71,7 @@ func (r jobs) Create(_ context.Context, ws store.WorkspaceID, j store.Job) (stor
 		return store.Job{}, err
 	}
 	d := s.jobsData()
-	if _, busy := d.active[j.ProjectID]; busy {
+	if _, busy := d.active[j.ProjectID]; busy && !store.JobTerminal(j.Status) {
 		return store.Job{}, &store.ConflictError{Field: "activeJob"}
 	}
 	if j.ID == "" {
@@ -175,6 +176,23 @@ func (r jobs) ListByStatus(_ context.Context, statuses []string, limit int) ([]s
 		}
 		return out[i].CreatedAt.Before(out[k].CreatedAt)
 	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (r jobs) ListClaimable(ctx context.Context, workerLevel, limit int) ([]store.Job, error) {
+	all, err := r.ListByStatus(ctx, []string{store.JobQueued}, 0)
+	if err != nil {
+		return nil, err
+	}
+	var out []store.Job
+	for _, j := range all {
+		if j.MinWorkerLevel <= workerLevel {
+			out = append(out, j)
+		}
+	}
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
 	}

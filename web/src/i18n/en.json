@@ -99,7 +99,8 @@
     "updated": "Updated {{when}}",
     "types": {
       "postgres": "PostgreSQL",
-      "couchbase": "Couchbase"
+      "couchbase": "Couchbase",
+      "directory": "Folder"
     },
     "repoStatus": {
       "ok": "Connected",
@@ -137,7 +138,9 @@
     },
     "notStarted": "Not started",
     "rate": "{{rate}} docs/s",
-    "rateAvg": "Average over the run"
+    "rateAvg": "Average over the run",
+    "external": "External",
+    "externalHint": "A run of an exported migration outside Omni-Data-Bus, imported from its report.json"
   },
   "settings": {
     "title": "Settings",
@@ -266,6 +269,9 @@
     "endpoint": "Endpoint",
     "tested": "Tested {{when}}",
     "neverTested": "Not tested yet",
+    "useBundled": "Use the bundled Couchbase",
+    "bundledHint": "Connects to the Couchbase node in this container (bucket: {{buckets}}); its password stays on the server.",
+    "orEnter": "or enter another cluster below.",
     "encryptedNote": "After you save, the password is encrypted (AES-256-GCM) and never shown again. Discovery, previews and every migration in this project reuse it.",
     "nextTarget": "Next: target repository",
     "nextTables": "Next: select tables",
@@ -560,6 +566,13 @@
     "pickTables": "Pick tables",
     "autoScore": "{{pct}}% auto-mapped",
     "coverage": "{{pct}}% of columns covered",
+    "toFix_one": "{{count}} to fix",
+    "toFix_other": "{{count}} to fix",
+    "statusHint": "Your edits are saved automatically. Fix the problems listed under the mapping to make it ready to migrate.",
+    "firstErrorMore_one": "{{message}} (and {{count}} more)",
+    "firstErrorMore_other": "{{message}} (and {{count}} more)",
+    "fix": "Fix",
+    "fixFor": "Fix the mapping for {{table}}",
     "open": "Open",
     "openFor": "Open mapping for {{table}}",
     "openIn": "Open {{table}} in…",
@@ -812,6 +825,7 @@
     },
     "actionsFor": "Actions for {{name}}",
     "addField": "Add field",
+    "addFieldTo": "Add field to {{name}}",
     "wrap": "Wrap in object",
     "unwrap": "Unwrap",
     "duplicate": "Duplicate",
@@ -928,6 +942,8 @@
     "dontShowAgain": "Don't show again",
     "search": "Search columns and fields",
     "side": "Mapping panels",
+    "maximizeHeight": "Maximize height",
+    "restoreHeight": "Restore height",
     "suggestions": "Suggestions",
     "unmapped": "Unmapped",
     "issues": "Issues"
@@ -1018,7 +1034,9 @@
     "migrate": "Migrate",
     "activeJob": "A migration is already running for this project.",
     "openJob": "Open migration",
-    "summary": "≈ {{rows}} rows · {{mode}}"
+    "summary": "≈ {{rows}} rows · {{mode}}",
+    "export": "Export…",
+    "exportHint": "Export the mappings as a script that runs the migration on another machine, without this tool"
   },
   "monitor": {
     "title": "Migration",
@@ -1093,7 +1111,13 @@
     "resumeNoPk": "{{tables}} has no primary key; resuming will re-read all of its rows.",
     "resumeOriginal": "Resume with original mapping",
     "resumeContinue": "Resume",
-    "restartNew": "Restart with new mapping"
+    "restartNew": "Restart with new mapping",
+    "external": {
+      "title": "External run",
+      "body": "This migration ran outside Omni-Data-Bus with odb {{version}} (run {{run}}), from export {{export}}. Imported from its report.json: it can't be paused, resumed or retried here.",
+      "exitCode": "Exit code {{code}}",
+      "errors": "{{count}} errors in the report"
+    }
   },
   "errors": {
     "noneTitle": "No errors",
@@ -1242,7 +1266,7 @@
   },
   "audit": {
     "title": "Audit log",
-    "description": "Who did what in this workspace: sign-ins, repositories, mappings, migrations and report downloads.",
+    "description": "Who did what in this workspace: sign-ins, repositories, mappings, migrations, exports and report downloads.",
     "ownersOnly": "Only workspace owners can see the audit log",
     "ownersOnlyBody": "Ask an owner of this workspace if you need to know who changed something.",
     "filterAction": "Action",
@@ -1255,7 +1279,9 @@
       "keyspace": "Keyspaces",
       "mapping": "Mappings",
       "job": "Migrations",
-      "report": "Reports"
+      "report": "Reports",
+      "bundle": "Exports",
+      "run": "Imported runs"
     },
     "col": {
       "when": "When",
@@ -1274,6 +1300,7 @@
     "label": "Build information",
     "summary": "{{name}} {{version}}",
     "build": "build {{commit}}",
+    "bundled": "{{store}} (bundled)",
     "dev": "DEV",
     "rc": "RC",
     "dirty": "dirty",
@@ -1290,6 +1317,7 @@
       "go": "Go",
       "platform": "Platform",
       "schema": "Metadata schema",
+      "bundled": "Bundled store",
       "nodes": "Nodes",
       "api": "API",
       "worker": "Worker"
@@ -1313,6 +1341,8 @@
   "dir": {
     "path": "Folder path",
     "pathHint": "The folder on the server where the files go. Choose one in your home folder or /data.",
+    "pathHintShared": "Choose a folder in {{path}}: that's {{host}} on your computer.",
+    "onComputer": "on your computer: {{host}}",
     "createIfMissing": "Create the folder if it's missing",
     "layout": "File layout",
     "layouts": {
@@ -1367,6 +1397,8 @@
     "picker": {
       "title": "Choose the output folder",
       "description": "Folders on the server that runs Omni-Data-Bus. Each table gets its own sub-folder inside the one you choose.",
+      "descriptionShared": "Files go to {{host}} on your computer. Each table gets its own sub-folder inside the one you choose.",
+      "containerOnly": "These folders are inside the app's container: files written there aren't visible on your computer. To write to your computer, start the app with ./run.sh start --output <folder>.",
       "up": "Up one folder",
       "location": "Current folder",
       "areas": "Locations",
@@ -1462,6 +1494,7 @@
     "warnings_other": "{{count}} warnings",
     "actionsFor": "Actions for {{name}}",
     "addField": "Add field",
+    "addFieldTo": "Add field to {{name}}",
     "addObject": "Add object",
     "addArray": "Add array",
     "pasteJson": "Import JSON here…",
@@ -1474,7 +1507,7 @@
       "mode": "Where",
       "replace": "Replace {{field}} with the object",
       "alongside": "Keep {{field}} and add the object after it",
-      "inDesign": "{{field}} is in the design you imported, so keep it: replacing it leaves the documents without it.",
+      "inDesign": "{{field}} is in the design you imported: replacing it moves the key into the object, and the Reference box will list {{field}} as missing.",
       "name": "Object name",
       "columns": "Fields from {{table}}",
       "submit": "Embed"
@@ -1764,5 +1797,104 @@
       "extraOne": "{{path}} is generated but isn't in the customer's document.",
       "typeDiffOne": "{{path}} has another type than in the customer's document."
     }
+  },
+  "export": {
+    "pageTitle": "Export",
+    "pageIntro": "Export the migration to run it without this tool: a migrate.sh script (or a bundle for odb run) that carries the mappings and the connections. Import the run's report.json afterwards to see the production results next to your test runs.",
+    "new": "New export",
+    "noReady": "No mapping is ready to export yet.",
+    "import": "Import report",
+    "importHint": "Import the report.json that odb run wrote in its state directory",
+    "imported": "Run report imported",
+    "title": "Export migration",
+    "intro": "It exports the project as configured and only asks how to package and run it.",
+    "steps": "Export steps",
+    "step": {
+      "project": "Project",
+      "passphrase": "Passphrase",
+      "runtime": "Runtime & options"
+    },
+    "cred": {
+      "passphrase": "Passphrase",
+      "passphraseHint": "At least {{min}} characters; a few random words work well",
+      "generatedHint": "Generated: it is shown once more after the export. Store it in your secret manager.",
+      "generate": "Generate"
+    },
+    "run": {
+      "script": "migrate.sh script",
+      "scriptHint": "A zip with migrate.sh and a README with the exact commands",
+      "runtime": "How it runs odb",
+      "rt": {
+        "auto": "Automatic",
+        "binary": "Download odb",
+        "docker": "Docker image",
+        "embedded": "Embedded (air-gapped)"
+      },
+      "platform": "Machine",
+      "includeBundle": "Include bundle.odb.json",
+      "bundle": "Bundle file only",
+      "bundleHint": "bundle.odb.json, for odb run --bundle",
+      "options": "Run options",
+      "readers": "Readers",
+      "writers": "Writers",
+      "batch": "Batch size",
+      "writeMode": "Write mode",
+      "maxErrors": "Max errors"
+    },
+    "err": {
+      "noMappings": "No mapping is ready. Make them ready in Design & map.",
+      "bundled": "The bundled Couchbase can't be reached from another machine: choose another target in the Target step.",
+      "passphrase_short": "The passphrase needs at least {{min}} characters.",
+      "passphrase_weak": "The passphrase is too predictable: use more words or characters, or Generate one.",
+      "platform": "This server has no odb for that machine."
+    },
+    "stepUp": "Confirm your password",
+    "stepUpHint": "Exporting credentials needs your password again (valid for 5 minutes).",
+    "back": "Back",
+    "next": "Next",
+    "export": "Export",
+    "confirmAndExport": "Confirm and export",
+    "doneTitle": "Export downloaded",
+    "doneBody": "{{file}} is in your downloads. Its README has the commands to run it.",
+    "passphraseOnce": "Passphrase shown only once. Store it in your secret manager.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "history": {
+      "title": "Export history",
+      "emptyTitle": "No exports yet",
+      "emptyBody": "Exports appear here with who made them, how, and the bundle hash.",
+      "col": {
+        "when": "When",
+        "who": "By",
+        "mappings": "Mappings",
+        "target": "Target",
+        "runtime": "Runtime",
+        "version": "odb",
+        "sha": "Bundle sha256",
+        "compare": "Compared with now"
+      },
+      "current": "Current",
+      "changed": "Changed since export",
+      "changedHint": "Changed: {{list}}. Compare with odb bundle diff (this export's bundle is {{sha}}…)."
+    },
+    "sha": "Bundle sha256 {{sha}}",
+    "locked": "The export uses these exactly as configured. To change one, go to its step, then export again.",
+    "change": "Change in {{step}}",
+    "part": {
+      "source": "Source",
+      "target": "Target",
+      "targetPath": "The script writes here unless ODB_TARGET_PATH points elsewhere on the machine that runs it.",
+      "credentials": "Credentials",
+      "credentialsBody": "The saved source and target credentials, sealed with your passphrase",
+      "mappings": "Mappings: {{ready}} of {{count}} ready"
+    },
+    "notIncluded": "Not ready — not exported",
+    "sealIntro": "The project's saved credentials go into the export encrypted with this passphrase. The script asks for it, or reads ODB_BUNDLE_PASSPHRASE."
+  },
+  "help": {
+    "directoryTarget": "Guide: directory targets",
+    "embed": "Guide: relationship mapping",
+    "composer": "Guide: document composer",
+    "export": "Guide: running migrations outside the tool"
   }
 }

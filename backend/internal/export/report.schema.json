@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omni-data-bus.dev/schemas/report-1.json",
+  "title": "Omni-Data-Bus run report",
+  "description": "report.json written by `odb run` in its state directory (OC-051), imported into the tool as an external run (OC-055).",
+  "type": "object",
+  "required": ["reportVersion", "runId", "bundleSha256", "planHash", "project", "odb", "status", "exitCode", "startedAt", "finishedAt", "durationSec", "totals", "docsPerSec", "mappings", "errors"],
+  "properties": {
+    "reportVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "bundleSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "planHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "project": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+    },
+    "odb": {
+      "type": "object",
+      "required": ["version", "commit"],
+      "properties": { "version": { "type": "string" }, "commit": { "type": "string" } }
+    },
+    "status": { "enum": ["completed", "completed_with_errors", "failed", "cancelled"] },
+    "exitCode": { "enum": [0, 2, 3, 4, 5] },
+    "reason": { "type": "string" },
+    "reasonDetail": { "type": "string" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "durationSec": { "type": "number", "minimum": 0 },
+    "totals": { "$ref": "#/$defs/counts" },
+    "docsPerSec": { "type": "number", "minimum": 0 },
+    "mappings": {
+      "type": "array",
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/counts" }],
+        "type": "object",
+        "required": ["id", "name", "table", "target", "phase"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "table": { "type": "string" },
+          "target": { "type": "string" },
+          "phase": { "type": "string" }
+        }
+      }
+    },
+    "errors": {
+      "type": "object",
+      "required": ["total", "byCode", "samples"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "byCode": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["stage", "code", "count"],
+            "properties": { "stage": { "type": "string" }, "code": { "type": "string" }, "count": { "type": "integer", "minimum": 0 } }
+          }
+        },
+        "samples": { "type": "array", "maxItems": 100, "items": { "type": "object" } }
+      }
+    },
+    "verification": { "type": ["object", "null"] }
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "required": ["read", "written", "skipped", "failed"],
+      "properties": {
+        "read": { "type": "integer", "minimum": 0 },
+        "written": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

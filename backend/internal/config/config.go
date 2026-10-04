@@ -37,6 +37,10 @@ type Config struct {
 	Worker  WorkerConfig
 	Observe ObservabilityConfig
 	Guard   SecurityConfig
+	Bundled BundledConfig
+	// Directory describes folders shared with the user's computer in the all-in-one image (OC-080).
+	Directory DirectoryConfig
+	Export    ExportConfig
 
 	SignupEnabled bool `env:"OC_SIGNUP_ENABLED" envDefault:"true"`
 	// ExposeBuildInfo shows the release and channel to anonymous callers of /api/v1/version
@@ -57,6 +61,43 @@ type MetaConfig struct {
 	AutoProvision bool   `env:"OC_META_AUTO_PROVISION" envDefault:"true"`
 }
 
+// BundledConfig describes the Couchbase node bundled in the all-in-one image (OC-072). The
+// image's entrypoint sets it; elsewhere it's empty and nothing changes.
+type BundledConfig struct {
+	// Store names the bundled metadata store for the footer, e.g. "Couchbase Server CE 8.0.2".
+	Store string `env:"OC_BUNDLED_STORE"`
+	// Target is the bundled node's connection string, offered as a migration target.
+	Target         string   `env:"OC_BUNDLED_TARGET"`
+	TargetUsername string   `env:"OC_BUNDLED_TARGET_USERNAME" envDefault:"Administrator"`
+	TargetPassword string   `env:"OC_BUNDLED_TARGET_PASSWORD"`
+	TargetBuckets  []string `env:"OC_BUNDLED_TARGET_BUCKETS" envSeparator:"," envDefault:"sandbox"`
+}
+
+// ExportConfig shapes exported migrations (OC-052, OC-053).
+type ExportConfig struct {
+	// Image is what migrate.sh's docker runtime runs; pin it by digest. Default:
+	// ghcr.io/sahnianuj/omni-data-bus:<this version>.
+	Image string `env:"OC_EXPORT_IMAGE"`
+	// DownloadURL is where scripts download odb_<version>_<os>_<arch>.tar.gz. Default: this
+	// version's GitHub release.
+	DownloadURL string `env:"OC_EXPORT_DOWNLOAD_URL"`
+	// DistDir holds this version's odb tarballs and SHA256SUMS (`make dist`): their checksums are
+	// written into scripts, and they can be embedded for any platform.
+	DistDir string `env:"OC_EXPORT_DIST_DIR"`
+	// CosignIdentity is the release workflow identity scripts verify signatures against.
+	CosignIdentity string `env:"OC_EXPORT_COSIGN_IDENTITY" envDefault:"^https://github.com/sahnianuj/omni-data-bus/"`
+}
+
+// DirectoryConfig is set by the all-in-one image's entrypoint (OC-080); empty elsewhere.
+type DirectoryConfig struct {
+	// Shared lists folders of the user's computer mounted into the container, as
+	// "<path in container>=<path on the computer>" pairs separated by commas. When set, they are
+	// the only areas a directory target may be in.
+	Shared []string `env:"OC_DIRECTORY_SHARED" envSeparator:","`
+	// ContainerOnly marks the server's folders as inside the container (nothing is shared).
+	ContainerOnly bool `env:"OC_DIRECTORY_CONTAINER_ONLY"`
+}
+
 // WorkerConfig tunes migration workers (OC-023…OC-026).
 type WorkerConfig struct {
 	MaxJobs        int           `env:"OC_WORKER_MAX_JOBS" envDefault:"2" validate:"min=1,max=32"`
@@ -67,6 +108,10 @@ type WorkerConfig struct {
 	MaxRelationDepth int `env:"OC_MAX_RELATION_DEPTH" envDefault:"4" validate:"min=1,max=6"`
 	// RelationMemoryMB caps a batch's related rows in memory; bigger batches are split (OC-043).
 	RelationMemoryMB int `env:"OC_RELATION_MEMORY_MB" envDefault:"256" validate:"min=1,max=65536"`
+	// MemoryLimitMB is the Go runtime's soft memory limit for the process (0 = none; GOMEMLIMIT,
+	// when set, wins). Large documents allocate fast: without it, garbage outgrows the live heap
+	// and the worker's RSS passes 1 GB (OC-056; architecture §7: RSS < 768 MB by default).
+	MemoryLimitMB int `env:"OC_MEMORY_LIMIT_MB" envDefault:"640" validate:"min=0,max=1048576"`
 }
 
 // ObservabilityConfig places /metrics and turns on tracing (OC-031).
@@ -141,7 +186,7 @@ func Load(environ map[string]string) (Config, error) {
 
 // SecretFileVars can be given as <NAME>_FILE: a path whose content is the value (Docker and
 // Kubernetes secrets mounted as files, OC-032).
-var SecretFileVars = []string{"OC_MASTER_KEY", "OC_MASTER_KEYS", "OC_META_PASSWORD"}
+var SecretFileVars = []string{"OC_MASTER_KEY", "OC_MASTER_KEYS", "OC_META_PASSWORD", "OC_BUNDLED_TARGET_PASSWORD"}
 
 func readSecretFiles(environ map[string]string) (map[string]string, error) {
 	out := make(map[string]string, len(environ))

@@ -116,6 +116,10 @@ func (s *Service) view(ctx context.Context, j store.Job) View {
 	}
 	v.Resumable = j.Status == store.JobPaused || (j.Status == store.JobFailed && len(j.Checkpoint) > 0 && j.Reason != ReasonNotResumable)
 	v.Retryable = (j.Status == store.JobFailed || j.Status == store.JobCompletedWithErrors) && v.Progress.Failed > 0 && !j.ErrorsTruncated
+	if j.Origin == OriginExternal {
+		// A run of an exported bundle, imported from its report (OC-055): read-only here.
+		v.Resumable, v.Retryable = false, false
+	}
 	if v.Resumable {
 		v.ResumeInfo = s.resumeInfo(ctx, j, opts)
 	}
@@ -160,6 +164,7 @@ func (s *Service) Create(ctx context.Context, ws store.WorkspaceID, userID, proj
 
 func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, projectID string, opts Options, ids []string, pre PreflightResult) (View, PreflightResult, error) {
 	opts.MappingIDs = ids
+	var needs []string // why the job needs a 2.0 worker
 	// Freeze each mapping's spec: a resumed run uses exactly what the job started with.
 	opts.Specs, opts.MappingVersions, opts.TargetEmpty = map[string]json.RawMessage{}, map[string]int64{}, map[string]bool{}
 	for _, pm := range pre.Mappings {
@@ -173,6 +178,13 @@ func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, proj
 			return View{}, pre, err
 		}
 		opts.Specs[id], opts.MappingVersions[id] = m.Spec, m.Version
+		var spec mapping.Spec
+		if json.Unmarshal(m.Spec, &spec) == nil {
+			needs = append(needs, mapping.RequiresV2(&spec)...)
+		}
+		if m.Where().Kind == store.KindDirectory {
+			needs = append(needs, "directory target")
+		}
 		if s.PlanHash != nil {
 			if h, err := s.PlanHash(ctx, ws, m); err == nil {
 				if opts.PlanHashes == nil {
@@ -183,9 +195,13 @@ func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, proj
 		}
 	}
 	raw, _ := json.Marshal(opts)
-	j, err := s.store.Jobs().Create(ctx, ws, store.Job{
-		ProjectID: projectID, Status: store.JobQueued, Options: raw, MappingIDs: ids, CreatedBy: userID, RetryOf: opts.RetryOf,
-	})
+	job := store.Job{ProjectID: projectID, Status: store.JobQueued, Options: raw, MappingIDs: ids, CreatedBy: userID, RetryOf: opts.RetryOf}
+	if len(needs) > 0 {
+		// 1.0.1 workers skip it while both releases run during an upgrade (OC-057).
+		job.MinWorkerVersion = mapping.MinWorker20
+		job.MinWorkerLevel, _ = store.VersionLevel(mapping.MinWorker20)
+	}
+	j, err := s.store.Jobs().Create(ctx, ws, job)
 	var conflict *store.ConflictError
 	if errors.As(err, &conflict) {
 		return View{}, pre, ErrJobRunning
@@ -286,6 +302,12 @@ func publishStatus(ctx context.Context, st store.Store, j store.Job, now time.Ti
 	_ = st.Jobs().PutProgress(ctx, j.ID, progress.WithStatus(j.ID, raw, j.Status, now))
 }
 
+// OriginExternal marks a job imported from an exported bundle's report.json (OC-055).
+const OriginExternal = "external"
+
+var errExternal = problem.New(http.StatusConflict, problem.CodeJobInvalidTransition, "External run",
+	"This run happened outside Omni-Data-Bus (imported from its report), so it can't be controlled here.")
+
 // Pause asks the worker to drain and checkpoint (running → pausing).
 func (s *Service) Pause(ctx context.Context, ws store.WorkspaceID, _, id string) (View, error) {
 	j, err := s.transition(ctx, ws, id, EvPause, nil)
@@ -309,6 +331,9 @@ func (s *Service) Resume(ctx context.Context, ws store.WorkspaceID, userID, id, 
 	cur, err := s.store.Jobs().Get(ctx, ws, id)
 	if err != nil {
 		return View{}, err
+	}
+	if cur.Origin == OriginExternal {
+		return View{}, errExternal
 	}
 	if cur.Status == store.JobFailed && !s.view(ctx, cur).Resumable {
 		return View{}, problem.New(http.StatusConflict, problem.CodeJobInvalidTransition, "Can't resume",

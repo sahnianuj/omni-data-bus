@@ -69,7 +69,15 @@ func TestCreateCollection_AC2_Integration(t *testing.T) {
 	})
 	start := time.Now()
 	require.NoError(t, ks.CreateScope(ctx, bucket, scope))
-	require.NoError(t, ks.CreateCollection(ctx, bucket, scope, target.CollectionSpec{Name: "orders", MaxExpirySec: 3600}))
+	if os.Getenv("OC_IT_CB_EDITION") == "community" {
+		// OC-072: Community Edition has no collection TTL; the refusal says so in plain words.
+		err := ks.CreateCollection(ctx, bucket, scope, target.CollectionSpec{Name: "orders", MaxExpirySec: 3600})
+		require.True(t, problem.HasCode(err, problem.CodeValidation), "%v", err)
+		require.ErrorContains(t, err, "Community Edition")
+		require.NoError(t, ks.CreateCollection(ctx, bucket, scope, target.CollectionSpec{Name: "orders"}))
+	} else {
+		require.NoError(t, ks.CreateCollection(ctx, bucket, scope, target.CollectionSpec{Name: "orders", MaxExpirySec: 3600}))
+	}
 	t.Logf("scope + collection ready in %s", time.Since(start))
 
 	err = ks.CreateCollection(ctx, bucket, scope, target.CollectionSpec{Name: "orders"})
@@ -87,7 +95,11 @@ func TestCreateCollection_AC2_Integration(t *testing.T) {
 	require.NotNil(t, found)
 	require.Len(t, found.Collections, 1)
 	require.Equal(t, "orders", found.Collections[0].Name)
-	require.Equal(t, int64(3600), found.Collections[0].MaxExpirySec)
+	wantTTL := int64(3600)
+	if os.Getenv("OC_IT_CB_EDITION") == "community" {
+		wantTTL = 0
+	}
+	require.Equal(t, wantTTL, found.Collections[0].MaxExpirySec)
 
 	c, err := ks.Collection(ctx, bucket, scope, "orders")
 	require.NoError(t, err)
