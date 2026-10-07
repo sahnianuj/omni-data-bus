@@ -6,7 +6,7 @@ This document is the shared reference for every story in `docs/release-2.0.0`. I
 
 ## 1. Release summary
 
-1.0 moves PostgreSQL tables into Couchbase collections through the web app. 2.0 adds four customer-driven capabilities:
+1.0 moves PostgreSQL tables into Couchbase collections through the web app. 2.0 adds six customer-driven capabilities:
 
 | # | Capability | What the user gets | Stories |
 |---|---|---|---|
@@ -14,6 +14,10 @@ This document is the shared reference for every story in `docs/release-2.0.0`. I
 | 2 | **Relationship (array) mapping** | Build one big document from several tables: an order with an `items[]` array, each item carrying its product, across multi-level and many-to-many (junction-table) relations | OC-037, OC-042 – OC-046 |
 | 3 | **Portable runner** | Export a finished mapping as a self-contained bash script with the mapping metadata, source credentials and target baked in, and run it in production without the tool; or hand the customer the whole tool as one Docker image with a bundled single-node Couchbase Server CE (no Capella needed) | OC-050 – OC-053, OC-055, OC-072 – OC-074 (OC-054 Kubernetes kit descoped) |
 | 4 | **Document composer** | Design any target JSON structure from scratch and bind its objects, arrays and fields to source tables and relations | OC-047 – OC-049 |
+| 5 | **Computed fields** (added 2026-10-06) | Add any field whose value is fixed, a template (`${doc.firstName} ${doc.lastName}`) or a JavaScript expression over the document's other fields (`doc.email.substring(0, doc.email.indexOf("@"))`), with autocomplete and live results | OC-136 – OC-140 |
+| 6 | **Chained embeds** (added 2026-10-06) | After embedding an object (an item's `product`), its own foreign keys and child tables are offered under it on the source side and on its foreign-key fields, at any depth up to the limit, including parent hierarchies | OC-141 – OC-144 |
+
+Stories added to 2.0 after 3.0 – 6.0 were planned take the next free IDs (OC-136 onwards), so 2.0's IDs aren't contiguous.
 
 The workflow in the tool stays the same (Source → Target → Tables → Design & Map → Review → Migrate). Two things are new: the Target step can pick a **directory**, and the Migrate step gains an **Export** tab.
 
@@ -69,6 +73,17 @@ A document's file path is a pure function of its key and the target configuratio
 ```
 
 `encode` percent-encodes characters that are unsafe on Linux, macOS or Windows file systems, and appends a hash when a name would exceed 255 bytes. It is reversible, and it is implemented in Go and TypeScript against one shared fixture file. The key template defaults the same way for every target kind (`<table>::{pk}`: key `orders::1001` is `orders%3A%3A1001.json` in the flat layout and `orders/1001.json` with `key-path`): a mapping builds identical keys and documents whether it writes to Couchbase or to a directory (user decision, 2026-09-29).
+
+### D6 — Computed fields read the assembled target document, in JavaScript
+A computed field (OC-136) is a target field whose value is derived from the document's **other target fields**, not from source columns. It's evaluated after the document is assembled (relations, aggregates, shapes) and before null handling and the size guard, in dependency order, with `doc`, `self`, `parent`, `index` and `row` in scope.
+
+- **Templates** (`${path}` only) run natively in Go and cost almost nothing.
+- **JavaScript** (OC-137) runs on `github.com/dop251/goja`: pure Go, so `CGO_ENABLED=0` and the static `odb` binary still hold. Each worker owns one runtime, expressions are compiled once, and documents are exposed through lazy read-only proxies. The sandbox has no I/O, no `eval`/`Function`, no randomness, and `Date` fixed to the job's start, so re-runs, resume and server-vs-runner parity give identical documents. Each evaluation has a time budget.
+- We chose JavaScript over extending the 1.0 expr-lang `expression` step because it's what Couchbase users already write (Eventing, JavaScript UDFs, and 4.0's PL/SQL conversion), and its string methods are the ones customers ask for. Existing `expression` steps keep working.
+- Document keys stay source-based: a key computed from target fields would break resume and directory look-up by key.
+
+### D7 — Relationships are fetched per table, on demand
+The 2.0 relationship graph is enumerated as paths from the driving table (depth 4, 200 paths, no table twice on a path), which hides an embedded object's own relationships on large schemas and every self-reference. From OC-141 the web app asks for **one table's direct hops** when it needs them (`GET /connections/{id}/relations/hops?table=…`) and caches them per table. The source side then shows, under each embedded **relation instance**, what it can embed next (OC-142), and any foreign-key field at any depth can be expanded into its object (OC-143). The relation depth limit (`OC_MAX_RELATION_DEPTH`) is unchanged and shown in the UI.
 
 ---
 
@@ -179,7 +194,11 @@ web/src/features/export/    # export dialog, export history (OC-055)
   "aggregates": [ { "id": "agg_1", "relationId": "rel_items", "fn": "sum", "column": "line_total", "targetFieldId": "fld_total" } ],
   "fieldMappings": [
     { "id": "map_1", "targetFieldId": "fld_items_qty", "sources": [ { "relation": "rel_items", "column": "quantity" } ] },
-    { "id": "map_2", "targetFieldId": "fld_customer_name", "sources": [ { "relation": "rel_cust", "column": "name" } ] }
+    { "id": "map_2", "targetFieldId": "fld_customer_name", "sources": [ { "relation": "rel_cust", "column": "name" } ] },
+    { "id": "map_3", "targetFieldId": "fld_order_ref", "sources": [],
+      "computed": { "lang": "template", "expr": "ORD-${self.orderId}" } },
+    { "id": "map_4", "targetFieldId": "fld_items_label", "sources": [],
+      "computed": { "lang": "js", "expr": "self.sku.concat(' ', self.product.name.substring(0, 20))", "onError": "null" } }
   ],
   "ignoredColumns": []
 }
@@ -190,6 +209,7 @@ web/src/features/export/    # export dialog, export history (OC-055)
 - **Scope rule:** a field can be mapped from the root table, any relation on the path from the root to that field's nearest bound ancestor, and lookup-only relations attached to that path (OC-047).
 - Source refs use `{ "relation": "<id>", "column": … }`. The 1.0 form `{ "embed": … }` is still accepted on input.
 - Depth: at most 4 relation levels by default (`OC_MAX_RELATION_DEPTH`, hard cap 6).
+- `computed` (OC-136/137, D6): `{ lang: template | js, expr, nullIfAnyMissing?, onError?: fail-row | null | omit }` on a mapping with no sources. Paths in `expr` are resolved to field ids at compile time; a spec with computed fields needs a worker at the computed-fields level (OC-140).
 
 ### 6.2 Directory target connection config
 
@@ -243,6 +263,8 @@ stdout carries one JSON object per line: `{"ts","event":"start|progress|mapping_
 | Directory target throughput | ≥ 15,000 files/s for a 1 KB document on local NVMe, 1 worker (8 vCPU), `durability: file` |
 | Nested relation throughput | ≥ 8,000 docs/s for an order with 10 items, each with a product (3 tables, 2 levels) |
 | Memory with relations | Worker RSS < 768 MB with default settings, including relation buffers (`OC_RELATION_MEMORY_MB`, default 256) and the Go soft memory limit (`OC_MEMORY_LIMIT_MB`, default 640, added by OC-056) |
+| Computed fields (G8, OC-140) | The nested scenario plus 2 template and 2 JavaScript fields keeps ≥ 85% of the nested relation throughput |
+| Chained embeds (G9, OC-144) | ≥ 6,000 docs/s for an order with 10 items, each with product → brand → supplier → country (5 tables, 4 levels) |
 | Runner parity | The same bundle produces byte-identical documents from the server pipeline and `odb run` |
 | Runner cold start | `migrate.sh preflight` finishes in < 5 s after the binary is present |
 | Exported file safety | No credential in plain text in any export unless the mode is `plaintext`; checked by a scanner test over every generated artifact |

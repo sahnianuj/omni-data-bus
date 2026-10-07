@@ -8,6 +8,9 @@
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
   --color-sample-surface: var(--sample-surface);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);

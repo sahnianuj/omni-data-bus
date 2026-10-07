@@ -1822,7 +1822,7 @@
     },
     "run": {
       "script": "migrate.sh script",
-      "scriptHint": "A zip with migrate.sh and a README with the exact commands",
+      "scriptHint": "Everything needed to run in one script: mappings, sealed credentials and how to get odb. Includes a README.",
       "runtime": "How it runs odb",
       "rt": {
         "auto": "Automatic",
@@ -1830,10 +1830,16 @@
         "docker": "Docker image",
         "embedded": "Embedded (air-gapped)"
       },
+      "rtHint": {
+        "auto": "Uses odb if it is installed, else Docker, else downloads it. Right for most machines.",
+        "binary": "Downloads and verifies the odb release for the machine it runs on.",
+        "docker": "Runs odb from its Docker image.",
+        "embedded": "Puts odb inside the script, for machines without internet access."
+      },
       "platform": "Machine",
-      "includeBundle": "Include bundle.odb.json",
-      "bundle": "Bundle file only",
-      "bundleHint": "bundle.odb.json, for odb run --bundle",
+      "autoEmbed": "Includes odb for {{platform}}. For another machine, choose Embedded.",
+      "bundle": "Bundle file only (advanced)",
+      "bundleHint": "Just bundle.odb.json, for people who already run odb themselves (odb run --bundle)",
       "options": "Run options",
       "readers": "Readers",
       "writers": "Writers",

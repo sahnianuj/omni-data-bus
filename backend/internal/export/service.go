@@ -403,10 +403,12 @@ type Options struct {
 	// Downloadable lists platforms whose checksum is known (the script can download odb).
 	Downloadable []string `json:"downloadable"`
 	// Embeddable lists platforms this server can embed odb for.
-	Embeddable      []string `json:"embeddable"`
-	MaxPerHour      int      `json:"maxPerHour"`
-	MinPassphrase   int      `json:"minPassphraseLength"`
-	StepUpWindowSec int      `json:"stepUpWindowSec"`
+	Embeddable []string `json:"embeddable"`
+	// AutoEmbed is the platform an "auto" script carries odb for when nothing downloads.
+	AutoEmbed       string `json:"autoEmbed,omitempty"`
+	MaxPerHour      int    `json:"maxPerHour"`
+	MinPassphrase   int    `json:"minPassphraseLength"`
+	StepUpWindowSec int    `json:"stepUpWindowSec"`
 }
 
 // Describe returns the server's export options.
@@ -420,6 +422,7 @@ func (s *Service) Describe() Options {
 		o.Downloadable = append(o.Downloadable, p)
 	}
 	slices.Sort(o.Downloadable)
+	o.AutoEmbed = s.Script.fallbackPlatform(s.Script.Dist.Checksums())
 	if o.Embeddable == nil {
 		o.Embeddable = []string{}
 	}

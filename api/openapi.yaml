@@ -3204,6 +3204,7 @@ components:
         downloadUrl: { type: string }
         downloadable: { type: array, items: { type: string }, description: 'Platforms (os_arch) a script can download odb for (checksums known)' }
         embeddable: { type: array, items: { type: string }, description: Platforms this server can embed odb for }
+        autoEmbed: { type: string, description: 'The platform (os_arch) an Automatic script carries odb for, because no platform can be downloaded; absent when downloads work' }
         maxPerHour: { type: integer }
         minPassphraseLength: { type: integer }
         stepUpWindowSec: { type: integer }

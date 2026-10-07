@@ -23,11 +23,15 @@ ODB_EMBEDDED_PLATFORM={{sh .EmbeddedPlatform}}
 ODB_COSIGN_IDENTITY={{sh .CosignIdentity}}
 ODB_TARGET_KIND={{sh .TargetKind}}
 
-: "${ODB_STATE_DIR:=./odb-state}"          # checkpoint, errors.jsonl, report.json
+# Everything the script writes stays in its own folder (the one the zip unpacked), wherever it
+# is run from.
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+: "${ODB_STATE_DIR:=$HERE/odb-state}"      # checkpoint, errors.jsonl, report.json
 : "${ODB_TARGET_PATH:={{dq .TargetPath}}}"{{if ne .TargetKind "directory"}}   # unused: the target is {{.TargetKind}}{{else}}   # where the JSON files go; override per environment{{end}}
 : "${ODB_RUNTIME:={{.Runtime}}}"                   # auto | binary | docker | embedded
 : "${ODB_DOCKER_ARGS:=}"                   # extra docker run arguments, e.g. --network host
-: "${ODB_CACHE_DIR:=${XDG_CACHE_HOME:-$HOME/.cache}/odb}"
+: "${ODB_CACHE_DIR:=$HERE/odb-cache}"      # downloaded odb binaries
 
 SELF="${BASH_SOURCE[0]}"
 WORK=""
@@ -72,17 +76,17 @@ commands:
   status             summarize the run in ODB_STATE_DIR
   verify             count each mapping's documents in the target
   inspect            what this script migrates (no secrets)
-  extract [DIR]      write bundle.odb.json (and the embedded odb, if any) to DIR
+  extract [DIR]      write bundle.odb.json (and the embedded odb, if any) to DIR (default: here)
   help               this text
 
 environment:
-  ODB_STATE_DIR          state directory (default ./odb-state)
+  ODB_STATE_DIR          state directory (default odb-state next to this script)
   ODB_TARGET_PATH        directory target's output folder
   ODB_BUNDLE_PASSPHRASE  passphrase of sealed credentials (else you are asked)
   ODB_RUNTIME            auto | binary | docker | embedded (default auto)
   ODB_BIN                use this odb binary
   ODB_DOCKER_ARGS        extra docker run arguments (docker runtime)
-  ODB_CACHE_DIR          where downloaded odb binaries are kept
+  ODB_CACHE_DIR          where downloaded odb binaries are kept (default odb-cache next to this script)
 
 exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration
             error, 5 cancelled (run ./migrate.sh resume)
@@ -140,7 +144,14 @@ platform() {
     *) die 4 "unsupported operating system $(uname -s): use ODB_RUNTIME=docker" ;;
   esac
   case "$(uname -m)" in
-    x86_64 | amd64) arch=amd64 ;;
+    x86_64 | amd64)
+      # An Intel shell under Rosetta reports x86_64 on Apple silicon: ask for the real CPU.
+      if [ "$os" = darwin ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]; then
+        arch=arm64
+      else
+        arch=amd64
+      fi
+      ;;
     arm64 | aarch64) arch=arm64 ;;
     *) die 4 "unsupported CPU $(uname -m): use ODB_RUNTIME=docker" ;;
   esac
@@ -166,10 +177,14 @@ use_embedded() {
   local plat
   [ -n "$ODB_EMBEDDED_PLATFORM" ] || return 1
   plat=$(platform)
-  if [ "$plat" != "$ODB_EMBEDDED_PLATFORM" ]; then
-    note "the embedded odb is for $ODB_EMBEDDED_PLATFORM, this machine is $plat"
-    return 1
-  fi
+  case "$plat/$ODB_EMBEDDED_PLATFORM" in
+    "$ODB_EMBEDDED_PLATFORM/$ODB_EMBEDDED_PLATFORM") ;;
+    darwin_arm64/darwin_amd64) ;; # Apple silicon runs an Intel odb through Rosetta
+    *)
+      note "the embedded odb is for $ODB_EMBEDDED_PLATFORM, this machine is $plat"
+      return 1
+      ;;
+  esac
   workdir
   payload BINARY | b64decode | gzip -dc >"$WORK/odb"
   chmod 700 "$WORK/odb"
@@ -211,7 +226,7 @@ download() {
     darwin_amd64) want=$ODB_SHA256_darwin_amd64 ;;
     *) want=$ODB_SHA256_darwin_arm64 ;;
   esac
-  [ -n "$want" ] || die 4 "no odb checksum for $plat in this script: set ODB_BIN, or use ODB_RUNTIME=docker"
+  [ -n "$want" ] || die 4 "this script has no odb for $plat. Install odb $ODB_VERSION and set ODB_BIN=/path/to/odb, install Docker, or export again with How it runs odb: Embedded and this machine ($plat)"
   dir="$ODB_CACHE_DIR/$ODB_VERSION"
   name="odb_${ODB_VERSION}_${plat}.tar.gz"
   tgz="$dir/$name"
@@ -363,7 +378,7 @@ main() {
       fi
       ;;
     extract)
-      local dir=${1:-.}
+      local dir=${1:-$HERE}
       mkdir -p "$dir"
       unpack
       cp "$BUNDLE" "$dir/bundle.odb.json"

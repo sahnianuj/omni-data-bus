@@ -30,7 +30,6 @@ const schema = z.object({
   runtime: z.enum(['script', 'bundle']),
   scriptRuntime: z.enum(['auto', 'binary', 'docker', 'embedded']),
   platform: z.string(),
-  includeBundle: z.boolean(),
   readers: z.string(),
   writers: z.number().int().min(1).max(512),
   batchSize: z.number().int().min(100).max(10000),
@@ -56,7 +55,6 @@ export function toRequest(v: ExportValues): ExportRequest {
     const [os, arch] = v.platform.split('_')
     req.script = {
       runtime: v.scriptRuntime,
-      includeBundle: v.includeBundle,
       ...(v.scriptRuntime === 'embedded' && os && arch ? { os: os as 'linux' | 'darwin', arch: arch as 'amd64' | 'arm64' } : {}),
     }
   }
@@ -117,7 +115,7 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
   const form = useForm<ExportValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      passphrase: '', runtime: 'script', scriptRuntime: 'auto', platform: 'linux_amd64', includeBundle: false,
+      passphrase: '', runtime: 'script', scriptRuntime: 'auto', platform: 'linux_amd64',
       readers: 'auto', writers: 64, batchSize: 1000, writeMode: 'upsert', maxErrors: 1000,
     },
   })
@@ -306,7 +304,7 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
               {v.runtime === 'script' ? (
                 <div className="flex flex-wrap items-end gap-3 pl-6">
                   <FormField id="export-rt" label={t('export.run.runtime')}>
-                    <select id="export-rt" value={v.scriptRuntime} onChange={(e) => set('scriptRuntime', e.target.value as ExportValues['scriptRuntime'])} className="h-9 rounded-md border border-border bg-surface px-2 text-[13px]">
+                    <select id="export-rt" title={t(`export.run.rtHint.${v.scriptRuntime}`)} value={v.scriptRuntime} onChange={(e) => set('scriptRuntime', e.target.value as ExportValues['scriptRuntime'])} className="h-9 rounded-md border border-border bg-surface px-2 text-[13px]">
                       {(['auto', 'binary', 'docker', 'embedded'] as const).map((r) => (
                         <option key={r} value={r}>{t(`export.run.rt.${r}`)}</option>
                       ))}
@@ -321,10 +319,9 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
                       </select>
                     </FormField>
                   ) : null}
-                  <label className="mb-2 flex items-center gap-2 text-[13px]">
-                    <input type="checkbox" checked={v.includeBundle} onChange={(e) => set('includeBundle', e.target.checked)} />
-                    {t('export.run.includeBundle')}
-                  </label>
+                  {v.scriptRuntime === 'auto' && opts?.autoEmbed ? (
+                    <p className="mb-2.5 text-xs text-muted">{t('export.run.autoEmbed', { platform: opts.autoEmbed.replace('_', ' / ') })}</p>
+                  ) : null}
                 </div>
               ) : null}
               <Choice name="runtime" value="bundle" current={v.runtime} onSelect={(x) => set('runtime', x as ExportValues['runtime'])} title={t('export.run.bundle')} hint={t('export.run.bundleHint')} />

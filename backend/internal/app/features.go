@@ -55,7 +55,7 @@ type Deps struct {
 func ExportScript(c config.ExportConfig, version string) export.ScriptConfig {
 	sc := export.ScriptConfig{
 		Image: c.Image, DownloadURL: c.DownloadURL, CosignIdentity: c.CosignIdentity,
-		Dist: export.Dist{Dir: c.DistDir, Version: version},
+		Dist: export.Dist{Dir: c.DistDir, Version: version}, EmbedWhenNoDownload: true,
 	}
 	if sc.Image == "" {
 		sc.Image = "ghcr.io/sahnianuj/omni-data-bus:" + version

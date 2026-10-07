@@ -14,8 +14,9 @@ the per-phase story tables, which have a Status column). Descoped stories keep t
 (numbering stays gap-free) but don't count anywhere: they're listed in their phase's table and in
 a "Descoped" section only.
 
-Phases, the P1 wording and the release checklist are per release (RELEASES below). Story IDs are
-numbered across releases, so each release's IDs must be contiguous but needn't start at OC-001.
+The theme (what the release ships, shown first), phases, the P1 wording and the release checklist are per release (RELEASES below). Story IDs are
+numbered across releases: unique and gap-free over all docs/release-* folders. A story added to an
+earlier release takes the next free ID, so a release's IDs needn't be contiguous.
 
 Usage: python3 scripts/update-story-index.py [docs/release-1.0.0]
 """
@@ -42,6 +43,13 @@ PRIORITY_INFO = priority_info("1.0.0")  # keys only, for validation
 # app, and every story must belong to exactly one phase (checked in main).
 RELEASES = {
     "1.0.0": {
+        "theme": ("PostgreSQL → Couchbase, end to end in the browser: connect, design the documents, migrate, verify.", [
+            ("Projects & connections", "Sign in to a workspace, create a project, and test and save its PostgreSQL source and Couchbase (self-managed or Capella) target once, with credentials encrypted"),
+            ("Explore both sides", "Discover source schemas with data preview; browse and create buckets, scopes and collections"),
+            ("Design & map", "Design target documents and keys, auto-map with a score, finish on a drag-and-drop canvas with transformations, embed related tables, preview real documents"),
+            ("Migrate", "Snapshot-consistent parallel streaming with live progress, pause/resume, crash recovery, dead-letter log and a verification report"),
+            ("Production-ready", "Metrics and tracing, signed image and Helm chart, security hardening, E2E suite and benchmark gate"),
+        ]),
         "phases": [
             ("Skeleton", "Sign in, create a project, configure and test its PostgreSQL source and Couchbase target",
              ["OC-001", "OC-002", "OC-003", "OC-004", "OC-005", "OC-006", "OC-007", "OC-008", "OC-009", "OC-012"]),
@@ -64,6 +72,16 @@ RELEASES = {
         ],
     },
     "2.0.0": {
+        "theme": ("Any document shape, a second target kind, and migrations that run without the tool.", [
+            ("Directory target", "Migrate into a folder of JSON files, one per document, named by primary key and looked up by key"),
+            ("Relationship mapping", "One document from many tables: multi-level and many-to-many arrays, filters and aggregates, sorted-merge for large arrays and a document-size guard"),
+            ("Document composer", "Design any JSON shape from scratch or import the customer's own design, get suggested bindings, group rows into one document, and fix differences from the design with guidance"),
+            ("Portable runner", "Export a mapping as a self-contained `migrate.sh` / bundle and run it headless with `odb run`, credentials sealed, plaintext or external (Kubernetes kit descoped)"),
+            ("All-in-one image", "One Docker image with the app and a bundled single-node Couchbase Server CE, plus a customer run kit"),
+            ("Computed fields", "Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields (`concat()`, `substring()`, …), with autocomplete and live results on sample documents"),
+            ("Chained embeds", "Once an object is embedded, its own foreign keys and child tables are offered under it on the source side, so order → items → product → brand → supplier builds one click at a time"),
+            ("Upgrade", "1.0 projects and mappings upgrade transparently to mapping spec v2; every page shows the release and build"),
+        ]),
         "phases": [
             ("Phase 0 — 2.0 foundations", "Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build",
              ["OC-058", "OC-036", "OC-037"]),
@@ -77,6 +95,10 @@ RELEASES = {
              ["OC-050", "OC-051", "OC-052", "OC-053", "OC-054", "OC-055", "OC-072", "OC-073", "OC-074", "OC-080"]),
             ("Phase 5 — Harden & ship 2.0", "Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate",
              ["OC-078", "OC-057", "OC-056"]),
+            ("Phase 6 — Computed fields", "Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields, see it on sample documents, and get the same value in every run, export and target",
+             ["OC-136", "OC-137", "OC-138", "OC-139", "OC-140"]),
+            ("Phase 7 — Chained embeds", "Embed an embedded object's own relationships from the source side or its foreign-key field, at any depth up to the limit, including parent hierarchies, with shared reads and a size hint",
+             ["OC-141", "OC-142", "OC-143", "OC-144"]),
         ],
         "checklist": [
             "All P0 stories are Implemented (and P1 stories are Implemented or explicitly descoped with sign-off)",
@@ -86,9 +108,18 @@ RELEASES = {
             "1.0 → 2.0 upgrade rehearsed on a copy of a 1.0 metadata bucket (OC-057)",
             "Image, all-in-one appliance image and static `odb` binaries signed, SBOM attached, Helm chart published; Couchbase CE redistribution confirmed (OC-072)",
             "User guide, runner guide and deployment docs updated",
+            "Security review of the JavaScript sandbox for computed fields (OC-137): forbidden globals, time budget, read-only documents; no HIGH/CRITICAL vulnerabilities",
+            "Computed-field (G8) and chained-embed (G9) benchmark gates pass on the reference environment (OC-140, OC-144)",
         ],
     },
     "3.0.0": {
+        "theme": ("Couchbase Edge Server becomes the third target kind, next to Couchbase and Directory.", [
+            ("Edge Server target", "Configure, test and save an Edge Server connection; migrate into `database.scope.collection` with revision-aware batched writes and verification, re-runs included"),
+            ("Setup checks", "Pre-migration checks for writes, users and collections; generate the collection config Edge Server can't create over REST"),
+            ("Explore Edge data", "Browse, look up and query the migrated documents in the tool, since Edge Server has no UI"),
+            ("Parity", "Same keys and documents as every other target, with E2E tests, a benchmark and a setup guide"),
+            ("Optional (P2)", "A managed Edge Server in the all-in-one image whose scopes, collections and users the tool creates"),
+        ]),
         "phases": [
             ("Phase 0 — Edge Server spike", "The Edge Server REST questions the target needs (bulk writes, revisions, metadata, limits, licensing) answered against a real server",
              ["OC-084"]),
@@ -108,6 +139,13 @@ RELEASES = {
         ],
     },
     "4.0.0": {
+        "theme": ("Oracle comes in: tables become documents, PL/SQL becomes Couchbase UDFs, and both are verified side by side.", [
+            ("Oracle source", "19c, 21c and 23ai/26ai over a pure-Go driver (wallets included), with the same discovery, preview, automap, relationship mapping, consistent SCN reads, resume, export and `odb run` as PostgreSQL"),
+            ("PL/SQL assessment", "Inventory every function, procedure and package, its dependencies, and how much of it converts automatically"),
+            ("Convert to UDFs", "Translate PL/SQL functions into SQL++ or JavaScript UDFs whose embedded SQL reads the migrated documents; review, edit, version and deploy them to Couchbase"),
+            ("Side-by-side verification", "Run the PL/SQL on Oracle and its UDF on Couchbase with the same arguments, compare results, and batch-verify saved test cases"),
+            ("Beyond functions (P1)", "Procedures and package state; AI-assisted conversion for what the rules can't finish"),
+        ]),
         "phases": [
             ("Phase 0 — Spikes & source dialects", "The Oracle driver, test database and Couchbase UDF support confirmed; shared code no longer assumes PostgreSQL, with PostgreSQL output unchanged",
              ["OC-091", "OC-092", "OC-093"]),
@@ -137,6 +175,13 @@ RELEASES = {
         ],
     },
     "5.0.0": {
+        "theme": ("From one-shot migration to continuous replication, PostgreSQL first.", [
+            ("Replicate continuously", "Load every mapped table once, then keep the target in sync with inserts, updates and deletes until cut-over"),
+            ("Document-aware engine", "A source-neutral engine traces each changed row to the documents it feeds (embeds and lookup fan-out included) and rebuilds or deletes them on every target kind"),
+            ("PostgreSQL change capture", "Logical replication (`pgoutput`) with readiness checks and a setup assistant, a gap-free snapshot handoff, LSN checkpoints, and schema drift, truncate and resync handling"),
+            ("Operate safely", "Lag and health monitor, WAL retention guard, alerts, clean stop, and headless `odb replicate` (P1)"),
+            ("Proven", "Convergence check, chaos tests, benchmark and replication guide"),
+        ]),
         "phases": [
             ("Phase 0 — Replication spike", "Snapshot handoff, re-materialization cost and PostgreSQL logical replication proven on a prototype",
              ["OC-115"]),
@@ -159,6 +204,13 @@ RELEASES = {
         ],
     },
     "6.0.0": {
+        "theme": ("Continuous replication for Oracle on the 5.0 engine, with no extra license and no agent on the database host.", [
+            ("LogMiner change capture", "A DBA readiness script, then committed changes mined from the redo logs, with an SCN handoff from the initial load"),
+            ("Operate", "Stop safely on DDL or missing archive logs, resync, and monitor Oracle-specific health"),
+            ("Enterprise topologies (P1)", "Mining on RAC and standby databases"),
+            ("External feeds (P2)", "Reuse an existing Debezium or GoldenGate change feed through Kafka"),
+            ("Proven", "Convergence and chaos tests on Oracle, benchmark (source CPU included) and guide"),
+        ]),
         "phases": [
             ("Phase 0 — LogMiner spike", "Mining from Go, key extraction and the SCN handoff proven against Oracle",
              ["OC-127"]),
@@ -284,8 +336,11 @@ def render(release: str, every: list) -> str:
     by_status = {st: [s for s in stories if s["status"] == st] for st in STATUSES}
     done_pts = sum(s["points"] for s in by_status["Implemented"])
 
+    headline, ships = cfg["theme"]
     out = [f"# Release {release} — Story Index", "",
-           "> Generated by `scripts/update-story-index.py` from each story's header table. "
+           "## Theme", "", f"**{headline}**", ""]
+    out += [f"- **{area}** — {what}" for area, what in ships] + [""]
+    out += ["> Generated by `scripts/update-story-index.py` from each story's header table. "
            "Don't edit this file by hand: change a story's **Status** (`Not started` → `In progress` → `Implemented`) "
            "and re-run `python3 scripts/update-story-index.py docs/release-" + release + "`. "
            "In the priority tables and the phase overview, implemented stories are ~~struck through~~.", "",
@@ -347,9 +402,13 @@ def render(release: str, every: list) -> str:
 def main() -> None:
     release_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "docs/release-1.0.0")
     stories = sorted((parse_story(p) for p in release_dir.glob("OC-*.md")), key=lambda s: s["id"])
-    ids = [int(s["id"][3:]) for s in stories]
-    if not ids or ids != list(range(ids[0], ids[0] + len(ids))):
-        sys.exit(f"story numbering has gaps or duplicates: {ids}")
+    if not stories:
+        sys.exit(f"no stories in {release_dir}")
+    every_id = sorted(int(p.name[3:6]) for p in release_dir.parent.glob("release-*/OC-*.md"))
+    if every_id != list(range(every_id[0], every_id[0] + len(every_id))):
+        dupes = sorted({i for i in every_id if every_id.count(i) > 1})
+        gaps = sorted(set(range(every_id[0], every_id[-1] + 1)) - set(every_id))
+        sys.exit(f"story numbering across releases has duplicates {dupes} or gaps {gaps}")
     release = release_dir.name.removeprefix("release-")
     if release not in RELEASES:
         sys.exit(f"no phase configuration for release {release}; add it to RELEASES")

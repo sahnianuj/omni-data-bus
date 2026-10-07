@@ -157,11 +157,15 @@ func TestScript_ZipContents(t *testing.T) {
 	for _, zf := range zr.File {
 		names[zf.Name] = zf.Mode()
 	}
-	require.Equal(t, os.FileMode(0o755), names["migrate.sh"])
-	require.Contains(t, names, "README.md")
-	require.Contains(t, names, "bundle.odb.json")
+	// Everything sits in one folder named like the zip.
+	const dir = "odb-export-shop-docs-20261001/"
+	require.True(t, names[dir].IsDir())
+	require.Equal(t, os.FileMode(0o755), names[dir+"migrate.sh"])
+	require.Contains(t, names, dir+"README.md")
+	require.Contains(t, names, dir+"bundle.odb.json")
+	require.Len(t, names, 4)
 	for _, zf := range zr.File {
-		if zf.Name == "bundle.odb.json" {
+		if zf.Name == dir+"bundle.odb.json" {
 			rc, _ := zf.Open()
 			data, _ := io.ReadAll(rc)
 			_ = rc.Close()
@@ -186,8 +190,41 @@ func TestReadmeTemplate_AC7_Golden(t *testing.T) {
 	want, err := os.ReadFile(golden)
 	require.NoError(t, err)
 	require.Equal(t, string(want), got)
-	for _, s := range []string{"| orders | `public.orders` | `orders/` |", "Exit codes", "| 5 | Cancelled", "ODB_SOURCE_PASSWORD", "./migrate.sh preflight", "ODB_TARGET_PATH='/data/out'"} {
+	for _, s := range []string{"| orders | `public.orders` | `orders/` |", "Exit codes", "| 5 | Cancelled", "ODB_SOURCE_PASSWORD", "./migrate.sh preflight", "JSON files go to `/data/out`"} {
 		require.Contains(t, got, s)
+	}
+	// The target folder is the script's default already: no export step for it, nor chmod.
+	require.NotContains(t, got, "export ODB_TARGET_PATH")
+	require.NotContains(t, got, "chmod")
+}
+
+func TestScript_AutoEmbedsWhenNothingDownloads(t *testing.T) {
+	f := newFixture(t)
+	b := f.build(t, externalReq()).Bundle
+	raw := encode(t, b)
+	self := runtime.GOOS + "_" + runtime.GOARCH
+	dir := t.TempDir()
+	writeTarball(t, filepath.Join(dir, "odb_2.0.0_"+self+".tar.gz"), "#!/bin/sh\necho fake odb\n")
+	noDownload := ScriptConfig{DownloadURL: "https://example.com/r", Dist: Dist{Dir: dir, Version: "2.0.0"}, EmbedWhenNoDownload: true}
+
+	// No release checksums: an auto script carries this server's odb.
+	script, _, err := RenderScriptFiles(b, raw, Script{Runtime: "auto"}, noDownload, "2.0.0")
+	require.NoError(t, err)
+	require.Contains(t, string(script), "ODB_EMBEDDED_PLATFORM='"+self+"'")
+	require.Contains(t, string(script), "ODB_RUNTIME:=auto")
+
+	// Other runtimes, the setting off, or downloads available: nothing embedded.
+	for name, c := range map[string]struct {
+		s   Script
+		cfg ScriptConfig
+	}{
+		"binary":       {Script{Runtime: "binary"}, noDownload},
+		"off":          {Script{Runtime: "auto"}, ScriptConfig{Dist: noDownload.Dist}},
+		"downloadable": {Script{Runtime: "auto"}, func() ScriptConfig { c := testScriptConfig(t); c.EmbedWhenNoDownload = true; return c }()},
+	} {
+		script, _, err := RenderScriptFiles(b, raw, c.s, c.cfg, "2.0.0")
+		require.NoError(t, err, name)
+		require.Contains(t, string(script), "ODB_EMBEDDED_PLATFORM=''", name)
 	}
 }
 

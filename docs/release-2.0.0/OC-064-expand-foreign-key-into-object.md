@@ -21,7 +21,7 @@ Embedding works today: add an object under `products[]`, then bind it many-to-on
 - Works for the Couchbase and directory targets alike.
 
 **Out:**
-- Embedding through a chain of foreign keys in one action (do it twice).
+- Embedding through a chain of foreign keys in one action (do it twice; OC-143 makes every level offer the action).
 - Replacing a reference with a lookup of a single column; lookups already do that (OC-047).
 
 ## Implementation details

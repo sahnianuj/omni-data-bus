@@ -115,7 +115,7 @@ export function ReviewStep() {
             {t('review.summary', { rows: humanizeCount(result.totalRows), mode: t(`jobOptions.${options?.writeMode ?? 'upsert'}`) })}
           </p>
         ) : null}
-        <Button variant="ghost" asChild title={t('review.exportHint')}>
+        <Button variant="brand" asChild title={t('review.exportHint')}>
           <Link to={`/projects/${project.id}/export`}>
             <Download aria-hidden />
             {t('review.export')}

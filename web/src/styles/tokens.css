@@ -39,9 +39,13 @@
   --embed-6: #7c3aed;
   /* Mapping edges of an embed use its color darkened by this much (none on dark backgrounds). */
   --embed-edge-shade: 25%;
-  /* The sample pane: a light cyan, clearly apart from the grey canvas and from the indigo
-     selection highlight (OC-077). */
-  --sample-surface: #e6fbfd;
+  /* The sample pane: a pale tint of the logo amber (#ffb400), clearly apart from the grey
+     canvas and from the indigo selection highlight (OC-077). */
+  --sample-surface: #fff3d6;
+  /* The logo's amber and black, for the few actions that carry the brand (Export…). */
+  --brand: #ffb400;
+  --brand-hover: #e6a200;
+  --brand-foreground: #111111;
 }
 
 .dark {
@@ -81,6 +85,9 @@
   --embed-5: #f472b6;
   --embed-6: #a78bfa;
   --embed-edge-shade: 0%;
-  /* A deep navy, apart from the near-black canvas. */
-  --sample-surface: #0f172a;
+  /* A deep amber-brown, apart from the near-black canvas. */
+  --sample-surface: #221b0c;
+  --brand: #ffb400;
+  --brand-hover: #ffc533;
+  --brand-foreground: #111111;
 }

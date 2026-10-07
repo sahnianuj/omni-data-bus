@@ -27,17 +27,30 @@ Bundle sha256: `{{.BundleSHA256}}`
 
 ## Run it
 
+Unzip the export and work inside its folder. Everything the script writes (checkpoint, errors,
+report, a downloaded `odb`) stays in that folder, wherever you run it from.
+
 ```bash
-chmod +x migrate.sh
+unzip {{.Folder}}.zip
+cd {{.Folder}}
 {{- range .EnvExample}}
 export {{.}}
 {{- end}}
-./migrate.sh preflight   # checks everything, writes nothing
-./migrate.sh run         # migrates; progress is printed as JSON lines
+./migrate.sh run         # checks everything first, then migrates; progress is printed as JSON lines
 ```
+{{if .Sealed}}
+The script asks for the export passphrase (or set `ODB_BUNDLE_PASSPHRASE` to run unattended).
+{{- end}}{{if eq .TargetKind "directory"}}
+The JSON files go to `{{.TargetPath}}`, as set in the project; set `ODB_TARGET_PATH` to write elsewhere.
+{{- end}}
 
 - If the run stops (Ctrl+C, a reboot, a failure), `./migrate.sh resume` continues from the last
-  checkpoint in `$ODB_STATE_DIR` (default `./odb-state`).
+  checkpoint in `$ODB_STATE_DIR` (default `odb-state` in this folder).
+- `./migrate.sh run` also continues from that checkpoint, so after a completed run it writes
+  nothing, even if you deleted the migrated {{if eq .TargetKind "directory"}}files{{else}}documents or collections{{end}}. To migrate everything
+  again, run `./migrate.sh run --restart`: it moves the old checkpoint, errors and report to
+  `archive/<time>/` in the state directory and starts over.
+- `./migrate.sh preflight` runs only the checks, writing nothing.
 - `./migrate.sh status` summarizes the run; `./migrate.sh verify` counts the documents in the target.
 - `./migrate.sh inspect` shows what the script will do; `./migrate.sh extract` writes
   `bundle.odb.json` for use with `odb run --bundle` directly.
@@ -47,7 +60,7 @@ export {{.}}
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ODB_STATE_DIR` | `./odb-state` | Checkpoint, `errors.jsonl` and `report.json` |
+| `ODB_STATE_DIR` | `odb-state` in this folder | Checkpoint, `errors.jsonl` and `report.json` |
 {{- if eq .TargetKind "directory"}}
 | `ODB_TARGET_PATH` | `{{.TargetPath}}` | Folder the JSON files are written to |
 {{- end}}
@@ -55,6 +68,7 @@ export {{.}}
 | `ODB_BUNDLE_PASSPHRASE` | (asked) | Passphrase of sealed credentials |
 | `ODB_BIN` | | An `odb` {{.Version}} binary to use |
 | `ODB_DOCKER_ARGS` | | Extra `docker run` arguments, e.g. `--network host` |
+| `ODB_CACHE_DIR` | `odb-cache` in this folder | Where a downloaded `odb` is kept |
 
 With `auto`, the script uses `ODB_BIN`, then {{if .EmbeddedPlatform}}the `odb` embedded in it ({{.EmbeddedPlatform}}), then {{end}}`odb` {{.Version}} on the `PATH`, then Docker (`{{.Image}}`), and finally downloads `odb` from `{{.DownloadURL}}`, checking it against the checksum written into the script.
 

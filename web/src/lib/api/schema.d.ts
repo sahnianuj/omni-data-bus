@@ -2947,6 +2947,8 @@ export interface components {
             downloadable: string[];
             /** @description Platforms this server can embed odb for */
             embeddable: string[];
+            /** @description The platform (os_arch) an Automatic script carries odb for, because no platform can be downloaded; absent when downloads work */
+            autoEmbed?: string;
             maxPerHour: number;
             minPassphraseLength: number;
             stepUpWindowSec: number;

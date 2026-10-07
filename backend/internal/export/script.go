@@ -172,6 +172,32 @@ type ScriptConfig struct {
 	DownloadURL    string // where odb_<ver>_<os>_<arch>.tar.gz are downloaded from
 	CosignIdentity string // the release workflow identity cosign verifies (regexp)
 	Dist           Dist
+	// EmbedWhenNoDownload makes an "auto" script carry odb when no platform can be downloaded
+	// (no release checksums, e.g. a self-built server), so the script still runs as is.
+	EmbedWhenNoDownload bool
+}
+
+// fallbackPlatform is the platform an "auto" script embeds when nothing can be downloaded:
+// this server's own if it has that binary, else the first it has. Empty: none.
+func (c ScriptConfig) fallbackPlatform(checksums map[string]string) string {
+	if !c.EmbedWhenNoDownload {
+		return ""
+	}
+	for _, sum := range checksums {
+		if sum != "" {
+			return ""
+		}
+	}
+	avail := c.Dist.Available()
+	for _, p := range avail {
+		if p == runtime.GOOS+"_"+runtime.GOARCH {
+			return p
+		}
+	}
+	if len(avail) > 0 {
+		return avail[0]
+	}
+	return ""
 }
 
 type scriptMapping struct{ Name, Source, Target string }
@@ -179,7 +205,7 @@ type scriptMapping struct{ Name, Source, Target string }
 type scriptData struct {
 	Project, ExportedAt, ExportedBy, Version, BundleSHA256 string
 	MappingList, CredentialSummary                         string
-	Plaintext, TargetHasCredentials                        bool
+	Plaintext, Sealed, TargetHasCredentials                bool
 	Image, DownloadURL, CosignIdentity                     string
 	Checksums                                              map[string]string
 	EmbeddedPlatform                                       string
@@ -189,6 +215,8 @@ type scriptData struct {
 	SourceSummary, TargetSummary                           string
 	Refs, EnvExample                                       []string
 	BundleBase64, BinaryBase64                             string
+	// Folder is the zip's top-level directory: everything unzips (and runs) inside it.
+	Folder string
 }
 
 // Artifact is a generated download.
@@ -201,7 +229,8 @@ type Artifact struct {
 // MaxArtifactBytes caps a generated download (the embedded binary is the largest part).
 const MaxArtifactBytes = 50 << 20
 
-// RenderScript builds the export zip: migrate.sh (0755), README.md and optionally the bundle.
+// RenderScript builds the export zip: migrate.sh (0755), README.md and optionally the bundle,
+// all inside one folder named like the zip, so unzipping never scatters files.
 func RenderScript(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, version string) (Artifact, error) {
 	d, err := scriptDataFor(b, bundleJSON, s, cfg, version)
 	if err != nil {
@@ -214,9 +243,10 @@ func RenderScript(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, versi
 	if err := templates.ExecuteTemplate(&readme, "README.md.tmpl", d); err != nil {
 		return Artifact{}, err
 	}
-	files := []zipFile{{"migrate.sh", 0o755, script.Bytes()}, {"README.md", 0o644, readme.Bytes()}}
+	dir := d.Folder + "/"
+	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "migrate.sh", 0o755, script.Bytes()}, {dir + "README.md", 0o644, readme.Bytes()}}
 	if s.IncludeBundle {
-		files = append(files, zipFile{"bundle.odb.json", 0o600, bundleJSON})
+		files = append(files, zipFile{dir + "bundle.odb.json", 0o600, bundleJSON})
 	}
 	body, err := zipFiles(files, b.CreatedAt)
 	if err != nil {
@@ -225,7 +255,12 @@ func RenderScript(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, versi
 	if len(body) > MaxArtifactBytes {
 		return Artifact{}, errors.New("the export is larger than 50 MB")
 	}
-	return Artifact{FileName: "odb-export-" + slug(b.Project.Name) + "-" + b.CreatedAt.Format("20060102") + ".zip", ContentType: "application/zip", Body: body}, nil
+	return Artifact{FileName: d.Folder + ".zip", ContentType: "application/zip", Body: body}, nil
+}
+
+// exportFolder names the zip and its top-level folder: odb-export-<project>-<yyyymmdd>.
+func exportFolder(b Bundle) string {
+	return "odb-export-" + slug(b.Project.Name) + "-" + b.CreatedAt.Format("20060102")
 }
 
 // RenderScriptFiles returns migrate.sh and README.md alone (tests, previews).
@@ -255,6 +290,7 @@ func scriptDataFor(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, vers
 		Checksums: cfg.Dist.Checksums(), TargetKind: b.Target.Type, Runtime: runtimeName,
 		SourceSummary: connSummary(b.Source), TargetSummary: connSummary(b.Target),
 		BundleBase64: wrap(base64.StdEncoding.EncodeToString(bundleJSON), 76),
+		Folder:       exportFolder(b),
 	}
 	for _, p := range Platforms {
 		if _, ok := d.Checksums[p]; !ok {
@@ -284,7 +320,7 @@ func scriptDataFor(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, vers
 	switch mode {
 	case ModeSealed:
 		d.CredentialSummary = "sealed (passphrase required)"
-		d.EnvExample = append(d.EnvExample, "ODB_BUNDLE_PASSPHRASE='…'   # or leave unset to be asked")
+		d.Sealed = true
 	case ModePlaintext:
 		d.CredentialSummary = "plaintext (no passphrase)"
 		d.Plaintext = true
@@ -311,13 +347,15 @@ func scriptDataFor(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, vers
 			d.EnvExample = append(d.EnvExample, name+"='…'")
 		}
 	}
-	if b.Target.Type == store.KindDirectory {
-		d.EnvExample = append(d.EnvExample, "ODB_TARGET_PATH="+shellQuote(d.TargetPath)+"   # where the JSON files go")
-	}
 	// An OS and architecture embed odb (air-gapped sites); "auto" then tries it first, and
 	// falls back on another machine.
 	if runtimeName == "embedded" && (s.OS == "" || s.Arch == "") {
 		return d, errors.New("choose the operating system and architecture of the machine that runs the script")
+	}
+	if runtimeName == "auto" && (s.OS == "" || s.Arch == "") {
+		if p := cfg.fallbackPlatform(d.Checksums); p != "" {
+			s.OS, s.Arch, _ = strings.Cut(p, "_")
+		}
 	}
 	if s.OS != "" && s.Arch != "" {
 		p := s.OS + "_" + s.Arch
@@ -396,6 +434,9 @@ func zipFiles(files []zipFile, at time.Time) ([]byte, error) {
 	zw := zip.NewWriter(&buf)
 	for _, f := range files {
 		h := &zip.FileHeader{Name: f.name, Method: zip.Deflate, Modified: at}
+		if f.mode.IsDir() {
+			h.Method = zip.Store
+		}
 		h.SetMode(f.mode)
 		w, err := zw.CreateHeader(h)
 		if err != nil {

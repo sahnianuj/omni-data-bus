@@ -88,7 +88,7 @@ describe('ExportDialog', () => {
 
     await screen.findByText('Export downloaded')
     expect(requests).toHaveLength(1)
-    expect(requests[0]).toMatchObject({ passphrase: 'acid-bloom-cradle-dwell-ember-fjord', runtime: 'script', script: { runtime: 'auto', includeBundle: false } })
+    expect(requests[0]).toMatchObject({ passphrase: 'acid-bloom-cradle-dwell-ember-fjord', runtime: 'script', script: { runtime: 'auto' } })
     for (const k of ['mappingIds', 'targetOverride', 'credentialMode', 'refs']) expect(requests[0]).not.toHaveProperty(k)
     expect(saved).toEqual(['odb-export-shop-20261001.zip'])
     expect(screen.getByText('Passphrase shown only once. Store it in your secret manager.')).toBeInTheDocument()

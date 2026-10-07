@@ -19,16 +19,25 @@ Bundle sha256: `<sha256>`
 
 ## Run it
 
+Unzip the export and work inside its folder. Everything the script writes (checkpoint, errors,
+report, a downloaded `odb`) stays in that folder, wherever you run it from.
+
 ```bash
-chmod +x migrate.sh
+unzip odb-export-shop-docs-20261001.zip
+cd odb-export-shop-docs-20261001
 export ODB_SOURCE_PASSWORD='…'
-export ODB_TARGET_PATH='/data/out'   # where the JSON files go
-./migrate.sh preflight   # checks everything, writes nothing
-./migrate.sh run         # migrates; progress is printed as JSON lines
+./migrate.sh run         # checks everything first, then migrates; progress is printed as JSON lines
 ```
 
+The JSON files go to `/data/out`, as set in the project; set `ODB_TARGET_PATH` to write elsewhere.
+
 - If the run stops (Ctrl+C, a reboot, a failure), `./migrate.sh resume` continues from the last
-  checkpoint in `$ODB_STATE_DIR` (default `./odb-state`).
+  checkpoint in `$ODB_STATE_DIR` (default `odb-state` in this folder).
+- `./migrate.sh run` also continues from that checkpoint, so after a completed run it writes
+  nothing, even if you deleted the migrated files. To migrate everything
+  again, run `./migrate.sh run --restart`: it moves the old checkpoint, errors and report to
+  `archive/<time>/` in the state directory and starts over.
+- `./migrate.sh preflight` runs only the checks, writing nothing.
 - `./migrate.sh status` summarizes the run; `./migrate.sh verify` counts the documents in the target.
 - `./migrate.sh inspect` shows what the script will do; `./migrate.sh extract` writes
   `bundle.odb.json` for use with `odb run --bundle` directly.
@@ -38,12 +47,13 @@ export ODB_TARGET_PATH='/data/out'   # where the JSON files go
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ODB_STATE_DIR` | `./odb-state` | Checkpoint, `errors.jsonl` and `report.json` |
+| `ODB_STATE_DIR` | `odb-state` in this folder | Checkpoint, `errors.jsonl` and `report.json` |
 | `ODB_TARGET_PATH` | `/data/out` | Folder the JSON files are written to |
 | `ODB_RUNTIME` | `auto` | `auto`, `binary`, `docker` or `embedded` |
 | `ODB_BUNDLE_PASSPHRASE` | (asked) | Passphrase of sealed credentials |
 | `ODB_BIN` | | An `odb` 2.0.0 binary to use |
 | `ODB_DOCKER_ARGS` | | Extra `docker run` arguments, e.g. `--network host` |
+| `ODB_CACHE_DIR` | `odb-cache` in this folder | Where a downloaded `odb` is kept |
 
 With `auto`, the script uses `ODB_BIN`, then `odb` 2.0.0 on the `PATH`, then Docker (`ghcr.io/example/omni-data-bus@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc`), and finally downloads `odb` from `https://example.com/releases/v2.0.0`, checking it against the checksum written into the script.
 

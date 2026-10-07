@@ -107,7 +107,8 @@ func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 	for _, f := range zr.File {
 		names = append(names, f.Name)
 	}
-	require.ElementsMatch(t, []string{"migrate.sh", "README.md"}, names)
+	const dir = "odb-export-shop-docs-20261001/"
+	require.ElementsMatch(t, []string{dir, dir + "migrate.sh", dir + "README.md"}, names)
 
 	// runtime bundle: the .odb.json alone.
 	rec = a.export(Input{Passphrase: passphrase, Runtime: RuntimeBundle})

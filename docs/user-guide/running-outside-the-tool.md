@@ -14,12 +14,15 @@ Exporting needs the editor role and your password again (valid 5 minutes). Every
 
 ## Running the script
 
+The zip unpacks into one folder named like it, and the script keeps everything it writes (the state directory and a downloaded `odb`) in that folder.
+
 ```bash
-unzip odb-export-<project>-<date>.zip && cd …
-export ODB_BUNDLE_PASSPHRASE='…'     # or leave unset to be asked
-./migrate.sh preflight               # source, credentials, schema drift, target — writes nothing
-./migrate.sh run                     # progress as JSON lines on stdout, logs on stderr
+unzip odb-export-<project>-<date>.zip       # unpacks into its own odb-export-<project>-<date>/ folder
+cd odb-export-<project>-<date>
+./migrate.sh run                     # asks for the passphrase, checks everything, then migrates
 ```
+
+The target folder of a JSON-files target is the one set in the project (`ODB_TARGET_PATH` overrides it). `./migrate.sh preflight` runs only the checks. With *How it runs odb: Automatic*, the script uses an installed `odb`, else Docker, else downloads the release; a server with no release downloads puts its own `odb` in the script instead, and the export dialog names the machine it is for.
 
 | Command | Does |
 |---|---|
@@ -31,7 +34,7 @@ export ODB_BUNDLE_PASSPHRASE='…'     # or leave unset to be asked
 | `inspect` | What the script will do (no secrets) |
 | `extract [DIR]` | Writes `bundle.odb.json` (and the embedded `odb`, if any) |
 
-Settings: `ODB_STATE_DIR` (default `./odb-state`: `checkpoint.json`, `errors.jsonl`, `report.json`), `ODB_TARGET_PATH` (a directory target's folder on this machine), `ODB_RUNTIME` (`auto`, `binary`, `docker`, `embedded`), `ODB_BIN`, `ODB_DOCKER_ARGS`.
+Settings: `ODB_STATE_DIR` (default `odb-state` next to `migrate.sh`: `checkpoint.json`, `errors.jsonl`, `report.json`), `ODB_CACHE_DIR` (default `odb-cache` next to `migrate.sh`), `ODB_TARGET_PATH` (a directory target's folder on this machine), `ODB_RUNTIME` (`auto`, `binary`, `docker`, `embedded`), `ODB_BIN`, `ODB_DOCKER_ARGS`.
 
 With `auto` the script uses `ODB_BIN`, then an `odb` embedded in the script, then `odb` on the `PATH`, then Docker, then downloads `odb` and checks it against the checksum written into the script (and its cosign signature when `cosign` is installed). It needs bash 3.2 or later (macOS or Linux).
 
