@@ -12,7 +12,7 @@ import { applyConstantHint, dismissConstantHint, repointSource } from './compose
  * migrations and exports, warnings don't. Clicking one selects its node in the tree. Values of
  * an imported design that look fixed are offered as constants here too (OC-059).
  */
-export function ProblemsPanel({ onCombineRows }: { onCombineRows?: (columns: string[]) => void } = {}) {
+export function ProblemsPanel({ onCombineRows }: { onCombineRows?: (columns: string[], relationId?: string) => void } = {}) {
   const { t } = useTranslation()
   const issues = useWorkbench((s) => s.issues)
   const spec = useWorkbench((s) => s.history.present)
@@ -108,7 +108,7 @@ export function ProblemsPanel({ onCombineRows }: { onCombineRows?: (columns: str
                   </span>
                 </button>
                 {i.fix?.kind === 'combine-rows' && onCombineRows ? (
-                  <Button size="sm" variant="secondary" className="m-1 shrink-0" onClick={() => onCombineRows(i.fix!.columns ?? [])}>
+                  <Button size="sm" variant="secondary" className="m-1 shrink-0" onClick={() => onCombineRows(i.fix!.columns ?? [], i.fix!.relationId)}>
                     {i.fix.label}
                   </Button>
                 ) : null}

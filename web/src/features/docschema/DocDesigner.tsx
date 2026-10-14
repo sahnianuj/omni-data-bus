@@ -50,11 +50,14 @@ type RowProps = {
   status?: 'mapped' | 'suggested' | 'unmapped'
   error?: string
   selected: boolean
+  /** The only selected field: a click on its name renames it (OC-145). */
+  sole: boolean
   collapsed: boolean
   editing: boolean
   /** Where a field being dragged over this row would land. */
   dropPos?: DropPos
   onSelect: (id: string, additive: boolean) => void
+  onNameClick: (id: string, additive: boolean) => void
   onToggle: (id: string) => void
   onStartEdit: (id: string) => void
   onRename: (id: string, name: string) => void
@@ -143,7 +146,17 @@ export const DesignRow = memo(function DesignRow(p: RowProps) {
       ) : (
         <span className="w-3.5" />
       )}
-      {p.editing ? <RenameInput id={f.id} name={f.name} onRename={p.onRename} /> : <span className="min-w-0 truncate font-mono text-xs">{f.name}</span>}
+      {p.editing ? (
+        <RenameInput id={f.id} name={f.name} onRename={p.onRename} />
+      ) : (
+        <span
+          title={p.sole ? t('designer.clickToRename') : undefined}
+          onClick={(e) => (e.stopPropagation(), p.onNameClick(f.id, e.shiftKey || e.metaKey || e.ctrlKey))}
+          className={cn('min-w-0 truncate font-mono text-xs', p.sole && 'cursor-text')}
+        >
+          {f.name}
+        </span>
+      )}
       {p.error ? <span className="truncate text-xs text-danger">{p.error}</span> : null}
       <span className="ml-auto flex items-center gap-2">
         <select
@@ -267,9 +280,16 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
     }),
   )
 
-  const onRename = useStable((id: string, name: string) => {
+  // A click on the name of the only selected field renames it (OC-145); any other click selects.
+  const onNameClick = useStable((id: string, additive: boolean) => {
+    if (!additive && selected.size === 1 && selected.has(id)) setEditing(id)
+    else onSelect(id, additive)
+  })
+
+  const onRename = useStable((id: string, draft: string) => {
     setEditing(null)
-    if (name !== walk(spec.docSchema).find((r) => r.field.id === id)?.field.name) edit((s) => rename(s, id, name))
+    const name = draft.trim()
+    if (name && name !== walk(spec.docSchema).find((r) => r.field.id === id)?.field.name) edit((s) => rename(s, id, name))
   })
 
   const [dropAt, setDropAt] = useState<{ id: string; pos: DropPos } | null>(null)
@@ -494,10 +514,12 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
                   status={(fieldContainer(r.field)?.children?.length ?? 0) > 0 ? undefined : (status.get(r.field.id) ?? 'unmapped')}
                   error={errors.get(r.field.id)}
                   selected={selected.has(r.field.id)}
+                  sole={selected.size === 1 && selected.has(r.field.id)}
                   collapsed={collapsed.has(r.field.id)}
                   editing={editing === r.field.id}
                   dropPos={dropAt?.id === r.field.id ? dropAt.pos : undefined}
                   onSelect={onSelect}
+                  onNameClick={onNameClick}
                   onToggle={onToggle}
                   onStartEdit={setEditing}
                   onRename={onRename}

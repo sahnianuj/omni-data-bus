@@ -112,10 +112,15 @@ func TestComposed_KindMismatchAndUnboundArrays(t *testing.T) {
 	require.Len(t, mismatch, 1)
 	require.Equal(t, "buyers", mismatch[0].Path)
 	require.Contains(t, mismatch[0].Message, "use the wrap adapter")
-	empty := withCode(issues, CodeArrayUnboundEmpty)
+	// An optional array left unmapped is the user's choice, like any unmapped field.
+	require.Empty(t, withCode(issues, CodeArrayUnboundEmpty))
+	// A required one is always empty, so it's flagged.
+	s.DocSchema.Find("f_notes").Required = true
+	empty := withCode(Validate(s, contextFor(s, tables)), CodeArrayUnboundEmpty)
 	require.Len(t, empty, 1)
 	require.Equal(t, SeverityWarning, empty[0].Severity)
 	require.Equal(t, "notes", empty[0].Path)
+	s.DocSchema.Find("f_notes").Required = false
 
 	// With the adapter it's a 0- or 1-item array.
 	s.DocSchema.Find("f_buyers").Binding.Adapter = docschema.AdapterWrap

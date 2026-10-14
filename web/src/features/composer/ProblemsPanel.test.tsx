@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MappingIssue, MappingSpec } from '@/features/mapping/types'
 import { composedSpec, composedView, mockComposer } from '@/test/composer'
 import { renderWorkbench } from '@/test/mapping'
@@ -50,6 +50,18 @@ describe('ProblemsPanel', () => {
     await userEvent.click(buttons[0] as HTMLElement)
     expect(store.getState().selection).toEqual({ kind: 'field', id: 'f_sku' })
     expect(screen.getByRole('treeitem', { name: /^sku,/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('combine rows from an array bound to the driving table names that array', async () => {
+    const onCombineRows = vi.fn()
+    const repeats: MappingIssue = {
+      severity: 'error', code: 'ARRAY_REPEATS_ROOT', path: 'items', fieldId: 'f_items', relationId: 'rel_items',
+      message: 'items is bound to order_items, the table each document comes from, so every document is one row. To make one document per order_id with its rows in items, combine rows.',
+      fix: { kind: 'combine-rows', label: 'Combine rows by order_id', columns: ['order_id'], relationId: 'rel_items' },
+    }
+    renderWorkbench(<ProblemsPanel onCombineRows={onCombineRows} />, composedView({ issues: [repeats] }))
+    await userEvent.click(screen.getByRole('button', { name: 'Combine rows by order_id' }))
+    expect(onCombineRows).toHaveBeenCalledWith(['order_id'], 'rel_items')
   })
 
   it('AC4: apply constant hint', async () => {

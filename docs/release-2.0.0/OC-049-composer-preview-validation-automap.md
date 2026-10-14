@@ -34,8 +34,9 @@ As a **data engineer** composing a custom document, I want to see real sample do
 | `SOURCE_OUT_OF_SCOPE` | error | Mapping reads a column not in the field's scope |
 | `BINDING_KIND_MISMATCH` | error | For example, an object bound to one-to-many without the `first` adapter |
 | `BINDING_BROKEN` | error | The relation's join no longer resolves (driving table or schema changed) |
+| `ARRAY_REPEATS_ROOT` | error / warning | A root array is bound back to the driving table on matching columns (`items ← Order Details`), so each document is still one row. It replaces `BINDING_KIND_MISMATCH` for that array (error when the binding can't work as is, else a warning) and offers **Combine rows by …** (OC-066), grouping by the primary key's leading columns and taking over that array |
 | `REQUIRED_FIELD_UNMAPPED` | error | A `required` field has no mapping |
-| `ARRAY_UNBOUND_EMPTY` | warning | An unbound array has no element mappings |
+| `ARRAY_UNBOUND_EMPTY` | warning | A **required** array is unbound and has no element mappings. An optional array left unmapped raises nothing, like any unmapped field |
 | `ADAPTER_DISCARDS_ROWS` | warning | `first` adapter in preview dropped rows |
 | `DOC_SIZE_RISK` | warning | Estimated size > 10 MB (multiplied across levels) |
 

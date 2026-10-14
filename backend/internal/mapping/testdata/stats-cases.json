@@ -1174,6 +1174,246 @@
      }
     ]
    }
+  },
+  {
+   "name": "grouped: the rows' columns, read through the group relation, are the table's own (one document per order)",
+   "columns": [
+    "order_id",
+    "line_no",
+    "product_id",
+    "quantity"
+   ],
+   "embedded": {
+    "rel_g": [
+     "order_id",
+     "line_no",
+     "product_id",
+     "quantity"
+    ],
+    "rel_p": [
+     "product_id",
+     "title",
+     "price"
+    ]
+   },
+   "spec": {
+    "specVersion": 2,
+    "mode": "composed",
+    "root": {
+     "table": {
+      "schema": "shop",
+      "name": "Order Details"
+     },
+     "groupBy": [
+      "order_id"
+     ]
+    },
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f_oid",
+        "name": "orderId",
+        "type": "string"
+       },
+       {
+        "id": "f_items",
+        "name": "items",
+        "type": "array",
+        "binding": {
+         "relationId": "rel_g"
+        },
+        "items": {
+         "id": "f_item",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "f_line",
+           "name": "lineNo",
+           "type": "integer"
+          },
+          {
+           "id": "f_qty",
+           "name": "quantity",
+           "type": "integer"
+          },
+          {
+           "id": "f_prod",
+           "name": "product",
+           "type": "object",
+           "binding": {
+            "relationId": "rel_p"
+           },
+           "children": [
+            {
+             "id": "f_title",
+             "name": "title",
+             "type": "string"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "source": "manual"
+    },
+    "key": {
+     "template": "order::{order_id}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "relations": [
+     {
+      "id": "rel_g",
+      "parentId": null,
+      "kind": "one-to-many",
+      "table": {
+       "schema": "shop",
+       "name": "Order Details"
+      },
+      "join": [
+       {
+        "parent": "order_id",
+        "child": "order_id"
+       }
+      ],
+      "targetFieldId": "f_items",
+      "orderBy": [
+       {
+        "column": "line_no"
+       }
+      ],
+      "group": true
+     },
+     {
+      "id": "rel_p",
+      "parentId": "rel_g",
+      "kind": "many-to-one",
+      "table": {
+       "schema": "shop",
+       "name": "product"
+      },
+      "join": [
+       {
+        "parent": "product_id",
+        "child": "product_id"
+       }
+      ],
+      "targetFieldId": "f_prod"
+     }
+    ],
+    "fieldMappings": [
+     {
+      "id": "m_oid",
+      "targetFieldId": "f_oid",
+      "sources": [
+       {
+        "column": "order_id"
+       }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+     },
+     {
+      "id": "m_line",
+      "targetFieldId": "f_line",
+      "sources": [
+       {
+        "column": "line_no",
+        "relation": "rel_g"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m_qty",
+      "targetFieldId": "f_qty",
+      "sources": [
+       {
+        "column": "quantity",
+        "relation": "rel_g"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     },
+     {
+      "id": "m_title",
+      "targetFieldId": "f_title",
+      "sources": [
+       {
+        "column": "title",
+        "relation": "rel_p"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.8
+     }
+    ],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 3,
+    "autoMapped": 2,
+    "suggested": 0,
+    "manuallyMapped": 1,
+    "unmappedSource": 0,
+    "ignored": 0,
+    "totalTargetLeaves": 1,
+    "mappedTargetLeaves": 1,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0.6666666666666666,
+    "coverageRatio": 1,
+    "averageConfidence": 0.9,
+    "embedded": {
+     "tables": 1,
+     "totalColumns": 2,
+     "autoMapped": 1,
+     "manuallyMapped": 0,
+     "suggested": 0,
+     "unmappedSource": 1
+    },
+    "byNode": [
+     {
+      "nodeId": "fld_root",
+      "path": "root",
+      "mapped": 1,
+      "total": 1
+     },
+     {
+      "nodeId": "f_items",
+      "relationId": "rel_g",
+      "path": "items",
+      "mapped": 2,
+      "total": 2
+     },
+     {
+      "nodeId": "f_prod",
+      "relationId": "rel_p",
+      "path": "items.product",
+      "mapped": 1,
+      "total": 1
+     }
+    ]
+   }
   }
  ]
 }

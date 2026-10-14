@@ -13,9 +13,10 @@ import { boundRelations } from './scope'
 /**
  * "Combine rows with the same key" (OC-066), from KEY_MAY_COLLIDE: rows that would collide on
  * the key become one document, grouped by the key's columns, each row an entry of an array.
- * Fields mapped from other columns move into the array's item.
+ * Fields mapped from other columns move into the array's item. From ARRAY_REPEATS_ROOT, relationId
+ * is the array bound back to the driving table: it's offered (and chosen) to take the rows.
  */
-export function CombineRowsDialog({ columns, onClose, onDone }: { columns: string[]; onClose: () => void; onDone: () => void }) {
+export function CombineRowsDialog({ columns, relationId, onClose, onDone }: { columns: string[]; relationId?: string; onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation()
   const view = useWorkbench((s) => s.view)
   const spec = useWorkbench((s) => s.history.present)
@@ -24,12 +25,14 @@ export function CombineRowsDialog({ columns, onClose, onDone }: { columns: strin
   const driving = spec.root?.table ?? own
   const table = useSourceTable(`${view.projectId}::source`, driving.schema, driving.name)
   const nameId = useId()
-  // Unbound arrays at the root (an imported design's products[]) can take the rows.
+  // Unbound arrays at the root (an imported design's products[]) can take the rows, and so can
+  // the array bound to the driving table that the fix is about (its binding becomes the group's).
+  const repeating = spec.relations.find((r) => r.id === relationId)?.targetFieldId
   const arrays = useMemo(() => {
     const bound = boundRelations(spec)
-    return (spec.docSchema.root.children ?? []).filter((f) => f.type === 'array' && !bound.has(f.id))
-  }, [spec])
-  const [target, setTarget] = useState<string>(arrays[0]?.id ?? '')
+    return (spec.docSchema.root.children ?? []).filter((f) => f.type === 'array' && (!bound.has(f.id) || f.id === repeating))
+  }, [spec, repeating])
+  const [target, setTarget] = useState<string>(repeating ?? arrays[0]?.id ?? '')
   const [name, setName] = useState(pluralName(driving.name))
   const grouped = new Set(columns)
   const candidates = combinable(spec, columns)

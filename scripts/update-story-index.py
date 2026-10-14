@@ -90,7 +90,7 @@ RELEASES = {
             ("Phase 2 — Relationship mapping", "Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises",
              ["OC-042", "OC-043", "OC-044", "OC-045", "OC-046", "OC-082"]),
             ("Phase 3 — Document composer", "Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design",
-             ["OC-047", "OC-048", "OC-049", "OC-059", "OC-060", "OC-061", "OC-062", "OC-063", "OC-064", "OC-065", "OC-066", "OC-067", "OC-069", "OC-070", "OC-071", "OC-075", "OC-076", "OC-077", "OC-081", "OC-083"]),
+             ["OC-047", "OC-048", "OC-049", "OC-059", "OC-060", "OC-061", "OC-062", "OC-063", "OC-064", "OC-065", "OC-066", "OC-067", "OC-069", "OC-070", "OC-071", "OC-075", "OC-076", "OC-077", "OC-081", "OC-083", "OC-145"]),
             ("Phase 4 — Portable runner", "Export a finished mapping as a self-contained bash script and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE",
              ["OC-050", "OC-051", "OC-052", "OC-053", "OC-054", "OC-055", "OC-072", "OC-073", "OC-074", "OC-080"]),
             ("Phase 5 — Harden & ship 2.0", "Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate",

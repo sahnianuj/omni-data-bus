@@ -86,7 +86,7 @@ const embedAccent = (n: number | undefined, tint = true): CSSProperties | undefi
 const filtered = (filter: string, search: string) => filter !== 'all' || search.trim() !== ''
 
 /** The mapping canvas (OC-019), with embedded tables' columns as extra source groups (OC-021). */
-/** Names a just-added target field: Enter or leaving keeps what's typed, Escape keeps the default. */
+/** Names a target field (just added, or clicked): Enter or leaving keeps what's typed, Escape keeps the old name. */
 function NameInput({ id, name, onDone }: { id: string; name: string; onDone: (id: string, name: string) => void }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState(name)
@@ -220,7 +220,8 @@ export function MappingCanvas() {
       if (e instanceof OpError) toast.error(e.message)
     }
   }
-  // "Add field" (OC-081): where the selection says, then the new row opens for naming.
+  // "Add field" (OC-081): where the selection says, then the new row opens for naming. Renaming an existing field
+  // (click the selected field's name, double-click or F2, OC-145) opens the same box.
   const [naming, setNaming] = useState<string | null>(null)
   const addTarget = insertionPoint(spec.docSchema, selection?.kind === 'field' ? selection.id : null)
   const onAddField = () => {
@@ -240,8 +241,10 @@ export function MappingCanvas() {
     select({ kind: 'field', id })
     setNaming(id)
   }
-  const onNamed = (id: string, name: string) => {
+  const onNamed = (id: string, draft: string) => {
     setNaming(null)
+    const name = draft.trim()
+    if (!name) return
     try {
       apply((s) => {
         const docSchema = rename(s.docSchema, id, name)
@@ -271,6 +274,11 @@ export function MappingCanvas() {
     setDragOver({ id: row.field.id, ok, reason: ok ? undefined : t('mapping.incompatible', { from: col?.jsonType ?? '', to: type ?? '' }) })
   }
   const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'F2' && selection?.kind === 'field' && !naming) {
+      setNaming(selection.id)
+      e.preventDefault()
+      return
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selection?.kind === 'mapping') {
       const id = selection.id
       apply((s) => disconnect(s, id))
@@ -485,6 +493,7 @@ export function MappingCanvas() {
               if (!r) return null
               const st = vis.targetStates.get(r.field.id)
               const over = dragOver?.id === r.field.id
+              const isSel = selection?.kind === 'field' && selection.id === r.field.id
               const dim = hover && !(hover.kind === 'target' && hover.id === r.field.id) && !edges.some((e) => e.to === r.field.id && related(e))
               return (
                 <div
@@ -522,14 +531,15 @@ export function MappingCanvas() {
                   onMouseEnter={() => setHover({ kind: 'target', id: r.field.id })}
                   onMouseLeave={() => setHover(null)}
                   onClick={() => select({ kind: 'field', id: r.field.id })}
+                  onDoubleClick={() => setNaming(r.field.id)}
                   className={cn(
                     'absolute left-0 right-0 flex items-center gap-2 pr-3 text-[13px] hover:bg-surface-muted',
                     dim && 'opacity-40',
                     over && (dragOver?.ok ? 'ring-2 ring-inset ring-primary' : 'ring-2 ring-inset ring-danger'),
                     dropAt?.id === r.field.id && dropIndicator[dropAt.pos],
-                    selection?.kind === 'field' && selection.id === r.field.id && 'bg-primary-soft',
+                    isSel && 'bg-primary-soft',
                   )}
-                  style={{ top: v.start, height: ROW, paddingLeft: 8 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || (selection?.kind === 'field' && selection.id === r.field.id))) }}
+                  style={{ top: v.start, height: ROW, paddingLeft: 8 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || isSel)) }}
                 >
                   {/* A folder tree: every row has the chevron slot first, so a level's names sit one step right of their parent's. */}
                   {!r.leaf ? (
@@ -548,7 +558,21 @@ export function MappingCanvas() {
                     <span className="w-3.5 shrink-0" />
                   )}
                   {st ? <span role="img" className={cn('size-2.5 shrink-0 rounded-full', stateDot[st])} aria-label={t(`mapping.state.${st}`)} /> : <span className="size-2.5 shrink-0" />}
-                  {naming === r.field.id ? <NameInput id={r.field.id} name={r.field.name} onDone={onNamed} /> : <span className="truncate">{r.field.name}</span>}
+                  {naming === r.field.id ? (
+                    <NameInput id={r.field.id} name={r.field.name} onDone={onNamed} />
+                  ) : (
+                    <span
+                      title={isSel ? t('designer.clickToRename') : undefined}
+                      onClick={(e) => {
+                        if (!isSel) return
+                        e.stopPropagation()
+                        setNaming(r.field.id)
+                      }}
+                      className={cn('truncate', isSel && 'cursor-text')}
+                    >
+                      {r.field.name}
+                    </span>
+                  )}
                   {r.field.required ? <span className="text-danger">{t('mapping.requiredMark')}</span> : null}
                   {embedTargets.has(r.field.id) ? (
                     <span className="rounded-full px-1.5 text-[10px] font-medium text-white" title={t('embed.badge')} style={{ background: embedVar(embedColor.byField.get(r.field.id) ?? 0) }}>

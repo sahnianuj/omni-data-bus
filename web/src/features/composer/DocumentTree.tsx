@@ -304,6 +304,7 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
           const isSel = f.id === selected
           const isContainer = f.type === 'object' || f.type === 'array'
           const name = row.depth === 0 ? '$' : row.item ? t('composer.item') : f.name
+          const renamable = row.depth > 0 && !row.item
           return (
             <li
               key={f.id}
@@ -319,8 +320,8 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
               tabIndex={isSel ? 0 : -1}
               data-node={f.id}
               onClick={() => select({ kind: 'field', id: f.id })}
-              onDoubleClick={() => row.depth > 0 && !row.item && setEditing(f.id)}
-              draggable={row.depth > 0 && !row.item && editing !== f.id}
+              onDoubleClick={() => renamable && setEditing(f.id)}
+              draggable={renamable && editing !== f.id}
               onDragStart={(e) => startFieldDrag(e, f.id)}
               onDragEnd={() => setDropAt(null)}
               onDragOver={(e) => onDragOver(e, row)}
@@ -362,7 +363,18 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
                   }}
                 />
               ) : (
-                <span className={cn('truncate', row.depth === 0 || row.item ? 'text-muted' : 'font-medium')}>{name}</span>
+                <span
+                  // The selected field's name renames on click (OC-145); the first click only selects.
+                  title={isSel && renamable ? t('designer.clickToRename') : undefined}
+                  onClick={(e) => {
+                    if (!isSel || !renamable) return
+                    e.stopPropagation()
+                    setEditing(f.id)
+                  }}
+                  className={cn('truncate', !renamable ? 'text-muted' : 'font-medium', isSel && renamable && 'cursor-text')}
+                >
+                  {name}
+                </span>
               )}
               {rel ? (
                 <span className="flex items-center gap-0.5 rounded bg-primary-soft px-1 text-xs text-primary-soft-foreground" aria-hidden>

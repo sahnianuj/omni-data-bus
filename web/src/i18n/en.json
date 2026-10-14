@@ -815,6 +815,7 @@
     "exportSchema": "Export JSON Schema",
     "rename": "Rename {{name}}",
     "renameAction": "Rename",
+    "clickToRename": "Click to rename (F2)",
     "typeOf": "Type of {{name}}",
     "required": "Required",
     "requiredFor": "{{name}} is required",

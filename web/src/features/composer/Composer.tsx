@@ -43,7 +43,7 @@ type DialogState =
   | { kind: 'start'; start: 'blank' | 'generated' }
   | { kind: 'suggest' }
   | { kind: 'embed'; fieldId: string; fk: ForeignKey }
-  | { kind: 'combine'; columns: string[] }
+  | { kind: 'combine'; columns: string[]; relationId?: string }
   | null
 
 const key = (t: TableRef) => `${t.schema}.${t.name}`
@@ -243,7 +243,7 @@ export function Composer() {
         />
       </div>
       <div className="max-h-28 min-h-0 overflow-y-auto border-t border-border">
-        <ProblemsPanel onCombineRows={(columns) => setDialog({ kind: 'combine', columns })} />
+        <ProblemsPanel onCombineRows={(columns, relationId) => setDialog({ kind: 'combine', columns, relationId })} />
       </div>
     </div>
   )
@@ -378,7 +378,7 @@ export function Composer() {
           onClose={() => setDialog(null)}
         />
       ) : null}
-      {dialog?.kind === 'combine' ? <CombineRowsDialog columns={dialog.columns} onClose={() => setDialog(null)} onDone={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'combine' ? <CombineRowsDialog columns={dialog.columns} relationId={dialog.relationId} onClose={() => setDialog(null)} onDone={() => setDialog(null)} /> : null}
       {dialog?.kind === 'embed' ? (
         <EmbedKeyDialog
           fieldId={dialog.fieldId}

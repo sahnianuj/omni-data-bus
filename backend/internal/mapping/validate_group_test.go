@@ -121,3 +121,41 @@ func TestValidate_AC4_OtherTableParentValueAllowed(t *testing.T) {
 	s.Normalize()
 	require.NotContains(t, byCode(Validate(s, ctx)), CodeItemReadsParentRow)
 }
+
+// selfBoundSpec is the design users build when they want one document per order: products[]
+// bound back to order_detail (its own driving table) instead of grouping.
+func selfBoundSpec(kind string, join ...JoinPair) (*Spec, Context) {
+	s, ctx := groupedSpec()
+	s.Root.GroupBy = nil
+	s.Key.Template = "order_details::{order_id}::{line_no}"
+	s.Relations = []Relation{{ID: "rel_self", Kind: kind, Table: s.Root.Table, Join: join, TargetFieldID: "f_products"}}
+	ctx.Table.Columns = append(ctx.Table.Columns, schema.Column{Name: "product_id", JSONType: schema.TypeInteger, UDTName: "int8"})
+	return s, ctx
+}
+
+func TestValidate_ArrayRepeatsRoot(t *testing.T) {
+	// Many-to-one on unrelated same-name columns: an error, and grouping is by the PK's lead.
+	s, ctx := selfBoundSpec(EmbedManyToOne, JoinPair{Parent: "product_id", Child: "product_id"}, JoinPair{Parent: "line_no", Child: "line_no"})
+	got := byCode(Validate(s, ctx))
+	is := got[CodeArrayRepeatsRoot]
+	require.Equal(t, SeverityError, is.Severity)
+	require.Equal(t, "f_products", is.FieldID)
+	require.Equal(t, &Fix{Kind: "combine-rows", Label: "Combine rows by order_id", Columns: []string{"order_id"}, RelationID: "rel_self"}, is.Fix)
+	require.NotContains(t, got, CodeBindingKindMismatch, "the combine issue replaces the adapter advice")
+
+	// One-to-many on a PK column: it runs, so a warning, grouped by the join's own columns.
+	s, ctx = selfBoundSpec(EmbedOneToMany, JoinPair{Parent: "order_id", Child: "order_id"})
+	is = byCode(Validate(s, ctx))[CodeArrayRepeatsRoot]
+	require.Equal(t, SeverityWarning, is.Severity)
+	require.Equal(t, []string{"order_id"}, is.Fix.Columns)
+}
+
+func TestValidate_ArrayRepeatsRoot_NotForHierarchiesOrGroups(t *testing.T) {
+	// A self join on different columns is a hierarchy, not a group.
+	s, ctx := selfBoundSpec(EmbedOneToMany, JoinPair{Parent: "order_id", Child: "line_no"})
+	require.NotContains(t, byCode(Validate(s, ctx)), CodeArrayRepeatsRoot)
+
+	// Already grouped: the group relation is the right binding.
+	s, ctx = groupedSpec()
+	require.NotContains(t, byCode(Validate(s, ctx)), CodeArrayRepeatsRoot)
+}

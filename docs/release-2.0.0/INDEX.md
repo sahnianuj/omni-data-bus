@@ -21,8 +21,8 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **56** | **268** |
-| ✅ Implemented | 47 | 225 |
+| **Total** | **57** | **270** |
+| ✅ Implemented | 48 | 227 |
 | 🚧 In progress | 0 | 0 |
 | ⬜ Not started | 9 | 43 |
 | Not yet implemented (in progress + not started) | 9 | 43 |
@@ -34,7 +34,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
 | P0 | Must have — release blocker | 33 | 196 | 26 / 161 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 21 | 70 | 19 / 62 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 22 | 72 | 20 / 64 |
 | P2 | Nice to have | 2 | 2 | 2 / 2 |
 
 ### By epic
@@ -44,7 +44,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | E7 Foundations 2.0 | 3 | 13 | 3 / 13 |
 | E8 Directory Target | 6 | 27 | 6 / 27 |
 | E9 Relationship Mapping | 10 | 58 | 6 / 39 |
-| E10 Document Composer | 20 | 83 | 20 / 83 |
+| E10 Document Composer | 21 | 85 | 21 / 85 |
 | E11 Portable Runner | 9 | 50 | 9 / 50 |
 | E12 Harden & Ship 2.0 | 3 | 13 | 3 / 13 |
 | E13 Computed Fields | 5 | 24 | 0 / 0 |
@@ -89,7 +89,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 32 | [OC-142](OC-142-source-side-embedded-objects-relationships.md) | The source side lists each embedded object's own relationships | E9 Relationship Mapping | 8 | ⬜ Not started |
 | 33 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | E9 Relationship Mapping | 3 | ⬜ Not started |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (21 stories, 70 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (22 stories, 72 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -114,6 +114,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 19 | ~~[OC-083](OC-083-mapping-card-says-what-to-fix.md)~~ | ~~A mapping card says what to fix, not "Draft"~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 | 20 | [OC-139](OC-139-computed-fields-follow-document-changes.md) | Computed fields follow changes to the document | E13 Computed Fields | 3 | ⬜ Not started |
 | 21 | [OC-144](OC-144-chained-embeds-runtime-hierarchies.md) | Chained embeds at runtime: shared lookups, hierarchies, parity and benchmark | E9 Relationship Mapping | 5 | ⬜ Not started |
+| 22 | ~~[OC-145](OC-145-rename-a-field-by-clicking-its-name.md)~~ | ~~Rename a target field by clicking its name, in every view~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 
 ### P2 — Nice to have (2 stories, 2 points)
 
@@ -131,7 +132,7 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase 0 — 2.0 foundations | ~~OC-058~~, ~~OC-036~~, ~~OC-037~~ | 13 | 3/3 (13 pts) | ✅ Done | Projects can target Couchbase or a directory; mappings move to spec v2 (relation tree) and 1.0 mappings upgrade transparently; every page shows the running release and build |
 | Phase 1 — Directory target | ~~OC-038~~, ~~OC-039~~, ~~OC-040~~, ~~OC-041~~, ~~OC-068~~, ~~OC-079~~ | 27 | 6/6 (27 pts) | ✅ Done | Migrate into a folder of JSON files, one per document, named by primary key; look any document up by its key |
 | Phase 2 — Relationship mapping | ~~OC-042~~, ~~OC-043~~, ~~OC-044~~, ~~OC-045~~, ~~OC-046~~, ~~OC-082~~ | 39 | 6/6 (39 pts) | ✅ Done | Build orders with an items[] array holding each product, through multi-level and many-to-many relations, without size surprises |
-| Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~, ~~OC-081~~, ~~OC-083~~ | 83 | 20/20 (83 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
+| Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~, ~~OC-081~~, ~~OC-083~~, ~~OC-145~~ | 85 | 21/21 (85 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
 | Phase 4 — Portable runner | ~~OC-050~~, ~~OC-051~~, ~~OC-052~~, ~~OC-053~~, ~~OC-055~~, ~~OC-072~~, ~~OC-073~~, ~~OC-074~~, ~~OC-080~~ | 50 | 9/9 (50 pts) | ✅ Done | Export a finished mapping as a self-contained bash script and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE |
 | Phase 5 — Harden & ship 2.0 | ~~OC-078~~, ~~OC-057~~, ~~OC-056~~ | 13 | 3/3 (13 pts) | ✅ Done | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
 | Phase 6 — Computed fields | OC-136, OC-137, OC-138, OC-139, OC-140 | 24 | 0/5 (0 pts) | 🚧 Current | Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields, see it on sample documents, and get the same value in every run, export and target |
@@ -177,7 +178,7 @@ _Build orders with an items[] array holding each product, through multi-level an
 | 5 | [OC-046](OC-046-large-arrays-overflow-sorted-merge.md) | Large arrays: sorted-merge strategy, overflow policies & document size guard | P1 | E9 Relationship Mapping | 8 | OC-043, OC-024 | ✅ Implemented |
 | 6 | [OC-082](OC-082-embedding-a-foreign-key-removes-the-key-field.md) | Embedding a foreign key removes the key field | P1 | E9 Relationship Mapping | 2 | OC-042, OC-064, OC-071 | ✅ Implemented |
 
-### Phase 3 — Document composer — ✅ Done (20/20 stories, 83/83 points)
+### Phase 3 — Document composer — ✅ Done (21/21 stories, 85/85 points)
 
 _Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design._
 
@@ -203,6 +204,7 @@ _Design any target JSON shape from scratch or import the customer's own JSON des
 | 18 | [OC-077](OC-077-sample-pane-stands-out.md) | Sample pane stands out from the canvas | P2 | E10 Document Composer | 1 | OC-048, OC-049 | ✅ Implemented |
 | 19 | [OC-081](OC-081-add-fields-anywhere-in-the-target-document.md) | Add fields anywhere in the target document, from every view | P1 | E10 Document Composer | 3 | OC-015, OC-048, OC-062 | ✅ Implemented |
 | 20 | [OC-083](OC-083-mapping-card-says-what-to-fix.md) | A mapping card says what to fix, not "Draft" | P1 | E10 Document Composer | 2 | OC-035, OC-049 | ✅ Implemented |
+| 21 | [OC-145](OC-145-rename-a-field-by-clicking-its-name.md) | Rename a target field by clicking its name, in every view | P1 | E10 Document Composer | 2 | OC-015, OC-048, OC-081 | ✅ Implemented |
 
 ### Phase 4 — Portable runner — ✅ Done (9/9 stories, 50/50 points)
 

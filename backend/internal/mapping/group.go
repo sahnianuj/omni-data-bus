@@ -3,6 +3,7 @@ package mapping
 import (
 	"strings"
 
+	"omnidatabus/internal/docschema"
 	"omnidatabus/internal/schema"
 )
 
@@ -18,6 +19,9 @@ const (
 	// CodeRootFieldFirstRow: a root field reads a column that isn't grouped on, so it takes the
 	// group's first row (by primary key). A warning: right for values every row shares.
 	CodeRootFieldFirstRow = "ROOT_FIELD_FIRST_ROW"
+	// CodeArrayRepeatsRoot: a root array is bound to the driving table itself on matching
+	// columns, so each document repeats rows of its own table; combining rows is what's meant.
+	CodeArrayRepeatsRoot = "ARRAY_REPEATS_ROOT"
 	// CodeKeyNotGrouped: the key uses a column that isn't grouped on, so a group's documents
 	// would get another key per row.
 	CodeKeyNotGrouped = "KEY_NOT_GROUPED"
@@ -190,4 +194,57 @@ func validateGroup(s *Spec, t *schema.Table) []Issue {
 		}
 	}
 	return out
+}
+
+// combineInstead returns the columns to group by when relation e looks like an attempt to
+// collect a group's rows: an array at the root, bound to the driving table itself with every
+// join pair on the same column (items ← Order Details on line_no = line_no). Grouping by the
+// primary key's leading columns ("Order Details" (order_id, line_no) → order_id) makes one
+// document per order with its lines in the array (OC-066). nil when it doesn't apply.
+func combineInstead(s *Spec, e Relation, root *schema.Table) []string {
+	if !s.Composed() || s.Grouped() || e.Group || e.Parent() != "" || s.Root == nil || e.Table != s.Root.Table || root == nil || len(e.Join) == 0 {
+		return nil
+	}
+	if f := s.DocSchema.Find(e.TargetFieldID); f == nil || f.Type != docschema.Array {
+		return nil
+	}
+	pk := map[string]bool{}
+	for _, c := range root.PrimaryKey {
+		pk[c] = true
+	}
+	join := make([]string, 0, len(e.Join))
+	inPK := 0
+	for _, p := range e.Join {
+		if p.Parent != p.Child {
+			return nil // a hierarchy (employees.manager_id = employees.id), not a group
+		}
+		join = append(join, p.Parent)
+		if pk[p.Parent] {
+			inPK++
+		}
+	}
+	switch {
+	case inPK == len(join) && len(join) < len(root.PrimaryKey):
+		return join
+	case len(root.PrimaryKey) > 1:
+		return append([]string(nil), root.PrimaryKey[:len(root.PrimaryKey)-1]...)
+	case inPK < len(root.PrimaryKey):
+		return join
+	}
+	return nil
+}
+
+// repeatsRootIssue reports ARRAY_REPEATS_ROOT with the combine-rows fix for that array. It's
+// an error when the binding can't work as it is (an array bound many-to-one), else a warning.
+func repeatsRootIssue(e Relation, path string, cols []string, broken bool) Issue {
+	severity := SeverityWarning
+	if broken {
+		severity = SeverityError
+	}
+	by := strings.Join(cols, ", ")
+	return Issue{
+		Severity: severity, Code: CodeArrayRepeatsRoot, Path: path, FieldID: e.TargetFieldID, RelationID: e.ID,
+		Message: path + " is bound to " + e.Table.Name + ", the table each document comes from, so every document is one row. To make one document per " + by + " with its rows in " + path + ", combine rows.",
+		Fix:     &Fix{Kind: "combine-rows", Label: "Combine rows by " + by, Columns: cols, RelationID: e.ID},
+	}
 }

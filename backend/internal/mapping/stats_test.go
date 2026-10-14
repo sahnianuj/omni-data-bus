@@ -65,3 +65,24 @@ func TestComputeStats_EmbeddedGroupParity(t *testing.T) {
 	got := ComputeStatsWith(&c.Spec, c.Columns, c.Embedded)
 	requireStats(t, c.Expected, got, c.Name)
 }
+
+// A grouped document reads its rows through a relation to its own table: those columns are the
+// table's, so "one document per order" with every line column mapped is fully covered.
+func TestComputeStats_GroupedRowsAreOwnColumns(t *testing.T) {
+	s, _ := groupedSpec()
+	cols := []string{"type", "order_id", "line_no", "quantity"}
+	st := ComputeStatsWith(s, cols, map[string][]string{"rel_lines": cols})
+	require.Equal(t, 4, st.TotalSourceColumns)
+	require.Equal(t, 4, st.ManuallyMapped)
+	require.Equal(t, 1.0, st.CoverageRatio)
+	require.Equal(t, 0, st.Embedded.Tables)
+	require.Equal(t, 0, st.Embedded.TotalColumns)
+
+	// Auto-mapped lines count as auto.
+	for i := range s.FieldMappings {
+		if s.FieldMappings[i].ID == "m_line" || s.FieldMappings[i].ID == "m_qty" {
+			s.FieldMappings[i].Origin = OriginAuto
+		}
+	}
+	require.Equal(t, 0.5, ComputeStats(s, cols).AutoMapRatio)
+}

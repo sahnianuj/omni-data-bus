@@ -102,7 +102,10 @@ func ValidateRelations(s *Spec, root *schema.Table, related RelatedTables) []Iss
 				bad(CodeUnknownTargetField, "the target field isn't in the design.")
 				break
 			}
-			if RelationContainer(&s.DocSchema, e) == nil && RelationValueField(&s.DocSchema, e) == nil {
+			mismatched := RelationContainer(&s.DocSchema, e) == nil && RelationValueField(&s.DocSchema, e) == nil
+			if cols := combineInstead(s, e, root); cols != nil {
+				out = append(out, repeatsRootIssue(e, path, cols, mismatched))
+			} else if mismatched {
 				if composed || Adapter(&s.DocSchema, e) != "" {
 					out = append(out, Issue{Severity: SeverityError, Code: CodeBindingKindMismatch, Path: path, FieldID: e.TargetFieldID, Message: bindingMismatch(s, e, path)})
 				} else {

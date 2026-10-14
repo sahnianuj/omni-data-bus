@@ -33,7 +33,7 @@ dev: ## Start the dev stack, the API on :8080 and the web app on :5173
 	./scripts/dev.sh
 
 dev-stack: ## Start Couchbase 8.0.3 + sample source PostgreSQL and wait until healthy
-	$(COMPOSE) up -d --wait
+	$(COMPOSE) up -d --wait couchbase source-pg
 	$(COMPOSE) up couchbase-init --exit-code-from couchbase-init
 
 dev-stack-down: ## Stop the dev stack (data is kept)

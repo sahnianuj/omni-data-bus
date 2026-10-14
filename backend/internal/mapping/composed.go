@@ -19,7 +19,8 @@ const (
 	// CodeBindingBroken: a relation's parent join no longer resolves (the driving table or the
 	// schema changed). The relation is kept so it can be fixed.
 	CodeBindingBroken = "BINDING_BROKEN"
-	// CodeArrayUnboundEmpty: an unbound array has no element mappings, so it's always empty.
+	// CodeArrayUnboundEmpty: a required array isn't bound and has no element mappings, so it's
+	// always empty. An optional one left unmapped is a choice, like any unmapped field.
 	CodeArrayUnboundEmpty = "ARRAY_UNBOUND_EMPTY"
 	// CodeDocSizeRisk: documents may exceed 10 MB (the composer's name for EMBED_DOC_SIZE).
 	CodeDocSizeRisk = "DOC_SIZE_RISK"
@@ -122,7 +123,7 @@ func validateComposed(s *Spec) []Issue {
 				Message: "Unknown adapter '" + a + "' on " + path + "; use first or wrap.",
 			})
 		}
-		if f.Type == docschema.Array && !bound[f.ID] && !mapped[f.ID] {
+		if f.Type == docschema.Array && f.Required && !bound[f.ID] && !mapped[f.ID] {
 			out = append(out, Issue{
 				Severity: SeverityWarning, Code: CodeArrayUnboundEmpty, Path: path, FieldID: f.ID,
 				Message: path + " isn't bound to a relation and has no element mappings, so it's always empty. Bind it to a table, or map its elements.",

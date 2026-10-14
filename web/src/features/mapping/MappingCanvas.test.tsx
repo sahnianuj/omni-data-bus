@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { dragOnto } from '@/test/drag'
@@ -160,5 +160,30 @@ describe('MappingCanvas', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add field to name' }))
     await userEvent.keyboard('{Escape}')
     expect(root().children![1]!.children!.map((f) => f.name)).toEqual(['first', 'last', 'newField'])
+  })
+
+  it('OC-145: click, double-click or F2 renames a target field', async () => {
+    const { store } = renderWorkbench(<MappingCanvas />)
+    const names = () => store.getState().history.present.docSchema.root.children!.map((f) => f.name)
+    const label = (path: string) => within(screen.getByTestId(`target-${path}`)).getByText(path)
+    const renameBox = (n: string) => screen.queryByRole('textbox', { name: `Rename ${n}` })
+    // AC1: the first click selects, a click on the selected field's name opens the rename box.
+    await userEvent.click(label('email'))
+    expect(renameBox('email')).toBeNull()
+    expect(label('email')).toHaveAttribute('title', 'Click to rename (F2)')
+    await userEvent.click(label('email'))
+    await userEvent.keyboard('mail{Enter}')
+    expect(names()).toContain('mail')
+    // AC2 + AC3: double-click opens it; Escape keeps the old name.
+    await userEvent.dblClick(screen.getByTestId('target-age'))
+    await userEvent.keyboard('years{Escape}')
+    expect(names()).toContain('age')
+    // F2 on the selected field; surrounding spaces are trimmed, a blank name keeps the old one.
+    fireEvent.keyDown(screen.getByRole('application'), { key: 'F2' })
+    await userEvent.keyboard('  years  {Enter}')
+    expect(names()).toContain('years')
+    fireEvent.keyDown(screen.getByRole('application'), { key: 'F2' })
+    await userEvent.keyboard('{Backspace}{Enter}')
+    expect(names()).toContain('years')
   })
 })

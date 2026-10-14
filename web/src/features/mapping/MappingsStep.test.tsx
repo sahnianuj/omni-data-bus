@@ -71,4 +71,16 @@ describe('MappingsStep', () => {
     expect(screen.getByText('Ready')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Fix the mapping for customers' })).not.toBeInTheDocument()
   })
+
+  it('the ring shows live coverage; auto-mapped is the detail', async () => {
+    // Every column mapped, one by hand: complete, not 67%, and not the last auto-map's 0%.
+    server.use(
+      http.get('*/api/v1/projects/:pid/mappings', () =>
+        HttpResponse.json({ items: [summary({ automapStats: stats({ autoMapRatio: 0, coverageRatio: 1 / 3 }), stats: stats({ autoMapRatio: 2 / 3, coverageRatio: 1 }) })] }),
+      ),
+    )
+    renderRoutes(routes, '/projects/p1/mappings')
+    expect(await screen.findByRole('img', { name: '100% of columns covered' })).toBeInTheDocument()
+    expect(screen.getByText(/67% auto-mapped/)).toBeInTheDocument()
+  })
 })

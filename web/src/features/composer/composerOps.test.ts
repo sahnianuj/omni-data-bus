@@ -290,4 +290,23 @@ describe('composerOps', () => {
     const chosen = combineRows(s, { groupBy: ['order_id'], driving: detail, arrayName: 'products', orderBy: [], move: [ids.quantity!] })
     expect(nodeOf(chosen.spec, chosen.arrayId)!.items!.children!.map((c) => c.name)).toEqual(['quantity'])
   })
+
+  it('combine rows into an array bound back to the driving table (ARRAY_REPEATS_ROOT)', () => {
+    // items[] bound many-to-one to order_detail itself, its fields read from that relation.
+    const detail = { schema: 'public', name: 'order_detail' }
+    const f = addNode({ ...blank(composedSpec()), root: { table: detail }, key: { template: 'order_details::{order_id}::{line_no}' } }, 'fld_root', 'field', 'orderId')
+    const arr = addNode({ ...f.spec, fieldMappings: [{ id: 'm_oid', targetFieldId: f.id, sources: [{ column: 'order_id' }], transforms: [], origin: 'manual', state: 'active' }] }, 'fld_root', 'array', 'items')
+    const self = bind(arr.spec, arr.id, { kind: 'many-to-one', table: detail, join: [{ parent: 'product_id', child: 'product_id' }, { parent: 'line_no', child: 'line_no' }] })
+    expect(nodeOf(self.spec, arr.id)!.binding).toEqual({ relationId: self.relationId, adapter: 'wrap' })
+    const line = addNode(self.spec, nodeOf(self.spec, arr.id)!.items!.id, 'field', 'lineNo')
+    const s: MappingSpec = { ...line.spec, fieldMappings: [...line.spec.fieldMappings, { id: 'm_line', targetFieldId: line.id, sources: [{ column: 'line_no', relation: self.relationId }], transforms: [], origin: 'auto', state: 'active' }] }
+
+    const out = combineRows(s, { groupBy: ['order_id'], driving: detail, arrayName: 'x', arrayId: arr.id, orderBy: [{ column: 'line_no' }] }).spec
+    // The same relation now holds each order's rows; the item's fields keep reading it.
+    expect(out.relations).toEqual([expect.objectContaining({ id: self.relationId, kind: 'one-to-many', group: true, join: [{ parent: 'order_id', child: 'order_id' }], targetFieldId: arr.id })])
+    expect(nodeOf(out, arr.id)!.binding).toEqual({ relationId: self.relationId })
+    expect(out.fieldMappings.find((m) => m.id === 'm_line')!.sources).toEqual([{ column: 'line_no', relation: self.relationId }])
+    expect(out.fieldMappings.find((m) => m.id === 'm_oid')!.sources).toEqual([{ column: 'order_id' }])
+    expect(out.key.template).toBe('order_details::{order_id}')
+  })
 })

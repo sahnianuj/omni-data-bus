@@ -59,11 +59,24 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 	var confSum float64
 	var confN int
 	mappedTargets := map[string]bool{}
+	// A grouped document's rows come from its own table (OC-063): columns read through the
+	// group relation are the table's own, not an embedded table's.
+	group := ""
+	if g := s.GroupRelation(); g != nil {
+		group = g.ID
+	}
+	own := func(src SourceRef) SourceRef {
+		if group != "" && src.Relation == group {
+			src.Relation = ""
+		}
+		return src
+	}
 	for _, m := range s.FieldMappings {
 		switch m.State {
 		case StateActive:
 			mappedTargets[m.TargetFieldID] = true
 			for _, src := range m.Sources {
+				src = own(src)
 				if m.Origin == OriginAuto {
 					auto[src] = true
 				} else {
@@ -76,7 +89,7 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 			}
 		case StatePending:
 			for _, src := range m.Sources {
-				suggested[src] = true
+				suggested[own(src)] = true
 			}
 		}
 	}
@@ -103,8 +116,12 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 		}
 	}
 	if len(s.Relations) > 0 && embedded != nil {
-		e := &EmbeddedStats{Tables: len(s.Relations)}
+		e := &EmbeddedStats{}
 		for _, emb := range s.Relations {
+			if emb.ID == group {
+				continue // counted above, as the table's own columns
+			}
+			e.Tables++
 			joins := map[string]bool{}
 			for _, j := range emb.Join {
 				joins[j.Child] = true

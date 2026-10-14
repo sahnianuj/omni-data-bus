@@ -1,7 +1,7 @@
 import { leaves } from '@/features/docschema/docschemaOps'
 import { boundRelations, fieldScopes } from '@/features/composer/scope'
 import { srcKey } from './embeds'
-import type { DocField, MappingSpec, MappingStats } from './types'
+import type { DocField, MappingSpec, MappingStats, SourceRef } from './types'
 
 export type NodeScore = NonNullable<MappingStats['byNode']>[number]
 
@@ -73,16 +73,20 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
   const mappedTargets = new Set<string>()
   let confSum = 0
   let confN = 0
+  // A grouped document's rows come from its own table (OC-063): columns read through the group
+  // relation are the table's own, not an embedded table's.
+  const group = spec.relations.find((r) => r.group)?.id
+  const own = (s: SourceRef) => srcKey(group && s.relation === group ? { ...s, relation: undefined } : s)
   for (const m of spec.fieldMappings) {
     if (m.state === 'active') {
       mappedTargets.add(m.targetFieldId)
-      for (const s of m.sources) (m.origin === 'auto' ? auto : manual).add(srcKey(s))
+      for (const s of m.sources) (m.origin === 'auto' ? auto : manual).add(own(s))
       if (m.origin === 'auto') {
         confSum += m.confidence ?? 0
         confN++
       }
     } else if (m.state === 'pending') {
-      for (const s of m.sources) suggested.add(srcKey(s))
+      for (const s of m.sources) suggested.add(own(s))
     }
   }
   const ignored = new Set(spec.ignoredColumns)
@@ -116,8 +120,10 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
   }
   if (confN > 0) st.averageConfidence = confSum / confN
   if (spec.relations.length > 0 && embedded) {
-    const e = { tables: spec.relations.length, totalColumns: 0, autoMapped: 0, manuallyMapped: 0, suggested: 0, unmappedSource: 0 }
+    const e = { tables: 0, totalColumns: 0, autoMapped: 0, manuallyMapped: 0, suggested: 0, unmappedSource: 0 }
     for (const emb of spec.relations) {
+      if (emb.id === group) continue // counted above, as the table's own columns
+      e.tables++
       const joins = new Set((emb.join ?? []).map((j) => j.child))
       for (const c of embedded[emb.id] ?? []) {
         const k = srcKey({ column: c, relation: emb.id })

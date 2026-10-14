@@ -47,4 +47,26 @@ describe('DocumentTree', () => {
     await userEvent.keyboard('{Escape}')
     expect(root().children!.slice(0, 3).map((f) => f.name)).toEqual(['customerId', 'field', 'name'])
   })
+
+  it('OC-145: a click on the selected field\'s name renames it', async () => {
+    const { store } = renderWorkbench(tree())
+    const names = () => store.getState().history.present.docSchema.root.children!.map((f) => f.name)
+    const label = (n: RegExp, text: string) => within(node(n)).getByText(text)
+    const renameBox = (n: string) => screen.queryByRole('textbox', { name: `Rename ${n}` })
+    // AC1: the first click selects, the second (on the name) opens the rename box.
+    await userEvent.click(label(/^email, string/, 'email'))
+    expect(renameBox('email')).toBeNull()
+    expect(label(/^email, string/, 'email')).toHaveAttribute('title', 'Click to rename (F2)')
+    await userEvent.click(label(/^email, string/, 'email'))
+    await userEvent.keyboard('mail{Enter}')
+    expect(names()).toEqual(['customerId', 'name', 'mail', 'createdAt', 'age', 'profile'])
+    // AC4: the rest of the row only selects.
+    await userEvent.click(node(/^mail, string/))
+    expect(renameBox('mail')).toBeNull()
+    // AC5: the root has no name to rename.
+    await userEvent.click(label(/^\$, object/, '$'))
+    await userEvent.click(label(/^\$, object/, '$'))
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(label(/^\$, object/, '$')).not.toHaveAttribute('title')
+  })
 })

@@ -64,10 +64,10 @@ export function MappingsStep() {
         {(ms) => (
           <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {ms.map((m) => {
-              const auto = m.automapStats ?? m.stats
               return (
                 <li key={m.id} className="flex items-center gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-                  <ScoreRing ratio={auto.autoMapRatio} label={t('mappings.autoScore', { pct: Math.round(auto.autoMapRatio * 100) })} />
+                  {/* How complete the mapping is now: columns with a mapping in effect (pending suggestions don't count). */}
+                  <ScoreRing ratio={m.stats.coverageRatio} label={t('mappings.coverage', { pct: Math.round(m.stats.coverageRatio * 100) })} />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="truncate text-[13px] font-medium">
                       {m.mode === 'composed' ? `${m.driving.schema}.${m.driving.name}` : `${m.sourceSchema}.${m.sourceTable}`}
@@ -82,7 +82,7 @@ export function MappingsStep() {
                         {m.status === 'draft' && m.errors ? t('mappings.toFix', { count: m.errors }) : t(`mappings.status.${m.status}`)}
                       </Badge>
                       {m.mode === 'composed' ? <Badge tone="primary">{t('composer.badge')}</Badge> : null}
-                      {t('mappings.coverage', { pct: Math.round(m.stats.coverageRatio * 100) })}
+                      {t('mappings.autoScore', { pct: Math.round(m.stats.autoMapRatio * 100) })}
                       {m.target.createIfMissing ? <Badge tone="primary">{t('targets.willBeCreated')}</Badge> : null}
                     </span>
                     <span className="text-xs text-muted" data-testid="shape">

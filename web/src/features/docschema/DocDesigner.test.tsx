@@ -109,6 +109,41 @@ describe('DocDesigner', () => {
     expect(itemNames()).toHaveLength(5)
   })
 
+  it('OC-145: click to rename', async () => {
+    const { store } = renderWorkbench(designer())
+    const names = () => store.getState().history.present.docSchema.root.children!.map((f) => f.name)
+    const label = (n: string) => within(row(n)).getByText(n, { selector: 'span' })
+    const renameBox = (n: string) => screen.queryByRole('textbox', { name: `Rename ${n}` })
+    // AC1: the first click selects; a click on the selected field's name opens the rename box.
+    await userEvent.click(label('email'))
+    expect(renameBox('email')).toBeNull()
+    expect(label('email')).toHaveAttribute('title', 'Click to rename (F2)')
+    await userEvent.click(label('email'))
+    await userEvent.type(renameBox('email')!, '{Control>}a{/Control}  mail  {Enter}')
+    expect(names()).toEqual(['customerId', 'name', 'mail', 'createdAt', 'age', 'profile'])
+
+    // AC3: Escape, a blank name or a sibling's name keep the old one.
+    await userEvent.click(label('mail'))
+    await userEvent.type(renameBox('mail')!, 'x{Escape}')
+    await userEvent.click(label('mail'))
+    await userEvent.type(renameBox('mail')!, '{Control>}a{/Control}{Backspace}   {Enter}')
+    await userEvent.click(label('mail'))
+    await userEvent.type(renameBox('mail')!, '{Control>}a{/Control}age{Enter}')
+    expect(names()).toEqual(['customerId', 'name', 'mail', 'createdAt', 'age', 'profile'])
+
+    // AC4: the rest of the row only selects; in a multi-selection a name click selects just that field.
+    await userEvent.click(row('mail'))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Type of mail' }))
+    expect(renameBox('mail')).toBeNull()
+    await userEvent.click(label('age'))
+    fireEvent.click(label('mail'), { shiftKey: true })
+    expect(label('age')).not.toHaveAttribute('title')
+    await userEvent.click(label('age'))
+    expect(renameBox('age')).toBeNull()
+    expect(row('age')).toHaveAttribute('aria-selected', 'true')
+    expect(row('mail')).toHaveAttribute('aria-selected', 'false')
+  })
+
   it('AC7: drop shows diff dialog and applies merge', async () => {
     const inferred: DocSchema = {
       source: 'json-sample',
