@@ -41,7 +41,7 @@
   --embed-edge-shade: 25%;
   /* The sample pane: a pale tint of the logo amber (#ffb400), clearly apart from the grey
      canvas and from the indigo selection highlight (OC-077). */
-  --sample-surface: #fff3d6;
+  --sample-surface: #fff7e0;
   /* The logo's amber and black, for the few actions that carry the brand (Export…). */
   --brand: #ffb400;
   --brand-hover: #e6a200;

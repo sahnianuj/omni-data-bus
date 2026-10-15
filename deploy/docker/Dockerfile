@@ -4,7 +4,7 @@
 #   docker build -f deploy/docker/Dockerfile --build-arg VERSION=1.0.0 --build-arg COMMIT=$(git rev-parse --short HEAD) -t omni-data-bus .
 #   docker buildx build --platform linux/amd64,linux/arm64 -f deploy/docker/Dockerfile ...   # multi-arch
 ARG NODE_VERSION=24.18.0
-ARG GO_VERSION=1.26.8
+ARG GO_VERSION=1.26.9
 
 # ── 1. Web app ────────────────────────────────────────────────────────────────
 # Built on the build platform: the output is architecture-independent.
