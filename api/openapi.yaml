@@ -1869,6 +1869,7 @@ components:
         name: { type: string }
         kind: { $ref: '#/components/schemas/TableKind' }
         rowEstimate: { type: [integer, 'null'], format: int64 }
+        rowCountExact: { type: boolean, description: rowEstimate is an exact count(*), not a planner estimate }
         statsStale: { type: boolean }
         sizeBytes: { type: integer, format: int64 }
         columnCount: { type: integer }
@@ -1881,6 +1882,7 @@ components:
         name: { type: string }
         kind: { $ref: '#/components/schemas/TableKind' }
         rowEstimate: { type: [integer, 'null'], format: int64 }
+        rowCountExact: { type: boolean, description: rowEstimate is an exact count(*), not a planner estimate }
         statsStale: { type: boolean }
         sizeBytes: { type: integer, format: int64 }
         comment: { type: string }

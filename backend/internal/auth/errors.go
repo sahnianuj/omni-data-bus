@@ -12,6 +12,7 @@ import (
 // Auth errors, rendered as problem+json.
 var (
 	ErrInvalidCredentials = problem.New(http.StatusUnauthorized, problem.CodeInvalidCreds, "Sign-in failed", "The email or password is incorrect.")
+	ErrWrongPassword      = problem.New(http.StatusUnauthorized, problem.CodeInvalidCreds, "Wrong password", "The password is incorrect.")
 	ErrUnauthenticated    = problem.New(http.StatusUnauthorized, problem.CodeUnauthenticated, "Sign in required", "Please sign in to continue.")
 	ErrSessionExpired     = problem.New(http.StatusUnauthorized, problem.CodeSessionExpired, "Session expired", "Your session has expired. Please sign in again.")
 	ErrEmailTaken         = func() problem.Problem {

@@ -426,3 +426,24 @@ func TestSpecValidate_AC3_FilterCoercion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"1", "2"}, args)
 }
+
+// Embedding only some of a child table's columns is allowed: a required embedded field left
+// unmapped is left out of the embedded object, unless an imported design requires it.
+func TestValidate_EmbeddedRequiredFieldsNeedNoMapping(t *testing.T) {
+	s := embedSpec()
+	addr := s.DocSchema.Find("f_addr")
+	addr.Children = append(addr.Children, f("f_zip", "zip", docschema.String, true))
+	s.DocSchema.Root.Children = append(s.DocSchema.Root.Children, f("f_email", "email", docschema.String, true))
+	issues := Validate(&s, Context{})
+	require.Contains(t, codesOf(issues), "error:REQUIRED_FIELD_UNMAPPED@email", "a top-level required field still needs a mapping")
+	require.NotContains(t, codesOf(issues), "error:REQUIRED_FIELD_UNMAPPED@address.zip")
+	require.Equal(t, 1, ComputeStats(&s, nil).RequiredTargetUnmapped, "only email counts as required and unmapped")
+
+	s.DocSchema.Imported = &docschema.Imported{Fields: []docschema.ContractField{
+		{Path: "address.zip", Type: docschema.String, Required: true},
+	}}
+	require.Contains(t, codesOf(Validate(&s, Context{})), "error:REQUIRED_FIELD_UNMAPPED@address.zip", "the imported design requires it")
+
+	s.DocSchema.Imported.Fields[0].Required = false
+	require.Contains(t, codesOf(Validate(&s, Context{})), "info:REFERENCE_FIELD_UNMAPPED@address.zip", "optional in the imported design: info")
+}

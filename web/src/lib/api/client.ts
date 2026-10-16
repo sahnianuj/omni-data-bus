@@ -94,7 +94,9 @@ export async function call<T>(request: Promise<FetchResult<T>>): Promise<T> {
   if (response.ok) return data as T
   const problem: Partial<Problem> = isProblem(error) ? error : { title: response.statusText }
   const err = new ApiError(response.status, problem, response.headers.get('X-Request-ID') ?? undefined)
-  if (response.status === 401) unauthorizedHandler?.(err)
+  // A wrong password while signed in (re-confirming it before an export, say) is also a 401,
+  // but the session is fine: only a lost session signs the user out.
+  if (response.status === 401 && err.code !== 'INVALID_CREDENTIALS') unauthorizedHandler?.(err)
   throw err
 }
 

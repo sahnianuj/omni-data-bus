@@ -28,7 +28,7 @@ func normalize(s *schema.Snapshot) {
 	for i := range s.Schemas {
 		for j := range s.Schemas[i].Tables {
 			t := &s.Schemas[i].Tables[j]
-			t.RowEstimate, t.StatsStale, t.SizeBytes = nil, false, 0
+			t.RowEstimate, t.RowCountExact, t.StatsStale, t.SizeBytes = nil, false, false, 0
 		}
 	}
 }

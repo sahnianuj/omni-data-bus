@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -186,6 +187,71 @@ func TestAssembleSnapshot_AC4_NegativeReltuples(t *testing.T) {
 	require.Nil(t, events.RowEstimate)
 	require.True(t, events.StatsStale)
 }
+
+func TestSetEstimate_StaleStatisticsAndExactCounts(t *testing.T) {
+	n := int64(20)
+	for name, tc := range map[string]struct {
+		rel          rawRelation
+		want         *int64
+		exact, stale bool
+	}{
+		"exact count wins":                   {rawRelation{RelTuples: 0, Pages: 1, ExactRows: &n}, &n, true, false},
+		"scaled to the heap's current size":  {rawRelation{RelTuples: 1000, RelPages: 10, Pages: 40}, ptr(int64(4000)), false, false},
+		"analyzed while empty, now has rows": {rawRelation{RelTuples: 0, Pages: 1, LiveTuples: 20}, ptr(int64(20)), false, false},
+		"never analyzed, collector knows":    {rawRelation{RelTuples: -1, Pages: 3, LiveTuples: 90}, ptr(int64(90)), false, false},
+		"pages but no statistics at all":     {rawRelation{RelTuples: 0, Pages: 1}, nil, false, true},
+		"never analyzed, empty heap":         {rawRelation{RelTuples: -1}, nil, false, true},
+		"truly empty":                        {rawRelation{RelTuples: 0}, ptr(int64(0)), false, false},
+	} {
+		var tb schema.Table
+		setEstimate(&tb, tc.rel)
+		require.Equal(t, tc.want, tb.RowEstimate, name)
+		require.Equal(t, tc.exact, tb.RowCountExact, name)
+		require.Equal(t, tc.stale, tb.StatsStale, name)
+	}
+
+	// A partitioned table is exact only when every partition was counted.
+	raw := fixtureCatalog()
+	raw.Relations[8].ExactRows, raw.Relations[9].ExactRows = ptr(int64(7)), ptr(int64(3))
+	events := AssembleSnapshot(raw, source.DiscoverOptions{}).Table("shop", "events")
+	require.Equal(t, int64(10), *events.RowEstimate)
+	require.True(t, events.RowCountExact)
+	raw.Relations[9].ExactRows = nil
+	events = AssembleSnapshot(raw, source.DiscoverOptions{}).Table("shop", "events")
+	require.Equal(t, int64(307), *events.RowEstimate)
+	require.False(t, events.RowCountExact)
+}
+
+func TestCountSmallTables(t *testing.T) {
+	rels := []rawRelation{
+		{Schema: "shop", Name: "roles", Kind: "r", Pages: 1, Readable: true},
+		{Schema: "shop", Name: "big", Kind: "r", Pages: exactCountMaxPages + 1, Readable: true},
+		{Schema: "shop", Name: "empty", Kind: "r", Pages: 0, Readable: true},
+		{Schema: "shop", Name: "secret", Kind: "r", Pages: 1, Readable: false},
+		{Schema: "shop", Name: "v", Kind: "v", Readable: true},
+		{Schema: "shop", Name: "tmp_x", Kind: "r", Pages: 1, Readable: true},
+		{Schema: "shop", Name: `we"ird`, Kind: "m", Pages: 2, Readable: true},
+	}
+	want := `SELECT 0::int4, count(*) FROM "shop"."roles" UNION ALL SELECT 6::int4, count(*) FROM "shop"."we""ird"`
+	q := &fakeQuerier{results: map[string][][]any{want: {{int32(0), int64(4)}, {int32(6), int64(12)}}}}
+	countSmallTables(context.Background(), q, rels, source.DiscoverOptions{ExcludePatterns: []string{"tmp_*"}})
+	require.Len(t, q.args, 1, "one statement for all small tables")
+	require.Equal(t, int64(4), *rels[0].ExactRows)
+	require.Equal(t, int64(12), *rels[6].ExactRows)
+	require.Equal(t, int64(0), *rels[2].ExactRows, "an empty heap needs no query")
+	for _, i := range []int{1, 3, 4, 5} {
+		require.Nil(t, rels[i].ExactRows, rels[i].Name)
+	}
+
+	// A failed count leaves the estimates alone.
+	rels[0].ExactRows = nil
+	failing := &fakeQuerier{fail: `SELECT 0::int4, count(*) FROM "shop"."roles"`}
+	countSmallTables(context.Background(), failing, rels[:1], source.DiscoverOptions{})
+	require.Len(t, failing.args, 1)
+	require.Nil(t, rels[0].ExactRows)
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestDiscoverOptions_AC3_ExcludeGlob(t *testing.T) {
 	raw := fixtureCatalog()

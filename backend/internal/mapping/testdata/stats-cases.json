@@ -1414,6 +1414,176 @@
      }
     ]
    }
+  },
+  {
+   "name": "many-to-one embed: a required embedded field left unmapped isn't required to map; a required root field is",
+   "columns": [
+    "order_id",
+    "partner_number",
+    "email"
+   ],
+   "embedded": {
+    "emb_p": [
+     "number",
+     "first_name",
+     "collection_type"
+    ]
+   },
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f_id",
+        "name": "orderId",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "id": "f_email",
+        "name": "email",
+        "type": "string",
+        "required": true
+       },
+       {
+        "id": "f_partner",
+        "name": "partner",
+        "type": "object",
+        "children": [
+         {
+          "id": "f_pnum",
+          "name": "number",
+          "type": "string",
+          "required": true
+         },
+         {
+          "id": "f_pfirst",
+          "name": "firstName",
+          "type": "string",
+          "required": true
+         },
+         {
+          "id": "f_pct",
+          "name": "collectionType",
+          "type": "string",
+          "required": true
+         }
+        ]
+       }
+      ]
+     },
+     "source": "generated"
+    },
+    "key": {
+     "template": "order::{order_id}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "embeds": [
+     {
+      "id": "emb_p",
+      "kind": "many-to-one",
+      "table": {
+       "schema": "shop",
+       "name": "partners"
+      },
+      "join": [
+       {
+        "parent": "partner_number",
+        "child": "number"
+       }
+      ],
+      "targetFieldId": "f_partner"
+     }
+    ],
+    "fieldMappings": [
+     {
+      "id": "m1",
+      "targetFieldId": "f_id",
+      "sources": [
+       {
+        "column": "order_id"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m2",
+      "targetFieldId": "f_pnum",
+      "sources": [
+       {
+        "column": "number",
+        "embed": "emb_p"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m3",
+      "targetFieldId": "f_pfirst",
+      "sources": [
+       {
+        "column": "first_name",
+        "embed": "emb_p"
+       }
+      ],
+      "transforms": [],
+      "origin": "manual",
+      "state": "active"
+     }
+    ],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 2,
+    "autoMapped": 1,
+    "suggested": 0,
+    "manuallyMapped": 0,
+    "unmappedSource": 1,
+    "ignored": 0,
+    "totalTargetLeaves": 5,
+    "mappedTargetLeaves": 3,
+    "requiredTargetUnmapped": 1,
+    "autoMapRatio": 0.5,
+    "coverageRatio": 0.5,
+    "averageConfidence": 1,
+    "embedded": {
+     "tables": 1,
+     "totalColumns": 3,
+     "autoMapped": 1,
+     "manuallyMapped": 1,
+     "suggested": 0,
+     "unmappedSource": 1
+    },
+    "byNode": [
+     {
+      "nodeId": "fld_root",
+      "path": "root",
+      "mapped": 1,
+      "total": 2
+     },
+     {
+      "nodeId": "f_partner",
+      "relationId": "emb_p",
+      "path": "partner",
+      "mapped": 2,
+      "total": 3
+     }
+    ]
+   }
   }
  ]
 }

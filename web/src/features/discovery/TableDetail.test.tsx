@@ -12,6 +12,11 @@ setupMswServer()
 const table = (name: string) => shopSnapshot().schemas.flatMap((s) => s.tables).find((t) => t.name === name)!
 
 describe('TableDetail', () => {
+  it('shows an exact count without the estimate marker', () => {
+    renderUI(<TableDetail connId="p1::source" schema="shop" table={{ ...table('customer'), rowEstimate: 20, rowCountExact: true }} onNavigate={() => {}} />)
+    expect(screen.getByText('20 rows · 29.5 MB')).toBeInTheDocument()
+  })
+
   it('AC4: columns with key glyphs', () => {
     renderUI(<TableDetail connId="p1::source" schema="shop" table={table('customer')} onNavigate={() => {}} />)
     expect(screen.getByRole('heading', { name: 'shop.customer' })).toBeInTheDocument()

@@ -48,6 +48,7 @@ func validateReference(s *Spec, ctx Context) []Issue {
 	}
 	design := map[string]*docschema.DocField{}
 	s.DocSchema.Walk(func(f *docschema.DocField, p string, _ *docschema.DocField) { design[p] = f })
+	mustMap := RequiredToMap(s)
 	contract := map[string]docschema.ContractField{}
 	for _, c := range imp.Fields {
 		contract[c.Path] = c
@@ -120,7 +121,7 @@ func validateReference(s *Spec, ctx Context) []Issue {
 		m := filled[f.ID]
 		if m == nil {
 			// A required field left unmapped is REQUIRED_FIELD_UNMAPPED (an error) already.
-			if !other[f.ID] && !f.Required {
+			if !other[f.ID] && !mustMap(docschema.Leaf{FieldID: f.ID, Path: c.Path, Required: f.Required}) {
 				is := Issue{
 					Severity: loose, Code: CodeReferenceFieldUnmapped, Path: c.Path, NodePath: c.Path, FieldID: f.ID,
 					Message: c.Path + " is in the design you imported but nothing fills it. Drag a source column onto it, or give it a constant.",

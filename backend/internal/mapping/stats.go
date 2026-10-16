@@ -146,11 +146,12 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 		}
 		st.Embedded = e
 	}
+	mustMap := RequiredToMap(s)
 	for _, l := range s.DocSchema.Leaves() {
 		st.TotalTargetLeaves++
 		if mappedTargets[l.FieldID] {
 			st.MappedTargetLeaves++
-		} else if l.Required {
+		} else if mustMap(l) {
 			st.RequiredTargetUnmapped++
 		}
 	}

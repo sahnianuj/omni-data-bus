@@ -163,6 +163,33 @@ func (s *Spec) RelationByID(id string) *Relation {
 	return nil
 }
 
+// EmbeddedFields are the IDs of the fields inside relations' objects, nested ones included. A
+// group relation's rows are the driving table's own (OC-063), so its fields aren't embedded.
+func EmbeddedFields(d *docschema.Schema, rels []Relation) map[string]bool {
+	out := map[string]bool{}
+	var mark func(f *docschema.DocField)
+	mark = func(f *docschema.DocField) {
+		out[f.ID] = true
+		for i := range f.Children {
+			mark(&f.Children[i])
+		}
+		if f.Items != nil {
+			mark(f.Items)
+		}
+	}
+	for _, e := range rels {
+		if e.Group {
+			continue
+		}
+		if c := RelationContainer(d, e); c != nil {
+			for i := range c.Children {
+				mark(&c.Children[i])
+			}
+		}
+	}
+	return out
+}
+
 // RelationContainer is the object whose children are a relation's fields: the target object
 // (many-to-one, or a keyed shape), or the target array's item object (one-to-many and
 // many-to-many as objects); nil when the design doesn't have the right shape, and for a

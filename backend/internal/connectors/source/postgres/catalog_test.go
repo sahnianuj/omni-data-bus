@@ -98,8 +98,8 @@ func catalogQuerier() *fakeQuerier {
 	return &fakeQuerier{results: map[string][][]any{
 		serverSQL: {{"16.3 (Debian 16.3-1.pgdg120+1)", "shop"}},
 		relationsSQL: {
-			{int64(1), "shop", "customer", "r", float64(2000), int64(8192), "People", false, int64(0), true},
-			{int64(2), "shop", "orders", "r", float64(-1), int64(8192), nil, false, int64(0), true},
+			{int64(1), "shop", "customer", "r", float64(2000), int64(1), int64(1), int64(2000), int64(8192), "People", false, int64(0), true},
+			{int64(2), "shop", "orders", "r", float64(-1), int64(0), int64(0), int64(0), int64(8192), nil, false, int64(0), true},
 		},
 		columnsSQL: {
 			{int64(1), int32(1), "customer_id", "integer", "int4", "b", "int4", "b", "", "", int64(0), int32(-1), true, nil, "", "", nil},

@@ -74,6 +74,18 @@ describe('api client', () => {
     expect(handler).toHaveBeenCalledOnce()
   })
 
+  it("a wrong password while signed in doesn't sign out", async () => {
+    const handler = vi.fn()
+    onUnauthorized(handler)
+    server.use(
+      http.post('*/api/v1/auth/step-up', () =>
+        HttpResponse.json({ title: 'Wrong password', code: 'INVALID_CREDENTIALS', status: 401 }, { status: 401 }),
+      ),
+    )
+    await expect(call(api.POST('/api/v1/auth/step-up', { body: { password: 'nope' } }))).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
   it('AC5: refreshes a missing CSRF token from /auth/me and retries once', async () => {
     const sent: (string | null)[] = []
     server.use(

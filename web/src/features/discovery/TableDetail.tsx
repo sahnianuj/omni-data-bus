@@ -184,7 +184,7 @@ export function TableDetail({ connId, schema, table, onNavigate, action }: { con
   const { t } = useTranslation()
   const [tab, setTab] = useState('columns')
   const estimate =
-    table.rowEstimate != null ? t('explorer.rowsEstimate', { count: table.rowEstimate, formatted: table.rowEstimate.toLocaleString('en') }) : null
+    table.rowEstimate != null ? t(table.rowCountExact ? 'explorer.rowsExact' : 'explorer.rowsEstimate', { count: table.rowEstimate, formatted: table.rowEstimate.toLocaleString('en') }) : null
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
       <header className="flex flex-col gap-1.5">

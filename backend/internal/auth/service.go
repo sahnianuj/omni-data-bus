@@ -207,7 +207,7 @@ func (s *Service) StepUp(ctx context.Context, p Principal, password string, meta
 	if err != nil || !ok {
 		s.limiter.Fail(limitKey)
 		s.audit(ctx, string(p.WorkspaceID), p.UserID, "auth.stepup.failure", map[string]string{"ip": meta.IP})
-		return ErrInvalidCredentials
+		return ErrWrongPassword
 	}
 	s.limiter.Reset(limitKey)
 	if err := s.store.Sessions().StepUp(ctx, p.SessionID, s.clock.Now()); err != nil {

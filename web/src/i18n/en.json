@@ -407,6 +407,8 @@
     "noEstimateView": "No row estimate for views",
     "rowsEstimate": "~{{formatted}} row",
     "rowsEstimate_other": "~{{formatted}} rows",
+    "rowsExact": "{{formatted}} row",
+    "rowsExact_other": "{{formatted}} rows",
     "partitions": "{{count}} partition",
     "partitions_other": "{{count}} partitions",
     "pk": "Primary key",

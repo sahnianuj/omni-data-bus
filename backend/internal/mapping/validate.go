@@ -107,6 +107,25 @@ func (c Context) sourceColumn(s *Spec, t *schema.Table, src SourceRef) *schema.C
 
 var severityRank = map[string]int{SeverityError: 0, SeverityWarning: 1, SeverityInfo: 2}
 
+// RequiredToMap reports whether a required field must be mapped. A field inside an embedded
+// relation's object needn't be: leaving it unmapped leaves it out of the embedded object, which
+// is how a user embeds only some of a child table's columns (the table can still be migrated
+// whole by its own mapping). Its required flag comes from the column's NOT NULL when the
+// relation was added, not from a choice the user made. A field an imported design requires
+// still must be mapped (OC-075).
+func RequiredToMap(s *Spec) func(docschema.Leaf) bool {
+	embedded := EmbeddedFields(&s.DocSchema, s.Relations)
+	imported := map[string]bool{}
+	if imp := s.DocSchema.Imported; imp != nil {
+		for _, c := range imp.Fields {
+			imported[c.Path] = c.Required
+		}
+	}
+	return func(l docschema.Leaf) bool {
+		return l.Required && (!embedded[l.FieldID] || imported[l.Path])
+	}
+}
+
 // Validate aggregates the structural rules: document design, key template and uniqueness,
 // type field, references (target fields and source columns, i.e. drift), duplicate targets,
 // required fields, pending suggestions, conversions, keyspace and unmapped columns.
@@ -258,8 +277,9 @@ func Validate(s *Spec, ctx Context) []Issue {
 	for _, a := range s.Aggregates {
 		activeTargets[a.TargetFieldID] = a.ID
 	}
+	mustMap := RequiredToMap(s)
 	for _, l := range s.DocSchema.Leaves() {
-		if l.Required && activeTargets[l.FieldID] == "" {
+		if mustMap(l) && activeTargets[l.FieldID] == "" {
 			add(Issue{
 				Severity: SeverityError, Code: CodeRequiredFieldUnmapped, Path: l.Path, FieldID: l.FieldID,
 				Message: "Required field " + l.Path + " has no mapping. Map a source, set a constant, or mark it optional.",

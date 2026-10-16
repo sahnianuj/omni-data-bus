@@ -53,6 +53,12 @@ describe('SchemaTree', () => {
     expect(within(pv).getByTitle('Estimate unavailable — run ANALYZE')).toBeInTheDocument()
   })
 
+  it('shows exact counts without the estimate marker', async () => {
+    render(<Harness schemas={[{ name: 'shop', tables: [tbl('roles', { rowEstimate: 4, rowCountExact: true }), tbl('stores', { rowEstimate: 5 })] }]} />)
+    await userEvent.click(screen.getByRole('button', { name: 'open-shop' }))
+    expect(text()).toEqual(['shop(2)', 'roles4', 'stores~5'])
+  })
+
   it('AC1: virtualizes 20k nodes (renders < 100 DOM rows)', async () => {
     const tables: SourceTable[] = Array.from({ length: 20_000 }, (_, i) => tbl(`t${String(i).padStart(5, '0')}`, { columns: [col('id', 1)] }))
     render(<Harness schemas={[{ name: 'shop', tables }]} />)

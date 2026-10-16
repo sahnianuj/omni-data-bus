@@ -63,6 +63,22 @@ export function byNode(spec: MappingSpec): NodeScore[] {
 }
 
 /**
+ * Whether a required field must be mapped; mirrors mapping.RequiredToMap. A field inside an
+ * embedded relation's object needn't be (leaving it out embeds only some of the child's columns),
+ * unless an imported design requires it.
+ */
+export function requiredToMap(spec: MappingSpec): (l: { fieldId: string; path: string; required: boolean }) => boolean {
+  const scopes = fieldScopes(spec)
+  const groups = new Set(spec.relations.filter((r) => r.group).map((r) => r.id))
+  const imported = new Map((spec.docSchema.imported?.fields ?? []).map((c) => [c.path, !!c.required]))
+  return (l) => {
+    const scope = scopes.get(l.fieldId) ?? ''
+    const embedded = scope !== '' && !groups.has(scope)
+    return l.required && (!embedded || !!imported.get(l.path))
+  }
+}
+
+/**
  * Live mapping score; mirrors mapping.ComputeStatsWith (parity: computeStats.test.ts). Columns
  * of embedded tables (embed id → names) are counted in the separate embedded group.
  */
@@ -109,10 +125,11 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
     else if (suggested.has(c)) st.suggested++
     else st.unmappedSource++
   }
+  const mustMap = requiredToMap(spec)
   for (const l of leaves(spec.docSchema)) {
     st.totalTargetLeaves++
     if (mappedTargets.has(l.fieldId)) st.mappedTargetLeaves++
-    else if (l.required) st.requiredTargetUnmapped++
+    else if (mustMap(l)) st.requiredTargetUnmapped++
   }
   if (st.totalSourceColumns > 0) {
     st.autoMapRatio = st.autoMapped / st.totalSourceColumns

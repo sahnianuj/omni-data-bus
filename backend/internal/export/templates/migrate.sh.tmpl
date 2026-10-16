@@ -79,14 +79,7 @@ commands:
   extract [DIR]      write bundle.odb.json (and the embedded odb, if any) to DIR (default: here)
   help               this text
 
-environment:
-  ODB_STATE_DIR          state directory (default odb-state next to this script)
-  ODB_TARGET_PATH        directory target's output folder
-  ODB_BUNDLE_PASSPHRASE  passphrase of sealed credentials (else you are asked)
-  ODB_RUNTIME            auto | binary | docker | embedded (default auto)
-  ODB_BIN                use this odb binary
-  ODB_DOCKER_ARGS        extra docker run arguments (docker runtime)
-  ODB_CACHE_DIR          where downloaded odb binaries are kept (default odb-cache next to this script)
+Nothing needs to be set to run it. Optional ODB_* settings (e.g. to run unattended): README.md.
 
 exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration
             error, 5 cancelled (run ./migrate.sh resume)

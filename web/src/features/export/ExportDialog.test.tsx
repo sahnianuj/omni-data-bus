@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { onUnauthorized } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
 import { server, setupMswServer } from '@/test/msw'
 import { makeProject, repo } from '@/test/projects'
@@ -109,6 +110,34 @@ describe('ExportDialog', () => {
     await screen.findByText('Export downloaded')
     expect(stepUps).toEqual(['my-password'])
     expect(requests).toHaveLength(2)
+  })
+
+  it('a wrong password shows an error and keeps the dialog open, without signing out', async () => {
+    const user = userEvent.setup()
+    const signedOut = vi.fn()
+    onUnauthorized(signedOut)
+    setup(true)
+    server.use(
+      http.post('*/api/v1/auth/step-up', async ({ request }) => {
+        if (((await request.clone().json()) as { password: string }).password === 'my-password') return // the setup's handler accepts it
+        return HttpResponse.json({ title: 'Wrong password', detail: 'The password is incorrect.', code: 'INVALID_CREDENTIALS', status: 401 }, { status: 401 })
+      }),
+    )
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.type(screen.getByLabelText('Passphrase'), 'correct-horse-battery-staple')
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    const pw = await screen.findByLabelText(/Confirm your password/)
+    await user.type(pw, 'typo')
+    await user.click(screen.getByRole('button', { name: 'Confirm and export' }))
+    expect(await screen.findByText(/The password is incorrect/)).toBeInTheDocument()
+    expect(signedOut).not.toHaveBeenCalled()
+    await user.clear(pw)
+    await user.type(pw, 'my-password')
+    await user.click(screen.getByRole('button', { name: 'Confirm and export' }))
+    await screen.findByText('Export downloaded')
+    onUnauthorized(null)
   })
 
   it('checks the passphrase before moving on', async () => {

@@ -173,7 +173,7 @@ function TablesPicker({ project, snapshot, existing }: { project: Project; snaps
                       {tb.primaryKey.length ? <KeyRound className="size-3.5 text-warning" aria-label={t('explorer.pk')} /> : <Badge tone="warning">{t('tables.noPk')}</Badge>}
                     </span>
                   </td>
-                  <td className="px-3 py-2 font-mono text-xs text-muted">{tb.rowEstimate != null ? `~${humanizeCount(tb.rowEstimate)}` : '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-muted">{tb.rowEstimate != null ? `${tb.rowCountExact ? '' : '~'}${humanizeCount(tb.rowEstimate)}` : '—'}</td>
                   <td className="px-3 py-2">
                     {m ? (
                       <Link to={`/projects/${project.id}/mappings/${m.id}`} className="flex items-center gap-1.5 text-primary-soft-foreground hover:underline">

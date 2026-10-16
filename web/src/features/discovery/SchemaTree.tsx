@@ -206,7 +206,7 @@ export function SchemaTree({ nodes, expanded, setOpen, highlights, selected, onS
                   </span>
                   {!n.table.readable ? <Lock className="text-warning" aria-label={t('explorer.noAccess')} /> : null}
                   <span className="ml-auto pl-2 font-mono text-[11px] text-subtle" title={n.table.statsStale ? t('explorer.statsStale') : undefined}>
-                    {n.table.rowEstimate != null ? `~${humanizeCount(n.table.rowEstimate)}` : n.table.kind.includes('view') ? '' : '—'}
+                    {n.table.rowEstimate != null ? `${n.table.rowCountExact ? '' : '~'}${humanizeCount(n.table.rowEstimate)}` : n.table.kind.includes('view') ? '' : '—'}
                   </span>
                 </>
               ) : (

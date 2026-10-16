@@ -1,10 +1,13 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"math"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -30,7 +33,8 @@ WHERE ` + relkinds + ` AND NOT c.relispartition AND ` + userSchemas
 
 	relationsSQL = `
 SELECT c.oid::int8, n.nspname, c.relname, c.relkind::text, c.reltuples::float8,
-       pg_total_relation_size(c.oid), obj_description(c.oid, 'pg_class'),
+       c.relpages::int8, pg_relation_size(c.oid) / current_setting('block_size')::int8,
+       COALESCE(pg_stat_get_live_tuples(c.oid), 0), pg_total_relation_size(c.oid), obj_description(c.oid, 'pg_class'),
        c.relispartition, COALESCE(inh.inhparent::int8, 0),
        has_schema_privilege(n.oid, 'USAGE') AND has_table_privilege(c.oid, 'SELECT')
 FROM pg_class c
@@ -102,6 +106,10 @@ type (
 		Schema, Name string
 		Kind         string // relkind
 		RelTuples    float64
+		RelPages     int64  // heap pages when reltuples was last computed
+		Pages        int64  // heap pages now
+		LiveTuples   int64  // the statistics collector's live-row count, kept current between ANALYZEs
+		ExactRows    *int64 // count(*), for tables small enough to count during discovery
 		Size         int64
 		Comment      *string
 		IsPartition  bool
@@ -184,7 +192,7 @@ func AssembleSnapshot(raw rawCatalog, opts source.DiscoverOptions) *schema.Snaps
 			t.Comment = *r.Comment
 		}
 		if r.Kind != "v" && r.Kind != "f" && r.Kind != "p" {
-			setEstimate(t, r.RelTuples)
+			setEstimate(t, r)
 		}
 		tables[r.OID], schemaOf[r.OID] = t, r.Schema
 		order = append(order, r.OID)
@@ -196,17 +204,21 @@ func AssembleSnapshot(raw rawCatalog, opts source.DiscoverOptions) *schema.Snaps
 			continue
 		}
 		var sum int64
+		exact := true
 		for _, p := range parts {
 			t.Partitions = append(t.Partitions, p.Name)
 			t.SizeBytes += p.Size
-			if p.RelTuples < 0 {
+			var pt schema.Table
+			setEstimate(&pt, p)
+			if pt.RowEstimate == nil {
 				t.StatsStale = true
 			} else {
-				sum += int64(p.RelTuples)
+				sum += *pt.RowEstimate
+				exact = exact && pt.RowCountExact
 			}
 		}
 		if !t.StatsStale {
-			t.RowEstimate = &sum
+			t.RowEstimate, t.RowCountExact = &sum, exact
 		}
 	}
 
@@ -274,13 +286,86 @@ func AssembleSnapshot(raw rawCatalog, opts source.DiscoverOptions) *schema.Snaps
 	return snap
 }
 
-func setEstimate(t *schema.Table, reltuples float64) {
-	if reltuples < 0 { // never vacuumed or analyzed (PostgreSQL 14+)
+// setEstimate sets a table's row count: exact when counted, otherwise estimated the way the
+// planner does, scaling reltuples' density to the heap's current size. reltuples alone goes
+// stale between ANALYZEs, and small tables can stay at 0 indefinitely because autovacuum only
+// re-analyzes after ~50 changed rows.
+func setEstimate(t *schema.Table, r rawRelation) {
+	var n int64
+	switch {
+	case r.ExactRows != nil:
+		n, t.RowCountExact = *r.ExactRows, true
+	case r.RelTuples > 0 && r.RelPages > 0 && r.Pages > 0:
+		n = int64(math.Round(r.RelTuples / float64(r.RelPages) * float64(r.Pages)))
+	case r.RelTuples <= 0 && r.Pages > 0: // statistics predate the data
+		if r.LiveTuples <= 0 {
+			t.StatsStale = true
+			return
+		}
+		n = r.LiveTuples
+	case r.RelTuples < 0: // never vacuumed or analyzed (PostgreSQL 14+)
 		t.StatsStale = true
 		return
+	default:
+		n = int64(r.RelTuples)
 	}
-	n := int64(reltuples)
 	t.RowEstimate = &n
+}
+
+const (
+	exactCountMaxPages    = 128  // 1 MiB of heap at the default 8 KiB block size
+	exactCountBudgetPages = 8192 // 64 MiB scanned per discovery, at most
+	exactCountChunk       = 200  // tables per UNION ALL statement
+)
+
+// countSmallTables counts the rows of readable tables up to exactCountMaxPages, smallest
+// first within the budget, so small tables show real numbers instead of estimates. Counting
+// is best effort: on the first error (a lock timeout, say) the rest keep their estimates.
+func countSmallTables(ctx context.Context, q querier, rels []rawRelation, opts source.DiscoverOptions) {
+	var picks []int
+	for i, r := range rels {
+		if (r.Kind == "r" || r.Kind == "m") && r.Readable && r.Pages <= exactCountMaxPages && !excluded(opts.ExcludePatterns, r.Schema, r.Name) {
+			picks = append(picks, i)
+		}
+	}
+	slices.SortStableFunc(picks, func(a, b int) int { return cmp.Compare(rels[a].Pages, rels[b].Pages) })
+	budget := int64(exactCountBudgetPages)
+	var queue []int
+	for _, i := range picks {
+		if rels[i].Pages == 0 { // an empty heap holds no rows
+			zero := int64(0)
+			rels[i].ExactRows = &zero
+			continue
+		}
+		if budget -= rels[i].Pages; budget < 0 {
+			break
+		}
+		queue = append(queue, i)
+	}
+	for len(queue) > 0 {
+		chunk := queue[:min(exactCountChunk, len(queue))]
+		queue = queue[len(chunk):]
+		parts := make([]string, len(chunk))
+		for j, i := range chunk {
+			parts[j] = "SELECT " + strconv.Itoa(i) + "::int4, count(*) FROM " + pgx.Identifier{rels[i].Schema, rels[i].Name}.Sanitize()
+		}
+		rows, err := q.Query(ctx, strings.Join(parts, " UNION ALL "))
+		if err != nil {
+			return
+		}
+		for rows.Next() {
+			var i int
+			var n int64
+			if rows.Scan(&i, &n) != nil {
+				break
+			}
+			rels[i].ExactRows = &n
+		}
+		rows.Close()
+		if rows.Err() != nil {
+			return
+		}
+	}
 }
 
 func buildColumn(c rawColumn, enums map[int64][]string) schema.Column {
@@ -372,6 +457,10 @@ func (s *pgSession) Discover(ctx context.Context, opts source.DiscoverOptions) (
 	if err != nil {
 		return nil, err
 	}
+	// Counting waits on table locks; a table being altered keeps its estimate instead.
+	if _, err := tx.Exec(ctx, "SET LOCAL lock_timeout = '2s'"); err == nil {
+		countSmallTables(ctx, tx, raw.Relations, opts)
+	}
 	return AssembleSnapshot(raw, opts), nil
 }
 
@@ -390,7 +479,7 @@ func readCatalog(ctx context.Context, q querier, schemas []string) (rawCatalog, 
 	}
 	var err error
 	if raw.Relations, err = collect(ctx, q, relationsSQL, schemas, func(r pgx.Row, v *rawRelation) error {
-		return r.Scan(&v.OID, &v.Schema, &v.Name, &v.Kind, &v.RelTuples, &v.Size, &v.Comment, &v.IsPartition, &v.Parent, &v.Readable)
+		return r.Scan(&v.OID, &v.Schema, &v.Name, &v.Kind, &v.RelTuples, &v.RelPages, &v.Pages, &v.LiveTuples, &v.Size, &v.Comment, &v.IsPartition, &v.Parent, &v.Readable)
 	}); err != nil {
 		return raw, fmt.Errorf("relations: %w", err)
 	}

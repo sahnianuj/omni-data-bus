@@ -1699,6 +1699,8 @@ export interface components {
             kind: components["schemas"]["TableKind"];
             /** Format: int64 */
             rowEstimate: number | null;
+            /** @description rowEstimate is an exact count(*) */
+            rowCountExact?: boolean;
             statsStale?: boolean;
             /** Format: int64 */
             sizeBytes: number;
@@ -1711,6 +1713,8 @@ export interface components {
             kind: components["schemas"]["TableKind"];
             /** Format: int64 */
             rowEstimate: number | null;
+            /** @description rowEstimate is an exact count(*) */
+            rowCountExact?: boolean;
             statsStale?: boolean;
             /** Format: int64 */
             sizeBytes: number;

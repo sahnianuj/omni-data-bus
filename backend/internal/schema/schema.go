@@ -46,10 +46,12 @@ type Table struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
 	// RowEstimate is nil when the planner has no statistics (never analyzed): StatsStale is then true.
-	RowEstimate *int64 `json:"rowEstimate"`
-	StatsStale  bool   `json:"statsStale,omitempty"`
-	SizeBytes   int64  `json:"sizeBytes"`
-	Comment     string `json:"comment,omitempty"`
+	// RowCountExact means RowEstimate is a count(*), not an estimate.
+	RowEstimate   *int64 `json:"rowEstimate"`
+	RowCountExact bool   `json:"rowCountExact,omitempty"`
+	StatsStale    bool   `json:"statsStale,omitempty"`
+	SizeBytes     int64  `json:"sizeBytes"`
+	Comment       string `json:"comment,omitempty"`
 	// Readable is false when the connection's user can't SELECT from it.
 	Readable          bool         `json:"readable"`
 	Partitions        []string     `json:"partitions,omitempty"`
@@ -159,14 +161,15 @@ type NamespaceSummary struct {
 
 // TableSummary is a table without columns, keys or indexes.
 type TableSummary struct {
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	RowEstimate *int64 `json:"rowEstimate"`
-	StatsStale  bool   `json:"statsStale,omitempty"`
-	SizeBytes   int64  `json:"sizeBytes"`
-	ColumnCount int    `json:"columnCount"`
-	HasPK       bool   `json:"hasPrimaryKey"`
-	Readable    bool   `json:"readable"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	RowEstimate   *int64 `json:"rowEstimate"`
+	RowCountExact bool   `json:"rowCountExact,omitempty"`
+	StatsStale    bool   `json:"statsStale,omitempty"`
+	SizeBytes     int64  `json:"sizeBytes"`
+	ColumnCount   int    `json:"columnCount"`
+	HasPK         bool   `json:"hasPrimaryKey"`
+	Readable      bool   `json:"readable"`
 }
 
 // Summarize drops column, key and index detail.
@@ -176,7 +179,7 @@ func (s *Snapshot) Summarize() Summary {
 		ss := NamespaceSummary{Name: sc.Name, Tables: make([]TableSummary, 0, len(sc.Tables))}
 		for _, t := range sc.Tables {
 			ss.Tables = append(ss.Tables, TableSummary{
-				Name: t.Name, Kind: t.Kind, RowEstimate: t.RowEstimate, StatsStale: t.StatsStale, SizeBytes: t.SizeBytes,
+				Name: t.Name, Kind: t.Kind, RowEstimate: t.RowEstimate, RowCountExact: t.RowCountExact, StatsStale: t.StatsStale, SizeBytes: t.SizeBytes,
 				ColumnCount: len(t.Columns), HasPK: len(t.PrimaryKey) > 0, Readable: t.Readable,
 			})
 		}
