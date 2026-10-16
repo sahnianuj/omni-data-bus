@@ -19,7 +19,7 @@ LDFLAGS := -s -w -X $(BUILDINFO).version=$(VERSION) -X $(BUILDINFO).commit=$(COM
 HELM_IMAGE := alpine/helm:3.18.4
 HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:latest
 
-.PHONY: help setup dev dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e e2e-smoke bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist test-scripts
+.PHONY: help setup dev dev-force dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e e2e-smoke bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist test-scripts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -29,8 +29,11 @@ setup: ## Install Go modules, golangci-lint and web dependencies
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
 	cd web && npm ci
 
-dev: ## Start the dev stack, the API on :8080 and the web app on :5173
-	./scripts/dev.sh
+dev: ## Start the dev stack, the API on :8080 and the web app on :5173 (FORCE=1 rescans saved schemas)
+	FORCE=$(FORCE) ./scripts/dev.sh
+
+dev-force: ## make dev, rescanning each source's saved schema when it's next opened
+	FORCE=1 ./scripts/dev.sh
 
 dev-stack: ## Start Couchbase 8.0.3 + sample source PostgreSQL and wait until healthy
 	$(COMPOSE) up -d --wait couchbase source-pg

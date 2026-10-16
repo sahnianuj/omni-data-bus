@@ -357,3 +357,40 @@ func TestDiscoveryService_AtMostTwoConcurrentPerWorkspace(t *testing.T) {
 	_, _, err = f.svc.start(ws, "c3")
 	require.NoError(t, err, "a finished run frees its slot")
 }
+
+func TestDiscoveryService_RefreshBefore_RescansSavedSnapshotOnce(t *testing.T) {
+	f := newFixture(t)
+	_, err := f.svc.Discover(ctx, ws, "u1", f.connID, source.DiscoverOptions{})
+	require.NoError(t, err)
+	old, _, err := f.svc.Latest(ctx, ws, f.connID)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), f.fake.Discovers.Load(), "off by default: reading doesn't rescan")
+
+	// The server restarts after the source changed (make dev FORCE=1).
+	f.svc.RefreshBefore = old.CapturedAt.Add(time.Second)
+	f.fake.Snapshot = shopSnapshot("customer", "orders", "eod_executions")
+	rec, snap, err := f.svc.Latest(ctx, ws, f.connID)
+	require.NoError(t, err)
+	require.NotEqual(t, old.ID, rec.ID, "the fresh scan is returned")
+	require.NotNil(t, snap.Table("shop", "eod_executions"))
+	require.Equal(t, int32(2), f.fake.Discovers.Load())
+
+	_, _, err = f.svc.Latest(ctx, ws, f.connID)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), f.fake.Discovers.Load(), "once per connection")
+}
+
+func TestDiscoveryService_RefreshBefore_FailedRescanKeepsSavedSnapshot(t *testing.T) {
+	f := newFixture(t)
+	_, err := f.svc.Discover(ctx, ws, "u1", f.connID, source.DiscoverOptions{})
+	require.NoError(t, err)
+	old, _, err := f.svc.Latest(ctx, ws, f.connID)
+	require.NoError(t, err)
+
+	f.svc.RefreshBefore = old.CapturedAt.Add(time.Second)
+	f.fake.DiscoverErr = errors.New("source down")
+	rec, snap, err := f.svc.Latest(ctx, ws, f.connID)
+	require.NoError(t, err)
+	require.Equal(t, old.ID, rec.ID)
+	require.NotNil(t, snap.Table("shop", "orders"))
+}

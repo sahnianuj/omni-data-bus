@@ -1,10 +1,33 @@
-import { AlertTriangle, Copy } from 'lucide-react'
+import { AlertTriangle, Copy, Home } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link, useInRouterContext, useLocation } from 'react-router'
 import { ApiError } from '@/lib/api/client'
 import { Button } from './ui/button'
 
+/**
+ * The server or the gateway in front of it failed (e.g. 502 Bad Gateway), or the request never
+ * reached it: nothing on this screen can fix that, so the user is offered the way home.
+ */
+export const isServerFailure = (error: unknown) =>
+  error instanceof ApiError ? error.status >= 500 : error instanceof TypeError
+
+function HomeButton() {
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+  if (pathname === '/') return null
+  return (
+    <Button asChild variant="secondary" size="sm">
+      <Link to="/">
+        <Home aria-hidden />
+        {t('common.backHome')}
+      </Link>
+    </Button>
+  )
+}
+
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useTranslation()
+  const inRouter = useInRouterContext()
   const apiError = error instanceof ApiError ? error : null
   const title = apiError?.title ?? t('common.somethingWrong')
   const detail = apiError?.detail ?? (error instanceof Error ? error.message : undefined)
@@ -23,10 +46,15 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
           <Copy className="size-3" aria-label={t('common.copy')} />
         </button>
       ) : null}
-      {onRetry ? (
-        <Button variant="secondary" size="sm" onClick={onRetry}>
-          {t('common.retry')}
-        </Button>
+      {onRetry || (inRouter && isServerFailure(error)) ? (
+        <div className="flex flex-wrap justify-center gap-2">
+          {onRetry ? (
+            <Button variant="secondary" size="sm" onClick={onRetry}>
+              {t('common.retry')}
+            </Button>
+          ) : null}
+          {inRouter && isServerFailure(error) ? <HomeButton /> : null}
+        </div>
       ) : null}
     </div>
   )

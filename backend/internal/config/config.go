@@ -47,6 +47,9 @@ type Config struct {
 	// (the sign-in page footer, OC-058); signed-in users always see the full build.
 	ExposeBuildInfo bool          `env:"OC_EXPOSE_BUILD_INFO" envDefault:"true"`
 	ShutdownTimeout time.Duration `env:"OC_SHUTDOWN_TIMEOUT" envDefault:"30s"`
+	// RediscoverOnStart rescans a source the first time its schema is read after this process
+	// starts, when the saved scan is older (`make dev FORCE=1`): a restart alone keeps showing it.
+	RediscoverOnStart bool `env:"OC_REDISCOVER_ON_START"`
 }
 
 // MetaConfig points at the Couchbase bucket that stores Omni-Data-Bus's own data (OC-003).

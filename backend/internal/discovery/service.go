@@ -76,6 +76,10 @@ type Service struct {
 	clock     store.Clock
 	threshold int
 	keep      int
+	// RefreshBefore: a connection whose latest snapshot was captured before it is rescanned
+	// when Latest is first called for it (OC_REDISCOVER_ON_START). Zero = off.
+	RefreshBefore time.Time
+	refreshed     sync.Map // connection IDs already rescanned for RefreshBefore
 
 	mu     sync.Mutex
 	runs   map[string]*run // by discovery ID
@@ -278,11 +282,34 @@ func (s *Service) Latest(ctx context.Context, ws store.WorkspaceID, connectionID
 	if err != nil {
 		return rec, nil, err
 	}
+	if s.refreshStale(ctx, ws, connectionID, rec) {
+		if fresh, err := s.store.Snapshots().Latest(ctx, ws, connectionID); err == nil {
+			rec = fresh
+		}
+	}
 	var snap schema.Snapshot
 	if err := json.Unmarshal(rec.Payload, &snap); err != nil {
 		return rec, nil, err
 	}
 	return rec, &snap, nil
+}
+
+// refreshStale rescans the connection when rec predates RefreshBefore, once per connection;
+// it reports whether a newer snapshot was saved. A failed or background rescan leaves rec in
+// use (a background one is picked up by the next read).
+func (s *Service) refreshStale(ctx context.Context, ws store.WorkspaceID, connectionID string, rec store.DiscoverySnapshot) bool {
+	if s.RefreshBefore.IsZero() || !rec.CapturedAt.Before(s.RefreshBefore) {
+		return false
+	}
+	if _, done := s.refreshed.LoadOrStore(connectionID, true); done {
+		return false
+	}
+	res, err := s.Discover(ctx, ws, "", connectionID, source.DiscoverOptions{})
+	if err != nil {
+		slog.WarnContext(ctx, "rescan of a saved schema failed; showing the saved one", "connection", connectionID, "error", err.Error())
+		return false
+	}
+	return !res.Async
 }
 
 func (s *Service) audit(ctx context.Context, conn store.Connection, userID string, rec store.DiscoverySnapshot) {

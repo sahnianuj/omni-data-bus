@@ -9,6 +9,15 @@ const schemas = shopSnapshot().schemas
 const labels = (nodes: { kind: string; name: string }[]) => nodes.map((n) => `${n.kind}:${n.name}`)
 
 describe('useSchemaSearch', () => {
+  it('opens a lone schema so its tables show, and leaves several collapsed', () => {
+    const one = renderHook(() => useSchemaSearch([schemas[0]!]))
+    expect(one.result.current.expanded.has(schemaId('shop'))).toBe(true)
+    expect(labels(one.result.current.nodes)).toContain('table:customer')
+    const many = renderHook(() => useSchemaSearch(schemas))
+    expect(many.result.current.expanded.size).toBe(0)
+    expect(labels(many.result.current.nodes)).toEqual(['schema:billing', 'schema:shop'])
+  })
+
   it('AC2: matches column path and returns expand set', () => {
     const { result } = renderHook(() => useSchemaSearch(schemas))
     act(() => result.current.setQuery('cust email'))

@@ -48,6 +48,9 @@ type Deps struct {
 	// Export configures exported migrations (OC-050..OC-055); Version is this build's.
 	Export  config.ExportConfig
 	Version string
+	// RediscoverBefore makes reading a schema saved before it rescan the source first,
+	// once per connection (OC_REDISCOVER_ON_START); zero = never.
+	RediscoverBefore time.Time
 }
 
 // ExportScript is the script settings for exports: the configured image, download URL and
@@ -81,6 +84,7 @@ func Features(d Deps) []httpapi.Registrar {
 	guard := jobs.Guard{Store: d.Store}
 	conns := connections.NewService(d.Store, d.Sealer, d.Sources, d.Targets, guard, nil).WithBundled(d.Bundled)
 	disc := discovery.NewService(d.Store, conns.OpenSource, nil)
+	disc.RefreshBefore = d.RediscoverBefore
 	maps := mappings.NewService(d.Store, disc, conns.OpenSource, conns.OpenKeyspaces)
 	maps.StatLocation = conns.StatLocation
 	maps.CaseSensitive = conns.CaseSensitive

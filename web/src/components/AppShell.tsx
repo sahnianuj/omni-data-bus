@@ -1,7 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet } from 'react-router'
 import { navItems } from '@/app/nav'
 import { useMaximized } from '@/lib/maximize'
 import { storage } from '@/lib/storage'
@@ -39,10 +39,14 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
         data-collapsed={collapsed}
         className={cn('flex shrink-0 flex-col gap-1 border-r border-border bg-surface px-3 py-4 transition-[width]', collapsed ? 'w-16 items-center' : 'w-60')}
       >
-        <div className={cn('mb-3 flex items-center gap-2.5 px-2', collapsed && 'px-0')}>
+        <Link
+          to="/"
+          aria-label={t('nav.home', { app: t('app.name') })}
+          className={cn('mb-3 flex items-center gap-2.5 rounded-md px-2 focus-visible:outline-2 focus-visible:outline-ring', collapsed && 'px-0')}
+        >
           <Logo size={28} />
           {collapsed ? null : <span className="text-[15px] font-semibold tracking-tight">{t('app.name')}</span>}
-        </div>
+        </Link>
         {collapsed || !workspaceName ? null : (
           <div className="mb-3 truncate rounded-md border border-border px-2.5 py-2 text-[13px] text-muted">{workspaceName}</div>
         )}

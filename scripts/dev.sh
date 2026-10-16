@@ -6,6 +6,8 @@
 #     (Run `make dev-stack` separately if you want the sample PostgreSQL source / local target.)
 # - No .env, or a local metadata store:
 #     the Docker dev stack (Couchbase 8.0.3 + sample PostgreSQL) is started first.
+# - FORCE=1 (`make dev FORCE=1` or `make dev-force`): source schemas saved before this start
+#     are rescanned when next opened, so row counts and new tables show without Rediscover.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -41,6 +43,11 @@ cleanup() {
   wait 2>/dev/null || true
 }
 trap cleanup EXIT
+
+if [ "${FORCE:-}" = 1 ]; then
+  echo "FORCE=1: saved source schemas are rescanned when next opened."
+  export OC_REDISCOVER_ON_START=true
+fi
 trap 'exit 130' INT TERM
 
 (cd backend && CGO_ENABLED=0 go run ./cmd/odb) &

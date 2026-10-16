@@ -43,6 +43,7 @@ load helpers
   [ "$status" -eq 0 ]
   grep -q "path run preflight --bundle .* --config $(cd "$BATS_TEST_TMPDIR" && pwd)/prod.json" "$STUB_LOG"
   # Docker mounts the file's folder (odb may save it back) and passes it there.
+  with_on_path docker docker
   ODB_RUNTIME=docker ODB_CONFIG="$BATS_TEST_TMPDIR/prod.json" run "$SCRIPT_CONFIG" run
   [ "$status" -eq 0 ]
   grep -q -- "-v $(cd "$BATS_TEST_TMPDIR" && pwd):/config .* --config /config/prod.json" "$STUB_LOG"

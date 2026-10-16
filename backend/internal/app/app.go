@@ -230,7 +230,19 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, build Buil
 		Ready:   map[string]httpapi.Pinger{"metadata": meta},
 		Export:  cfg.Export,
 		Version: build.Version,
+
+		RediscoverBefore: rediscoverBefore(cfg, logger),
 	})
+}
+
+// rediscoverBefore is this start's time when OC_REDISCOVER_ON_START asks for saved scans to
+// be refreshed, else zero.
+func rediscoverBefore(cfg config.Config, logger *slog.Logger) time.Time {
+	if !cfg.RediscoverOnStart {
+		return time.Time{}
+	}
+	logger.Info("schemas saved before this start are rescanned when next opened (OC_REDISCOVER_ON_START)")
+	return time.Now()
 }
 
 // Serve runs the HTTP server with already-constructed dependencies.

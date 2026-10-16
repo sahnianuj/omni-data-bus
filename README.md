@@ -253,6 +253,7 @@ cp .env.example .env     # then edit .env
 | `OC_SESSION_IDLE_TTL` / `OC_SESSION_ABSOLUTE_TTL` | `12h` / `168h` | Session lifetimes |
 | `OC_SESSION_COOKIE_SECURE` | `true` | Forced `false` in dev (plain http) |
 | `OC_SHUTDOWN_TIMEOUT` | `30s` | Graceful shutdown budget |
+| `OC_REDISCOVER_ON_START` | `false` | Rescan a source's saved schema (row counts, new tables) the first time it's opened after this start; `make dev FORCE=1` sets it |
 | `OC_METRICS_ADDR` | — | Serve Prometheus `/metrics` on its own listener (e.g. `:9090`); empty = on the public port |
 | `OC_PPROF_ADDR` | — | Serve Go `net/http/pprof` on its own listener (e.g. `127.0.0.1:6060`) for benchmark profiling; never expose it publicly |
 | `OC_OTEL_EXPORTER_OTLP_ENDPOINT` | — | OTLP/HTTP collector URL (e.g. `http://otel-collector:4318`); empty = tracing off |
@@ -372,6 +373,7 @@ Coverage gates: Go packages ≥ 80% (≥ 90% for automap/transform/pipeline), we
 | `make help` | List all targets |
 | `make setup` | Install Go modules, golangci-lint, web dependencies |
 | `make dev` | Dev stack + API + web (one command) |
+| `make dev FORCE=1` / `make dev-force` | The same, rescanning each source's saved schema when it's next opened |
 | `make dev-stack` / `dev-stack-down` / `dev-reset` | Start / stop / wipe the containers |
 | `make run-backend` / `run-web` | Run one side only |
 | `make test`, `test-backend`, `test-web`, `test-integration` | Tests |

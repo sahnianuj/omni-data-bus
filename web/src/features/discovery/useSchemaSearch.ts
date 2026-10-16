@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react'
-import { buildIndex, flatten, search, type Chip, type SchemaNode } from './tree'
+import { buildIndex, flatten, schemaId, search, type Chip, type SchemaNode } from './tree'
 
 /**
  * Tree state for the schema explorer: fuzzy search over tables and columns, filter chips, and
  * expansion. Matches auto-expand their ancestors; nodes the user collapses during a search
- * stay collapsed until the query changes.
+ * stay collapsed until the query changes. A source with a single schema opens with it
+ * expanded so its tables are ready to pick; with several, the user chooses which to open.
  */
 export function useSchemaSearch(schemas: SchemaNode[]) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState<ReadonlySet<Chip>>(new Set())
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(schemas.length === 1 ? [schemaId(schemas[0]!.name)] : []))
   const [collapsed, setCollapsed] = useState<{ query: string; ids: ReadonlySet<string> }>({ query: '', ids: new Set() })
 
   const index = useMemo(() => buildIndex(schemas), [schemas])

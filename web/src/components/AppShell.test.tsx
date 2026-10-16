@@ -31,6 +31,12 @@ describe('AppShell', () => {
     expect(screen.queryByText('Omni-Data-Bus')).not.toBeInTheDocument()
   })
 
+  it('the logo links to the dashboard', async () => {
+    renderRoutes(routes, '/projects')
+    await userEvent.click(await screen.findByRole('link', { name: 'Omni-Data-Bus home' }))
+    expect(await screen.findByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('AC1: skip link targets main content', async () => {
     renderRoutes(routes, '/')
     expect(await screen.findByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main')

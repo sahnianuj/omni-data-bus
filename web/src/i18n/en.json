@@ -8,6 +8,7 @@
     "projects": "Projects",
     "jobs": "Jobs",
     "settings": "Settings",
+    "home": "{{app}} home",
     "skipToContent": "Skip to content",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
