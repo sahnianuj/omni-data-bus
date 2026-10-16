@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Copy, Download, KeyRound, Lock, Sparkles, TriangleAlert } from 'lucide-react'
+import { Download, FileJson, Lock, TriangleAlert } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -14,19 +14,16 @@ import { Input } from '@/components/ui/input'
 import { useMappings } from '@/features/mapping/api'
 import type { Project } from '@/features/projects/api'
 import { formatLocation } from '@/features/targets/kinds'
-import { ApiError } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
-import { saveFile, useCreateExport, useExportOptions, useGeneratePassphrase, useStepUp, type ExportFile, type ExportRequest } from './api'
-import { MIN_PASSPHRASE, passphraseProblem } from './passphrase'
+import { saveFile, useCreateExport, useExportOptions, type ExportFile, type ExportRequest } from './api'
 
-const STEPS = ['project', 'passphrase', 'runtime'] as const
+const STEPS = ['project', 'runtime'] as const
 type StepName = (typeof STEPS)[number]
 
 /** The bundled node of the all-in-one image (OC-072): unreachable outside its container. */
 const BUNDLED = 'Bundled Couchbase'
 
 const schema = z.object({
-  passphrase: z.string(),
   runtime: z.enum(['script', 'bundle']),
   scriptRuntime: z.enum(['auto', 'binary', 'docker', 'embedded']),
   platform: z.string(),
@@ -41,7 +38,6 @@ export type ExportValues = z.infer<typeof schema>
 /** The request the dialog sends (exported for tests): only how to package the project. */
 export function toRequest(v: ExportValues): ExportRequest {
   const req: ExportRequest = {
-    passphrase: v.passphrase,
     runtime: v.runtime,
     jobOptions: {
       readParallelism: v.readers,
@@ -96,26 +92,22 @@ function Part({ title, to, change, children }: { title: string; to: string; chan
 
 /**
  * The guided export (OC-055). It exports the project as configured — its source, target, saved
- * credentials (sealed with a passphrase) and every ready mapping — and only asks how to package
- * and run it. To change the project, users go back to its steps (user decision, 2026-10-02).
+ * credentials and every ready mapping — and only asks how to package and run it, with no
+ * passphrase or password prompt (OC-154). The connection details go in the export's config.json
+ * (OC-155). To change the project, users go back to its steps (user decision, 2026-10-02).
  */
 export function ExportDialog({ project, open, onOpenChange }: { project: Project; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
   const mappings = useMappings(project.id)
   const options = useExportOptions()
   const create = useCreateExport(project.id)
-  const stepUp = useStepUp()
-  const generate = useGeneratePassphrase()
   const [step, setStep] = useState(0)
   const [stepError, setStepError] = useState<string | null>(null)
-  const [password, setPassword] = useState<string | null>(null) // non-null: the server asked to confirm
-  const [generated, setGenerated] = useState(false)
-  const [done, setDone] = useState<{ file: ExportFile; passphrase: string } | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [done, setDone] = useState<ExportFile | null>(null)
   const form = useForm<ExportValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      passphrase: '', runtime: 'script', scriptRuntime: 'auto', platform: 'linux_amd64',
+      runtime: 'script', scriptRuntime: 'auto', platform: 'linux_amd64',
       readers: 'auto', writers: 64, batchSize: 1000, writeMode: 'upsert', maxErrors: 1000,
     },
   })
@@ -134,10 +126,6 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
       case 'project':
         if (bundled) return t('export.err.bundled')
         return ready.length === 0 ? t('export.err.noMappings') : null
-      case 'passphrase': {
-        const p = passphraseProblem(v.passphrase)
-        return p ? t(`export.err.passphrase_${p}`, { min: MIN_PASSPHRASE }) : null
-      }
       case 'runtime':
         return v.runtime === 'script' && v.scriptRuntime === 'embedded' && !(opts?.embeddable ?? []).includes(v.platform) ? t('export.err.platform') : null
     }
@@ -160,13 +148,11 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
     }
     setStepError(null)
     try {
-      if (password !== null) await stepUp.mutateAsync(password)
       const file = await create.mutateAsync(toRequest(v))
       saveFile(file.blob, file.fileName)
-      setPassword(null)
-      setDone({ file, passphrase: v.passphrase })
-    } catch (e) {
-      if (e instanceof ApiError && e.code === 'STEP_UP_REQUIRED') setPassword('')
+      setDone(file)
+    } catch {
+      // shown below the steps (create.error)
     }
   }
 
@@ -174,19 +160,11 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
     if (!o) {
       setStep(0)
       setDone(null)
-      setPassword(null)
-      setGenerated(false)
       setStepError(null)
       create.reset()
-      stepUp.reset()
       form.reset()
     }
     onOpenChange(o)
-  }
-
-  const onGenerate = async () => {
-    set('passphrase', await generate.mutateAsync())
-    setGenerated(true)
   }
 
   if (done) {
@@ -195,26 +173,13 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('export.doneTitle')}</DialogTitle>
-            <DialogDescription>{t('export.doneBody', { file: done.file.fileName })}</DialogDescription>
+            <DialogDescription>{t('export.doneBody', { file: done.fileName })}</DialogDescription>
           </DialogHeader>
-          <p className="font-mono text-xs text-muted">{t('export.sha', { sha: done.file.bundleSha256 })}</p>
-          <div role="note" className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-[13px]">
-            <p className="font-medium">{t('export.passphraseOnce')}</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 break-all font-mono text-xs">{done.passphrase}</code>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(done.passphrase)
-                  setCopied(true)
-                }}
-              >
-                {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                {copied ? t('export.copied') : t('export.copy')}
-              </Button>
-            </div>
-          </div>
+          <p className="font-mono text-xs text-muted">{t('export.sha', { sha: done.bundleSha256 })}</p>
+          <p role="note" className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-[13px]">
+            <FileJson aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            {t('export.configNote')}
+          </p>
           <DialogFooter>
             <Button onClick={() => close(false)}>{t('common.close')}</Button>
           </DialogFooter>
@@ -280,24 +245,6 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
             </>
           ) : null}
 
-          {name === 'passphrase' ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-[13px] text-muted">{t('export.sealIntro')}</p>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <FormField id="export-pass" label={t('export.cred.passphrase')} hint={generated ? t('export.cred.generatedHint') : t('export.cred.passphraseHint', { min: MIN_PASSPHRASE })}>
-                    <Input id="export-pass" type={generated ? 'text' : 'password'} autoComplete="new-password" value={v.passphrase}
-                      onChange={(e) => { set('passphrase', e.target.value); setGenerated(false) }} className="font-mono" />
-                  </FormField>
-                </div>
-                <Button type="button" variant="secondary" loading={generate.isPending} onClick={() => void onGenerate()} className="mb-5">
-                  <Sparkles aria-hidden />
-                  {t('export.cred.generate')}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
           {name === 'runtime' ? (
             <div className="flex flex-col gap-2">
               <Choice name="runtime" value="script" current={v.runtime} onSelect={(x) => set('runtime', x as ExportValues['runtime'])} title={t('export.run.script')} hint={t('export.run.scriptHint')} />
@@ -351,15 +298,7 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
           ) : null}
 
           {stepError && !(name === 'project' && bundled) ? <p role="alert" className="text-xs text-danger">{stepError}</p> : null}
-          {password !== null ? (
-            <div className="flex flex-col gap-1.5 rounded-md border border-primary/30 bg-primary-soft px-3 py-2">
-              <FormField id="export-stepup" label={<span className="flex items-center gap-1.5"><KeyRound aria-hidden className="size-3.5" />{t('export.stepUp')}</span>} hint={t('export.stepUpHint')}>
-                <Input id="export-stepup" type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
-              </FormField>
-            </div>
-          ) : null}
-          {stepUp.error ? <ErrorState error={stepUp.error} /> : null}
-          {create.error && !(create.error instanceof ApiError && create.error.code === 'STEP_UP_REQUIRED') ? <ErrorState error={create.error} /> : null}
+          {create.error ? <ErrorState error={create.error} /> : null}
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={() => (step === 0 ? close(false) : setStep(step - 1))}>
@@ -368,9 +307,9 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
           {step < STEPS.length - 1 ? (
             <Button onClick={next} disabled={name === 'project' && (bundled || ready.length === 0)}>{t('export.next')}</Button>
           ) : (
-            <Button loading={create.isPending || stepUp.isPending} disabled={password === ''} onClick={() => void submit()}>
+            <Button loading={create.isPending} onClick={() => void submit()}>
               <Download aria-hidden />
-              {password !== null ? t('export.confirmAndExport') : t('export.export')}
+              {t('export.export')}
             </Button>
           )}
         </DialogFooter>

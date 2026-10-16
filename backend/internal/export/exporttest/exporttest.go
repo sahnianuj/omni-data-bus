@@ -30,6 +30,8 @@ type Options struct {
 	// SourceSecrets are sealed with Passphrase, or plaintext when Passphrase is "".
 	SourceSecrets export.Secrets
 	Passphrase    string
+	// ConfigMode leaves the source credentials to the run config (config.json, OC-155).
+	ConfigMode bool
 	// TargetPath makes a directory target (default /tmp/out).
 	TargetPath string
 	// Mappings replace the default orders mapping.
@@ -75,7 +77,9 @@ func Bundle(t testing.TB, o Options) export.Bundle {
 	if b.SourceFingerprint.SHA256 == "" {
 		b.SourceFingerprint = export.Fingerprint{SHA256: "0000000000000000000000000000000000000000000000000000000000000000", Tables: map[string]export.TableFingerprint{}}
 	}
-	if o.SourceSecrets != nil {
+	if o.ConfigMode {
+		b.Source.Credentials = &export.Credentials{Mode: export.ModeConfig}
+	} else if o.SourceSecrets != nil {
 		if o.Passphrase == "" {
 			b.Source.Credentials = &export.Credentials{Mode: export.ModePlaintext, Values: o.SourceSecrets}
 		} else {

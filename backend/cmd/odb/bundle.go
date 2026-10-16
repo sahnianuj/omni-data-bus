@@ -171,6 +171,8 @@ func credentialMode(c *export.Credentials) string {
 		return "external (" + strings.Join(refs, ", ") + ")"
 	case c.Mode == export.ModeSealed:
 		return "sealed (passphrase required)"
+	case c.Mode == export.ModeConfig:
+		return "in the run config file (" + export.RunConfigFile + ", --config)"
 	}
 	return c.Mode + " (WARNING: readable by anyone with the file)"
 }

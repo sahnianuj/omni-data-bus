@@ -679,6 +679,7 @@
     "sourcePanel_one": "Source: {{count}} column",
     "sourcePanel_other": "Source: {{count}} columns",
     "targetPanel": "Target document",
+    "resizeSource": "Resize the source panel",
     "ignored": "ignored",
     "requiredMark": "*",
     "dropToCreate": "Drop a column here to create a field",
@@ -927,6 +928,7 @@
     "addAllToDesign_other": "Add all {{count}} to design"
   },
   "workbench": {
+    "resizeSide": "Resize the side panel",
     "back": "Back to mappings",
     "undo": "Undo",
     "redo": "Redo",
@@ -1242,6 +1244,7 @@
     "junctions": "Many-to-many",
     "junction": "↔ {{table}} via {{via}}",
     "embedArray": "Embed as array of {{table}}",
+    "embedArrayShort": "Embed array",
     "expandHop": "Show tables related to {{table}}",
     "collapseHop": "Hide tables related to {{table}}",
     "groupManyMany": "{{table}} → {{field}}[] (via {{via}})",
@@ -1830,18 +1833,11 @@
     "steps": "Export steps",
     "step": {
       "project": "Project",
-      "passphrase": "Passphrase",
       "runtime": "Runtime & options"
-    },
-    "cred": {
-      "passphrase": "Passphrase",
-      "passphraseHint": "At least {{min}} characters; a few random words work well",
-      "generatedHint": "Generated: it is shown once more after the export. Store it in your secret manager.",
-      "generate": "Generate"
     },
     "run": {
       "script": "migrate.sh script",
-      "scriptHint": "Everything needed to run in one script: mappings, sealed credentials and how to get odb. Includes a README.",
+      "scriptHint": "Everything needed to run in one script: mappings and how to get odb, with the connection details in config.json beside it. Includes a README.",
       "runtime": "How it runs odb",
       "rt": {
         "auto": "Automatic",
@@ -1857,8 +1853,8 @@
       },
       "platform": "Machine",
       "autoEmbed": "Includes odb for {{platform}}. For another machine, choose Embedded.",
-      "bundle": "Bundle file only (advanced)",
-      "bundleHint": "Just bundle.odb.json, for people who already run odb themselves (odb run --bundle)",
+      "bundle": "Bundle and config only (advanced)",
+      "bundleHint": "bundle.odb.json and config.json, for people who already run odb themselves (odb run --bundle … --config …)",
       "options": "Run options",
       "readers": "Readers",
       "writers": "Writers",
@@ -1869,21 +1865,13 @@
     "err": {
       "noMappings": "No mapping is ready. Make them ready in Design & map.",
       "bundled": "The bundled Couchbase can't be reached from another machine: choose another target in the Target step.",
-      "passphrase_short": "The passphrase needs at least {{min}} characters.",
-      "passphrase_weak": "The passphrase is too predictable: use more words or characters, or Generate one.",
       "platform": "This server has no odb for that machine."
     },
-    "stepUp": "Confirm your password",
-    "stepUpHint": "Exporting credentials needs your password again (valid for 5 minutes).",
     "back": "Back",
     "next": "Next",
     "export": "Export",
-    "confirmAndExport": "Confirm and export",
     "doneTitle": "Export downloaded",
     "doneBody": "{{file}} is in your downloads. Its README has the commands to run it.",
-    "passphraseOnce": "Passphrase shown only once. Store it in your secret manager.",
-    "copy": "Copy",
-    "copied": "Copied",
     "history": {
       "title": "Export history",
       "emptyTitle": "No exports yet",
@@ -1910,11 +1898,11 @@
       "target": "Target",
       "targetPath": "The script writes here unless ODB_TARGET_PATH points elsewhere on the machine that runs it.",
       "credentials": "Credentials",
-      "credentialsBody": "The saved source and target credentials, sealed with your passphrase",
+      "credentialsBody": "The saved source and target connection details and credentials, in config.json beside the script",
       "mappings": "Mappings: {{ready}} of {{count}} ready"
     },
     "notIncluded": "Not ready — not exported",
-    "sealIntro": "The project's saved credentials go into the export encrypted with this passphrase. The script asks for it, or reads ODB_BUNDLE_PASSPHRASE."
+    "configNote": "config.json in the export holds the source and target connection details. Edit it to run the same migration against another environment; passwords are kept base64-encoded (not encrypted), and one typed in plain text is encoded on the next run."
   },
   "help": {
     "directoryTarget": "Guide: directory targets",

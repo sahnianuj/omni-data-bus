@@ -24,14 +24,6 @@ export function useExportHistory(projectId: string) {
   })
 }
 
-export function useGeneratePassphrase() {
-  return useMutation({ mutationFn: async () => (await call(api.POST('/api/v1/exports/passphrase'))).passphrase })
-}
-
-export function useStepUp() {
-  return useMutation({ mutationFn: (password: string) => call(api.POST('/api/v1/auth/step-up', { body: { password } })) })
-}
-
 /** A finished export: the file to save and what the history records. */
 export type ExportFile = { blob: Blob; fileName: string; bundleSha256: string; exportId: string }
 

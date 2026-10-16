@@ -50,7 +50,6 @@ The JSON files go to `/data/out`, as set in the project; set `ODB_TARGET_PATH` t
 | `ODB_STATE_DIR` | `odb-state` in this folder | Checkpoint, `errors.jsonl` and `report.json` |
 | `ODB_TARGET_PATH` | `/data/out` | Folder the JSON files are written to |
 | `ODB_RUNTIME` | `auto` | `auto`, `binary`, `docker` or `embedded` |
-| `ODB_BUNDLE_PASSPHRASE` | (asked) | Passphrase of sealed credentials |
 | `ODB_BIN` | | An `odb` 2.0.0 binary to use |
 | `ODB_DOCKER_ARGS` | | Extra `docker run` arguments, e.g. `--network host` |
 | `ODB_CACHE_DIR` | `odb-cache` in this folder | Where a downloaded `odb` is kept |
@@ -64,7 +63,7 @@ With `auto`, the script uses `ODB_BIN`, then `odb` 2.0.0 on the `PATH`, then Doc
 | 0 | Completed |
 | 2 | Completed with errors, below the error threshold: see `errors.jsonl` |
 | 3 | Failed: error threshold exceeded or a fatal error; see `report.json` |
-| 4 | Not started: preflight or configuration problem (bad bundle, schema drift, wrong passphrase, target not writable) |
+| 4 | Not started: preflight or configuration problem (bad bundle, schema drift, wrong credentials, target not writable) |
 | 5 | Cancelled after saving the checkpoint: run `./migrate.sh resume` |
 
 After the run, import `report.json` from the state directory into the Omni-Data-Bus project

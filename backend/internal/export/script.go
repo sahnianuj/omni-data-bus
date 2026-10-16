@@ -206,15 +206,17 @@ type scriptData struct {
 	Project, ExportedAt, ExportedBy, Version, BundleSHA256 string
 	MappingList, CredentialSummary                         string
 	Plaintext, Sealed, TargetHasCredentials                bool
-	Image, DownloadURL, CosignIdentity                     string
-	Checksums                                              map[string]string
-	EmbeddedPlatform                                       string
-	TargetKind, TargetPath, Runtime                        string
-	EnvRefs                                                []string
-	Mappings                                               []scriptMapping
-	SourceSummary, TargetSummary                           string
-	Refs, EnvExample                                       []string
-	BundleBase64, BinaryBase64                             string
+	// ConfigFile: the connections and credentials are in config.json beside the script (OC-155).
+	ConfigFile                         bool
+	Image, DownloadURL, CosignIdentity string
+	Checksums                          map[string]string
+	EmbeddedPlatform                   string
+	TargetKind, TargetPath, Runtime    string
+	EnvRefs                            []string
+	Mappings                           []scriptMapping
+	SourceSummary, TargetSummary       string
+	Refs, EnvExample                   []string
+	BundleBase64, BinaryBase64         string
 	// Folder is the zip's top-level directory: everything unzips (and runs) inside it.
 	Folder string
 }
@@ -229,9 +231,10 @@ type Artifact struct {
 // MaxArtifactBytes caps a generated download (the embedded binary is the largest part).
 const MaxArtifactBytes = 50 << 20
 
-// RenderScript builds the export zip: migrate.sh (0755), README.md and optionally the bundle,
-// all inside one folder named like the zip, so unzipping never scatters files.
-func RenderScript(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, version string) (Artifact, error) {
+// RenderScript builds the export zip: migrate.sh (0755), README.md, config.json (0600, when the
+// bundle has one) and optionally the bundle, all inside one folder named like the zip, so
+// unzipping never scatters files.
+func RenderScript(b Bundle, bundleJSON, runConfig []byte, s Script, cfg ScriptConfig, version string) (Artifact, error) {
 	d, err := scriptDataFor(b, bundleJSON, s, cfg, version)
 	if err != nil {
 		return Artifact{}, err
@@ -245,17 +248,36 @@ func RenderScript(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, versi
 	}
 	dir := d.Folder + "/"
 	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "migrate.sh", 0o755, script.Bytes()}, {dir + "README.md", 0o644, readme.Bytes()}}
+	if runConfig != nil {
+		files = append(files, zipFile{dir + RunConfigFile, 0o600, runConfig})
+	}
 	if s.IncludeBundle {
 		files = append(files, zipFile{dir + "bundle.odb.json", 0o600, bundleJSON})
 	}
-	body, err := zipFiles(files, b.CreatedAt)
+	return zipArtifact(d.Folder, files, b.CreatedAt)
+}
+
+// RenderBundle builds the "bundle" runtime's zip: bundle.odb.json and its config.json, for
+// `odb run --bundle bundle.odb.json --config config.json` (OC-155).
+func RenderBundle(b Bundle, bundleJSON, runConfig []byte) (Artifact, error) {
+	folder := exportFolder(b)
+	dir := folder + "/"
+	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "bundle.odb.json", 0o600, bundleJSON}}
+	if runConfig != nil {
+		files = append(files, zipFile{dir + RunConfigFile, 0o600, runConfig})
+	}
+	return zipArtifact(folder, files, b.CreatedAt)
+}
+
+func zipArtifact(folder string, files []zipFile, at time.Time) (Artifact, error) {
+	body, err := zipFiles(files, at)
 	if err != nil {
 		return Artifact{}, err
 	}
 	if len(body) > MaxArtifactBytes {
 		return Artifact{}, errors.New("the export is larger than 50 MB")
 	}
-	return Artifact{FileName: d.Folder + ".zip", ContentType: "application/zip", Body: body}, nil
+	return Artifact{FileName: folder + ".zip", ContentType: "application/zip", Body: body}, nil
 }
 
 // exportFolder names the zip and its top-level folder: odb-export-<project>-<yyyymmdd>.
@@ -324,6 +346,9 @@ func scriptDataFor(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, vers
 	case ModePlaintext:
 		d.CredentialSummary = "plaintext (no passphrase)"
 		d.Plaintext = true
+	case ModeConfig:
+		d.CredentialSummary = "in config.json beside migrate.sh (base64-encoded, not encrypted)"
+		d.ConfigFile = true
 	case ModeExternal:
 		d.CredentialSummary = "external (read from the environment or files at run time)"
 		envs := map[string]bool{}

@@ -57,11 +57,14 @@ The customer wants credentials baked into the script. We support that, but a scr
 
 | Mode | What is in the file | How the runner unlocks it | Default |
 |---|---|---|---|
-| `sealed` | Credentials encrypted with AES-256-GCM under a key derived with argon2id from an export passphrase | Passphrase from a prompt, `ODB_BUNDLE_PASSPHRASE`, or a passphrase file (e.g. a mounted secret) | ✅ |
+| `sealed` | Credentials encrypted with AES-256-GCM under a key derived with argon2id from an export passphrase | Passphrase from a prompt, `ODB_BUNDLE_PASSPHRASE`, or a passphrase file (e.g. a mounted secret) | Until 2026-10-16 |
 | `plaintext` | Credentials in clear text | Nothing to unlock | Explicit opt-in: typed confirmation, step-up re-authentication, audit event, warning banner in the file |
 | `external` | Only the names of env vars or secret files | Resolved at run time | |
+| `config` | Nothing: the connection details and credentials are in `config.json` beside the script, passwords base64-encoded (`base64:…`, not encryption) | `odb run --config` reads the file, laid over the bundle's connections; plain-text secrets are encoded and saved back (OC-155, OC-156) | ✅ |
 
-Exporting needs the `editor` role and a fresh password confirmation. Every export writes an audit event with its credential mode.
+**Update 2026-10-16 (user decision, OC-154 – OC-156):** operators run one export against several environments by editing the connection details, so the API now exports `config` mode only, with no passphrase and no password confirmation. `config.json` is written with mode 0600 and the README warns that base64 isn't encryption. Runners still open `sealed`, `plaintext` and `external` bundles.
+
+Exporting needs the `editor` role. Every export writes an audit event with its credential mode.
 
 ### D5 — Directory layout and file names are deterministic and reversible
 A document's file path is a pure function of its key and the target configuration (OC-039), so whoever holds the primary key can compute where the file is:
@@ -249,7 +252,7 @@ Canonical JSON (RFC 8785: sorted keys, shortest numbers) makes `integrity` repro
 | 0 | completed |
 | 2 | completed_with_errors (below the threshold) |
 | 3 | failed: error threshold exceeded or fatal write error |
-| 4 | preflight or configuration error (bad bundle, schema drift, wrong passphrase, target not writable, bad command line) |
+| 4 | preflight or configuration error (bad bundle or `config.json`, schema drift, wrong passphrase or credentials, target not writable, bad command line) |
 | 5 | cancelled (SIGINT or SIGTERM after draining and checkpointing) |
 
 stdout carries one JSON object per line: `{"ts","event":"start|progress|mapping_done|warning|done","jobId","mapping","read","written","failed","docsPerSec","etaSec"}`.

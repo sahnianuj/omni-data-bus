@@ -62,7 +62,7 @@ Couchbase with a live progress bar, and can be paused, resumed and verified.
 | Migration | Snapshot-consistent parallel streaming, batching, retries, dead-letter log, pause/resume, crash recovery | OC-023 – OC-029 |
 | Live progress | Progress bar, throughput, ETA, per-table progress, live error feed | OC-027, OC-028 |
 | Verification | Count reconciliation, sampled document comparison, downloadable report | OC-030 |
-| Portable runner | Export the project as configured as a `migrate.sh` script (or a bundle) that runs anywhere without the tool, its saved credentials sealed with a passphrase; import the run's report back | OC-050 – OC-055 |
+| Portable runner | Export the project as configured as a `migrate.sh` script (or a bundle) that runs anywhere without the tool, its connection details in an editable `config.json` (passwords base64-encoded) to run against any environment; import the run's report back | OC-050 – OC-055, OC-154 – OC-156 |
 
 ## How it works
 
@@ -316,8 +316,8 @@ The UI walks you through a project step by step (see the design preview linked f
 8. **Export** *(optional)* — Review → *Export…* opens the Export page; *New export* builds a `migrate.sh` that
    runs the migration on another machine without this tool. It exports the project exactly as
    configured — source, target, saved credentials and every ready mapping, shown read-only with a
-   link to each step to change them — and asks only for a passphrase (which seals the credentials)
-   and how the script runs. Afterwards *Import report* adds the run's `report.json` to the project's runs. See [Running an exported migration](#running-an-exported-migration-migratesh-odb-run).
+   link to each step to change them — and asks only how the script runs. The connection details
+   and credentials go in the export's `config.json`, which operators edit per environment. Afterwards *Import report* adds the run's `report.json` to the project's runs. See [Running an exported migration](#running-an-exported-migration-migratesh-odb-run).
 
 Roles: **owner** and **editor** can change things; **viewer** is read-only.
 
@@ -459,10 +459,10 @@ make appliance-push REGISTRY=registry.example.com/team    # both CPUs as one mul
 
 ### Running an exported migration (`migrate.sh`, `odb run`)
 
-An export (OC-053) is a zip with `migrate.sh` and a `README.md` written for that export. The script carries the mappings as a portable bundle and runs **`odb run`**, the same pipeline as the server (documents are byte-identical), with no web app, metadata store or access to the tool:
+An export (OC-053) is a zip with `migrate.sh`, `config.json` (the source and target connection details, passwords base64-encoded; OC-155, OC-156) and a `README.md` written for that export. The script carries the mappings as a portable bundle and runs **`odb run`**, the same pipeline as the server (documents are byte-identical), with no web app, metadata store or access to the tool:
 
 ```bash
-export ODB_BUNDLE_PASSPHRASE='…'      # sealed exports (or leave unset to be asked)
+vi config.json                         # optional: another host, user or password (plain text is encoded on the next run)
 ./migrate.sh preflight                 # source, credentials, schema drift, target: writes nothing
 ./migrate.sh run                       # JSON-lines progress on stdout, logs on stderr
 ./migrate.sh resume | status | verify  # continue after Ctrl+C or a crash; summarize; count documents
@@ -470,7 +470,7 @@ export ODB_BUNDLE_PASSPHRASE='…'      # sealed exports (or leave unset to be a
 
 `migrate.sh` finds `odb` in this order: `ODB_BIN`, a binary embedded in the script (air-gapped sites), `odb` on the `PATH`, Docker, then a download checked against the checksum written into the script. It needs bash 3.2+ (macOS or Linux). Exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration error, 5 cancelled (resume continues). The state directory (`ODB_STATE_DIR`, default `./odb-state`) holds `checkpoint.json`, `errors.jsonl` and `report.json`.
 
-The same works without the script: `odb bundle validate | inspect | diff` and `odb run --bundle bundle.odb.json …` (`odb run help`). Release binaries for linux and darwin come from `make dist` (`dist/odb/odb_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS`; the release workflow signs `SHA256SUMS` with cosign and attaches them to the GitHub release). Point the server's `OC_EXPORT_DIST_DIR` at that folder so scripts carry the checksums. The other export settings are in `.env.example`.
+The same works without the script: `odb bundle validate | inspect | diff` and `odb run --bundle bundle.odb.json --config config.json …` (`odb run help`). Release binaries for linux and darwin come from `make dist` (`dist/odb/odb_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS`; the release workflow signs `SHA256SUMS` with cosign and attaches them to the GitHub release). Point the server's `OC_EXPORT_DIST_DIR` at that folder so scripts carry the checksums. The other export settings are in `.env.example`.
 
 ## Working on a story (contributor workflow)
 

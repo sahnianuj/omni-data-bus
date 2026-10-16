@@ -1,21 +1,12 @@
 package export
 
 import (
-	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"math"
-	"math/big"
-	"strings"
-	"unicode"
-	"unicode/utf8"
-
-	"omnidatabus/internal/auth"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -112,116 +103,4 @@ func zero(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
-}
-
-// MinPassphraseLen is the shortest passphrase accepted.
-const MinPassphraseLen = 12
-
-// minPassphraseBits is the strength a passphrase needs, estimated as below (four diceware words
-// are 51.7 bits; 12 random letters and digits about 62).
-const minPassphraseBits = 50
-
-// PassphraseProblem returns why a passphrase is too weak, or "". The web dialog applies the
-// same rule (web/src/features/export/passphrase.ts), so both sides agree.
-func PassphraseProblem(p string) string {
-	if utf8.RuneCountInString(p) < MinPassphraseLen {
-		return "must be at least 12 characters"
-	}
-	if msg := auth.ValidatePassword(p, ""); msg != "" {
-		return msg
-	}
-	if PassphraseBits(p) < minPassphraseBits {
-		return "is too predictable: use more words or characters (Generate makes a strong one)"
-	}
-	return ""
-}
-
-// PassphraseBits estimates a passphrase's entropy. Words from the diceware list count 12.9 bits
-// each; any other run counts log2(character pool) per distinct character, so repeats and
-// keyboard runs ("aaaa…", "1234…") count for little.
-func PassphraseBits(p string) float64 {
-	fields := strings.FieldsFunc(strings.ToLower(p), func(r rune) bool { return r == ' ' || r == '-' || r == '.' || r == '_' })
-	words := 0
-	var rest []string
-	for _, f := range fields {
-		if _, ok := wordSet[f]; ok {
-			words++
-		} else {
-			rest = append(rest, f)
-		}
-	}
-	bits := float64(words) * math.Log2(float64(len(wordList)))
-	for _, r := range rest {
-		bits += runBits(r)
-	}
-	return bits
-}
-
-func runBits(s string) float64 {
-	pool := 0
-	var lower, upper, digit, other bool
-	distinct := map[rune]bool{}
-	var prev rune
-	steps := 0
-	for i, r := range s {
-		switch {
-		case unicode.IsLower(r):
-			lower = true
-		case unicode.IsUpper(r):
-			upper = true
-		case unicode.IsDigit(r):
-			digit = true
-		default:
-			other = true
-		}
-		// A character one more or less than the previous one ("abc", "321") adds nothing.
-		if i == 0 || (r != prev+1 && r != prev-1) {
-			distinct[r] = true
-			steps++
-		}
-		prev = r
-	}
-	for _, on := range []struct {
-		set  bool
-		size int
-	}{{lower, 26}, {upper, 26}, {digit, 10}, {other, 33}} {
-		if on.set {
-			pool += on.size
-		}
-	}
-	if pool == 0 {
-		return 0
-	}
-	n := min(len(distinct), steps)
-	return float64(n) * math.Log2(float64(pool))
-}
-
-//go:embed eff_large_wordlist.txt
-var wordListRaw string // EFF large word list (CC BY 3.0, https://www.eff.org/dice)
-
-var wordList, wordSet = func() ([]string, map[string]struct{}) {
-	var list []string
-	set := map[string]struct{}{}
-	sc := bufio.NewScanner(strings.NewReader(wordListRaw))
-	for sc.Scan() {
-		if w := strings.TrimSpace(sc.Text()); w != "" {
-			list = append(list, w)
-			set[w] = struct{}{}
-		}
-	}
-	return list, set
-}()
-
-// GeneratePassphrase returns six random diceware words joined by dashes (77 bits).
-func GeneratePassphrase() (string, error) {
-	words := make([]string, 6)
-	n := big.NewInt(int64(len(wordList)))
-	for i := range words {
-		k, err := rand.Int(rand.Reader, n)
-		if err != nil {
-			return "", err
-		}
-		words[i] = wordList[k.Int64()]
-	}
-	return strings.Join(words, "-"), nil
 }

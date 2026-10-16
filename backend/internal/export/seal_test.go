@@ -1,7 +1,6 @@
 package export
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -84,18 +83,4 @@ func TestSeal_AC2_AADBinding(t *testing.T) {
 	require.ErrorIs(t, err, ErrPassphrase)
 	// And b's integrity no longer verifies either.
 	require.Error(t, b.Verify())
-}
-
-func TestPassphrase_Strength(t *testing.T) {
-	for _, weak := range []string{"short", "aaaaaaaaaaaaaaaa", "abcdefghijklmnop", "123456789012", "password1234", "Password1234"} {
-		require.NotEmpty(t, PassphraseProblem(weak), weak)
-	}
-	for _, ok := range []string{"correct-horse-battery-staple", "Tr0ub4dor&3-xkcd-zebra", "q7#Lm2!vR9pZ"} {
-		require.Empty(t, PassphraseProblem(ok), ok)
-	}
-	g, err := GeneratePassphrase()
-	require.NoError(t, err)
-	require.Len(t, strings.Split(g, "-"), 6)
-	require.Empty(t, PassphraseProblem(g))
-	require.InDelta(t, 77.5, PassphraseBits(g), 0.5)
 }

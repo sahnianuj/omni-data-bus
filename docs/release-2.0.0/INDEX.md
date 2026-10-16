@@ -21,12 +21,12 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **65** | **286** |
-| ✅ Implemented | 56 | 243 |
+| **Total** | **68** | **296** |
+| ✅ Implemented | 59 | 253 |
 | 🚧 In progress | 0 | 0 |
 | ⬜ Not started | 9 | 43 |
 | Not yet implemented (in progress + not started) | 9 | 43 |
-| **Completion** | 86% | 85% |
+| **Completion** | 87% | 85% |
 | 🚫 Descoped (not counted above) | 1 | 5 |
 
 ### By priority
@@ -34,7 +34,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
 | P0 | Must have — release blocker | 34 | 198 | 27 / 163 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 27 | 84 | 25 / 76 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 30 | 94 | 28 / 86 |
 | P2 | Nice to have | 4 | 4 | 4 / 4 |
 
 ### By epic
@@ -45,7 +45,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | E8 Directory Target | 6 | 27 | 6 / 27 |
 | E9 Relationship Mapping | 12 | 61 | 8 / 42 |
 | E10 Document Composer | 23 | 90 | 23 / 90 |
-| E11 Portable Runner | 11 | 52 | 11 / 52 |
+| E11 Portable Runner | 14 | 62 | 14 / 62 |
 | E12 Harden & Ship 2.0 | 5 | 19 | 5 / 19 |
 | E13 Computed Fields | 5 | 24 | 0 / 0 |
 
@@ -90,7 +90,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 33 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | E9 Relationship Mapping | 3 | ⬜ Not started |
 | 34 | ~~[OC-153](OC-153-mapping-edits-kept-when-leaving.md)~~ | ~~Mapping edits are kept when leaving Design & Map~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (27 stories, 84 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (30 stories, 94 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -121,6 +121,9 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 25 | ~~[OC-148](OC-148-wrong-password-at-export-keeps-session.md)~~ | ~~A wrong password when confirming an export doesn't sign you out~~ | ~~E11 Portable Runner~~ | ~~1~~ | ✅ Implemented |
 | 26 | ~~[OC-150](OC-150-see-and-move-where-mappings-write.md)~~ | ~~See and change the bucket and scope each mapping writes to~~ | ~~E12 Harden & Ship 2.0~~ | ~~3~~ | ✅ Implemented |
 | 27 | ~~[OC-151](OC-151-no-self-or-duplicate-virtual-relationships.md)~~ | ~~No self-joins or duplicates in virtual relationships~~ | ~~E9 Relationship Mapping~~ | ~~2~~ | ✅ Implemented |
+| 28 | ~~[OC-154](OC-154-export-without-passphrase-or-password-confirmation.md)~~ | ~~Export without a passphrase or a password confirmation~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
+| 29 | ~~[OC-155](OC-155-connection-details-in-config-json.md)~~ | ~~Source and target connection details in `config.json`~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
+| 30 | ~~[OC-156](OC-156-config-json-passwords-in-base64.md)~~ | ~~Passwords in `config.json` are kept in base64; plain text is encoded on the next run~~ | ~~E11 Portable Runner~~ | ~~2~~ | ✅ Implemented |
 
 ### P2 — Nice to have (4 stories, 4 points)
 
@@ -146,6 +149,7 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase 6 — Computed fields | OC-136, OC-137, OC-138, OC-139, OC-140 | 24 | 0/5 (0 pts) | 🚧 Current | Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields, see it on sample documents, and get the same value in every run, export and target |
 | Phase 7 — Chained embeds | OC-141, OC-142, OC-143, OC-144 | 19 | 0/4 (0 pts) | ⬜ Planned | Embed an embedded object's own relationships from the source side or its foreign-key field, at any depth up to the limit, including parent hierarchies, with shared reads and a size hint |
 | Phase 8 — Trial feedback | ~~OC-153~~, ~~OC-147~~, ~~OC-146~~, ~~OC-150~~, ~~OC-151~~, ~~OC-148~~, ~~OC-152~~, ~~OC-149~~ | 16 | 8/8 (16 pts) | ✅ Done | Fixes from a customer trial: real row counts, partial embeds, no lost edits or sign-outs, one entry per related table, and seeing and moving where mappings write |
+| Phase 9 — Editable run settings | ~~OC-154~~, ~~OC-155~~, ~~OC-156~~ | 10 | 3/3 (10 pts) | ✅ Done | Export without a passphrase or password prompt; run the same script against another environment by editing the connection details in config.json, with passwords kept in base64 |
 
 ## Stories by phase
 
@@ -279,6 +283,16 @@ _Fixes from a customer trial: real row counts, partial embeds, no lost edits or 
 | 6 | [OC-148](OC-148-wrong-password-at-export-keeps-session.md) | A wrong password when confirming an export doesn't sign you out | P1 | E11 Portable Runner | 1 | OC-052, OC-053 | ✅ Implemented |
 | 7 | [OC-152](OC-152-embedded-table-shows-its-relationships.md) | An embedded table opens to show what it references | P2 | E9 Relationship Mapping | 1 | OC-042, OC-043 | ✅ Implemented |
 | 8 | [OC-149](OC-149-script-help-shows-only-what-is-needed.md) | `migrate.sh help` shows only what's needed to run it | P2 | E11 Portable Runner | 1 | OC-053 | ✅ Implemented |
+
+### Phase 9 — Editable run settings — ✅ Done (3/3 stories, 10/10 points)
+
+_Export without a passphrase or password prompt; run the same script against another environment by editing the connection details in config.json, with passwords kept in base64._
+
+| # | ID | Story | Priority | Epic | Points | Depends on | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | [OC-154](OC-154-export-without-passphrase-or-password-confirmation.md) | Export without a passphrase or a password confirmation | P1 | E11 Portable Runner | 3 | OC-052, OC-055 | ✅ Implemented |
+| 2 | [OC-155](OC-155-connection-details-in-config-json.md) | Source and target connection details in `config.json` | P1 | E11 Portable Runner | 5 | OC-051, OC-053, OC-154 | ✅ Implemented |
+| 3 | [OC-156](OC-156-config-json-passwords-in-base64.md) | Passwords in `config.json` are kept in base64; plain text is encoded on the next run | P1 | E11 Portable Runner | 2 | OC-155 | ✅ Implemented |
 
 ## Descoped
 

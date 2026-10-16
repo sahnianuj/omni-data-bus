@@ -22,11 +22,13 @@ const (
 	ModeSealed    = "sealed"
 	ModePlaintext = "plaintext"
 	ModeExternal  = "external"
+	// ModeConfig: the secrets are in the run's config file, config.json (OC-155).
+	ModeConfig = "config"
 )
 
 // Bundle is a portable migration (architecture §6.3, schema api/bundle.schema.json): everything
 // `odb run` needs to migrate without the tool. It never holds a secret in clear text unless its
-// credential mode is plaintext.
+// credential mode is plaintext; in config mode the secrets are in config.json beside it.
 type Bundle struct {
 	BundleVersion int        `json:"bundleVersion"`
 	OdbVersion    string     `json:"odbVersion"` // the runner versions that may run it, e.g. ">=2.0.0 <3.0.0"
@@ -58,7 +60,8 @@ type Connection struct {
 	Credentials *Credentials    `json:"credentials,omitempty"`
 }
 
-// Credentials is a connection's secrets in one of the three modes (OC-052).
+// Credentials is a connection's secrets in one of the modes (OC-052, OC-155). A config-mode
+// block holds nothing: the run's config file has the secrets.
 type Credentials struct {
 	Mode string `json:"mode"`
 	// Sealed: AES-256-GCM over the secrets JSON, key from KDF, AAD = the bundle's content hash.

@@ -60,7 +60,7 @@ describe('RelatedTree', () => {
   it('an embedded table opens to show what it references, so that can be embedded next', async () => {
     server.use(http.get('*/api/v1/connections/:id/relations', () => HttpResponse.json(ordersGraph())))
     const view = ordersView()
-    view.spec = { ...view.spec, relations: [{ id: 'emb_i', kind: 'one-to-many', table: { schema: 'public', name: 'order_items' }, join: [{ parent: 'order_id', child: 'order_id' }] }] }
+    view.spec = { ...view.spec, relations: [{ id: 'emb_i', parentId: null, kind: 'one-to-many', table: { schema: 'public', name: 'order_items' }, join: [{ parent: 'order_id', child: 'order_id' }] }] }
     renderWorkbench(<RelatedTree />, view)
     const items = await screen.findByTestId('related-order_items')
     expect(within(items).getAllByText('Embedded')[0]).toBeInTheDocument()

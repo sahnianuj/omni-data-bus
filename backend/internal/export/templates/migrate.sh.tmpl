@@ -6,6 +6,11 @@
 {{- if .Plaintext}}
 # WARNING: contains plaintext database credentials
 {{- end}}
+{{- if .ConfigFile}}
+# Connection details and credentials: config.json beside this script. Edit it to run against
+# another environment; passwords are kept base64-encoded (not encrypted) and a plain-text one is
+# encoded on the next run.
+{{- end}}
 #
 # Run ./migrate.sh help for the commands. Needs bash 3.2 or later, and to fetch odb: curl or
 # wget, plus sha256sum or shasum (or docker).
@@ -32,6 +37,9 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 : "${ODB_RUNTIME:={{.Runtime}}}"                   # auto | binary | docker | embedded
 : "${ODB_DOCKER_ARGS:=}"                   # extra docker run arguments, e.g. --network host
 : "${ODB_CACHE_DIR:=$HERE/odb-cache}"      # downloaded odb binaries
+{{- if .ConfigFile}}
+: "${ODB_CONFIG:=$HERE/config.json}"       # source and target connection details
+{{- end}}
 
 SELF="${BASH_SOURCE[0]}"
 WORK=""
@@ -80,6 +88,9 @@ commands:
   help               this text
 
 Nothing needs to be set to run it. Optional ODB_* settings (e.g. to run unattended): README.md.
+{{- if .ConfigFile}}
+Connection details and credentials: config.json (edit it to use another environment).
+{{- end}}
 
 exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration
             error, 5 cancelled (run ./migrate.sh resume)
@@ -277,9 +288,21 @@ odb_exec() {
   local sub=$1
   shift
   unpack
+{{- if .ConfigFile}}
+  # odb reads the connection details from config.json and writes it back when it encodes a
+  # plain-text password, so docker mounts its folder read-write.
+  [ -f "$ODB_CONFIG" ] || die 4 "$ODB_CONFIG not found: it holds the source and target connection details (unzip the export again, or set ODB_CONFIG)"
+  local cfgdir cfgname
+  cfgdir=$(cd "$(dirname "$ODB_CONFIG")" && pwd)
+  cfgname=${ODB_CONFIG##*/}
+{{- end}}
   if [ "$MODE" = docker ]; then
     local d=(run --rm -i --user "$(id -u):$(id -g)" -v "$WORK:/work:ro" -v "$(abspath "$ODB_STATE_DIR"):/state")
     set -- "$@" --bundle /work/bundle.odb.json --state-dir /state
+{{- if .ConfigFile}}
+    d+=(-v "$cfgdir:/config")
+    set -- "$@" --config "/config/$cfgname"
+{{- end}}
     if [ "$ODB_TARGET_KIND" = directory ]; then
       d+=(-v "$(abspath "$ODB_TARGET_PATH"):/out")
       set -- "$@" --target-path /out
@@ -292,6 +315,9 @@ odb_exec() {
     docker "${d[@]}" $ODB_DOCKER_ARGS "$ODB_IMAGE" $sub "$@"
   else
     set -- "$@" --bundle "$BUNDLE" --state-dir "$ODB_STATE_DIR"
+{{- if .ConfigFile}}
+    set -- "$@" --config "$cfgdir/$cfgname"
+{{- end}}
     if [ "$ODB_TARGET_KIND" = directory ]; then
       set -- "$@" --target-path "$(abspath "$ODB_TARGET_PATH")"
     fi

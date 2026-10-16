@@ -53,7 +53,7 @@ func variants(t *testing.T) map[string]struct {
 		if kind == store.KindDirectory {
 			f.toDirectory(t, "/data/out dir")
 		}
-		for _, mode := range []string{ModeSealed, ModePlaintext, ModeExternal} {
+		for _, mode := range []string{ModeSealed, ModePlaintext, ModeExternal, ModeConfig} {
 			req := Request{CredentialMode: mode, Passphrase: passphrase}
 			b := f.build(t, req).Bundle
 			raw := encode(t, b)
@@ -146,9 +146,10 @@ func TestScript_HeaderAndPayload(t *testing.T) {
 func TestScript_ZipContents(t *testing.T) {
 	cfg := testScriptConfig(t)
 	f := newFixture(t)
-	b := f.build(t, externalReq()).Bundle
+	built := f.build(t, Request{CredentialMode: ModeConfig})
+	b := built.Bundle
 	raw := encode(t, b)
-	art, err := RenderScript(b, raw, Script{IncludeBundle: true}, cfg, "2.0.0")
+	art, err := RenderScript(b, raw, built.RunConfig, Script{IncludeBundle: true}, cfg, "2.0.0")
 	require.NoError(t, err)
 	require.Equal(t, "odb-export-shop-docs-20261001.zip", art.FileName)
 	zr, err := zip.NewReader(bytes.NewReader(art.Body), int64(len(art.Body)))
@@ -163,15 +164,46 @@ func TestScript_ZipContents(t *testing.T) {
 	require.Equal(t, os.FileMode(0o755), names[dir+"migrate.sh"])
 	require.Contains(t, names, dir+"README.md")
 	require.Contains(t, names, dir+"bundle.odb.json")
-	require.Len(t, names, 4)
+	require.Equal(t, os.FileMode(0o600), names[dir+"config.json"], "the credentials: owner only")
+	require.Len(t, names, 5)
 	for _, zf := range zr.File {
-		if zf.Name == dir+"bundle.odb.json" {
-			rc, _ := zf.Open()
-			data, _ := io.ReadAll(rc)
-			_ = rc.Close()
+		rc, _ := zf.Open()
+		data, _ := io.ReadAll(rc)
+		_ = rc.Close()
+		switch zf.Name {
+		case dir + "bundle.odb.json":
 			require.Equal(t, raw, data)
+		case dir + "config.json":
+			require.Equal(t, built.RunConfig, data)
 		}
 	}
+}
+
+// TestReadmeTemplate_ConfigFile: a config-mode export explains config.json, its base64
+// passwords and ODB_CONFIG, and its script passes the file to odb (OC-155, OC-156).
+func TestReadmeTemplate_ConfigFile(t *testing.T) {
+	f := newFixture(t)
+	b := f.build(t, Request{CredentialMode: ModeConfig}).Bundle
+	script, readme, err := RenderScriptFiles(b, encode(t, b), Script{Runtime: "auto"}, testScriptConfig(t), "2.0.0")
+	require.NoError(t, err)
+	for _, s := range []string{
+		"**Credentials:** in config.json beside migrate.sh (base64-encoded, not encrypted)",
+		"### Run it against another environment", "encodes it and saves `config.json` again",
+		"| `ODB_CONFIG` | `config.json` in this folder |", "is not encryption",
+	} {
+		require.Contains(t, string(readme), s)
+	}
+	require.NotContains(t, string(readme), "ODB_BUNDLE_PASSPHRASE", "nothing to unseal")
+	for _, s := range []string{`: "${ODB_CONFIG:=$HERE/config.json}"`, `--config "$cfgdir/$cfgname"`, `--config "/config/$cfgname"`, "Connection details and credentials: config.json"} {
+		require.Contains(t, string(script), s)
+	}
+
+	// Other modes have no config file.
+	b = f.build(t, externalReq()).Bundle
+	script, readme, err = RenderScriptFiles(b, encode(t, b), Script{Runtime: "auto"}, testScriptConfig(t), "2.0.0")
+	require.NoError(t, err)
+	require.NotContains(t, string(script), "ODB_CONFIG")
+	require.NotContains(t, string(readme), "config.json")
 }
 
 func TestReadmeTemplate_AC7_Golden(t *testing.T) {

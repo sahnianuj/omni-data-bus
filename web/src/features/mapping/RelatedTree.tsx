@@ -144,8 +144,8 @@ export function RelatedTree() {
             <span className="w-3.5" />
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1 truncate">
-              {t(h.kind === 'many-to-one' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}
+            <div className="flex min-w-0 items-center gap-1" title={t(h.kind === 'many-to-one' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}>
+              <span className="truncate">{t(h.kind === 'many-to-one' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}</span>
               {h.virtual ? <Badge tone="primary">{t('embed.virtual')}</Badge> : null}
             </div>
             <div className="flex items-center gap-1 text-[11px] text-subtle">
@@ -164,10 +164,10 @@ export function RelatedTree() {
             </div>
           </div>
           {embedded ? (
-            <Badge tone="success">{t('embed.embedded')}</Badge>
+            <Badge tone="success" className="shrink-0">{t('embed.embedded')}</Badge>
           ) : (
             <Can role="editor">
-              <Button size="sm" variant="secondary" onClick={() => embedPath(full)}>
+              <Button size="sm" variant="secondary" className="h-7 shrink-0 px-2.5 text-xs" onClick={() => embedPath(full)}>
                 {t('embed.embed')}
               </Button>
             </Can>
@@ -209,18 +209,26 @@ export function RelatedTree() {
                 {junctions.map((j) => (
                   <li key={`${j.via.name}-${j.table.name}-${joinKey(j.childJoin.map((c) => ({ parent: c.via, child: c.child ?? '' })))}`} data-testid={`junction-${j.via.name}-${j.table.name}`} className="flex items-center gap-2 py-1.5 pl-[26px] pr-3 text-[13px]">
                     <div className="min-w-0 flex-1">
-                      <div className="truncate">
+                      <div className="truncate" title={`${t('embed.junction', { table: j.table.name, via: j.via.name })}${j.payloadColumns.length > 0 ? ` (${j.payloadColumns.join(', ')})` : ''}`}>
                         {t('embed.junction', { table: j.table.name, via: j.via.name })}
                         {j.payloadColumns.length > 0 ? <span className="text-subtle"> ({j.payloadColumns.join(', ')})</span> : null}
                       </div>
-                      <div className="text-[11px] text-subtle">{t(`embed.confidence.${j.confidence}`)}</div>
+                      <div className="truncate text-[11px] text-subtle">{t(`embed.confidence.${j.confidence}`)}</div>
                     </div>
                     {junctionEmbedded(j) ? (
-                      <Badge tone="success">{t('embed.embedded')}</Badge>
+                      <Badge tone="success" className="shrink-0">{t('embed.embedded')}</Badge>
                     ) : (
                       <Can role="editor">
-                        <Button size="sm" variant="secondary" onClick={() => setPlan({ mode: 'junction', junction: j, ...(base(j.parentJoin) ? { parentId: base(j.parentJoin), parentLabel: groupName } : {}) })}>
-                          {t('embed.embedArray', { table: j.table.name })}
+                        {/* The row already names the table: a short label keeps the button from crowding it out. */}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 shrink-0 px-2.5 text-xs"
+                          aria-label={t('embed.embedArray', { table: j.table.name })}
+                          title={t('embed.embedArray', { table: j.table.name })}
+                          onClick={() => setPlan({ mode: 'junction', junction: j, ...(base(j.parentJoin) ? { parentId: base(j.parentJoin), parentLabel: groupName } : {}) })}
+                        >
+                          {t('embed.embedArrayShort')}
                         </Button>
                       </Can>
                     )}

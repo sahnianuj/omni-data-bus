@@ -3,6 +3,7 @@ package export
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -45,8 +46,7 @@ func newAPI(t *testing.T) *api {
 		Workspace: store.Workspace{ID: string(ws), Name: "W"},
 		Session:   store.Session{ID: "s1", UserID: a.userID, WorkspaceID: string(ws), ExpiresAt: a.now.Add(time.Hour)},
 	}))
-	stepped := a.now.Add(-time.Minute)
-	a.who = &auth.Principal{UserID: a.userID, WorkspaceID: ws, Role: store.RoleEditor, SessionID: "s1", StepUpAt: &stepped}
+	a.who = &auth.Principal{UserID: a.userID, WorkspaceID: ws, Role: store.RoleEditor, SessionID: "s1"}
 	f.b.Now = func() time.Time { return a.now }
 	a.svc = &Service{
 		Builder: f.b, Store: f.st, Audit: &audit.Recorder{Store: f.st.Audit()}, Script: testScriptConfig(t), Version: "2.0.0",
@@ -90,13 +90,43 @@ func problemOf(t *testing.T, rec *httptest.ResponseRecorder) problem.Problem {
 	return p
 }
 
-func sealedReq() Input {
-	return Input{Passphrase: passphrase, Runtime: RuntimeScript}
+func scriptReq() Input { return Input{Runtime: RuntimeScript} }
+
+// unzip returns the files of a zip download by name, without the top-level folder.
+func unzip(t *testing.T, body []byte) map[string]*zip.File {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	require.NoError(t, err)
+	out := map[string]*zip.File{}
+	for _, f := range zr.File {
+		if _, name, ok := strings.Cut(f.Name, "/"); ok && name != "" {
+			out[name] = f
+		}
+	}
+	return out
+}
+
+func read(t *testing.T, f *zip.File) []byte {
+	t.Helper()
+	rc, err := f.Open()
+	require.NoError(t, err)
+	defer func() { _ = rc.Close() }()
+	data, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	return data
+}
+
+// exportedBundle is the bundle of a "bundle" runtime download.
+func exportedBundle(t *testing.T, body []byte) *Bundle {
+	t.Helper()
+	b, err := Parse(read(t, unzip(t, body)["bundle.odb.json"]), "2.0.0")
+	require.NoError(t, err)
+	return b
 }
 
 func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 	a := newAPI(t)
-	rec := a.export(sealedReq())
+	rec := a.export(scriptReq())
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	require.Equal(t, "application/zip", rec.Header().Get("Content-Type"))
 	require.Contains(t, rec.Header().Get("Content-Disposition"), `filename="odb-export-shop-docs-20261001.zip"`)
@@ -108,43 +138,41 @@ func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 		names = append(names, f.Name)
 	}
 	const dir = "odb-export-shop-docs-20261001/"
-	require.ElementsMatch(t, []string{dir, dir + "migrate.sh", dir + "README.md"}, names)
+	require.ElementsMatch(t, []string{dir, dir + "migrate.sh", dir + "README.md", dir + "config.json"}, names)
 
-	// runtime bundle: the .odb.json alone.
-	rec = a.export(Input{Passphrase: passphrase, Runtime: RuntimeBundle})
+	// runtime bundle: the .odb.json and its config.json (OC-155).
+	rec = a.export(Input{Runtime: RuntimeBundle})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-	_, err = Parse(rec.Body.Bytes(), "2.0.0")
-	require.NoError(t, err)
+	require.Equal(t, "application/zip", rec.Header().Get("Content-Type"))
+	files := unzip(t, rec.Body.Bytes())
+	require.Len(t, files, 2)
+	require.Equal(t, os.FileMode(0o600), files["config.json"].Mode().Perm())
+	require.Equal(t, ModeConfig, exportedBundle(t, rec.Body.Bytes()).Source.Credentials.Mode)
 }
 
 func TestExportsAPI_AC4_Authorization(t *testing.T) {
 	a := newAPI(t)
-	// No step-up within 5 minutes.
-	old := a.now.Add(-6 * time.Minute)
-	a.who.StepUpAt = &old
-	rec := a.export(sealedReq())
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.Equal(t, problem.CodeStepUpRequired, problemOf(t, rec).Code)
-	a.who.StepUpAt = nil
-	require.Equal(t, problem.CodeStepUpRequired, problemOf(t, a.export(sealedReq())).Code)
+	// No passphrase and no password confirmation (OC-154): an editor without a step-up exports.
+	require.Nil(t, a.who.StepUpAt)
+	rec := a.export(scriptReq())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	require.Equal(t, http.StatusNotFound, a.do(http.MethodPost, "/exports/passphrase", nil).Code, "no passphrase to generate")
 
-	// A viewer can't export (nor generate passphrases).
-	recent := a.now
-	a.who.StepUpAt, a.who.Role = &recent, store.RoleViewer
-	require.Equal(t, http.StatusForbidden, a.export(sealedReq()).Code)
-	require.Equal(t, http.StatusForbidden, a.do(http.MethodPost, "/exports/passphrase", nil).Code)
+	// A viewer can't export.
+	a.who.Role = store.RoleViewer
+	require.Equal(t, http.StatusForbidden, a.export(scriptReq()).Code)
 	require.Equal(t, http.StatusOK, a.do(http.MethodGet, "/projects/"+a.f.project.ID+"/exports", nil).Code, "viewers see the history")
 
-	// What is exported is the project as configured, sealed: the API takes nothing else.
+	// What is exported is the project as configured: the API takes nothing else.
 	a.who.Role = store.RoleEditor
 	for _, extra := range []map[string]any{
+		{"passphrase": passphrase},
 		{"mappingIds": []string{a.f.orders.ID}},
 		{"targetOverride": map[string]any{"type": "directory", "config": map[string]any{"path": "/out"}}},
 		{"credentialMode": "plaintext"},
 		{"refs": map[string]any{"source": map[string]any{"password": "env:X"}}},
 	} {
-		body := map[string]any{"passphrase": passphrase, "runtime": RuntimeBundle}
+		body := map[string]any{"runtime": RuntimeBundle}
 		for k, v := range extra {
 			body[k] = v
 		}
@@ -153,43 +181,24 @@ func TestExportsAPI_AC4_Authorization(t *testing.T) {
 	}
 
 	// An unknown runtime: 422.
-	rec = a.export(Input{Passphrase: passphrase, Runtime: "zip"})
+	rec = a.export(Input{Runtime: "zip"})
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-}
-
-func TestExportsAPI_AC4_PassphraseStrength(t *testing.T) {
-	a := newAPI(t)
-	for _, weak := range []string{"", "short", "aaaaaaaaaaaaaaaa", "password1234"} {
-		rec := a.export(Input{Passphrase: weak})
-		require.Equal(t, http.StatusUnprocessableEntity, rec.Code, weak)
-		require.Equal(t, problem.CodePassphraseWeak, problemOf(t, rec).Code, weak)
-	}
-	// Generate gives a strong one; it isn't stored anywhere.
-	rec := a.do(http.MethodPost, "/exports/passphrase", nil)
-	require.Equal(t, http.StatusOK, rec.Code)
-	var gen struct{ Passphrase string }
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &gen))
-	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
-	rec = a.export(Input{Passphrase: gen.Passphrase})
-	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 }
 
 func TestExportsAPI_RateLimit(t *testing.T) {
 	a := newAPI(t)
 	for range MaxExportsPerHour {
-		require.Equal(t, http.StatusCreated, a.export(Input{Passphrase: passphrase}).Code)
+		require.Equal(t, http.StatusCreated, a.export(Input{}).Code)
 	}
-	rec := a.export(Input{Passphrase: passphrase})
+	rec := a.export(Input{})
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 	a.now = a.now.Add(61 * time.Minute)
-	stepped := a.now
-	a.who.StepUpAt = &stepped
-	require.Equal(t, http.StatusCreated, a.export(Input{Passphrase: passphrase}).Code)
+	require.Equal(t, http.StatusCreated, a.export(Input{}).Code)
 }
 
 func TestExportsAPI_AC6_AuditEvent(t *testing.T) {
 	a := newAPI(t)
-	rec := a.export(sealedReq())
+	rec := a.export(scriptReq())
 	require.Equal(t, http.StatusCreated, rec.Code)
 	events, err := a.f.st.Audit().List(ctx, ws, 50)
 	require.NoError(t, err)
@@ -202,31 +211,25 @@ func TestExportsAPI_AC6_AuditEvent(t *testing.T) {
 	require.Len(t, found, 1)
 	var meta map[string]string
 	require.NoError(t, json.Unmarshal(found[0].Metadata, &meta))
-	require.Equal(t, ModeSealed, meta["credentialMode"])
+	require.Equal(t, ModeConfig, meta["credentialMode"])
 	require.Equal(t, RuntimeScript, meta["runtime"])
 	require.Equal(t, rec.Header().Get("X-Odb-Bundle-Sha256"), meta["bundleSha256"])
 	require.Equal(t, a.f.orders.ID+","+a.f.items.ID, meta["mappingIds"])
 	raw, _ := json.Marshal(found[0])
-	require.Empty(t, ScanForSecrets(raw, pgPassword, cbPassword, passphrase))
+	require.Empty(t, ScanForSecrets(raw, pgPassword, cbPassword))
 }
 
-// TestExport_AC3_NoLeakScanner: in sealed and external modes no credential or passphrase is in
-// the download, the history, the audit log, the server logs or any API response.
+// TestExport_AC3_NoLeakScanner: no credential is anywhere but the download's config.json: not in
+// the script, README or bundle, the history, the audit log, the server logs or any API response.
 func TestExport_AC3_NoLeakScanner(t *testing.T) {
 	a := newAPI(t)
 	var artifacts [][]byte
-	for _, req := range []Input{sealedReq(), {Passphrase: passphrase, Runtime: RuntimeBundle}} {
+	for _, req := range []Input{scriptReq(), {Runtime: RuntimeBundle}} {
 		rec := a.export(req)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-		artifacts = append(artifacts, rec.Body.Bytes())
-		if req.Runtime == RuntimeScript {
-			zr, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
-			require.NoError(t, err)
-			for _, f := range zr.File {
-				rc, _ := f.Open()
-				data, _ := io.ReadAll(rc)
-				_ = rc.Close()
-				artifacts = append(artifacts, data)
+		for name, f := range unzip(t, rec.Body.Bytes()) {
+			if name != RunConfigFile {
+				artifacts = append(artifacts, read(t, f))
 			}
 		}
 	}
@@ -244,42 +247,51 @@ func TestExport_AC3_NoLeakScanner(t *testing.T) {
 	}
 	artifacts = append(artifacts, a.logs.Bytes())
 	for i, data := range artifacts {
-		require.Empty(t, ScanForSecrets(data, pgPassword, cbPassword, passphrase), "artifact %d", i)
+		require.Empty(t, ScanForSecrets(data, pgPassword, cbPassword), "artifact %d: %.300s", i, data)
 	}
 }
 
-// TestExportsAPI_SealsSavedCredentials: the bundle carries the project's saved source and
-// target credentials, readable only with the passphrase.
-func TestExportsAPI_SealsSavedCredentials(t *testing.T) {
+// TestExportsAPI_ConfigFileCarriesCredentials: config.json holds the project's saved source and
+// target connection details, with the passwords base64-encoded (OC-155 AC1, OC-156 AC1).
+func TestExportsAPI_ConfigFileCarriesCredentials(t *testing.T) {
 	a := newAPI(t)
-	rec := a.export(Input{Passphrase: passphrase, Runtime: RuntimeBundle})
+	rec := a.export(scriptReq())
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	b, err := Parse(rec.Body.Bytes(), "2.0.0")
+	f := unzip(t, rec.Body.Bytes())[RunConfigFile]
+	require.Equal(t, os.FileMode(0o600), f.Mode().Perm())
+	raw := read(t, f)
+	require.Contains(t, string(raw), `"password": "base64:`+base64.StdEncoding.EncodeToString([]byte(pgPassword))+`"`)
+	require.NotContains(t, string(raw), pgPassword, "never in plain text")
+	rc, plain, err := ParseRunConfig(raw)
 	require.NoError(t, err)
-	require.Equal(t, ModeSealed, b.Source.Credentials.Mode)
-	src, err := Unseal(b.Source.Credentials, passphrase, b.Integrity.ContentSHA256)
-	require.NoError(t, err)
-	require.Equal(t, pgPassword, src["password"])
-	tgt, err := Unseal(b.Target.Credentials, passphrase, b.Integrity.ContentSHA256)
-	require.NoError(t, err)
-	require.Equal(t, cbPassword, tgt["password"])
-	require.Empty(t, ScanForSecrets(rec.Body.Bytes(), pgPassword, cbPassword, passphrase))
+	require.Empty(t, plain)
+	require.Equal(t, "postgres", rc.Source.Type)
+	require.JSONEq(t, `"db.internal"`, string(rc.Source.Config["host"]))
+	require.JSONEq(t, `"migrator"`, string(rc.Source.Config["username"]))
+	require.Equal(t, Secrets{"password": pgPassword}, rc.Source.Secrets)
+	require.Equal(t, "couchbase", rc.Target.Type)
+	require.JSONEq(t, `"couchbases://cb.example.com"`, string(rc.Target.Config["connectionString"]))
+	require.Equal(t, Secrets{"password": cbPassword}, rc.Target.Secrets)
+
+	// The bundle has no credential: they're in config.json.
+	rec = a.export(Input{Runtime: RuntimeBundle})
+	b := exportedBundle(t, rec.Body.Bytes())
+	require.Equal(t, &Credentials{Mode: ModeConfig}, b.Source.Credentials)
+	require.Equal(t, &Credentials{Mode: ModeConfig}, b.Target.Credentials)
 }
 
 func TestExportsHistory_AC3_ListAndCompare(t *testing.T) {
 	a := newAPI(t)
 	for _, rt := range []string{RuntimeScript, RuntimeBundle, RuntimeScript} {
 		a.now = a.now.Add(time.Minute)
-		stepped := a.now
-		a.who.StepUpAt = &stepped
-		require.Equal(t, http.StatusCreated, a.export(Input{Passphrase: passphrase, Runtime: rt}).Code)
+		require.Equal(t, http.StatusCreated, a.export(Input{Runtime: rt}).Code)
 	}
 	var page struct{ Items []HistoryItem }
 	rec := a.do(http.MethodGet, "/projects/"+a.f.project.ID+"/exports", nil)
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &page))
 	require.Len(t, page.Items, 3)
 	require.Equal(t, []string{RuntimeScript, RuntimeBundle, RuntimeScript}, []string{page.Items[0].Runtime, page.Items[1].Runtime, page.Items[2].Runtime})
-	require.Equal(t, ModeSealed, page.Items[0].CredentialMode)
+	require.Equal(t, ModeConfig, page.Items[0].CredentialMode)
 	require.True(t, page.Items[0].CreatedAt.After(page.Items[1].CreatedAt), "newest first")
 	require.Len(t, page.Items[0].BundleSHA256, 64)
 	require.Equal(t, "editor@example.com", page.Items[0].CreatedByEmail)
@@ -325,11 +337,10 @@ func (a *api) importReport(raw []byte) *httptest.ResponseRecorder {
 
 func TestRunsImport_AC4_Valid(t *testing.T) {
 	a := newAPI(t)
-	rec := a.export(Input{Passphrase: passphrase})
+	rec := a.export(Input{})
 	require.Equal(t, http.StatusCreated, rec.Code)
 	exportID := rec.Header().Get("X-Odb-Export-Id")
-	b, err := Parse(rec.Body.Bytes(), "2.0.0")
-	require.NoError(t, err)
+	b := exportedBundle(t, rec.Body.Bytes())
 
 	rec = a.importReport(report(*b, store.JobCompletedWithErrors))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -392,7 +403,7 @@ func TestExportsAPI_Options(t *testing.T) {
 	require.Equal(t, []string{"darwin_arm64", "linux_amd64"}, o.Downloadable, "from SHA256SUMS")
 	require.Contains(t, o.Embeddable, runtime.GOOS+"_"+runtime.GOARCH, "the test dist's tarball, or this server's own binary")
 	require.Equal(t, MaxExportsPerHour, o.MaxPerHour)
-	require.Equal(t, 300, o.StepUpWindowSec)
+	require.NotContains(t, rec.Body.String(), "passphrase", "nothing about passphrases (OC-154)")
 }
 
 func TestBundle_OptionsRoundTripAndSecrets(t *testing.T) {

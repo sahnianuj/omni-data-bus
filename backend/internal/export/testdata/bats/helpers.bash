@@ -1,7 +1,8 @@
 # Shared setup for the migrate.sh suites. The Go test (bats_test.go) generates the scripts and
 # stubs and exports: SCRIPT_EMBEDDED (auto, with an embedded stub odb), SCRIPT_PLAIN (auto, no
 # embedded odb, downloads from a local server), SCRIPT_TAMPERED (binary, the server sends a
-# tampered tarball), STUBS (stub odb binaries and a stub docker), BUNDLE_SHA.
+# tampered tarball), SCRIPT_CONFIG (auto, a config-mode export beside its config.json), STUBS
+# (stub odb binaries and a stub docker), BUNDLE_SHA.
 
 setup() {
   WORKDIR="$BATS_TEST_TMPDIR/work"
@@ -24,7 +25,7 @@ setup() {
     fi
   done
   export PATH="$BATS_TEST_TMPDIR/sysbin"
-  unset ODB_BIN ODB_RUNTIME STUB_EXIT STUB_SLEEP
+  unset ODB_BIN ODB_RUNTIME ODB_CONFIG STUB_EXIT STUB_SLEEP
 }
 
 # with_stub NAME puts stubs/NAME on the PATH as odb (or docker).

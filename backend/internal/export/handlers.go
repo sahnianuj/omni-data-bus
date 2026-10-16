@@ -24,7 +24,6 @@ func (h Handlers) Routes(r chi.Router) {
 		r.Get("/projects/{id}/exports", h.history)
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireRole(store.RoleEditor))
-			r.Post("/exports/passphrase", h.passphrase)
 			r.Post("/projects/{id}/exports", h.export)
 			r.Post("/projects/{id}/runs/import", h.importReport)
 		})
@@ -40,17 +39,6 @@ func (h Handlers) options(w http.ResponseWriter, _ *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, h.Svc.Describe())
 }
 
-// passphrase generates a diceware passphrase for the export dialog. It isn't stored anywhere.
-func (h Handlers) passphrase(w http.ResponseWriter, r *http.Request) {
-	p, err := GeneratePassphrase()
-	if err != nil {
-		problem.Write(w, r, err)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"passphrase": p})
-}
-
 // export streams the bundle or the script zip as a download.
 func (h Handlers) export(w http.ResponseWriter, r *http.Request) {
 	var in Input
@@ -59,7 +47,6 @@ func (h Handlers) export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	art, rec, err := h.Svc.Export(r.Context(), principal(r), chi.URLParam(r, "id"), in)
-	in.Passphrase = "" // not kept past the build
 	if err != nil {
 		problem.Write(w, r, err)
 		return

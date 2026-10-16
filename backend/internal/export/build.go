@@ -24,11 +24,12 @@ import (
 
 // Request is how the builder packages a project: what is exported is always the project as
 // configured (its source, target, saved credentials and every ready mapping). The API always
-// asks for sealed credentials (Input); the builder's other modes serve tests and tooling.
+// exports config-mode credentials (Input, OC-155); the builder's other modes serve tests and
+// tooling.
 type Request struct {
 	// JobOptions override the defaults; omitted fields keep them.
 	JobOptions json.RawMessage `json:"jobOptions,omitempty"`
-	// CredentialMode is sealed (default), plaintext or external.
+	// CredentialMode is sealed (default), plaintext, external or config.
 	CredentialMode string `json:"credentialMode"`
 	// Passphrase seals the credentials (sealed mode). Never stored or logged.
 	Passphrase string `json:"passphrase,omitempty"` //nolint:gosec // G117: request field, never persisted
@@ -56,9 +57,11 @@ type Builder struct {
 type Built struct {
 	Bundle  Bundle
 	Project store.Project
-	// Secrets are every credential value placed in the bundle (sealed or not), so callers can
-	// prove none leaks elsewhere. Never logged.
+	// Secrets are every credential value placed in the bundle or its run config, so callers
+	// can prove none leaks elsewhere. Never logged.
 	Secrets []string
+	// RunConfig is config.json, with the connections and their secrets (config mode only).
+	RunConfig []byte
 }
 
 func unprocessable(code, title, detail string) problem.Problem {
@@ -215,6 +218,20 @@ func (b *Builder) Build(ctx context.Context, ws store.WorkspaceID, userEmail, pr
 	if err := bundle.Finalize(); err != nil {
 		return Built{}, err
 	}
+	if mode == ModeConfig {
+		rc := RunConfig{}
+		if rc.Source, err = NewRunConnection(bundle.Source, src); err != nil {
+			return Built{}, err
+		}
+		if tgt != nil {
+			if rc.Target, err = NewRunConnection(bundle.Target, tgt); err != nil {
+				return Built{}, err
+			}
+		}
+		if out.RunConfig, err = EncodeRunConfig(rc); err != nil {
+			return Built{}, err
+		}
+	}
 	out.Bundle = bundle
 	return out, nil
 }
@@ -265,8 +282,10 @@ func credentialsFor(mode, role string, s Secrets, req Request, aad string) (*Cre
 			refs[k] = ref
 		}
 		return &Credentials{Mode: ModeExternal, Refs: refs}, nil
+	case ModeConfig:
+		return &Credentials{Mode: ModeConfig}, nil
 	}
-	return nil, unprocessable(problem.CodeValidation, "Invalid credential mode", "Use sealed, plaintext or external.")
+	return nil, unprocessable(problem.CodeValidation, "Invalid credential mode", "Use sealed, plaintext, external or config.")
 }
 
 // DefaultRefName is the env var an external export reads by default: ODB_SOURCE_PASSWORD…

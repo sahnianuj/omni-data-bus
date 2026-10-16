@@ -1044,23 +1044,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/exports/passphrase": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** A new six-word diceware passphrase (never stored); editors only */
-        post: operations["generatePassphrase"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{id}/exports": {
         parameters: {
             query?: never;
@@ -1073,7 +1056,7 @@ export interface paths {
         /** The project's export history, newest first, with the mappings changed since each export (OC-055) */
         get: operations["listExports"];
         put?: never;
-        /** Export the project as configured (its source, target, sealed saved credentials and every ready mapping) as a portable bundle (runtime bundle → .odb.json) or a migrate.sh zip (runtime script). Editors only, after a step-up within 5 minutes (403 STEP_UP_REQUIRED); 422 MAPPING_INVALID, NO_READY_MAPPINGS, PASSPHRASE_WEAK, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
+        /** Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip: the portable bundle (runtime bundle → bundle.odb.json) or migrate.sh (runtime script), with config.json holding the connection details and base64-encoded credentials (OC-155, OC-156). Editors only; no passphrase or step-up (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
         post: operations["createExport"];
         delete?: never;
         options?: never;
@@ -2954,16 +2937,9 @@ export interface components {
             /** @description The platform (os_arch) an Automatic script carries odb for, because no platform can be downloaded; absent when downloads work */
             autoEmbed?: string;
             maxPerHour: number;
-            minPassphraseLength: number;
-            stepUpWindowSec: number;
         };
-        /** @description How to package the export. What is exported is the project as configured — its source, target, saved credentials and every ready mapping; change them in the project's steps. The credentials are always sealed with the passphrase. */
+        /** @description How to package the export. What is exported is the project as configured — its source, target, saved credentials and every ready mapping; change them in the project's steps. The connection details and credentials go in the zip's config.json, where operators change them per environment. */
         ExportRequest: {
-            /**
-             * Format: password
-             * @description At least 12 characters and strong (PASSPHRASE_WEAK)
-             */
-            passphrase: string;
             /** @enum {string} */
             runtime: "bundle" | "script";
             script?: {
@@ -2991,7 +2967,7 @@ export interface components {
             };
             targetType: string;
             /** @enum {string} */
-            credentialMode: "sealed" | "plaintext" | "external";
+            credentialMode: "sealed" | "plaintext" | "external" | "config";
             /** @enum {string} */
             runtime: "bundle" | "script";
             odbVersion: string;
@@ -5037,29 +5013,6 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
-    generatePassphrase: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        passphrase: string;
-                    };
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
     listExports: {
         parameters: {
             query?: {
@@ -5101,13 +5054,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The file, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers) */
+            /** @description The zip, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers) */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string;
                     "application/zip": string;
                 };
             };

@@ -58,11 +58,15 @@ type Config struct {
 	Resume, Restart            bool
 	AllowDrift                 bool
 	Unlock                     Unlock
-	ProgressInterval           time.Duration
-	Quiet                      bool
-	Stdout                     io.Writer
-	Log                        *slog.Logger
-	Build                      buildinfo.Info
+	// RunConfig replaces the bundle's connection details and secrets (--config, OC-155);
+	// RunConfigPath names it in messages.
+	RunConfig        *export.RunConfig
+	RunConfigPath    string
+	ProgressInterval time.Duration
+	Quiet            bool
+	Stdout           io.Writer
+	Log              *slog.Logger
+	Build            buildinfo.Info
 	// Drain stops reading and checkpoints (first SIGINT/SIGTERM); Abort stops at once (second).
 	Drain, Abort <-chan struct{}
 	// Sources and Targets override the connector registries (tests); nil = the real ones.
@@ -106,6 +110,16 @@ func setup(ctx context.Context, cfg *Config) (*env, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The run config's connection details win over the bundle's; the bundle, its hashes and the
+	// plan stay as exported, so a checkpoint survives a password change.
+	srcCfg, src, err := cfg.connection("source", b.Source, src)
+	if err != nil {
+		return nil, err
+	}
+	tgtCfg, tgt, err := cfg.connection("target", b.Target, tgt)
+	if err != nil {
+		return nil, err
+	}
 	key := make([]byte, crypto.KeySize)
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
@@ -122,7 +136,6 @@ func setup(ctx context.Context, cfg *Config) (*env, error) {
 		return nil, err
 	}
 
-	tgtCfg := b.Target.Config
 	var roots []string
 	if b.Target.Type == store.KindDirectory {
 		dc, err := directory.ParseConfig(tgtCfg)
@@ -156,7 +169,7 @@ func setup(ctx context.Context, cfg *Config) (*env, error) {
 		conn    export.Connection
 		config  json.RawMessage
 		secrets export.Secrets
-	}{{store.RoleSource, b.Source, b.Source.Config, src}, {store.RoleTarget, b.Target, tgtCfg, tgt}} {
+	}{{store.RoleSource, b.Source, srcCfg, src}, {store.RoleTarget, b.Target, tgtCfg, tgt}} {
 		id := store.ConnectionID(e.project.ID, c.role)
 		sec := export.ToConnectionSecrets(c.secrets)
 		sealed := store.Sealed{}

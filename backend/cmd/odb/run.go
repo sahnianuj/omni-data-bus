@@ -34,6 +34,8 @@ options:
   --throttle DOCS_PER_S    limit the write rate
   --resume | --restart     require a checkpoint to resume | archive the state and start over
   --allow-drift            continue when the source changed compatibly since the export
+  --config FILE            source and target connection details (config.json), used instead of
+                           the bundle's; plain-text passwords in it are saved back base64-encoded
   --passphrase-file FILE   sealed credentials' passphrase (else $ODB_BUNDLE_PASSPHRASE, else a prompt)
   --log-format json|text   stderr logs (default json)
   --progress-interval 5s   stdout progress events (0 = none); --quiet prints only the done event
@@ -75,6 +77,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	resume := fs.Bool("resume", false, "require a checkpoint")
 	restart := fs.Bool("restart", false, "archive the state and start over")
 	allowDrift := fs.Bool("allow-drift", false, "continue on compatible schema drift")
+	configPath := fs.String("config", "", "run config file (config.json)")
 	passFile := fs.String("passphrase-file", "", "file holding the passphrase")
 	logFormat := fs.String("log-format", "json", "json | text")
 	interval := fs.Duration("progress-interval", 5*time.Second, "progress event interval")
@@ -103,6 +106,13 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	b, err := loadBundle(*bundlePath)
 	if err != nil {
 		return reportBundleError(stderr, err)
+	}
+	var runConfig *export.RunConfig
+	if *configPath != "" {
+		if runConfig, err = headless.LoadRunConfig(*configPath, func(msg string) { logger.Info(msg) }); err != nil {
+			printConfigError(stderr, asConfig(err))
+			return exitPreflight
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -134,7 +144,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		Bundle: b, State: dir, Mappings: maps, TargetPath: *targetPath, Readers: *readers, Writers: *writers, Throttle: *throttle,
 		Resume: *resume, Restart: *restart, AllowDrift: *allowDrift, ProgressInterval: *interval, Quiet: *quiet,
 		Stdout: stdout, Log: logger, Build: buildinfo.Get(), Drain: drain, Abort: abort,
-		Unlock: headless.Unlock{PassphraseFile: *passFile, Prompt: prompt(stderr)},
+		Unlock: headless.Unlock{PassphraseFile: *passFile, Prompt: prompt(stderr)}, RunConfig: runConfig, RunConfigPath: *configPath,
 	}
 	switch sub {
 	case "preflight":

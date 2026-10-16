@@ -8,6 +8,7 @@ import type { StoreApi } from 'zustand'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ResizeHandle, usePaneWidth } from '@/components/ui/resize-handle'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSourceTable } from '@/features/discovery/api'
 import { DocDesigner } from '@/features/docschema/DocDesigner'
@@ -107,6 +108,7 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
   const issuesLink = new URLSearchParams(useLocation().search).get('panel') === 'issues'
   const [side, setSideTab] = useState(issuesLink ? 'issues' : 'suggestions')
   // Below 1280 px the canvas needs the room, so the panels start closed (unless a link asks).
+  const sidePane = usePaneWidth('mapping.side', 320, 260, 640)
   const [sideOpen, setSideOpen] = useState(() => issuesLink || !window.matchMedia?.('(max-width: 1279px)').matches)
   const setSide = (tab: string) => {
     setSideTab(tab)
@@ -367,7 +369,8 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
         <div className="flex min-w-0 flex-1 flex-col overflow-x-auto">
           {mode === 'composer' ? <Composer /> : mode === 'canvas' ? <MappingCanvas /> : mode === 'table' ? <MappingTable /> : <DocDesigner projectId={project.id} targetConnId={project.target?.id ?? ''} header={<KeyPanel projectId={project.id} supportsExpiry={caps.supportsExpiry} />} />}
         </div>
-        <aside aria-label={t('workbench.side')} hidden={!sideOpen || mode === 'composer'} className="flex w-80 shrink-0 flex-col border-l border-border">
+        <aside aria-label={t('workbench.side')} hidden={!sideOpen || mode === 'composer'} className="relative flex shrink-0 flex-col border-l border-border" style={{ width: sidePane.width }}>
+          <ResizeHandle pane={sidePane} edge="left" label={t('workbench.resizeSide')} />
           <Tabs value={side} onValueChange={setSideTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="px-2">
               <TabsTrigger value="suggestions">{t('workbench.suggestions')}</TabsTrigger>

@@ -71,6 +71,8 @@ func Credentials(b *export.Bundle, u Unlock, warn func(string)) (src, tgt export
 			return c.Values, nil
 		case export.ModeExternal:
 			return ResolveRefs(c.Refs, u)
+		case export.ModeConfig:
+			return export.Secrets{}, nil // from the run config (Config.connection)
 		case export.ModeSealed:
 			if pass == nil {
 				p, err := u.passphrase()

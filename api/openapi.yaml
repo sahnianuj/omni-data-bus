@@ -1200,19 +1200,6 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ExportOptions' } } } }
         default: { $ref: '#/components/responses/Problem' }
-  /api/v1/exports/passphrase:
-    post:
-      tags: [exports]
-      operationId: generatePassphrase
-      summary: A new six-word diceware passphrase (never stored); editors only
-      security: [{ cookieAuth: [] }]
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { type: object, required: [passphrase], properties: { passphrase: { type: string } } }
-        default: { $ref: '#/components/responses/Problem' }
   /api/v1/projects/{id}/exports:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -1231,10 +1218,10 @@ paths:
       tags: [exports]
       operationId: createExport
       summary: >-
-        Export the project as configured (its source, target, sealed saved credentials and every ready mapping) as a
-        portable bundle (runtime bundle → .odb.json) or a migrate.sh zip (runtime script). Editors only, after a step-up
-        within 5 minutes (403 STEP_UP_REQUIRED); 422 MAPPING_INVALID, NO_READY_MAPPINGS, PASSPHRASE_WEAK,
-        BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour
+        Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip:
+        the portable bundle (runtime bundle → bundle.odb.json) or migrate.sh (runtime script), with config.json holding
+        the connection details and base64-encoded credentials (OC-155, OC-156). Editors only; no passphrase or step-up
+        (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour
       security: [{ cookieAuth: [] }]
       requestBody:
         required: true
@@ -1243,9 +1230,8 @@ paths:
             schema: { $ref: '#/components/schemas/ExportRequest' }
       responses:
         '201':
-          description: The file, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers)
+          description: The zip, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers)
           content:
-            application/json: { schema: { type: string, format: binary } }
             application/zip: { schema: { type: string, format: binary } }
         default: { $ref: '#/components/responses/Problem' }
   /api/v1/projects/{id}/runs/import:
@@ -3199,7 +3185,7 @@ components:
               failed: { type: integer, format: int64 }
     ExportOptions:
       type: object
-      required: [version, image, downloadUrl, downloadable, embeddable, maxPerHour, minPassphraseLength, stepUpWindowSec]
+      required: [version, image, downloadUrl, downloadable, embeddable, maxPerHour]
       properties:
         version: { type: string }
         image: { type: string }
@@ -3208,17 +3194,14 @@ components:
         embeddable: { type: array, items: { type: string }, description: Platforms this server can embed odb for }
         autoEmbed: { type: string, description: 'The platform (os_arch) an Automatic script carries odb for, because no platform can be downloaded; absent when downloads work' }
         maxPerHour: { type: integer }
-        minPassphraseLength: { type: integer }
-        stepUpWindowSec: { type: integer }
     ExportRequest:
       type: object
       description: >-
         How to package the export. What is exported is the project as configured — its source, target, saved
-        credentials and every ready mapping; change them in the project's steps. The credentials are always sealed
-        with the passphrase.
-      required: [passphrase, runtime]
+        credentials and every ready mapping; change them in the project's steps. The connection details and
+        credentials go in the zip's config.json, where operators change them per environment.
+      required: [runtime]
       properties:
-        passphrase: { type: string, format: password, description: 'At least 12 characters and strong (PASSPHRASE_WEAK)' }
         runtime: { type: string, enum: [bundle, script] }
         script:
           type: object
@@ -3241,7 +3224,7 @@ components:
         mappingIds: { type: array, items: { type: string } }
         planHashes: { type: object, additionalProperties: { type: string } }
         targetType: { type: string }
-        credentialMode: { type: string, enum: [sealed, plaintext, external] }
+        credentialMode: { type: string, enum: [sealed, plaintext, external, config] }
         runtime: { type: string, enum: [bundle, script] }
         odbVersion: { type: string }
         bundleSha256: { type: string }

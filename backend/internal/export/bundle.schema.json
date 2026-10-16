@@ -75,7 +75,7 @@
       "required": ["mode"],
       "additionalProperties": false,
       "properties": {
-        "mode": { "enum": ["sealed", "plaintext", "external"] },
+        "mode": { "enum": ["sealed", "plaintext", "external", "config"] },
         "kdf": {
           "type": "object",
           "required": ["alg", "salt", "t", "m", "p"],

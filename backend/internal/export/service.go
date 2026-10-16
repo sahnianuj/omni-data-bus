@@ -67,17 +67,12 @@ func forbidden(code, title, detail string) problem.Problem {
 	return problem.New(http.StatusForbidden, code, title, detail)
 }
 
-// ErrStepUpRequired asks the client to confirm the password (POST /auth/step-up) first.
-var ErrStepUpRequired = forbidden(problem.CodeStepUpRequired, "Confirm your password",
-	"Exporting credentials needs your password again (valid for 5 minutes).")
-
 // Input is the export API's body (POST /projects/{id}/exports): only how to package the export.
 // What is exported is the project as configured — its source, target, saved credentials and
-// ready mappings — and the credentials are always sealed with the passphrase (user decision,
-// 2026-10-02). Changing any of it happens in the project's steps.
+// ready mappings (user decision, 2026-10-02). The connection details and credentials go in
+// config.json beside the script, where operators change them per environment (OC-155); there is
+// no passphrase or password confirmation (OC-154). Changing the project happens in its steps.
 type Input struct {
-	// Passphrase seals the project's saved credentials. Never stored or logged.
-	Passphrase string `json:"passphrase"` //nolint:gosec // G117: request field, never persisted
 	// Runtime is "bundle" (the .odb.json alone) or "script" (a zip with migrate.sh, OC-053).
 	Runtime string `json:"runtime"`
 	Script  Script `json:"script"`
@@ -85,17 +80,14 @@ type Input struct {
 	JobOptions json.RawMessage `json:"jobOptions,omitempty"`
 }
 
-// Export builds the requested artifact, records it in the history and audits it. The passphrase
-// and any credential stay out of the history, the audit and the logs.
+// Export builds the requested artifact, records it in the history and audits it. Credentials
+// are only in the artifact's config.json, never in the history, the audit or the logs.
 func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string, in Input) (Artifact, store.ExportRecord, error) {
-	req := Request{CredentialMode: ModeSealed, Passphrase: in.Passphrase, Runtime: in.Runtime, Script: in.Script, JobOptions: in.JobOptions}
+	mode := ModeConfig
+	req := Request{CredentialMode: mode, Runtime: in.Runtime, Script: in.Script, JobOptions: in.JobOptions}
 	if p.Role.Rank() < store.RoleEditor.Rank() {
 		return Artifact{}, store.ExportRecord{}, forbidden(problem.CodeForbiddenRole, "Not allowed", "Exporting needs the editor role.")
 	}
-	if !p.SteppedUp(s.now()) {
-		return Artifact{}, store.ExportRecord{}, ErrStepUpRequired
-	}
-	mode := ModeSealed
 	if err := s.checkRequest(&req); err != nil {
 		return Artifact{}, store.ExportRecord{}, err
 	}
@@ -120,14 +112,16 @@ func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string
 	var art Artifact
 	switch req.Runtime {
 	case RuntimeScript:
-		if art, err = RenderScript(b, raw, req.Script, s.Script, s.Version); err != nil {
+		if art, err = RenderScript(b, raw, built.RunConfig, req.Script, s.Script, s.Version); err != nil {
 			if strings.Contains(err.Error(), "50 MB") {
 				return Artifact{}, store.ExportRecord{}, problem.New(http.StatusUnprocessableEntity, problem.CodeExportTooLarge, "Export too large", err.Error())
 			}
 			return Artifact{}, store.ExportRecord{}, unprocessable(problem.CodeValidation, "Can't build the script", err.Error())
 		}
 	default:
-		art = Artifact{FileName: slug(b.Project.Name) + "-" + b.CreatedAt.Format("20060102") + ".odb.json", ContentType: "application/json", Body: raw}
+		if art, err = RenderBundle(b, raw, built.RunConfig); err != nil {
+			return Artifact{}, store.ExportRecord{}, err
+		}
 	}
 
 	rec := store.ExportRecord{
@@ -166,11 +160,6 @@ func (s *Service) checkRequest(req *Request) error {
 		}
 	default:
 		return unprocessable(problem.CodeValidation, "Invalid runtime", `runtime is "bundle" or "script".`)
-	}
-	if msg := PassphraseProblem(req.Passphrase); msg != "" {
-		pr := unprocessable(problem.CodePassphraseWeak, "Passphrase too weak", "The passphrase "+msg+".")
-		pr.FieldErrors = []problem.FieldError{{Field: "passphrase", Message: msg}}
-		return pr
 	}
 	return nil
 }
@@ -405,10 +394,8 @@ type Options struct {
 	// Embeddable lists platforms this server can embed odb for.
 	Embeddable []string `json:"embeddable"`
 	// AutoEmbed is the platform an "auto" script carries odb for when nothing downloads.
-	AutoEmbed       string `json:"autoEmbed,omitempty"`
-	MaxPerHour      int    `json:"maxPerHour"`
-	MinPassphrase   int    `json:"minPassphraseLength"`
-	StepUpWindowSec int    `json:"stepUpWindowSec"`
+	AutoEmbed  string `json:"autoEmbed,omitempty"`
+	MaxPerHour int    `json:"maxPerHour"`
 }
 
 // Describe returns the server's export options.
@@ -416,7 +403,6 @@ func (s *Service) Describe() Options {
 	o := Options{
 		Version: s.Version, Image: s.Script.Image, DownloadURL: s.Script.DownloadURL,
 		Downloadable: []string{}, Embeddable: s.Script.Dist.Available(), MaxPerHour: MaxExportsPerHour,
-		MinPassphrase: MinPassphraseLen, StepUpWindowSec: int(auth.StepUpWindow.Seconds()),
 	}
 	for p := range s.Script.Dist.Checksums() {
 		o.Downloadable = append(o.Downloadable, p)

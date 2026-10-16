@@ -116,10 +116,22 @@ func TestMigrateScript_Bats(t *testing.T) {
 	cfg := func(url, distDir string) export.ScriptConfig {
 		return export.ScriptConfig{Image: "omni-data-bus:2.0.0", DownloadURL: url, Dist: export.Dist{Dir: distDir, Version: "2.0.0"}}
 	}
+	// A config-mode export: migrate.sh with its config.json, in their own folder (OC-155).
+	cb := exporttest.Bundle(t, exporttest.Options{TargetPath: "/data/out", ConfigMode: true})
+	cbRaw, err := export.Encode(cb)
+	require.NoError(t, err)
+	configDir := filepath.Join(dir, "config-export")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	configScript, _, err := export.RenderScriptFiles(cb, cbRaw, export.Script{Runtime: "auto"}, cfg(srv.URL+"/good", distDownload), "2.0.0")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "migrate.sh"), configScript, 0o755)) //nolint:gosec // G306: the script must be executable
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, export.RunConfigFile), []byte(`{"source": {"type": "postgres"}}`+"\n"), 0o600))
+
 	env := append(os.Environ(),
 		"SCRIPT_EMBEDDED="+write("embedded.sh", export.Script{Runtime: "auto", OS: runtime.GOOS, Arch: runtime.GOARCH}, cfg(srv.URL+"/good", distEmbedded)),
 		"SCRIPT_PLAIN="+write("plain.sh", export.Script{Runtime: "auto"}, cfg(srv.URL+"/good", distDownload)),
 		"SCRIPT_TAMPERED="+write("tampered.sh", export.Script{Runtime: "binary"}, cfg(srv.URL+"/bad", distDownload)),
+		"SCRIPT_CONFIG="+filepath.Join(configDir, "migrate.sh"),
 		"STUBS="+stubs, "BUNDLE_SHA="+b.SHA256(),
 	)
 	env = append(env, endToEndEnv(t, dir)...)

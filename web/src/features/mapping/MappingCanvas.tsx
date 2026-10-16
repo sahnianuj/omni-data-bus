@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEven
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { ResizeHandle, usePaneWidth } from '@/components/ui/resize-handle'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Can } from '@/features/auth/Can'
 import { addField, insertionPoint, moveRelative, rename, type DropPos } from '@/features/docschema/docschemaOps'
@@ -330,6 +331,7 @@ export function MappingCanvas() {
     }
     return out
   }, [spec.relations])
+  const sourcePane = usePaneWidth('mapping.source', 300, 200, 720)
   const height = Math.max(srcRows.length, tRows.length) * ROW + HEADER
   const yOf = (i: number, scrollTop: number) => HEADER + i * ROW + ROW / 2 - scrollTop
   // Edges to rows scrolled out of view are pinned to the pane's visible edge instead of
@@ -341,7 +343,7 @@ export function MappingCanvas() {
   return (
     <div className="relative flex min-h-0 flex-1 outline-none" tabIndex={0} onKeyDown={onKeyDown} aria-label={t('mapping.canvas')} role="application">
       {/* Source panel */}
-      <div className="flex w-[300px] min-w-[200px] shrink flex-col border-r border-border">
+      <div className="relative flex min-w-[200px] shrink flex-col border-r border-border" style={{ width: sourcePane.width }}>
         <div className="flex h-9 items-center border-b border-border bg-surface-muted px-3 text-xs font-medium text-muted">{t('mapping.sourcePanel', { count: srcRows.filter((r) => r.kind === 'column').length })}</div>
         {/* Focusable so keyboard users can scroll it (axe: scrollable-region-focusable). */}
         <div
@@ -421,6 +423,7 @@ export function MappingCanvas() {
           </div>
         </div>
         <RelatedTree />
+        <ResizeHandle pane={sourcePane} edge="right" label={t('mapping.resizeSource')} />
       </div>
 
       {/* Edges */}
