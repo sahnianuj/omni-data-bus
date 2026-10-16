@@ -13,7 +13,6 @@ import (
 
 	"github.com/couchbase/gocb/v2"
 	"github.com/stretchr/testify/require"
-	tccouchbase "github.com/testcontainers/testcontainers-go/modules/couchbase"
 
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/target"
@@ -28,12 +27,8 @@ func TestCreateCollection_AC2_Integration(t *testing.T) {
 	connStr, user, pass := os.Getenv("OC_IT_TARGET_CONNSTR"), os.Getenv("OC_IT_TARGET_USERNAME"), os.Getenv("OC_IT_TARGET_PASSWORD")
 	bucket := "sandbox"
 	if connStr == "" {
-		c, err := tccouchbase.Run(ctx, "couchbase/server:enterprise-8.0.3", tccouchbase.WithBuckets(tccouchbase.NewBucket(bucket).WithQuota(256)))
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = c.Terminate(ctx) })
-		connStr, err = c.ConnectionString(ctx)
-		require.NoError(t, err)
-		user, pass = c.Username(), c.Password()
+		c := sharedContainer(t)
+		connStr, user, pass = c.connStr, c.user, c.pass
 	}
 	capella := strings.Contains(connStr, "cloud.couchbase.com")
 	deployment := SelfManaged

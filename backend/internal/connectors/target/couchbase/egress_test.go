@@ -43,8 +43,15 @@ func TestMain(m *testing.M) {
 	p := netguard.Unrestricted()
 	p.Ports = []netguard.PortRange{{From: 1, To: 65535}}
 	netguard.SetDefault(&netguard.Dialer{Policy: p, Resolver: exampleHosts})
-	os.Exit(m.Run())
+	code := m.Run()
+	for _, f := range afterTests {
+		f()
+	}
+	os.Exit(code)
 }
+
+// afterTests runs once all tests are done (the integration tests stop their shared container).
+var afterTests []func()
 
 // restricted installs a policy without private networks for one test.
 func restricted(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	tccouchbase "github.com/testcontainers/testcontainers-go/modules/couchbase"
 
 	"omnidatabus/internal/connectors"
 )
@@ -25,15 +24,8 @@ func TestTester_AC3_Integration(t *testing.T) {
 	// remapped ports can't answer it, so a wrong password reads as unreachable there.
 	queryOnStdPort := true
 	if connStr == "" {
-		c, err := tccouchbase.Run(ctx, "couchbase/server:enterprise-8.0.3", tccouchbase.WithBuckets(tccouchbase.NewBucket("sandbox").WithQuota(256)))
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = c.Terminate(ctx) })
-		connStr, err = c.ConnectionString(ctx)
-		require.NoError(t, err)
-		user, pass = c.Username(), c.Password()
-		qp, err := c.MappedPort(ctx, "8093/tcp")
-		require.NoError(t, err)
-		queryOnStdPort = qp.Port() == "8093"
+		c := sharedContainer(t)
+		connStr, user, pass, queryOnStdPort = c.connStr, c.user, c.pass, c.queryOnStdPort
 	}
 	deployment := SelfManaged
 	if strings.Contains(connStr, "cloud.couchbase.com") {

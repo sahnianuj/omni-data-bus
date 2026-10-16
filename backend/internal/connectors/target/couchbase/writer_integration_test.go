@@ -13,7 +13,6 @@ import (
 
 	"github.com/couchbase/gocb/v2"
 	"github.com/stretchr/testify/require"
-	tccouchbase "github.com/testcontainers/testcontainers-go/modules/couchbase"
 
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/target"
@@ -28,18 +27,13 @@ type itTarget struct {
 // itTargetCollection prepares bucket.<fresh scope>.<coll> on the dev stack (or a container).
 func itTargetCollection(t *testing.T, coll string) itTarget {
 	t.Helper()
-	ctx := context.Background()
 	it := itTarget{connStr: os.Getenv("OC_IT_TARGET_CONNSTR"), user: os.Getenv("OC_IT_TARGET_USERNAME"), pass: os.Getenv("OC_IT_TARGET_PASSWORD"), bucket: "sandbox"}
 	if strings.Contains(it.connStr, "cloud.couchbase.com") {
 		t.Skip("writes aren't tested against Capella")
 	}
 	if it.connStr == "" {
-		c, err := tccouchbase.Run(ctx, "couchbase/server:enterprise-8.0.3", tccouchbase.WithBuckets(tccouchbase.NewBucket(it.bucket).WithQuota(256)))
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = c.Terminate(ctx) })
-		it.connStr, err = c.ConnectionString(ctx)
-		require.NoError(t, err)
-		it.user, it.pass = c.Username(), c.Password()
+		c := sharedContainer(t)
+		it.connStr, it.user, it.pass = c.connStr, c.user, c.pass
 	}
 	cl, err := gocb.Connect(it.connStr, gocb.ClusterOptions{Authenticator: gocb.PasswordAuthenticator{Username: it.user, Password: it.pass}})
 	require.NoError(t, err)
