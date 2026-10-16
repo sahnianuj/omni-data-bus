@@ -17,6 +17,7 @@ import { TargetKindPicker } from '@/features/targets/TargetKindPicker'
 import { useSaveBundled, useSaveConnection, useTestStored, useTestUnsaved } from './api'
 import { CapabilitiesCard, type Capabilities } from './CapabilitiesCard'
 import { ConnectorPicker } from './ConnectorPicker'
+import { MappingLocations } from './MappingLocations'
 import { connectionUIs } from './registry'
 import { RelocateDialog, type Relocate } from './RelocateDialog'
 import { RepositorySummary } from './RepositorySummary'
@@ -166,6 +167,9 @@ function StepBody({ role, project, existing }: { role: Role; project: Project; e
             />
           ) : null}
           {error ? <ErrorState error={error} /> : null}
+          {role === 'target' && existing?.type === 'couchbase' && type === 'couchbase' ? (
+            <MappingLocations projectId={project.id} connId={existing.id} canEdit={canEdit} />
+          ) : null}
         </div>
         <div className="flex w-full max-w-[420px] flex-col gap-3">
           {role === 'target' && type === 'couchbase' && (result || existing) ? (

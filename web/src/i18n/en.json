@@ -232,6 +232,22 @@
     "available": "Available"
   },
   "repo": {
+    "locations": {
+      "title": "Where your mappings write",
+      "intro": "The bucket and scope each mapping writes to on this target. Check them after changing the connection.",
+      "mixed": "Your mappings write to {{count}} different bucket and scope pairs. If that isn't intended, move them to one.",
+      "bucket": "bucket",
+      "scope": "scope",
+      "change": "Change",
+      "changeFor": "Change bucket and scope of {{keyspace}}",
+      "moveTitle": "Move mappings to another bucket and scope",
+      "moveBody_one": "The mapping writing to {{keyspace}} moves to the bucket and scope you pick. Its collection name stays; a missing collection is created when the migration starts.",
+      "moveBody_other": "The {{count}} mappings writing to {{keyspace}} move to the bucket and scope you pick. Their collection names stay; missing collections are created when the migration starts.",
+      "move_one": "Move mapping",
+      "move_other": "Move {{count}} mappings",
+      "moved_one": "Moved 1 mapping to {{keyspace}}",
+      "moved_other": "Moved {{count}} mappings to {{keyspace}}"
+    },
     "sourceTitle": "Source repository",
     "targetTitle": "Target repository",
     "intro": "Credentials are encrypted and stored with this project. You only enter them once.",

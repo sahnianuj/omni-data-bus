@@ -3,14 +3,16 @@ import type { StoreApi } from 'zustand'
 import { ApiError } from '@/lib/api/client'
 import { fetchMapping, saveMapping } from './api'
 import type { WorkbenchState } from './store'
+import type { MappingView } from './types'
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
 
 /**
  * Saves the workbench spec 800 ms after the last edit, with If-Match on the store's version.
- * A 412 flags a conflict and stops saving until the user reloads or overwrites.
+ * A 412 flags a conflict and stops saving until the user reloads or overwrites. Leaving the page
+ * saves pending edits at once; onSaved also hears of saves that finish after it was left.
  */
-export function useMappingAutosave(store: StoreApi<WorkbenchState>, projectId: string, delayMs = 800) {
+export function useMappingAutosave(store: StoreApi<WorkbenchState>, projectId: string, delayMs = 800, onSaved?: (view: MappingView) => void) {
   const [state, setState] = useState<SaveState>('idle')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const running = useRef<Promise<void> | null>(null)
@@ -28,6 +30,7 @@ export function useMappingAutosave(store: StoreApi<WorkbenchState>, projectId: s
           const view = await saveMapping(projectId, s.view.id, s.version, s.history.present)
           savedRevision.current = revision
           store.getState().saved(view)
+          onSaved?.(view)
         } catch (e) {
           if (e instanceof ApiError && e.code === 'MAPPING_VERSION_CONFLICT') {
             store.getState().setConflict(true)
@@ -42,7 +45,7 @@ export function useMappingAutosave(store: StoreApi<WorkbenchState>, projectId: s
       running.current = null
     })
     return running.current
-  }, [store, projectId])
+  }, [store, projectId, onSaved])
 
   useEffect(
     () =>
@@ -53,9 +56,14 @@ export function useMappingAutosave(store: StoreApi<WorkbenchState>, projectId: s
       }),
     [store, run, delayMs],
   )
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (!timer.current) return
+      clearTimeout(timer.current)
+      void run() // an edit still waiting for its save: save it now, as the page goes
+    },
+    [run],
+  )
 
   /** Saves pending edits immediately (before validate, preview of the stored spec, or leaving). */
   const saveNow = useCallback(async () => {

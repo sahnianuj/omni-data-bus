@@ -5,6 +5,7 @@
 package relations
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -76,6 +77,14 @@ func key(t mapping.TableRef) string { return t.Schema + "." + t.Name }
 func Build(snap *schema.Snapshot, virtual []store.Relationship) *Graph {
 	g := &Graph{snap: snap, adj: map[string][]Hop{}}
 	add := func(h Hop) {
+		if h.From == h.To && identity(h.Join) {
+			return // a row joined to itself: nothing to embed
+		}
+		for _, o := range g.adj[key(h.From)] {
+			if o.To == h.To && o.Kind == h.Kind && slices.Equal(o.Join, h.Join) {
+				return // the same hop again (a duplicate, or a virtual copy of a foreign key)
+			}
+		}
 		h.Indexed = mapping.LeadingIndex(snap.Table(h.To.Schema, h.To.Name), childCols(h.Join))
 		g.adj[key(h.From)] = append(g.adj[key(h.From)], h)
 	}
@@ -120,6 +129,15 @@ func Build(snap *schema.Snapshot, virtual []store.Relationship) *Graph {
 		sort.SliceStable(g.adj[k], func(i, j int) bool { return key(g.adj[k][i].To) < key(g.adj[k][j].To) })
 	}
 	return g
+}
+
+func identity(join []mapping.JoinPair) bool {
+	for _, j := range join {
+		if j.Parent != j.Child {
+			return false
+		}
+	}
+	return true
 }
 
 func childCols(join []mapping.JoinPair) []string {

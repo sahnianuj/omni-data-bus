@@ -124,6 +124,35 @@ func TestPaths_VirtualRelationships(t *testing.T) {
 	require.Equal(t, "vrel_01", cands[0].Virtual)
 }
 
+// A table joined to itself on the same columns, a repeated relationship and a virtual copy of a
+// foreign key add no hops: each would be the same choice listed again.
+func TestBuild_SkipsSelfAndDuplicateHops(t *testing.T) {
+	end := func(table string, cols ...string) store.RelationshipEnd {
+		return store.RelationshipEnd{Schema: "public", Table: table, Columns: cols}
+	}
+	v := []store.Relationship{
+		{ID: "self1", From: end("order_items", "order_id"), To: end("order_items", "order_id")},
+		{ID: "self2", From: end("order_items", "order_id"), To: end("order_items", "order_id")},
+		{ID: "copy", From: end("orders", "customer_id"), To: end("customers", "customer_id")},
+		{ID: "dup1", From: end("orders", "cust_code"), To: end("customers", "code")},
+		{ID: "dup2", From: end("orders", "cust_code"), To: end("customers", "code")},
+	}
+	g := Build(shopSnap(), v)
+	for _, h := range g.Hops(mapping.TableRef{Schema: "public", Name: "order_items"}) {
+		require.NotEqual(t, "order_items", h.To.Name, "no self hop on the same column")
+	}
+	var names []string
+	for _, h := range g.Hops(orders) {
+		names = append(names, h.Kind+" "+h.To.Name+" "+h.Constraint+h.RelationshipID)
+	}
+	require.Equal(t, []string{
+		"many-to-one customers orders_customer_fk", // the foreign key wins over its virtual copy
+		"many-to-one customers dup1",
+		"one-to-many order_items items_order_fk",
+	}, names)
+	require.Len(t, VirtualCandidates(shopSnap(), orders, v, nil), 1)
+}
+
 // wideSnap is 1,000 tables in a chain with cross links (each has FKs to the 3 before it).
 func wideSnap() *schema.Snapshot {
 	sc := schema.Schema{Name: "s"}

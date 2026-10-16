@@ -132,6 +132,22 @@ func TestRelationshipsAPI_AC3_CRUD(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, f.do(http.MethodGet, base+"/"+rel.ID, "").Code)
 }
 
+func TestRelationshipsAPI_RejectsSelfAndDuplicates(t *testing.T) {
+	f := newAPI(t, ws)
+	base := "/api/v1/projects/" + f.project + "/relationships"
+	self := `{"from":{"schema":"public","table":"orders","columns":["order_id"]},"to":{"schema":"public","table":"orders","columns":["order_id"]}}`
+	rec := f.do(http.MethodPost, base, self)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "joins each row of orders to itself")
+
+	require.Equal(t, http.StatusCreated, f.do(http.MethodPost, base, custCode).Code)
+	rec = f.do(http.MethodPost, base, custCode)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "already exists")
+	reversed := `{"from":{"schema":"public","table":"customers","columns":["code"]},"to":{"schema":"public","table":"orders","columns":["cust_code"]}}`
+	require.Equal(t, http.StatusConflict, f.do(http.MethodPost, base, reversed).Code, "the same pair the other way round")
+}
+
 func TestRelationshipsAPI_AC3_TypeMismatch(t *testing.T) {
 	f := newAPI(t, ws)
 	snap := shopSnap()

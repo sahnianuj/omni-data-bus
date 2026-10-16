@@ -99,6 +99,8 @@ RELEASES = {
              ["OC-136", "OC-137", "OC-138", "OC-139", "OC-140"]),
             ("Phase 7 — Chained embeds", "Embed an embedded object's own relationships from the source side or its foreign-key field, at any depth up to the limit, including parent hierarchies, with shared reads and a size hint",
              ["OC-141", "OC-142", "OC-143", "OC-144"]),
+            ("Phase 8 — Trial feedback", "Fixes from a customer trial: real row counts, partial embeds, no lost edits or sign-outs, one entry per related table, and seeing and moving where mappings write",
+             ["OC-153", "OC-147", "OC-146", "OC-150", "OC-151", "OC-148", "OC-152", "OC-149"]),
         ],
         "checklist": [
             "All P0 stories are Implemented (and P1 stories are Implemented or explicitly descoped with sign-off)",

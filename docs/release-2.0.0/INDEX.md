@@ -21,21 +21,21 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **57** | **270** |
-| ✅ Implemented | 48 | 227 |
+| **Total** | **65** | **286** |
+| ✅ Implemented | 56 | 243 |
 | 🚧 In progress | 0 | 0 |
 | ⬜ Not started | 9 | 43 |
 | Not yet implemented (in progress + not started) | 9 | 43 |
-| **Completion** | 84% | 84% |
+| **Completion** | 86% | 85% |
 | 🚫 Descoped (not counted above) | 1 | 5 |
 
 ### By priority
 
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
-| P0 | Must have — release blocker | 33 | 196 | 26 / 161 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 22 | 72 | 20 / 64 |
-| P2 | Nice to have | 2 | 2 | 2 / 2 |
+| P0 | Must have — release blocker | 34 | 198 | 27 / 163 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 27 | 84 | 25 / 76 |
+| P2 | Nice to have | 4 | 4 | 4 / 4 |
 
 ### By epic
 
@@ -43,15 +43,15 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 |---|---|---|---|
 | E7 Foundations 2.0 | 3 | 13 | 3 / 13 |
 | E8 Directory Target | 6 | 27 | 6 / 27 |
-| E9 Relationship Mapping | 10 | 58 | 6 / 39 |
-| E10 Document Composer | 21 | 85 | 21 / 85 |
-| E11 Portable Runner | 9 | 50 | 9 / 50 |
-| E12 Harden & Ship 2.0 | 3 | 13 | 3 / 13 |
+| E9 Relationship Mapping | 12 | 61 | 8 / 42 |
+| E10 Document Composer | 23 | 90 | 23 / 90 |
+| E11 Portable Runner | 11 | 52 | 11 / 52 |
+| E12 Harden & Ship 2.0 | 5 | 19 | 5 / 19 |
 | E13 Computed Fields | 5 | 24 | 0 / 0 |
 
 ## Stories by priority
 
-### P0 — Must have — release blocker (33 stories, 196 points)
+### P0 — Must have — release blocker (34 stories, 198 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -88,8 +88,9 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 31 | [OC-141](OC-141-relationship-hops-from-any-table.md) | Relationship hops from any table, on demand | E9 Relationship Mapping | 3 | ⬜ Not started |
 | 32 | [OC-142](OC-142-source-side-embedded-objects-relationships.md) | The source side lists each embedded object's own relationships | E9 Relationship Mapping | 8 | ⬜ Not started |
 | 33 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | E9 Relationship Mapping | 3 | ⬜ Not started |
+| 34 | ~~[OC-153](OC-153-mapping-edits-kept-when-leaving.md)~~ | ~~Mapping edits are kept when leaving Design & Map~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (22 stories, 72 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (27 stories, 84 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -115,13 +116,20 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 20 | [OC-139](OC-139-computed-fields-follow-document-changes.md) | Computed fields follow changes to the document | E13 Computed Fields | 3 | ⬜ Not started |
 | 21 | [OC-144](OC-144-chained-embeds-runtime-hierarchies.md) | Chained embeds at runtime: shared lookups, hierarchies, parity and benchmark | E9 Relationship Mapping | 5 | ⬜ Not started |
 | 22 | ~~[OC-145](OC-145-rename-a-field-by-clicking-its-name.md)~~ | ~~Rename a target field by clicking its name, in every view~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
+| 23 | ~~[OC-146](OC-146-exact-row-counts-for-small-tables.md)~~ | ~~Exact row counts for small tables~~ | ~~E12 Harden & Ship 2.0~~ | ~~3~~ | ✅ Implemented |
+| 24 | ~~[OC-147](OC-147-embed-only-some-child-fields.md)~~ | ~~Embed only some of a child table's fields~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
+| 25 | ~~[OC-148](OC-148-wrong-password-at-export-keeps-session.md)~~ | ~~A wrong password when confirming an export doesn't sign you out~~ | ~~E11 Portable Runner~~ | ~~1~~ | ✅ Implemented |
+| 26 | ~~[OC-150](OC-150-see-and-move-where-mappings-write.md)~~ | ~~See and change the bucket and scope each mapping writes to~~ | ~~E12 Harden & Ship 2.0~~ | ~~3~~ | ✅ Implemented |
+| 27 | ~~[OC-151](OC-151-no-self-or-duplicate-virtual-relationships.md)~~ | ~~No self-joins or duplicates in virtual relationships~~ | ~~E9 Relationship Mapping~~ | ~~2~~ | ✅ Implemented |
 
-### P2 — Nice to have (2 stories, 2 points)
+### P2 — Nice to have (4 stories, 4 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
 | 1 | ~~[OC-067](OC-067-hide-table-view.md)~~ | ~~Hide the Table view from the view bar~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
 | 2 | ~~[OC-077](OC-077-sample-pane-stands-out.md)~~ | ~~Sample pane stands out from the canvas~~ | ~~E10 Document Composer~~ | ~~1~~ | ✅ Implemented |
+| 3 | ~~[OC-149](OC-149-script-help-shows-only-what-is-needed.md)~~ | ~~`migrate.sh help` shows only what's needed to run it~~ | ~~E11 Portable Runner~~ | ~~1~~ | ✅ Implemented |
+| 4 | ~~[OC-152](OC-152-embedded-table-shows-its-relationships.md)~~ | ~~An embedded table opens to show what it references~~ | ~~E9 Relationship Mapping~~ | ~~1~~ | ✅ Implemented |
 
 ## Delivery phases
 
@@ -137,6 +145,7 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase 5 — Harden & ship 2.0 | ~~OC-078~~, ~~OC-057~~, ~~OC-056~~ | 13 | 3/3 (13 pts) | ✅ Done | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
 | Phase 6 — Computed fields | OC-136, OC-137, OC-138, OC-139, OC-140 | 24 | 0/5 (0 pts) | 🚧 Current | Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields, see it on sample documents, and get the same value in every run, export and target |
 | Phase 7 — Chained embeds | OC-141, OC-142, OC-143, OC-144 | 19 | 0/4 (0 pts) | ⬜ Planned | Embed an embedded object's own relationships from the source side or its foreign-key field, at any depth up to the limit, including parent hierarchies, with shared reads and a size hint |
+| Phase 8 — Trial feedback | ~~OC-153~~, ~~OC-147~~, ~~OC-146~~, ~~OC-150~~, ~~OC-151~~, ~~OC-148~~, ~~OC-152~~, ~~OC-149~~ | 16 | 8/8 (16 pts) | ✅ Done | Fixes from a customer trial: real row counts, partial embeds, no lost edits or sign-outs, one entry per related table, and seeing and moving where mappings write |
 
 ## Stories by phase
 
@@ -255,6 +264,21 @@ _Embed an embedded object's own relationships from the source side or its foreig
 | 2 | [OC-142](OC-142-source-side-embedded-objects-relationships.md) | The source side lists each embedded object's own relationships | P0 | E9 Relationship Mapping | 8 | OC-141, OC-043, OC-047, OC-048 | ⬜ Not started |
 | 3 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | P0 | E9 Relationship Mapping | 3 | OC-141, OC-064, OC-082 | ⬜ Not started |
 | 4 | [OC-144](OC-144-chained-embeds-runtime-hierarchies.md) | Chained embeds at runtime: shared lookups, hierarchies, parity and benchmark | P1 | E9 Relationship Mapping | 5 | OC-142, OC-143, OC-046, OC-056 | ⬜ Not started |
+
+### Phase 8 — Trial feedback — ✅ Done (8/8 stories, 16/16 points)
+
+_Fixes from a customer trial: real row counts, partial embeds, no lost edits or sign-outs, one entry per related table, and seeing and moving where mappings write._
+
+| # | ID | Story | Priority | Epic | Points | Depends on | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | [OC-153](OC-153-mapping-edits-kept-when-leaving.md) | Mapping edits are kept when leaving Design & Map | P0 | E10 Document Composer | 2 | OC-019, OC-043 | ✅ Implemented |
+| 2 | [OC-147](OC-147-embed-only-some-child-fields.md) | Embed only some of a child table's fields | P1 | E10 Document Composer | 3 | OC-022, OC-043, OC-075 | ✅ Implemented |
+| 3 | [OC-146](OC-146-exact-row-counts-for-small-tables.md) | Exact row counts for small tables | P1 | E12 Harden & Ship 2.0 | 3 | OC-010, OC-011 | ✅ Implemented |
+| 4 | [OC-150](OC-150-see-and-move-where-mappings-write.md) | See and change the bucket and scope each mapping writes to | P1 | E12 Harden & Ship 2.0 | 3 | OC-013, OC-036, OC-068 | ✅ Implemented |
+| 5 | [OC-151](OC-151-no-self-or-duplicate-virtual-relationships.md) | No self-joins or duplicates in virtual relationships | P1 | E9 Relationship Mapping | 2 | OC-042 | ✅ Implemented |
+| 6 | [OC-148](OC-148-wrong-password-at-export-keeps-session.md) | A wrong password when confirming an export doesn't sign you out | P1 | E11 Portable Runner | 1 | OC-052, OC-053 | ✅ Implemented |
+| 7 | [OC-152](OC-152-embedded-table-shows-its-relationships.md) | An embedded table opens to show what it references | P2 | E9 Relationship Mapping | 1 | OC-042, OC-043 | ✅ Implemented |
+| 8 | [OC-149](OC-149-script-help-shows-only-what-is-needed.md) | `migrate.sh help` shows only what's needed to run it | P2 | E11 Portable Runner | 1 | OC-053 | ✅ Implemented |
 
 ## Descoped
 

@@ -63,6 +63,23 @@ export function useDeleteMapping(projectId: string) {
   })
 }
 
+/**
+ * Moves mappings to another bucket and scope, keeping each collection name (created when the
+ * migration starts if it doesn't exist). One save per mapping, in order; stops at the first error.
+ */
+export function useMoveMappings(projectId: string) {
+  const invalidate = useInvalidate(projectId)
+  return useMutation({
+    mutationFn: async ({ ids, bucket, scope }: { ids: string[]; bucket: string; scope: string }) => {
+      for (const id of ids) {
+        const view = await fetchMapping(projectId, id)
+        await saveMapping(projectId, id, view.version, view.spec, { ...view.target, bucket, scope, createIfMissing: true })
+      }
+    },
+    onSettled: invalidate,
+  })
+}
+
 /** PUT with If-Match; a stale version is a 412 MAPPING_VERSION_CONFLICT ApiError. */
 export function saveMapping(projectId: string, id: string, version: number, spec: MappingSpec, target?: MappingTarget): Promise<MappingView> {
   return v2(

@@ -12,6 +12,18 @@ setupMswServer()
 const ignoreAge = (s: MappingSpec): MappingSpec => ({ ...s, ignoredColumns: [...s.ignoredColumns, 'age_text'] })
 
 describe('useMappingAutosave', () => {
+  it('leaving the page saves a pending edit at once, and reports the save', async () => {
+    const state = mockMapping()
+    const store = createWorkbenchStore(mappingView(), columns)
+    const saved: number[] = []
+    const { unmount } = renderHook(() => useMappingAutosave(store, 'p1', 10_000, (v) => saved.push(v.version)))
+    act(() => store.getState().apply(ignoreAge))
+    unmount()
+    await waitFor(() => expect(saved).toEqual([4]))
+    expect(state.puts).toHaveLength(1)
+    expect((state.puts[0]!.body as { spec: MappingSpec }).spec.ignoredColumns).toContain('age_text')
+  })
+
   it('AC4: surfaces conflict and supports overwrite', async () => {
     const state = mockMapping()
     let conflicts = 1

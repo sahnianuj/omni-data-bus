@@ -47,7 +47,9 @@ export function RelatedTree() {
   const candidates = useMemo(() => view.embedCandidates ?? [], [view.embedCandidates])
   const graph = useRelationGraph(`${view.projectId}::source`, `${view.sourceSchema}.${view.sourceTable}`)
   const [open, setOpen] = useState(true)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Rows the user opened or closed: an embedded row starts open (what it references can be
+  // embedded next), any other starts closed.
+  const [toggled, setToggled] = useState<Set<string>>(new Set())
   const [plan, setPlan] = useState<EmbedPlan | null>(null)
   const [virtualOpen, setVirtualOpen] = useState(false)
   const n = (x: number) => Math.round(x).toLocaleString(i18n.language)
@@ -115,10 +117,10 @@ export function RelatedTree() {
   }
 
   const toggle = (key: string) => {
-    const next = new Set(expanded)
+    const next = new Set(toggled)
     if (next.has(key)) next.delete(key)
     else next.add(key)
-    setExpanded(next)
+    setToggled(next)
   }
 
   const renderNode = (node: Node, path: Node[], depth: number) => {
@@ -129,7 +131,8 @@ export function RelatedTree() {
     const perParent = c?.kind === 'one-to-many' ? (c.rowsPerParent ?? 0) : 0
     const tooMany = perParent > DEFAULT_EMBED_LIMIT
     const noIndex = h.kind === 'one-to-many' && h.indexed === false ? advice.get(`${h.table.schema}.${h.table.name}|${h.join.map((j) => j.child).join(',')}`) : undefined
-    const isOpen = expanded.has(node.key)
+    const embedded = embeddedPath(full)
+    const isOpen = embedded !== toggled.has(node.key)
     return (
       <li key={node.key} data-testid={`related-${full.map((x) => x.hop.table.name).join('/')}`}>
         <div className="flex items-center gap-2 py-1.5 pr-3 text-[13px]" style={{ paddingLeft: 12 + depth * 14 }}>
@@ -160,7 +163,7 @@ export function RelatedTree() {
               ) : null}
             </div>
           </div>
-          {embeddedPath(full) ? (
+          {embedded ? (
             <Badge tone="success">{t('embed.embedded')}</Badge>
           ) : (
             <Can role="editor">

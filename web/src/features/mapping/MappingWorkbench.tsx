@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Eye, PanelRight, PanelTopClose, PanelTopOpen, Redo2, ShieldCheck, Undo2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -93,7 +93,11 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
     () => computeStats(liveSpec, columns.map((c) => c.name), Object.fromEntries(Object.entries(embedTables ?? {}).map(([id, et]) => [id, et.columns.map((c) => c.name)]))),
     [liveSpec, columns, embedTables],
   )
-  const autosave = useMappingAutosave(store, project.id)
+  // The cached mapping never refetches by itself (staleTime: Infinity), so it follows every
+  // save and server-side change (an embed, auto-map): coming back reopens what was saved.
+  const cache = useCallback((v: MappingView) => qc.setQueryData(mappingKeys.one(project.id, v.id), v), [qc, project.id])
+  useEffect(() => store.subscribe((s, prev) => void (s.view !== prev.view && cache(s.view))), [store, cache])
+  const autosave = useMappingAutosave(store, project.id, 800, cache)
   // Server-side edits (e.g. adding an embed) first save what's pending.
   const { saveNow } = autosave
   useEffect(() => {

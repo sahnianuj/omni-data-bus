@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -188,6 +189,9 @@ func check(snap *schema.Snapshot, in *RelationshipInput) error {
 			return invalid(CodeRelationTypeMismatch, fmt.Sprintf("%s.%s (%s) can't be joined with %s.%s (%s).", ft.Name, fc.Name, fc.UDTName, tt.Name, tc.Name, tc.UDTName))
 		}
 	}
+	if in.From.Schema == in.To.Schema && in.From.Table == in.To.Table && slices.Equal(in.From.Columns, in.To.Columns) {
+		return invalid(CodeRelationInvalid, "This joins each row of "+ft.Name+" to itself. A self-reference uses different columns on each side, e.g. manager_id → employee_id.")
+	}
 	switch in.Cardinality {
 	case "":
 		in.Cardinality = CardinalityManyToOne
@@ -199,6 +203,25 @@ func check(snap *schema.Snapshot, in *RelationshipInput) error {
 		in.Name = fmt.Sprintf("%s.%s → %s.%s", in.From.Table, strings.Join(in.From.Columns, ","), in.To.Table, strings.Join(in.To.Columns, ","))
 	}
 	return nil
+}
+
+// checkDuplicate refuses a relationship the project already has (same ends and columns, in
+// either direction), other than the one being updated (except).
+func (s *Service) checkDuplicate(ctx context.Context, ws store.WorkspaceID, projectID, except string, in RelationshipInput) error {
+	rels, err := s.store.Relationships().ListForProject(ctx, ws, projectID)
+	if err != nil {
+		return err
+	}
+	for _, r := range rels {
+		if r.ID != except && (sameEnds(r.From, in.From) && sameEnds(r.To, in.To) || sameEnds(r.From, in.To) && sameEnds(r.To, in.From)) {
+			return problem.New(http.StatusConflict, CodeRelationInvalid, "Relationship exists", "This relationship already exists as "+r.Name+".")
+		}
+	}
+	return nil
+}
+
+func sameEnds(a, b store.RelationshipEnd) bool {
+	return a.Schema == b.Schema && a.Table == b.Table && slices.Equal(a.Columns, b.Columns)
 }
 
 // List returns the project's virtual relationships.
@@ -223,6 +246,9 @@ func (s *Service) Create(ctx context.Context, ws store.WorkspaceID, userID, proj
 	if err := check(snap, &in); err != nil {
 		return store.Relationship{}, err
 	}
+	if err := s.checkDuplicate(ctx, ws, projectID, "", in); err != nil {
+		return store.Relationship{}, err
+	}
 	return s.store.Relationships().Create(ctx, ws, store.Relationship{
 		ProjectID: projectID, Name: in.Name, From: in.From, To: in.To, Cardinality: in.Cardinality, Detected: in.Detected, CreatedBy: userID,
 	})
@@ -239,6 +265,9 @@ func (s *Service) Update(ctx context.Context, ws store.WorkspaceID, projectID, i
 		return store.Relationship{}, err
 	}
 	if err := check(snap, &in); err != nil {
+		return store.Relationship{}, err
+	}
+	if err := s.checkDuplicate(ctx, ws, projectID, id, in); err != nil {
 		return store.Relationship{}, err
 	}
 	if version == 0 {

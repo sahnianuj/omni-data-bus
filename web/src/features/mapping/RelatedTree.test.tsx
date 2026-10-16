@@ -57,6 +57,18 @@ describe('RelatedTree', () => {
     expect(within(junction).getByRole('button', { name: 'Embed as array of products' })).toBeInTheDocument()
   })
 
+  it('an embedded table opens to show what it references, so that can be embedded next', async () => {
+    server.use(http.get('*/api/v1/connections/:id/relations', () => HttpResponse.json(ordersGraph())))
+    const view = ordersView()
+    view.spec = { ...view.spec, relations: [{ id: 'emb_i', kind: 'one-to-many', table: { schema: 'public', name: 'order_items' }, join: [{ parent: 'order_id', child: 'order_id' }] }] }
+    renderWorkbench(<RelatedTree />, view)
+    const items = await screen.findByTestId('related-order_items')
+    expect(within(items).getAllByText('Embedded')[0]).toBeInTheDocument()
+    expect(await screen.findByTestId('related-order_items/products')).toHaveTextContent('↗ products via product_id')
+    await userEvent.click(within(items).getByRole('button', { name: 'Hide tables related to order_items' }))
+    expect(screen.queryByTestId('related-order_items/products')).not.toBeInTheDocument()
+  })
+
   it('OC-069 AC1: per-row relations nest under the group\'s rows', async () => {
     // Order Details grouped by order_id: the lines are items[]; product_id differs per line.
     const view = embedView({
