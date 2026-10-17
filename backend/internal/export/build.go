@@ -169,7 +169,7 @@ func (b *Builder) Build(ctx context.Context, ws store.WorkspaceID, userEmail, pr
 		loc := m.Where()
 		bundle.Mappings = append(bundle.Mappings, Mapping{
 			ID: m.ID, Name: mappingName(m), Source: TableRef{Schema: m.SourceSchema, Table: m.SourceTable},
-			Location: loc, Spec: raw, PlanHash: pl.Hash,
+			Location: loc, Outline: mapping.Outline(&spec, mapping.TableRef{Schema: schemaName, Name: table}), Spec: raw, PlanHash: pl.Hash,
 		})
 	}
 	if len(invalid) > 0 {
@@ -194,6 +194,21 @@ func (b *Builder) Build(ctx context.Context, ws store.WorkspaceID, userEmail, pr
 	if bundle.Target.Type != store.KindDirectory {
 		tgt = secretsMap(tgtSecrets)
 	}
+	// Config mode: every connection setting goes to config.json, and the bundle (mappings.json)
+	// keeps only what the migration does (OC-158). A directory target's folder is there too.
+	if mode == ModeConfig {
+		rc := RunConfig{}
+		if rc.Source, err = NewRunConnection(bundle.Source, src); err != nil {
+			return Built{}, err
+		}
+		if rc.Target, err = NewRunConnection(bundle.Target, tgt); err != nil {
+			return Built{}, err
+		}
+		if out.RunConfig, err = EncodeRunConfig(rc); err != nil {
+			return Built{}, err
+		}
+		bundle.Source.Config, bundle.Target.Config = json.RawMessage(`{}`), json.RawMessage(`{}`)
+	}
 	aad, err := bundle.ContentHash()
 	if err != nil {
 		return Built{}, err
@@ -217,20 +232,6 @@ func (b *Builder) Build(ctx context.Context, ws store.WorkspaceID, userEmail, pr
 	}
 	if err := bundle.Finalize(); err != nil {
 		return Built{}, err
-	}
-	if mode == ModeConfig {
-		rc := RunConfig{}
-		if rc.Source, err = NewRunConnection(bundle.Source, src); err != nil {
-			return Built{}, err
-		}
-		if tgt != nil {
-			if rc.Target, err = NewRunConnection(bundle.Target, tgt); err != nil {
-				return Built{}, err
-			}
-		}
-		if out.RunConfig, err = EncodeRunConfig(rc); err != nil {
-			return Built{}, err
-		}
 	}
 	out.Bundle = bundle
 	return out, nil

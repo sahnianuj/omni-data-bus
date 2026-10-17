@@ -115,7 +115,7 @@ ODB_BUNDLE_PASSPHRASE=... go run ./cmd/odbbench coldstart --script <export>/migr
 make -C .. bench-gate                          # exit 0 = every gate passed
 ```
 
-To get a cold-start fixture against the dev stack without the UI, run `cd backend && ODB_COLDSTART_OUT=<dir> OC_IT_PG_HOST=localhost OC_IT_PG_PORT=5434 go test -tags=integration -run TestColdStartFixture ./internal/headless/`. It writes `migrate.sh` and `bundle.odb.json` for the golden orders project; build the matching `odb` with `go build -o <dir>/odb ./cmd/odb` and set `ODB_BIN=<dir>/odb`.
+To get a cold-start fixture against the dev stack without the UI, run `cd backend && ODB_COLDSTART_OUT=<dir> OC_IT_PG_HOST=localhost OC_IT_PG_PORT=5434 go test -tags=integration -run TestColdStartFixture ./internal/headless/`. It writes `migrate.sh`, `mappings.json` and an empty `config.json` (the sealed bundle keeps its connections) for the golden orders project; build the matching `odb` with `go build -o <dir>/odb ./cmd/odb` and set `ODB_BIN=<dir>/odb`.
 
 `make bench-gate` judges only runs marked `--env reference=true` (`--reference-only`).
 - CI's `bench-gate` job reports gates that have no reference result yet as pending.

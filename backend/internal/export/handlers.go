@@ -39,7 +39,7 @@ func (h Handlers) options(w http.ResponseWriter, _ *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, h.Svc.Describe())
 }
 
-// export streams the bundle or the script zip as a download.
+// export streams the export folder's zip as a download.
 func (h Handlers) export(w http.ResponseWriter, r *http.Request) {
 	var in Input
 	if err := httpapi.DecodeJSON(w, r, &in); err != nil {
@@ -57,6 +57,9 @@ func (h Handlers) export(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Odb-Export-Id", rec.ID)
 	w.Header().Set("X-Odb-Bundle-Sha256", rec.BundleSHA256)
+	if art.IncludedOdb != "" {
+		w.Header().Set("X-Odb-Included", art.IncludedOdb)
+	}
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write(art.Body)
 }

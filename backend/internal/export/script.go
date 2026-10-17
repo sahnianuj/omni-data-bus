@@ -7,15 +7,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"embed"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -23,16 +20,25 @@ import (
 	"omnidatabus/internal/store"
 )
 
-// Script settings for runtime "script" (OC-053).
+// Script is the older export request's script settings (OC-053), still accepted: runtime
+// "embedded" with an OS and architecture means "include odb" (OC-160). The other runtimes and
+// IncludeBundle no longer change the download: the script finds odb itself, and mappings.json
+// is always in it.
 type Script struct {
-	// Runtime is how migrate.sh runs odb: auto (default), binary, docker or embedded.
-	Runtime string `json:"runtime"`
-	// OS and Arch choose the embedded binary (runtime embedded only).
-	OS   string `json:"os,omitempty"`
-	Arch string `json:"arch,omitempty"`
-	// IncludeBundle adds bundle.odb.json next to migrate.sh in the zip.
-	IncludeBundle bool `json:"includeBundle"`
+	Runtime       string `json:"runtime"`
+	OS            string `json:"os,omitempty"`
+	Arch          string `json:"arch,omitempty"`
+	IncludeBundle bool   `json:"includeBundle"`
 }
+
+// Platform is an operating system and architecture odb is released for.
+type Platform struct {
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
+}
+
+// String is "os_arch", as in Platforms.
+func (p Platform) String() string { return p.OS + "_" + p.Arch }
 
 // Platforms odb is released for.
 var Platforms = []string{"linux_amd64", "linux_arm64", "darwin_amd64", "darwin_arm64"}
@@ -91,8 +97,8 @@ func (d Dist) Checksums() map[string]string {
 	return out
 }
 
-// Binary returns the gzip'd odb binary for a platform: from the dist tarball, or the running
-// binary when it is that platform.
+// Binary returns the odb binary for a platform: from the dist tarball, or the running binary
+// when it is that platform.
 func (d Dist) Binary(platform string) ([]byte, error) {
 	var raw []byte
 	if d.Dir != "" {
@@ -116,15 +122,7 @@ func (d Dist) Binary(platform string) ([]byte, error) {
 	if raw == nil {
 		return nil, fmt.Errorf("no odb binary for %s on this server (set OC_EXPORT_DIST_DIR to the release binaries)", platform)
 	}
-	var buf bytes.Buffer
-	zw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
-	if _, err := zw.Write(raw); err != nil {
-		return nil, err
-	}
-	if err := zw.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return raw, nil
 }
 
 // Available lists the platforms an embedded binary is available for.
@@ -172,12 +170,12 @@ type ScriptConfig struct {
 	DownloadURL    string // where odb_<ver>_<os>_<arch>.tar.gz are downloaded from
 	CosignIdentity string // the release workflow identity cosign verifies (regexp)
 	Dist           Dist
-	// EmbedWhenNoDownload makes an "auto" script carry odb when no platform can be downloaded
-	// (no release checksums, e.g. a self-built server), so the script still runs as is.
+	// EmbedWhenNoDownload includes odb in every export when no platform can be downloaded (no
+	// release checksums, e.g. a self-built server), so the script still runs as is.
 	EmbedWhenNoDownload bool
 }
 
-// fallbackPlatform is the platform an "auto" script embeds when nothing can be downloaded:
+// fallbackPlatform is the platform an export includes odb for when nothing can be downloaded:
 // this server's own if it has that binary, else the first it has. Empty: none.
 func (c ScriptConfig) fallbackPlatform(checksums map[string]string) string {
 	if !c.EmbedWhenNoDownload {
@@ -202,21 +200,22 @@ func (c ScriptConfig) fallbackPlatform(checksums map[string]string) string {
 
 type scriptMapping struct{ Name, Source, Target string }
 
+// scriptData is all migrate.sh holds: the odb release it runs (OC-159). Nothing about the
+// export, so every export from one release has the same script.
 type scriptData struct {
+	Version, Image, DownloadURL, CosignIdentity string
+	Checksums                                   map[string]string
+}
+
+// readmeData describes one export in its README.md.
+type readmeData struct {
 	Project, ExportedAt, ExportedBy, Version, BundleSHA256 string
-	MappingList, CredentialSummary                         string
-	Plaintext, Sealed, TargetHasCredentials                bool
-	// ConfigFile: the connections and credentials are in config.json beside the script (OC-155).
-	ConfigFile                         bool
-	Image, DownloadURL, CosignIdentity string
-	Checksums                          map[string]string
-	EmbeddedPlatform                   string
-	TargetKind, TargetPath, Runtime    string
-	EnvRefs                            []string
-	Mappings                           []scriptMapping
-	SourceSummary, TargetSummary       string
-	Refs, EnvExample                   []string
-	BundleBase64, BinaryBase64         string
+	Mappings                                               []scriptMapping
+	SourceSummary, TargetSummary, TargetKind, TargetPath   string
+	TargetHasCredentials                                   bool
+	Image, DownloadURL                                     string
+	// OdbPlatform is the platform of the odb included beside the script ("" = none).
+	OdbPlatform string
 	// Folder is the zip's top-level directory: everything unzips (and runs) inside it.
 	Folder string
 }
@@ -226,47 +225,48 @@ type Artifact struct {
 	FileName    string
 	ContentType string
 	Body        []byte
+	// IncludedOdb is the platform of the odb in the export ("" = none).
+	IncludedOdb string
 }
 
-// MaxArtifactBytes caps a generated download (the embedded binary is the largest part).
-const MaxArtifactBytes = 50 << 20
+// MaxArtifactBytes caps a generated download (the included odb is the largest part).
+const MaxArtifactBytes = 80 << 20
 
-// RenderScript builds the export zip: migrate.sh (0755), README.md, config.json (0600, when the
-// bundle has one) and optionally the bundle, all inside one folder named like the zip, so
-// unzipping never scatters files.
-func RenderScript(b Bundle, bundleJSON, runConfig []byte, s Script, cfg ScriptConfig, version string) (Artifact, error) {
-	d, err := scriptDataFor(b, bundleJSON, s, cfg, version)
+// MappingsFile is the export's mappings: the bundle, without connection details (OC-158).
+const MappingsFile = "mappings.json"
+
+// RenderScript builds the export (OC-160): one folder, named like the zip, with migrate.sh
+// (0755), README.md, config.json (0600), mappings.json and, when include names a platform, odb
+// (0755) for it. With no platform, odb is still included when nothing can be downloaded.
+func RenderScript(b Bundle, mappingsJSON, runConfig []byte, include string, cfg ScriptConfig, version string) (Artifact, error) {
+	if include == "" {
+		include = cfg.fallbackPlatform(cfg.Dist.Checksums())
+	}
+	script, err := GenericScript(cfg, version)
 	if err != nil {
 		return Artifact{}, err
 	}
-	var script, readme bytes.Buffer
-	if err := templates.ExecuteTemplate(&script, "migrate.sh.tmpl", d); err != nil {
+	readme, err := RenderReadme(b, runConfig, include, cfg, version)
+	if err != nil {
 		return Artifact{}, err
 	}
-	if err := templates.ExecuteTemplate(&readme, "README.md.tmpl", d); err != nil {
-		return Artifact{}, err
-	}
-	dir := d.Folder + "/"
-	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "migrate.sh", 0o755, script.Bytes()}, {dir + "README.md", 0o644, readme.Bytes()}}
-	if runConfig != nil {
-		files = append(files, zipFile{dir + RunConfigFile, 0o600, runConfig})
-	}
-	if s.IncludeBundle {
-		files = append(files, zipFile{dir + "bundle.odb.json", 0o600, bundleJSON})
-	}
-	return zipArtifact(d.Folder, files, b.CreatedAt)
-}
-
-// RenderBundle builds the "bundle" runtime's zip: bundle.odb.json and its config.json, for
-// `odb run --bundle bundle.odb.json --config config.json` (OC-155).
-func RenderBundle(b Bundle, bundleJSON, runConfig []byte) (Artifact, error) {
 	folder := exportFolder(b)
 	dir := folder + "/"
-	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "bundle.odb.json", 0o600, bundleJSON}}
+	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "migrate.sh", 0o755, script}, {dir + "README.md", 0o644, readme}}
 	if runConfig != nil {
 		files = append(files, zipFile{dir + RunConfigFile, 0o600, runConfig})
 	}
-	return zipArtifact(folder, files, b.CreatedAt)
+	files = append(files, zipFile{dir + MappingsFile, 0o644, mappingsJSON})
+	if include != "" {
+		bin, err := cfg.Dist.Binary(include)
+		if err != nil {
+			return Artifact{}, err
+		}
+		files = append(files, zipFile{dir + "odb", 0o755, bin})
+	}
+	art, err := zipArtifact(folder, files, b.CreatedAt)
+	art.IncludedOdb = include
+	return art, err
 }
 
 func zipArtifact(folder string, files []zipFile, at time.Time) (Artifact, error) {
@@ -275,7 +275,7 @@ func zipArtifact(folder string, files []zipFile, at time.Time) (Artifact, error)
 		return Artifact{}, err
 	}
 	if len(body) > MaxArtifactBytes {
-		return Artifact{}, errors.New("the export is larger than 50 MB")
+		return Artifact{}, fmt.Errorf("the export is larger than %d MB", MaxArtifactBytes>>20)
 	}
 	return Artifact{FileName: folder + ".zip", ContentType: "application/zip", Body: body}, nil
 }
@@ -285,116 +285,61 @@ func exportFolder(b Bundle) string {
 	return "odb-export-" + slug(b.Project.Name) + "-" + b.CreatedAt.Format("20060102")
 }
 
-// RenderScriptFiles returns migrate.sh and README.md alone (tests, previews).
-func RenderScriptFiles(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, version string) (script, readme []byte, err error) {
-	d, err := scriptDataFor(b, bundleJSON, s, cfg, version)
-	if err != nil {
-		return nil, nil, err
-	}
-	var sb, rb bytes.Buffer
-	if err := templates.ExecuteTemplate(&sb, "migrate.sh.tmpl", d); err != nil {
-		return nil, nil, err
-	}
-	if err := templates.ExecuteTemplate(&rb, "README.md.tmpl", d); err != nil {
-		return nil, nil, err
-	}
-	return sb.Bytes(), rb.Bytes(), nil
-}
-
-func scriptDataFor(b Bundle, bundleJSON []byte, s Script, cfg ScriptConfig, version string) (scriptData, error) {
-	runtimeName := s.Runtime
-	if runtimeName == "" {
-		runtimeName = "auto"
-	}
+// GenericScript is migrate.sh for this odb release: the same for every export (OC-159).
+func GenericScript(cfg ScriptConfig, version string) ([]byte, error) {
 	d := scriptData{
-		Project: b.Project.Name, ExportedAt: b.CreatedAt.UTC().Format(time.RFC3339), ExportedBy: b.CreatedBy, Version: version,
-		BundleSHA256: b.SHA256(), Image: cfg.Image, DownloadURL: strings.TrimRight(cfg.DownloadURL, "/"), CosignIdentity: cfg.CosignIdentity,
-		Checksums: cfg.Dist.Checksums(), TargetKind: b.Target.Type, Runtime: runtimeName,
-		SourceSummary: connSummary(b.Source), TargetSummary: connSummary(b.Target),
-		BundleBase64: wrap(base64.StdEncoding.EncodeToString(bundleJSON), 76),
-		Folder:       exportFolder(b),
+		Version: version, Image: cfg.Image, DownloadURL: strings.TrimRight(cfg.DownloadURL, "/"), CosignIdentity: cfg.CosignIdentity,
+		Checksums: cfg.Dist.Checksums(),
 	}
 	for _, p := range Platforms {
 		if _, ok := d.Checksums[p]; !ok {
 			d.Checksums[p] = ""
 		}
 	}
-	var names []string
+	var out bytes.Buffer
+	if err := templates.ExecuteTemplate(&out, "migrate.sh.tmpl", d); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// RenderReadme is the export's README.md: what this export migrates, from where to where, and
+// how to run it. Connection details come from config.json when the bundle has none (OC-158).
+func RenderReadme(b Bundle, runConfig []byte, include string, cfg ScriptConfig, version string) ([]byte, error) {
+	src, tgt := b.Source, b.Target
+	if runConfig != nil {
+		rc, _, err := ParseRunConfig(runConfig)
+		if err != nil {
+			return nil, err
+		}
+		if rc.Source != nil {
+			src = rc.Source.connection(src)
+		}
+		if rc.Target != nil {
+			tgt = rc.Target.connection(tgt)
+		}
+	}
+	d := readmeData{
+		Project: b.Project.Name, ExportedAt: b.CreatedAt.UTC().Format(time.RFC3339), ExportedBy: b.CreatedBy, Version: version,
+		BundleSHA256: b.SHA256(), SourceSummary: connSummary(src), TargetSummary: connSummary(tgt), TargetKind: b.Target.Type,
+		TargetHasCredentials: b.Target.Credentials != nil, Image: cfg.Image, DownloadURL: strings.TrimRight(cfg.DownloadURL, "/"),
+		OdbPlatform: include, Folder: exportFolder(b),
+	}
 	for _, m := range b.Mappings {
-		names = append(names, m.Name+" (→ "+m.Location.String()+")")
 		d.Mappings = append(d.Mappings, scriptMapping{Name: m.Name, Source: m.Source.String(), Target: m.Location.String()})
 	}
-	d.MappingList = strings.Join(names, ", ")
 	if b.Target.Type == store.KindDirectory {
 		var cfgDir struct {
 			Path string `json:"path"`
 		}
-		_ = json.Unmarshal(b.Target.Config, &cfgDir)
+		_ = json.Unmarshal(tgt.Config, &cfgDir)
 		d.TargetPath = cfgDir.Path
 	}
-	mode := ModeSealed
-	for _, c := range []*Credentials{b.Source.Credentials, b.Target.Credentials} {
-		if c != nil {
-			mode = c.Mode
-		}
+	var out bytes.Buffer
+	if err := templates.ExecuteTemplate(&out, "README.md.tmpl", d); err != nil {
+		return nil, err
 	}
-	d.TargetHasCredentials = b.Target.Credentials != nil
-	switch mode {
-	case ModeSealed:
-		d.CredentialSummary = "sealed (passphrase required)"
-		d.Sealed = true
-	case ModePlaintext:
-		d.CredentialSummary = "plaintext (no passphrase)"
-		d.Plaintext = true
-	case ModeConfig:
-		d.CredentialSummary = "in config.json beside migrate.sh (base64-encoded, not encrypted)"
-		d.ConfigFile = true
-	case ModeExternal:
-		d.CredentialSummary = "external (read from the environment or files at run time)"
-		envs := map[string]bool{}
-		for role, c := range map[string]*Credentials{"source": b.Source.Credentials, "target": b.Target.Credentials} {
-			if c == nil {
-				continue
-			}
-			for k, ref := range c.Refs {
-				d.Refs = append(d.Refs, fmt.Sprintf("%s %s from `%s`", role, k, ref))
-				if name, ok := strings.CutPrefix(ref, "env:"); ok {
-					envs[name] = true
-				}
-			}
-		}
-		sort.Strings(d.Refs)
-		for name := range envs {
-			d.EnvRefs = append(d.EnvRefs, name)
-		}
-		sort.Strings(d.EnvRefs)
-		for _, name := range d.EnvRefs {
-			d.EnvExample = append(d.EnvExample, name+"='…'")
-		}
-	}
-	// An OS and architecture embed odb (air-gapped sites); "auto" then tries it first, and
-	// falls back on another machine.
-	if runtimeName == "embedded" && (s.OS == "" || s.Arch == "") {
-		return d, errors.New("choose the operating system and architecture of the machine that runs the script")
-	}
-	if runtimeName == "auto" && (s.OS == "" || s.Arch == "") {
-		if p := cfg.fallbackPlatform(d.Checksums); p != "" {
-			s.OS, s.Arch, _ = strings.Cut(p, "_")
-		}
-	}
-	if s.OS != "" && s.Arch != "" {
-		p := s.OS + "_" + s.Arch
-		bin, err := cfg.Dist.Binary(p)
-		if err != nil {
-			return d, err
-		}
-		d.EmbeddedPlatform = p
-		d.BinaryBase64 = wrap(base64.StdEncoding.EncodeToString(bin), 76)
-		if runtimeName == "embedded" {
-			d.Runtime = "auto"
-		}
-	}
-	return d, nil
+	return out.Bytes(), nil
 }
 
 func connSummary(c Connection) string {

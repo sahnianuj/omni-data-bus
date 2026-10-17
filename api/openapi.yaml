@@ -1218,9 +1218,10 @@ paths:
       tags: [exports]
       operationId: createExport
       summary: >-
-        Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip:
-        the portable bundle (runtime bundle → bundle.odb.json) or migrate.sh (runtime script), with config.json holding
-        the connection details and base64-encoded credentials (OC-155, OC-156). Editors only; no passphrase or step-up
+        Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip of
+        one folder: the generic migrate.sh (OC-159), config.json with the connection details and base64-encoded
+        credentials (OC-155, OC-156), mappings.json with the mappings and no connection details (OC-158), README.md,
+        and odb when includeOdb is set (OC-160). Editors only; no passphrase or step-up
         (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour
       security: [{ cookieAuth: [] }]
       requestBody:
@@ -1230,7 +1231,7 @@ paths:
             schema: { $ref: '#/components/schemas/ExportRequest' }
       responses:
         '201':
-          description: The zip, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers)
+          description: The zip, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers; X-Odb-Included names the platform of an included odb)
           content:
             application/zip: { schema: { type: string, format: binary } }
         default: { $ref: '#/components/responses/Problem' }
@@ -3204,7 +3205,7 @@ components:
         downloadUrl: { type: string }
         downloadable: { type: array, items: { type: string }, description: 'Platforms (os_arch) a script can download odb for (checksums known)' }
         embeddable: { type: array, items: { type: string }, description: Platforms this server can embed odb for }
-        autoEmbed: { type: string, description: 'The platform (os_arch) an Automatic script carries odb for, because no platform can be downloaded; absent when downloads work' }
+        autoEmbed: { type: string, description: 'The platform (os_arch) every export includes odb for, because no platform can be downloaded; absent when downloads work' }
         maxPerHour: { type: integer }
     ExportRequest:
       type: object
@@ -3212,17 +3213,29 @@ components:
         How to package the export. What is exported is the project as configured — its source, target, saved
         credentials and every ready mapping; change them in the project's steps. The connection details and
         credentials go in the zip's config.json, where operators change them per environment.
-      required: [runtime]
       properties:
-        runtime: { type: string, enum: [bundle, script] }
+        includeOdb:
+          type: [object, 'null']
+          description: Put odb for this platform beside migrate.sh, for a machine that can't download it (OC-160). Absent or null — the script finds or downloads odb itself.
+          required: [os, arch]
+          properties:
+            os: { type: string, enum: [linux, darwin] }
+            arch: { type: string, enum: [amd64, arm64] }
+        jobOptions: { $ref: '#/components/schemas/JobOptions' }
+        runtime:
+          type: string
+          enum: [bundle, script]
+          deprecated: true
+          description: Older clients. Every export is now the same folder.
         script:
           type: object
+          deprecated: true
+          description: Older clients. runtime "embedded" with os and arch is the same as includeOdb; the rest is ignored.
           properties:
             runtime: { type: string, enum: [auto, binary, docker, embedded] }
             os: { type: string, enum: [linux, darwin] }
             arch: { type: string, enum: [amd64, arm64] }
             includeBundle: { type: boolean }
-        jobOptions: { $ref: '#/components/schemas/JobOptions' }
     ExportRecord:
       type: object
       required: [id, projectId, createdBy, createdByEmail, createdAt, mappingIds, planHashes, targetType, credentialMode, runtime, odbVersion, bundleSha256, planHash, changed]

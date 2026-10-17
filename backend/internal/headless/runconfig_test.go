@@ -144,7 +144,6 @@ func TestRunConfig_Errors(t *testing.T) {
 		{"no config file", "", "pass it with --config"},
 		{"no source section", `{}`, "the source section is missing"},
 		{"another kind", `{"source": {"type": "mysql"}}`, `source.type is "mysql", but this migration's source is postgres`},
-		{"a directory target", `{"source": {"password": "x"}, "target": {"path": "/elsewhere"}}`, "a directory target has no target section"},
 	} {
 		cfg := configBundle(t, src, &stdout, &stderr)
 		if c.config != "" {
@@ -158,4 +157,47 @@ func TestRunConfig_Errors(t *testing.T) {
 		require.ErrorContains(t, err, c.want, c.name)
 		require.ErrorContains(t, err, export.CodeRunConfigInvalid, c.name)
 	}
+}
+
+// TestRunConfig_OC158_AC3_EmptyBundleConfig: a mappings.json has no connection settings. The
+// run takes them all from config.json, including a directory target's folder, which is
+// relative to config.json's folder; a missing section names the file.
+func TestRunConfig_OC158_AC3_EmptyBundleConfig(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	src := &recordingSource{memSource: &memSource{rows: ordersRows()}}
+	cfg := configBundle(t, src, &stdout, &stderr)
+	b := *cfg.Bundle
+	var target map[string]any
+	require.NoError(t, json.Unmarshal(b.Target.Config, &target))
+	b.Source.Config, b.Target.Config = json.RawMessage(`{}`), json.RawMessage(`{}`)
+	require.NoError(t, b.Finalize())
+	cfg.Bundle = &b
+
+	target["type"], target["path"] = "directory", "out"
+	tj, _ := json.Marshal(target)
+	path := writeConfig(t, `{"source": {"type": "postgres", "host": "db.prod", "database": "shop", "username": "migrator", "password": "base64:bjN3LXBhc3M="}, "target": `+string(tj)+`}`)
+	rc, err := LoadRunConfig(path, func(string) {})
+	require.NoError(t, err)
+	cfg.RunConfig, cfg.RunConfigPath = rc, path
+
+	_, code, err := Run(context.Background(), cfg)
+	require.NoError(t, err, stderr.String())
+	require.Equal(t, ExitOK, code, stderr.String())
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(src.config, &got))
+	require.Equal(t, "db.prod", got["host"])
+	files, err := filepath.Glob(filepath.Join(filepath.Dir(path), "out", "orders", "*.json"))
+	require.NoError(t, err)
+	require.Len(t, files, 3, "written under config.json's folder")
+
+	// Without the target section: the file and section are named.
+	cfg2 := configBundle(t, src, &stdout, &stderr)
+	cfg2.Bundle = &b
+	path2 := writeConfig(t, `{"source": {"type": "postgres", "password": "x"}}`)
+	rc2, err := LoadRunConfig(path2, func(string) {})
+	require.NoError(t, err)
+	cfg2.RunConfig, cfg2.RunConfigPath = rc2, path2
+	_, code, err = Run(context.Background(), cfg2)
+	require.Equal(t, ExitPreflight, code)
+	require.ErrorContains(t, err, path2+": the target section is missing")
 }

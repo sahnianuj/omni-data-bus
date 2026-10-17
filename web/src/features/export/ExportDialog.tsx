@@ -17,15 +17,14 @@ import { formatLocation } from '@/features/targets/kinds'
 import { cn } from '@/lib/utils'
 import { saveFile, useCreateExport, useExportOptions, type ExportFile, type ExportRequest } from './api'
 
-const STEPS = ['project', 'runtime'] as const
+const STEPS = ['project', 'options'] as const
 type StepName = (typeof STEPS)[number]
 
 /** The bundled node of the all-in-one image (OC-072): unreachable outside its container. */
 const BUNDLED = 'Bundled Couchbase'
 
 const schema = z.object({
-  runtime: z.enum(['script', 'bundle']),
-  scriptRuntime: z.enum(['auto', 'binary', 'docker', 'embedded']),
+  includeOdb: z.boolean(),
   platform: z.string(),
   readers: z.string(),
   writers: z.number().int().min(1).max(512),
@@ -37,8 +36,8 @@ export type ExportValues = z.infer<typeof schema>
 
 /** The request the dialog sends (exported for tests): only how to package the project. */
 export function toRequest(v: ExportValues): ExportRequest {
+  const [os, arch] = v.platform.split('_')
   const req: ExportRequest = {
-    runtime: v.runtime,
     jobOptions: {
       readParallelism: v.readers,
       writeConcurrency: v.writers,
@@ -47,33 +46,8 @@ export function toRequest(v: ExportValues): ExportRequest {
       errorPolicy: { maxErrors: v.maxErrors, maxErrorRatio: 1, minRowsForRatio: 0 },
     },
   }
-  if (v.runtime === 'script') {
-    const [os, arch] = v.platform.split('_')
-    req.script = {
-      runtime: v.scriptRuntime,
-      ...(v.scriptRuntime === 'embedded' && os && arch ? { os: os as 'linux' | 'darwin', arch: arch as 'amd64' | 'arm64' } : {}),
-    }
-  }
+  if (v.includeOdb && os && arch) req.includeOdb = { os: os as 'linux' | 'darwin', arch: arch as 'amd64' | 'arm64' }
   return req
-}
-
-function Choice({ name, value, current, title, hint, onSelect }: {
-  name: string
-  value: string
-  current: string
-  title: string
-  hint?: string
-  onSelect: (v: string) => void
-}) {
-  return (
-    <label className={cn('flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2 text-[13px]', current === value ? 'border-primary bg-primary-soft' : 'border-border')}>
-      <input type="radio" name={name} value={value} checked={current === value} onChange={() => onSelect(value)} className="mt-0.5" />
-      <span className="flex flex-col">
-        <span className="font-medium">{title}</span>
-        {hint ? <span className="text-xs text-muted">{hint}</span> : null}
-      </span>
-    </label>
-  )
 }
 
 /** One read-only part of the project in the summary, with a link to the step that changes it. */
@@ -92,9 +66,10 @@ function Part({ title, to, change, children }: { title: string; to: string; chan
 
 /**
  * The guided export (OC-055). It exports the project as configured — its source, target, saved
- * credentials and every ready mapping — and only asks how to package and run it, with no
- * passphrase or password prompt (OC-154). The connection details go in the export's config.json
- * (OC-155). To change the project, users go back to its steps (user decision, 2026-10-02).
+ * credentials and every ready mapping — with no passphrase or password prompt (OC-154). Every
+ * export is the same folder: the generic migrate.sh, config.json (where, OC-155) and
+ * mappings.json (what, OC-158); the only choice is whether to include odb (OC-160). To change
+ * the project, users go back to its steps (user decision, 2026-10-02).
  */
 export function ExportDialog({ project, open, onOpenChange }: { project: Project; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
@@ -107,7 +82,7 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
   const form = useForm<ExportValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      runtime: 'script', scriptRuntime: 'auto', platform: 'linux_amd64',
+      includeOdb: false, platform: 'linux_amd64',
       readers: 'auto', writers: 64, batchSize: 1000, writeMode: 'upsert', maxErrors: 1000,
     },
   })
@@ -126,8 +101,8 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
       case 'project':
         if (bundled) return t('export.err.bundled')
         return ready.length === 0 ? t('export.err.noMappings') : null
-      case 'runtime':
-        return v.runtime === 'script' && v.scriptRuntime === 'embedded' && !(opts?.embeddable ?? []).includes(v.platform) ? t('export.err.platform') : null
+      case 'options':
+        return v.includeOdb && !(opts?.embeddable ?? []).includes(v.platform) ? t('export.err.platform') : null
     }
   }
 
@@ -175,6 +150,20 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
             <DialogTitle>{t('export.doneTitle')}</DialogTitle>
             <DialogDescription>{t('export.doneBody', { file: done.fileName })}</DialogDescription>
           </DialogHeader>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]" aria-label={t('export.filesLabel')}>
+            {[
+              ['migrate.sh', t('export.files.script')],
+              ['config.json', t('export.files.config')],
+              ['mappings.json', t('export.files.mappings')],
+              ...(done.includedOdb ? [['odb', t('export.files.odb', { platform: done.includedOdb.replace('_', ' / ') })]] : []),
+              ['README.md', t('export.files.readme')],
+            ].map(([file, what]) => (
+              <div key={file} className="contents">
+                <dt className="font-mono text-xs">{file}</dt>
+                <dd className="text-muted">{what}</dd>
+              </div>
+            ))}
+          </dl>
           <p className="font-mono text-xs text-muted">{t('export.sha', { sha: done.bundleSha256 })}</p>
           <p role="note" className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-[13px]">
             <FileJson aria-hidden className="mt-0.5 size-3.5 shrink-0" />
@@ -245,33 +234,28 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
             </>
           ) : null}
 
-          {name === 'runtime' ? (
+          {name === 'options' ? (
             <div className="flex flex-col gap-2">
-              <Choice name="runtime" value="script" current={v.runtime} onSelect={(x) => set('runtime', x as ExportValues['runtime'])} title={t('export.run.script')} hint={t('export.run.scriptHint')} />
-              {v.runtime === 'script' ? (
-                <div className="flex flex-wrap items-end gap-3 pl-6">
-                  <FormField id="export-rt" label={t('export.run.runtime')}>
-                    <select id="export-rt" title={t(`export.run.rtHint.${v.scriptRuntime}`)} value={v.scriptRuntime} onChange={(e) => set('scriptRuntime', e.target.value as ExportValues['scriptRuntime'])} className="h-9 rounded-md border border-border bg-surface px-2 text-[13px]">
-                      {(['auto', 'binary', 'docker', 'embedded'] as const).map((r) => (
-                        <option key={r} value={r}>{t(`export.run.rt.${r}`)}</option>
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2 text-[13px]">
+                <input type="checkbox" checked={v.includeOdb} onChange={(e) => set('includeOdb', e.target.checked)} className="mt-0.5" />
+                <span className="flex flex-col">
+                  <span className="font-medium">{t('export.run.includeOdb')}</span>
+                  <span className="text-xs text-muted">{t('export.run.includeOdbHint')}</span>
+                </span>
+              </label>
+              {v.includeOdb ? (
+                <div className="pl-6">
+                  <FormField id="export-platform" label={t('export.run.platform')}>
+                    <select id="export-platform" value={v.platform} onChange={(e) => set('platform', e.target.value)} className="h-9 rounded-md border border-border bg-surface px-2 text-[13px]">
+                      {['linux_amd64', 'linux_arm64', 'darwin_amd64', 'darwin_arm64'].map((p) => (
+                        <option key={p} value={p} disabled={!(opts?.embeddable ?? []).includes(p)}>{p.replace('_', ' / ')}</option>
                       ))}
                     </select>
                   </FormField>
-                  {v.scriptRuntime === 'embedded' ? (
-                    <FormField id="export-platform" label={t('export.run.platform')}>
-                      <select id="export-platform" value={v.platform} onChange={(e) => set('platform', e.target.value)} className="h-9 rounded-md border border-border bg-surface px-2 text-[13px]">
-                        {['linux_amd64', 'linux_arm64', 'darwin_amd64', 'darwin_arm64'].map((p) => (
-                          <option key={p} value={p} disabled={!(opts?.embeddable ?? []).includes(p)}>{p.replace('_', ' / ')}</option>
-                        ))}
-                      </select>
-                    </FormField>
-                  ) : null}
-                  {v.scriptRuntime === 'auto' && opts?.autoEmbed ? (
-                    <p className="mb-2.5 text-xs text-muted">{t('export.run.autoEmbed', { platform: opts.autoEmbed.replace('_', ' / ') })}</p>
-                  ) : null}
                 </div>
+              ) : opts?.autoEmbed ? (
+                <p className="text-xs text-muted">{t('export.run.autoEmbed', { platform: opts.autoEmbed.replace('_', ' / ') })}</p>
               ) : null}
-              <Choice name="runtime" value="bundle" current={v.runtime} onSelect={(x) => set('runtime', x as ExportValues['runtime'])} title={t('export.run.bundle')} hint={t('export.run.bundleHint')} />
               <fieldset className="mt-1 grid grid-cols-5 gap-2">
                 <legend className="mb-1 text-xs font-medium text-muted">{t('export.run.options')}</legend>
                 <FormField id="export-readers" label={t('export.run.readers')}>

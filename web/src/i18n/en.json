@@ -1844,39 +1844,24 @@
   },
   "export": {
     "pageTitle": "Export",
-    "pageIntro": "Export the migration to run it without this tool: a migrate.sh script (or a bundle for odb run) that carries the mappings and the connections. Import the run's report.json afterwards to see the production results next to your test runs.",
+    "pageIntro": "Export the migration to run it without this tool: a folder with migrate.sh, config.json (where: the connections) and mappings.json (what: the mappings). Import the run's report.json afterwards to see the production results next to your test runs.",
     "new": "New export",
     "noReady": "No mapping is ready to export yet.",
     "import": "Import report",
     "importHint": "Import the report.json that odb run wrote in its state directory",
     "imported": "Run report imported",
     "title": "Export migration",
-    "intro": "It exports the project as configured and only asks how to package and run it.",
+    "intro": "It exports the project as configured: a folder with migrate.sh, config.json (where) and mappings.json (what).",
     "steps": "Export steps",
     "step": {
       "project": "Project",
-      "runtime": "Runtime & options"
+      "options": "Options"
     },
     "run": {
-      "script": "migrate.sh script",
-      "scriptHint": "Everything needed to run in one script: mappings and how to get odb, with the connection details in config.json beside it. Includes a README.",
-      "runtime": "How it runs odb",
-      "rt": {
-        "auto": "Automatic",
-        "binary": "Download odb",
-        "docker": "Docker image",
-        "embedded": "Embedded (air-gapped)"
-      },
-      "rtHint": {
-        "auto": "Uses odb if it is installed, else Docker, else downloads it. Right for most machines.",
-        "binary": "Downloads and verifies the odb release for the machine it runs on.",
-        "docker": "Runs odb from its Docker image.",
-        "embedded": "Puts odb inside the script, for machines without internet access."
-      },
+      "includeOdb": "Include odb for a machine without internet access",
+      "includeOdbHint": "Puts odb beside migrate.sh. Otherwise the script uses an installed odb or Docker, or downloads odb when it runs.",
       "platform": "Machine",
-      "autoEmbed": "Includes odb for {{platform}}. For another machine, choose Embedded.",
-      "bundle": "Bundle and config only (advanced)",
-      "bundleHint": "bundle.odb.json and config.json, for people who already run odb themselves (odb run --bundle … --config …)",
+      "autoEmbed": "This server can't offer odb downloads, so the export includes odb for {{platform}}. For another machine, include odb for it.",
       "options": "Run options",
       "readers": "Readers",
       "writers": "Writers",
@@ -1893,7 +1878,7 @@
     "next": "Next",
     "export": "Export",
     "doneTitle": "Export downloaded",
-    "doneBody": "{{file}} is in your downloads. Its README has the commands to run it.",
+    "doneBody": "{{file}} is in your downloads. It unzips to one folder:",
     "history": {
       "title": "Export history",
       "emptyTitle": "No exports yet",
@@ -1924,7 +1909,15 @@
       "mappings": "Mappings: {{ready}} of {{count}} ready"
     },
     "notIncluded": "Not ready — not exported",
-    "configNote": "config.json in the export holds the source and target connection details. Edit it to run the same migration against another environment; passwords are kept base64-encoded (not encrypted), and one typed in plain text is encoded on the next run."
+    "configNote": "config.json holds the database credentials, base64-encoded (not encrypted): keep it like a password. A password typed in plain text is encoded on the next run.",
+    "files": {
+      "script": "the runner: the same script for every export, so you can reuse it",
+      "config": "where: the source and target connection details, to edit per environment",
+      "mappings": "what: the mappings, with an outline of what fills each field",
+      "odb": "odb for {{platform}}",
+      "readme": "how to run it"
+    },
+    "filesLabel": "Files in the export"
   },
   "help": {
     "directoryTarget": "Guide: directory targets",

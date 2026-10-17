@@ -461,7 +461,7 @@ make appliance-push REGISTRY=registry.example.com/team    # both CPUs as one mul
 
 ### Running an exported migration (`migrate.sh`, `odb run`)
 
-An export (OC-053) is a zip with `migrate.sh`, `config.json` (the source and target connection details, passwords base64-encoded; OC-155, OC-156) and a `README.md` written for that export. The script carries the mappings as a portable bundle and runs **`odb run`**, the same pipeline as the server (documents are byte-identical), with no web app, metadata store or access to the tool:
+An export (OC-160) is one folder: `migrate.sh`, `config.json` (**where**: the source and target connection details, passwords base64-encoded; OC-155, OC-156), `mappings.json` (**what**: the mappings, with a readable `outline` per mapping; OC-158) and a `README.md` written for that export. `migrate.sh` is the same script for every export from one odb release (OC-159): it reads the two files beside it and runs **`odb run`**, the same pipeline as the server (documents are byte-identical), with no web app, metadata store or access to the tool:
 
 ```bash
 vi config.json                         # optional: another host, user or password (plain text is encoded on the next run)
@@ -470,9 +470,9 @@ vi config.json                         # optional: another host, user or passwor
 ./migrate.sh resume | status | verify  # continue after Ctrl+C or a crash; summarize; count documents
 ```
 
-`migrate.sh` finds `odb` in this order: `ODB_BIN`, a binary embedded in the script (air-gapped sites), `odb` on the `PATH`, Docker, then a download checked against the checksum written into the script. It needs bash 3.2+ (macOS or Linux). Exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration error, 5 cancelled (resume continues). The state directory (`ODB_STATE_DIR`, default `./odb-state`) holds `checkpoint.json`, `errors.jsonl` and `report.json`.
+`migrate.sh` finds `odb` in this order: `ODB_BIN`, an `odb` beside it (exports can include one for air-gapped sites), `odb` on the `PATH`, Docker, then a download checked against the checksum written into the script. `ODB_CONFIG` and `ODB_MAPPINGS` point it at other files. It needs bash 3.2+ (macOS or Linux). Exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration error, 5 cancelled (resume continues). The state directory (`ODB_STATE_DIR`, default `./odb-state`) holds `checkpoint.json`, `errors.jsonl` and `report.json`.
 
-The same works without the script: `odb bundle validate | inspect | diff` and `odb run --bundle bundle.odb.json --config config.json …` (`odb run help`). Release binaries for linux and darwin come from `make dist` (`dist/odb/odb_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS`; the release workflow signs `SHA256SUMS` with cosign and attaches them to the GitHub release). Point the server's `OC_EXPORT_DIST_DIR` at that folder so scripts carry the checksums. The other export settings are in `.env.example`.
+The same works without the script: `odb bundle validate | inspect | diff mappings.json` and `odb run --mappings mappings.json --config config.json …` (`odb run help`). Release binaries for linux and darwin come from `make dist` (`dist/odb/odb_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS`; the release workflow signs `SHA256SUMS` with cosign and attaches them to the GitHub release). Point the server's `OC_EXPORT_DIST_DIR` at that folder so scripts carry the checksums. The other export settings are in `.env.example`.
 
 ## Working on a story (contributor workflow)
 

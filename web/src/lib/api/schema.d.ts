@@ -1056,7 +1056,7 @@ export interface paths {
         /** The project's export history, newest first, with the mappings changed since each export (OC-055) */
         get: operations["listExports"];
         put?: never;
-        /** Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip: the portable bundle (runtime bundle → bundle.odb.json) or migrate.sh (runtime script), with config.json holding the connection details and base64-encoded credentials (OC-155, OC-156). Editors only; no passphrase or step-up (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
+        /** Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip of one folder: the generic migrate.sh (OC-159), config.json with the connection details and base64-encoded credentials (OC-155, OC-156), mappings.json with the mappings and no connection details (OC-158), README.md, and odb when includeOdb is set (OC-160). Editors only; no passphrase or step-up (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
         post: operations["createExport"];
         delete?: never;
         options?: never;
@@ -2948,14 +2948,30 @@ export interface components {
             downloadable: string[];
             /** @description Platforms this server can embed odb for */
             embeddable: string[];
-            /** @description The platform (os_arch) an Automatic script carries odb for, because no platform can be downloaded; absent when downloads work */
+            /** @description The platform (os_arch) every export includes odb for, because no platform can be downloaded; absent when downloads work */
             autoEmbed?: string;
             maxPerHour: number;
         };
         /** @description How to package the export. What is exported is the project as configured — its source, target, saved credentials and every ready mapping; change them in the project's steps. The connection details and credentials go in the zip's config.json, where operators change them per environment. */
         ExportRequest: {
-            /** @enum {string} */
-            runtime: "bundle" | "script";
+            /** @description Put odb for this platform beside migrate.sh, for a machine that can't download it (OC-160). Absent or null — the script finds or downloads odb itself. */
+            includeOdb?: {
+                /** @enum {string} */
+                os: "linux" | "darwin";
+                /** @enum {string} */
+                arch: "amd64" | "arm64";
+            } | null;
+            jobOptions?: components["schemas"]["JobOptions"];
+            /**
+             * @deprecated
+             * @description Older clients. Every export is now the same folder.
+             * @enum {string}
+             */
+            runtime?: "bundle" | "script";
+            /**
+             * @deprecated
+             * @description Older clients. runtime "embedded" with os and arch is the same as includeOdb; the rest is ignored.
+             */
             script?: {
                 /** @enum {string} */
                 runtime?: "auto" | "binary" | "docker" | "embedded";
@@ -2965,7 +2981,6 @@ export interface components {
                 arch?: "amd64" | "arm64";
                 includeBundle?: boolean;
             };
-            jobOptions?: components["schemas"]["JobOptions"];
         };
         ExportRecord: {
             id: string;
@@ -5068,7 +5083,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The zip, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers) */
+            /** @description The zip, as an attachment (X-Odb-Export-Id and X-Odb-Bundle-Sha256 headers; X-Odb-Included names the platform of an included odb) */
             201: {
                 headers: {
                     [name: string]: unknown;

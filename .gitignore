@@ -17,6 +17,8 @@ secrets/
 
 # ─── Go ───────────────────────────────────────────────────────────────────────
 /backend/bin/
+# `go build ./cmd/odb` run in backend/ (make build writes bin/odb)
+/backend/odb
 /backend/coverage/
 /backend/internal/httpapi/webdist/
 *.test

@@ -21,15 +21,17 @@ import (
 	"omnidatabus/internal/observability"
 )
 
-const runUsage = `usage: odb run --bundle FILE [options]          run a migration bundle without the tool
-       odb run preflight --bundle FILE [options] connect, unlock, check drift and the target; no documents written
-       odb run status --state-dir DIR            summarize a run's checkpoint or report
-       odb run verify --bundle FILE [options]    count each mapping's documents in the target
+const runUsage = `usage: odb run --mappings FILE --config FILE [options]   migrate without the tool
+       odb run preflight --mappings FILE --config FILE  connect, check drift and the target; no documents written
+       odb run status --state-dir DIR                   summarize a run's checkpoint or report
+       odb run verify --mappings FILE --config FILE     count each mapping's documents in the target
+       odb run target-path --config FILE                print a directory target's folder (nothing for other targets)
 
 options:
+  --mappings FILE          what to migrate (mappings.json; --bundle FILE is the same, for older exports)
   --state-dir DIR          checkpoint, errors.jsonl and report.json (default ./odb-state)
   --mapping NAME           run only this mapping (repeatable)
-  --target-path DIR        write a directory target here instead of the bundle's path
+  --target-path DIR        write a directory target here instead of config.json's path
   --readers N --writers N  read partitions per table (1-8) and concurrent writes
   --throttle DOCS_PER_S    limit the write rate
   --resume | --restart     require a checkpoint to resume | archive the state and start over
@@ -55,7 +57,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		sub, args = args[0], args[1:]
 	}
 	switch sub {
-	case "", "preflight", "status", "verify":
+	case "", "preflight", "status", "verify", "target-path":
 	case "help":
 		fmt.Fprintln(stdout, runUsage)
 		return exitOK
@@ -66,7 +68,9 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprintln(stderr, runUsage) }
-	bundlePath := fs.String("bundle", "", "the .odb.json bundle")
+	var bundlePath string
+	fs.StringVar(&bundlePath, "mappings", "", "mappings.json")
+	fs.StringVar(&bundlePath, "bundle", "", "the same as --mappings (older exports)")
 	stateDir := fs.String("state-dir", "./odb-state", "state directory")
 	var maps stringList
 	fs.Var(&maps, "mapping", "mapping name or ID (repeatable)")
@@ -99,11 +103,14 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	if sub == "status" {
 		return headless.Status(dir, stdout)
 	}
-	if *bundlePath == "" {
-		fmt.Fprintln(stderr, "--bundle is required\n\n"+runUsage)
+	if sub == "target-path" {
+		return printTargetPath(*configPath, stdout, stderr)
+	}
+	if bundlePath == "" {
+		fmt.Fprintln(stderr, "--mappings is required\n\n"+runUsage)
 		return exitUsage
 	}
-	b, err := loadBundle(*bundlePath)
+	b, err := loadBundle(bundlePath)
 	if err != nil {
 		return reportBundleError(stderr, err)
 	}
@@ -244,4 +251,22 @@ func prompt(stderr io.Writer) func() (string, error) {
 		fmt.Fprintln(stderr)
 		return string(p), err
 	}
+}
+
+// printTargetPath prints the folder a directory target in the run config writes to, resolved like a
+// run resolves it, so migrate.sh can mount it into docker (OC-159). Other targets print nothing.
+func printTargetPath(configPath string, stdout, stderr io.Writer) int {
+	if configPath == "" {
+		fmt.Fprintln(stderr, "--config is required\n\n"+runUsage)
+		return exitUsage
+	}
+	p, err := headless.DirectoryTargetPath(configPath)
+	if err != nil {
+		printConfigError(stderr, asConfig(err))
+		return exitPreflight
+	}
+	if p != "" {
+		fmt.Fprintln(stdout, p)
+	}
+	return exitOK
 }

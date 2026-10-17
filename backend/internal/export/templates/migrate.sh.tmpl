@@ -1,51 +1,38 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2317,SC2329 # the payload after exit isn't code; on_signal runs from trap
-# Omni-Data-Bus migration: {{comment .Project}} — exported {{.ExportedAt}} by {{comment .ExportedBy}}
-# Mappings: {{comment .MappingList}}
-# Credentials: {{.CredentialSummary}}   odb version: {{.Version}}   bundle sha256: {{.BundleSHA256}}
-{{- if .Plaintext}}
-# WARNING: contains plaintext database credentials
-{{- end}}
-{{- if .ConfigFile}}
-# Connection details and credentials: config.json beside this script. Edit it to run against
-# another environment; passwords are kept base64-encoded (not encrypted) and a plain-text one is
-# encoded on the next run.
-{{- end}}
+# shellcheck disable=SC2329 # on_signal runs from trap
+# Omni-Data-Bus migration runner, odb {{.Version}}.
 #
-# Run ./migrate.sh help for the commands. Needs bash 3.2 or later, and to fetch odb: curl or
-# wget, plus sha256sum or shasum (or docker).
+# The same script for every migration: it reads two files from its own folder and runs odb.
+#   config.json    where: the source and target connection details (edit it per environment)
+#   mappings.json  what: the tables, the documents they become, and how (exported from the tool)
+# Give it another pair of files for another migration. Run ./migrate.sh help for the commands.
+# Needs bash 3.2 or later, and to fetch odb: curl or wget, plus sha256sum or shasum (or docker).
 set -euo pipefail
 
 ODB_VERSION={{sh .Version}}
-ODB_BUNDLE_SHA256={{sh .BundleSHA256}}
 ODB_IMAGE={{sh .Image}}
 ODB_DOWNLOAD_URL={{sh .DownloadURL}}
 ODB_SHA256_linux_amd64={{sh (index .Checksums "linux_amd64")}}
 ODB_SHA256_linux_arm64={{sh (index .Checksums "linux_arm64")}}
 ODB_SHA256_darwin_amd64={{sh (index .Checksums "darwin_amd64")}}
 ODB_SHA256_darwin_arm64={{sh (index .Checksums "darwin_arm64")}}
-ODB_EMBEDDED_PLATFORM={{sh .EmbeddedPlatform}}
 ODB_COSIGN_IDENTITY={{sh .CosignIdentity}}
-ODB_TARGET_KIND={{sh .TargetKind}}
 
-# Everything the script writes stays in its own folder (the one the zip unpacked), wherever it
-# is run from.
+# Everything is read from and written to the script's own folder, wherever it is run from.
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
+: "${ODB_CONFIG:=$HERE/config.json}"       # where: connection details
+: "${ODB_MAPPINGS:=$HERE/mappings.json}"   # what: the mappings
 : "${ODB_STATE_DIR:=$HERE/odb-state}"      # checkpoint, errors.jsonl, report.json
-: "${ODB_TARGET_PATH:={{dq .TargetPath}}}"{{if ne .TargetKind "directory"}}   # unused: the target is {{.TargetKind}}{{else}}   # where the JSON files go; override per environment{{end}}
-: "${ODB_RUNTIME:={{.Runtime}}}"                   # auto | binary | docker | embedded
+: "${ODB_TARGET_PATH:=}"                   # a directory target's folder, instead of config.json's
+: "${ODB_RUNTIME:=auto}"                   # auto | binary | docker
 : "${ODB_DOCKER_ARGS:=}"                   # extra docker run arguments, e.g. --network host
 : "${ODB_CACHE_DIR:=$HERE/odb-cache}"      # downloaded odb binaries
-{{- if .ConfigFile}}
-: "${ODB_CONFIG:=$HERE/config.json}"       # source and target connection details
-{{- end}}
 
-SELF="${BASH_SOURCE[0]}"
-WORK=""
 ODB=""
 MODE=""
 RUNNING=""
+WORK=""
 
 cleanup() {
   if [ -n "$WORK" ] && [ -d "$WORK" ]; then
@@ -83,53 +70,18 @@ commands:
   resume             continue an interrupted run from ODB_STATE_DIR
   status             summarize the run in ODB_STATE_DIR
   verify             count each mapping's documents in the target
-  inspect            what this script migrates (no secrets)
-  extract [DIR]      write bundle.odb.json (and the embedded odb, if any) to DIR (default: here)
+  inspect            what mappings.json migrates, field by field (no secrets)
   help               this text
 
-Nothing needs to be set to run it. Optional ODB_* settings (e.g. to run unattended): README.md.
-{{- if .ConfigFile}}
-Connection details and credentials: config.json (edit it to use another environment).
-{{- end}}
+files (beside the script):
+  config.json    where: source and target connection details   (ODB_CONFIG to use another)
+  mappings.json  what: the mappings                            (ODB_MAPPINGS to use another)
+
+Optional ODB_* settings: README.md.
 
 exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration
             error, 5 cancelled (run ./migrate.sh resume)
 EOF
-}
-
-workdir() {
-  if [ -z "$WORK" ]; then
-    WORK=$(mktemp -d "${TMPDIR:-/tmp}/odb-migrate.XXXXXX")
-    chmod 700 "$WORK"
-  fi
-}
-
-b64decode() {
-  if printf 'eA==' | base64 --decode >/dev/null 2>&1; then
-    base64 --decode
-  else
-    base64 -D
-  fi
-}
-
-# payload SECTION prints the base64 lines below a marker line of this file.
-payload() {
-  awk -v start="__ODB_$1_BELOW__" '
-    $0 == start { on = 1; next }
-    /^__ODB_[A-Z]+_BELOW__$/ || /^__ODB_PAYLOAD_END__$/ { on = 0 }
-    on { print }
-  ' "$SELF"
-}
-
-# unpack writes the bundle into the private work directory; BUNDLE is its path. It must run in
-# the main shell (not in $(...)) so cleanup knows the directory.
-BUNDLE=""
-unpack() {
-  workdir
-  BUNDLE="$WORK/bundle.odb.json"
-  if [ ! -f "$BUNDLE" ]; then
-    payload BUNDLE | b64decode >"$BUNDLE"
-  fi
 }
 
 sha256_of() {
@@ -166,34 +118,17 @@ version_of() {
   "$1" version --json 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p'
 }
 
+# use_bin uses an odb binary if it runs here and is this script's version.
 use_bin() {
   local v
-  v=$(version_of "$1")
+  [ -x "$1" ] || return 1
+  v=$(version_of "$1" || true)
   if [ "$v" != "$ODB_VERSION" ]; then
-    note "skipping $1: it is odb ${v:-unknown}, this script needs $ODB_VERSION"
+    note "skipping $1: it is odb ${v:-unknown or not for this machine}, this script needs $ODB_VERSION"
     return 1
   fi
   ODB=$1
   MODE=binary
-}
-
-use_embedded() {
-  local plat
-  [ -n "$ODB_EMBEDDED_PLATFORM" ] || return 1
-  plat=$(platform)
-  case "$plat/$ODB_EMBEDDED_PLATFORM" in
-    "$ODB_EMBEDDED_PLATFORM/$ODB_EMBEDDED_PLATFORM") ;;
-    darwin_arm64/darwin_amd64) ;; # Apple silicon runs an Intel odb through Rosetta
-    *)
-      note "the embedded odb is for $ODB_EMBEDDED_PLATFORM, this machine is $plat"
-      return 1
-      ;;
-  esac
-  workdir
-  payload BINARY | b64decode | gzip -dc >"$WORK/odb"
-  chmod 700 "$WORK/odb"
-  ODB="$WORK/odb"
-  MODE=embedded
 }
 
 use_path() {
@@ -219,7 +154,7 @@ fetch() {
   fi
 }
 
-# download fetches odb for this machine into the cache, checked against the checksum baked into
+# download fetches odb for this machine into the cache, checked against the checksum written in
 # this script (and the release signature, when cosign is installed).
 download() {
   local plat want dir name tgz got
@@ -230,7 +165,7 @@ download() {
     darwin_amd64) want=$ODB_SHA256_darwin_amd64 ;;
     *) want=$ODB_SHA256_darwin_arm64 ;;
   esac
-  [ -n "$want" ] || die 4 "this script has no odb for $plat. Install odb $ODB_VERSION and set ODB_BIN=/path/to/odb, install Docker, or export again with How it runs odb: Embedded and this machine ($plat)"
+  [ -n "$want" ] || die 4 "no odb download for $plat. Put odb $ODB_VERSION beside this script (export it with odb included), set ODB_BIN=/path/to/odb, or install Docker"
   dir="$ODB_CACHE_DIR/$ODB_VERSION"
   name="odb_${ODB_VERSION}_${plat}.tar.gz"
   tgz="$dir/$name"
@@ -244,7 +179,7 @@ download() {
       die 4 "checksum mismatch for $name (got $got, expected $want); the download was deleted"
     fi
     if command -v cosign >/dev/null 2>&1; then
-      workdir
+      WORK=$(mktemp -d "${TMPDIR:-/tmp}/odb-migrate.XXXXXX")
       if fetch "$ODB_DOWNLOAD_URL/SHA256SUMS" "$WORK/SHA256SUMS" && fetch "$ODB_DOWNLOAD_URL/SHA256SUMS.sigstore.json" "$WORK/SHA256SUMS.sigstore.json"; then
         cosign verify-blob --bundle "$WORK/SHA256SUMS.sigstore.json" --certificate-identity-regexp "$ODB_COSIGN_IDENTITY" \
           --certificate-oidc-issuer https://token.actions.githubusercontent.com "$WORK/SHA256SUMS" >/dev/null 2>&1 ||
@@ -260,21 +195,40 @@ download() {
   MODE=binary
 }
 
+# resolve finds odb: ODB_BIN, the odb beside the script, odb on the PATH, Docker (auto only),
+# then a download. Only odb of this script's version is used.
 resolve() {
   case "$ODB_RUNTIME" in
-    auto | binary | docker | embedded) ;;
-    *) die 4 "ODB_RUNTIME must be auto, binary, docker or embedded" ;;
+    auto | binary | docker) ;;
+    *) die 4 "ODB_RUNTIME must be auto, binary or docker" ;;
   esac
-  if [ -n "${ODB_BIN:-}" ] && [ "$ODB_RUNTIME" != docker ] && [ "$ODB_RUNTIME" != embedded ]; then
+  if [ "$ODB_RUNTIME" = docker ]; then
+    use_docker || die 4 "docker isn't installed"
+    return
+  fi
+  if [ -n "${ODB_BIN:-}" ]; then
     use_bin "$ODB_BIN" || die 4 "ODB_BIN=$ODB_BIN isn't odb $ODB_VERSION"
     return
   fi
-  case "$ODB_RUNTIME" in
-    docker) use_docker || die 4 "docker isn't installed" ;;
-    embedded) use_embedded || die 4 "this script has no odb for this machine" ;;
-    binary) use_path || download ;;
-    auto) use_embedded || use_path || use_docker || download ;;
-  esac
+  if [ -e "$HERE/odb" ] && use_bin "$HERE/odb"; then
+    return
+  fi
+  if use_path; then
+    return
+  fi
+  if [ "$ODB_RUNTIME" = auto ] && use_docker; then
+    return
+  fi
+  download
+}
+
+need() {
+  [ -f "$1" ] || die 4 "$1 not found: it holds $2 (unzip the export again, or set $3)"
+}
+
+# absfile prints a file's absolute path (the docker runtime mounts its folder).
+absfile() {
+  printf '%s/%s' "$(cd "$(dirname "$1")" && pwd)" "${1##*/}"
 }
 
 abspath() {
@@ -282,48 +236,49 @@ abspath() {
   (cd "$1" && pwd)
 }
 
-# odb_exec runs odb with the bundle, state and target paths of the chosen runtime. SUB is
-# "run", "run preflight" or "run verify".
+# odb_exec runs odb with the two files and the state directory. SUB is "run", "run preflight"
+# or "run verify". Docker mounts this folder at the same path, so every path means the same
+# inside the container (and the state and a directory target too, when they're elsewhere).
 odb_exec() {
   local sub=$1
   shift
-  unpack
-{{- if .ConfigFile}}
-  # odb reads the connection details from config.json and writes it back when it encodes a
-  # plain-text password, so docker mounts its folder read-write.
-  [ -f "$ODB_CONFIG" ] || die 4 "$ODB_CONFIG not found: it holds the source and target connection details (unzip the export again, or set ODB_CONFIG)"
-  local cfgdir cfgname
-  cfgdir=$(cd "$(dirname "$ODB_CONFIG")" && pwd)
-  cfgname=${ODB_CONFIG##*/}
-{{- end}}
-  if [ "$MODE" = docker ]; then
-    local d=(run --rm -i --user "$(id -u):$(id -g)" -v "$WORK:/work:ro" -v "$(abspath "$ODB_STATE_DIR"):/state")
-    set -- "$@" --bundle /work/bundle.odb.json --state-dir /state
-{{- if .ConfigFile}}
-    d+=(-v "$cfgdir:/config")
-    set -- "$@" --config "/config/$cfgname"
-{{- end}}
-    if [ "$ODB_TARGET_KIND" = directory ]; then
-      d+=(-v "$(abspath "$ODB_TARGET_PATH"):/out")
-      set -- "$@" --target-path /out
-    fi
-    if [ -t 0 ]; then
-      d+=(-t)
-    fi
-    d+=(-e ODB_BUNDLE_PASSPHRASE{{range .EnvRefs}} -e {{.}}{{end}})
-    # shellcheck disable=SC2086 # ODB_DOCKER_ARGS is a word list, sub is one or two words
-    docker "${d[@]}" $ODB_DOCKER_ARGS "$ODB_IMAGE" $sub "$@"
-  else
-    set -- "$@" --bundle "$BUNDLE" --state-dir "$ODB_STATE_DIR"
-{{- if .ConfigFile}}
-    set -- "$@" --config "$cfgdir/$cfgname"
-{{- end}}
-    if [ "$ODB_TARGET_KIND" = directory ]; then
-      set -- "$@" --target-path "$(abspath "$ODB_TARGET_PATH")"
-    fi
+  need "$ODB_CONFIG" "the source and target connection details" ODB_CONFIG
+  need "$ODB_MAPPINGS" "the mappings to run" ODB_MAPPINGS
+  local config mappings state target=""
+  config=$(absfile "$ODB_CONFIG")
+  mappings=$(absfile "$ODB_MAPPINGS")
+  state=$(abspath "$ODB_STATE_DIR")
+  set -- "$@" --mappings "$mappings" --config "$config" --state-dir "$state"
+  if [ -n "$ODB_TARGET_PATH" ]; then
+    target=$(abspath "$ODB_TARGET_PATH")
+    set -- "$@" --target-path "$target"
+  fi
+  if [ "$MODE" != docker ]; then
     # shellcheck disable=SC2086 # sub is one or two words
     "$ODB" $sub "$@"
+    return
   fi
+  if [ -z "$target" ]; then
+    # shellcheck disable=SC2086 # ODB_DOCKER_ARGS is a word list
+    target=$(docker run --rm --user "$(id -u):$(id -g)" -v "${config%/*}:${config%/*}" \
+      $ODB_DOCKER_ARGS "$ODB_IMAGE" run target-path --config "$config") || exit $?
+    if [ -n "$target" ]; then
+      mkdir -p "$target"
+    fi
+  fi
+  local d=(run --rm -i --user "$(id -u):$(id -g)" -w "$HERE" -v "$HERE:$HERE")
+  local p
+  for p in "${config%/*}" "${mappings%/*}" "$state" ${target:+"$target"}; do
+    case "$p/" in
+      "$HERE"/*) ;;
+      *) d+=(-v "$p:$p") ;;
+    esac
+  done
+  if [ -t 0 ]; then
+    d+=(-t)
+  fi
+  # shellcheck disable=SC2086 # ODB_DOCKER_ARGS is a word list, sub is one or two words
+  docker "${d[@]}" $ODB_DOCKER_ARGS "$ODB_IMAGE" $sub "$@"
 }
 
 summary() {
@@ -337,24 +292,15 @@ summary() {
   esac
 }
 
-# passthrough drops a standalone -- (everything goes to odb run).
-passthrough() {
-  local a
-  for a in "$@"; do
-    if [ "$a" != "--" ]; then
-      printf '%s\n' "$a"
-    fi
-  done
-}
-
 run_cmd() {
   local sub=$1
   shift
-  local args=()
-  local line
-  while IFS= read -r line; do
-    args+=("$line")
-  done < <(passthrough "$@")
+  local args=() a
+  for a in "$@"; do
+    if [ "$a" != "--" ]; then
+      args+=("$a")
+    fi
+  done
   resolve
   set +e
   RUNNING=1
@@ -378,34 +324,25 @@ main() {
     verify) run_cmd "run verify" "$@" ;;
     status)
       resolve
+      local state
+      state=$(abspath "$ODB_STATE_DIR")
       if [ "$MODE" = docker ]; then
         # shellcheck disable=SC2086 # ODB_DOCKER_ARGS is a word list
-        docker run --rm -v "$(abspath "$ODB_STATE_DIR"):/state" $ODB_DOCKER_ARGS "$ODB_IMAGE" run status --state-dir /state
+        docker run --rm -v "$state:$state" $ODB_DOCKER_ARGS "$ODB_IMAGE" run status --state-dir "$state"
       else
-        "$ODB" run status --state-dir "$ODB_STATE_DIR"
+        "$ODB" run status --state-dir "$state"
       fi
       ;;
     inspect)
+      need "$ODB_MAPPINGS" "the mappings to run" ODB_MAPPINGS
       resolve
-      printf 'This script carries bundle sha256 %s (as in its header).\n' "$ODB_BUNDLE_SHA256"
-      unpack
       if [ "$MODE" = docker ]; then
+        local mappings
+        mappings=$(absfile "$ODB_MAPPINGS")
         # shellcheck disable=SC2086 # ODB_DOCKER_ARGS is a word list
-        docker run --rm -v "$WORK:/work:ro" $ODB_DOCKER_ARGS "$ODB_IMAGE" bundle inspect /work/bundle.odb.json
+        docker run --rm -v "${mappings%/*}:${mappings%/*}:ro" $ODB_DOCKER_ARGS "$ODB_IMAGE" bundle inspect "$mappings"
       else
-        "$ODB" bundle inspect "$BUNDLE"
-      fi
-      ;;
-    extract)
-      local dir=${1:-$HERE}
-      mkdir -p "$dir"
-      unpack
-      cp "$BUNDLE" "$dir/bundle.odb.json"
-      note "wrote $dir/bundle.odb.json"
-      if [ -n "$ODB_EMBEDDED_PLATFORM" ]; then
-        payload BINARY | b64decode | gzip -dc >"$dir/odb"
-        chmod 755 "$dir/odb"
-        note "wrote $dir/odb ($ODB_EMBEDDED_PLATFORM)"
+        "$ODB" bundle inspect "$ODB_MAPPINGS"
       fi
       ;;
     help | -h | --help) usage ;;
@@ -417,11 +354,3 @@ main() {
 }
 
 main "$@"
-exit $?
-# The payload: read by payload(), never run (the quoted here-document keeps it inert).
-: <<'__ODB_PAYLOAD_END__'
-__ODB_BUNDLE_BELOW__
-{{.BundleBase64}}
-__ODB_BINARY_BELOW__
-{{.BinaryBase64}}
-__ODB_PAYLOAD_END__

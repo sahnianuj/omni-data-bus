@@ -25,7 +25,8 @@ export function useExportHistory(projectId: string) {
 }
 
 /** A finished export: the file to save and what the history records. */
-export type ExportFile = { blob: Blob; fileName: string; bundleSha256: string; exportId: string }
+/** A downloaded export; includedOdb is the platform of the odb in it ("" = none). */
+export type ExportFile = { blob: Blob; fileName: string; bundleSha256: string; exportId: string; includedOdb: string }
 
 function fileName(disposition: string | null, fallback: string): string {
   const m = disposition?.match(/filename="([^"]+)"/)
@@ -60,6 +61,7 @@ export function useCreateExport(projectId: string) {
         fileName: fileName(response.headers.get('Content-Disposition'), 'export'),
         bundleSha256: response.headers.get('X-Odb-Bundle-Sha256') ?? '',
         exportId: response.headers.get('X-Odb-Export-Id') ?? '',
+        includedOdb: response.headers.get('X-Odb-Included') ?? '',
       }
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: exportKeys.history(projectId) }),

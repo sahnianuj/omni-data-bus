@@ -94,11 +94,14 @@ func (t TableRef) String() string { return t.Schema + "." + t.Table }
 
 // Mapping is one exported mapping.
 type Mapping struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Source   TableRef        `json:"source"`
-	Location store.Location  `json:"location"`
-	Spec     json.RawMessage `json:"spec"`
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	Source   TableRef       `json:"source"`
+	Location store.Location `json:"location"`
+	// Outline says what each document field is filled from, for people reading the file
+	// (OC-158). Generated from Spec; the runner never reads it.
+	Outline []string        `json:"outline,omitempty"`
+	Spec    json.RawMessage `json:"spec"`
 	// PlanHash is the execution plan's hash when exported (OC-037), to compare runs.
 	PlanHash string `json:"planHash"`
 }

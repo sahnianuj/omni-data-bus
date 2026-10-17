@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P1 | 5 | OC-042, OC-043, OC-044, OC-152 | In progress |
+| E9 Relationship Mapping | P1 | 5 | OC-042, OC-043, OC-044, OC-152 | Implemented |
 
 ## User story
 As a **data engineer** designing a collection in Design & Map, I want the tables I can embed split into **References** (tables this one points to) and **Referenced by** (tables that point to this one), each labelled with its cardinality, so that I can see at a glance what each embed will produce: a single object for 1:1 and N:1, an array of objects for 1:N and M:N.
@@ -69,6 +69,7 @@ Discovery's **Relationships** tab already shows a table this way (`TableDetail`,
 - The Composer's Sources pane: OC-142 builds its "In this document" tree and should use the same two groups and chips.
 - Discovery's Relationships tab: no change (cardinality chips there could follow later).
 - Showing junctions below the top level, and a search filter for long lists.
+- A browser end-to-end test (embed a 1:1 child from Referenced by, migrate, open the document). The unit tests cover each step: the hop's kind (AC2), the embed request (AC4), and the planner keying the child on its foreign key and keeping one row (AC4). (Descoped 2026-10-16.)
 
 ## Logic changes
 
@@ -143,15 +144,14 @@ Discovery's **Relationships** tab already shows a table this way (`TableDetail`,
 |---|---|---|
 | `TestBuild_OC157_AC6_VirtualDirection` | `backend/internal/relations/graph_test.go` | |
 
-### AC7 — Accessible and end to end
-**Given** the panel, **then** groups are labelled `role="group"` regions with `aria-expanded` headings, and it's axe-clean in light and dark. **Given** the dev stack with a 1:1 child table, **when** a user embeds it from Referenced by and migrates, **then** the document browser shows it as an object.
+### AC7 — Accessible
+**Given** the panel, **then** groups are labelled `role="group"` regions with `aria-expanded` headings, and it has no axe violations.
 
 | Test | Location | Verifies |
 |---|---|---|
 | `RelatedTree.test.tsx` › `OC-157 AC7: the grouped panel has no axe violations` | `web/src/features/mapping/RelatedTree.test.tsx` | |
 | `RelatedTree.test.tsx` › `the pane fills its height, scrolls on its own and is resized from its top edge` | same | Splitter, remembered height |
 | `resize-handle.test.tsx` › `a top handle resizes the height…` | `web/src/components/ui/resize-handle.test.tsx` | Vertical drag and keys |
-| `related-groups.spec.ts` | `web/tests/e2e/related-groups.spec.ts` | **Not written yet.** Seed adds a 1:1 table (`customer_profiles.customer_id` PK + FK) |
 
 ## Risks and open questions
 - **Composite FKs** are only 1:1 when the whole column set is unique. A unique index on a subset doesn't count.

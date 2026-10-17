@@ -50,6 +50,17 @@ func NewRunConnection(c Connection, s Secrets) (*RunConnection, error) {
 	return &RunConnection{Type: c.Type, Config: cfg, Secrets: s}, nil
 }
 
+// connection is the section as a bundle connection (settings only, no secrets), for display;
+// its type defaults to def's.
+func (rc *RunConnection) connection(def Connection) Connection {
+	raw, _ := json.Marshal(rc.Config)
+	typ := rc.Type
+	if typ == "" {
+		typ = def.Type
+	}
+	return Connection{Type: typ, Name: def.Name, Config: raw}
+}
+
 // EncodeRunConfig writes config.json: per section, its type, settings (sorted) and secrets, each
 // secret as "base64:…".
 func EncodeRunConfig(rc RunConfig) ([]byte, error) {

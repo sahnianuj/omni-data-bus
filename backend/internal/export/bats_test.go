@@ -76,7 +76,7 @@ func TestMigrateScript_Bats(t *testing.T) {
 	stubs := filepath.Join(dir, "stubs")
 	require.NoError(t, os.MkdirAll(stubs, 0o755))
 	for file, body := range map[string]string{
-		"odb-bin": stubOdb("bin", "2.0.0"), "odb-path": stubOdb("path", "2.0.0"), "odb-old": stubOdb("old", "1.9.0"),
+		"odb-bin": stubOdb("bin", "2.0.0"), "odb-path": stubOdb("path", "2.0.0"), "odb-old": stubOdb("old", "1.9.0"), "odb-beside": stubOdb("beside", "2.0.0"),
 		"docker": "#!/usr/bin/env bash\necho \"docker $*\" >>\"${STUB_LOG:-/dev/null}\"\nexit \"${STUB_EXIT:-0}\"\n",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(stubs, file), []byte(body), 0o755)) //nolint:gosec // G306: test stubs must be executable
@@ -99,39 +99,24 @@ func TestMigrateScript_Bats(t *testing.T) {
 	distDownload := filepath.Join(dir, "dist-download")
 	require.NoError(t, os.MkdirAll(distDownload, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(distDownload, "SHA256SUMS"), []byte(hex.EncodeToString(sum[:])+"  "+name+"\n"), 0o600))
-	distEmbedded := filepath.Join(dir, "dist-embedded")
-	require.NoError(t, os.MkdirAll(distEmbedded, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(distEmbedded, name), tarball(t, stubOdb("embedded", "2.0.0")), 0o600))
-
-	b := exporttest.Bundle(t, exporttest.Options{TargetPath: "/data/out"})
+	b := exporttest.Bundle(t, exporttest.Options{TargetPath: "/data/out", ConfigMode: true})
 	raw, err := export.Encode(b)
 	require.NoError(t, err)
-	write := func(file string, s export.Script, cfg export.ScriptConfig) string {
-		script, _, err := export.RenderScriptFiles(b, raw, s, cfg, "2.0.0")
+	// folder writes an export folder: the generic migrate.sh, config.json and mappings.json.
+	folder := func(name, url string) string {
+		d := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(d, 0o755))
+		script, err := export.GenericScript(export.ScriptConfig{Image: "omni-data-bus:2.0.0", DownloadURL: url, Dist: export.Dist{Dir: distDownload, Version: "2.0.0"}}, "2.0.0")
 		require.NoError(t, err)
-		p := filepath.Join(dir, file)
-		require.NoError(t, os.WriteFile(p, script, 0o755)) //nolint:gosec // G306: the script must be executable
-		return p
+		require.NoError(t, os.WriteFile(filepath.Join(d, "migrate.sh"), script, 0o755)) //nolint:gosec // G306: the script must be executable
+		require.NoError(t, os.WriteFile(filepath.Join(d, export.RunConfigFile), []byte(`{"source": {"type": "postgres"}}`+"\n"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(d, export.MappingsFile), raw, 0o600))
+		return filepath.Join(d, "migrate.sh")
 	}
-	cfg := func(url, distDir string) export.ScriptConfig {
-		return export.ScriptConfig{Image: "omni-data-bus:2.0.0", DownloadURL: url, Dist: export.Dist{Dir: distDir, Version: "2.0.0"}}
-	}
-	// A config-mode export: migrate.sh with its config.json, in their own folder (OC-155).
-	cb := exporttest.Bundle(t, exporttest.Options{TargetPath: "/data/out", ConfigMode: true})
-	cbRaw, err := export.Encode(cb)
-	require.NoError(t, err)
-	configDir := filepath.Join(dir, "config-export")
-	require.NoError(t, os.MkdirAll(configDir, 0o755))
-	configScript, _, err := export.RenderScriptFiles(cb, cbRaw, export.Script{Runtime: "auto"}, cfg(srv.URL+"/good", distDownload), "2.0.0")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, "migrate.sh"), configScript, 0o755)) //nolint:gosec // G306: the script must be executable
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, export.RunConfigFile), []byte(`{"source": {"type": "postgres"}}`+"\n"), 0o600))
 
 	env := append(os.Environ(),
-		"SCRIPT_EMBEDDED="+write("embedded.sh", export.Script{Runtime: "auto", OS: runtime.GOOS, Arch: runtime.GOARCH}, cfg(srv.URL+"/good", distEmbedded)),
-		"SCRIPT_PLAIN="+write("plain.sh", export.Script{Runtime: "auto"}, cfg(srv.URL+"/good", distDownload)),
-		"SCRIPT_TAMPERED="+write("tampered.sh", export.Script{Runtime: "binary"}, cfg(srv.URL+"/bad", distDownload)),
-		"SCRIPT_CONFIG="+filepath.Join(configDir, "migrate.sh"),
+		"SCRIPT_PLAIN="+folder("plain", srv.URL+"/good"),
+		"SCRIPT_TAMPERED="+folder("tampered", srv.URL+"/bad"),
 		"STUBS="+stubs, "BUNDLE_SHA="+b.SHA256(),
 	)
 	env = append(env, endToEndEnv(t, dir)...)
@@ -140,7 +125,7 @@ func TestMigrateScript_Bats(t *testing.T) {
 	if f := os.Getenv("ODB_TEST_BATS_FILTER"); f != "" {
 		args = append(args, "--filter", f) // e.g. "docker runtime"
 	}
-	for _, f := range []string{"migrate_runtime.bats", "migrate_payload.bats", "migrate_run.bats"} {
+	for _, f := range []string{"migrate_runtime.bats", "migrate_files.bats", "migrate_run.bats"} {
 		args = append(args, filepath.Join("testdata", "bats", f))
 	}
 	cmd := exec.Command(bats, args...)
@@ -157,8 +142,8 @@ func TestMigrateScript_Bats(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// endToEndEnv builds a real sealed script for shop.orders on the dev stack's PostgreSQL, and
-// the odb binary to run it (AC1). Without OC_IT_PG_HOST it returns nothing and the AC1 tests skip.
+// endToEndEnv builds a real export folder for shop.orders on the dev stack's PostgreSQL, and the
+// odb binary to run it (AC1). Without OC_IT_PG_HOST it returns nothing and the AC1 tests skip.
 func endToEndEnv(t *testing.T, dir string) []string {
 	t.Helper()
 	host := os.Getenv("OC_IT_PG_HOST")
@@ -169,16 +154,14 @@ func endToEndEnv(t *testing.T, dir string) []string {
 	if v := os.Getenv("OC_IT_PG_PORT"); v != "" {
 		port, _ = strconv.Atoi(v)
 	}
-	src, _ := json.Marshal(map[string]any{"host": host, "port": port, "database": "shop", "username": "shop_owner", "sslMode": "disable"})
 	spec := `{"specVersion":2,"mode":"canvas","docSchema":{"root":{"id":"root","name":"","type":"object","children":[` +
 		`{"id":"f1","name":"orderId","type":"integer","required":true},{"id":"f2","name":"status","type":"string"}]},"source":"generated"},` +
 		`"key":{"template":"orders::{order_id}"},"typeField":{"enabled":true,"name":"type","value":"order"},"nullHandling":"include","fieldMappings":[` +
 		`{"id":"m1","targetFieldId":"f1","sources":[{"column":"order_id"}],"transforms":[],"origin":"auto","state":"active"},` +
 		`{"id":"m2","targetFieldId":"f2","sources":[{"column":"status"}],"transforms":[],"origin":"auto","state":"active"}],` +
 		`"relations":[],"aggregates":[],"ignoredColumns":[]}`
-	const pass = "correct-horse-battery-staple-orbit"
 	b := exporttest.Bundle(t, exporttest.Options{
-		Source: src, SourceSecrets: export.Secrets{"password": "shop_owner"}, Passphrase: pass, TargetPath: "/data/out",
+		Source: json.RawMessage(`{}`), ConfigMode: true, TargetPath: "/data/out",
 		Mappings: []export.Mapping{{
 			ID: "map-orders", Name: "orders", Source: export.TableRef{Schema: "shop", Table: "orders"},
 			Location: store.Location{Kind: store.KindDirectory, Folder: "orders", CreateIfMissing: true},
@@ -187,16 +170,23 @@ func endToEndEnv(t *testing.T, dir string) []string {
 	})
 	raw, err := export.Encode(b)
 	require.NoError(t, err)
-	script, _, err := export.RenderScriptFiles(b, raw, export.Script{Runtime: "auto"}, export.ScriptConfig{Image: os.Getenv("ODB_IT_IMAGE")}, "dev")
+	d := filepath.Join(dir, "e2e")
+	require.NoError(t, os.MkdirAll(d, 0o755))
+	script, err := export.GenericScript(export.ScriptConfig{Image: os.Getenv("ODB_IT_IMAGE")}, "dev")
 	require.NoError(t, err)
-	p := filepath.Join(dir, "e2e.sh")
+	src, _ := json.Marshal(map[string]any{"source": map[string]any{
+		"type": "postgres", "host": host, "port": port, "database": "shop", "username": "shop_owner", "sslMode": "disable", "password": "shop_owner",
+	}})
+	p := filepath.Join(d, "migrate.sh")
 	require.NoError(t, os.WriteFile(p, script, 0o755)) //nolint:gosec // G306: the script must be executable
+	require.NoError(t, os.WriteFile(filepath.Join(d, export.RunConfigFile), src, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(d, export.MappingsFile), raw, 0o600))
 	bin := filepath.Join(dir, "odb-real", "odb")
 	build := exec.Command("go", "build", "-o", bin, "omnidatabus/cmd/odb")
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	out, err := build.CombinedOutput()
 	require.NoError(t, err, string(out))
-	env := []string{"IT_SCRIPT=" + p, "IT_ODB=" + bin, "IT_PASSPHRASE=" + pass, "IT_ROWS=10000"}
+	env := []string{"IT_SCRIPT=" + p, "IT_ODB=" + bin, "IT_ROWS=10000"}
 	if docker, err := exec.LookPath("docker"); err == nil && os.Getenv("ODB_IT_IMAGE") != "" {
 		env = append(env, "IT_SCRIPT_DOCKER="+p, "IT_DOCKER="+docker)
 	}

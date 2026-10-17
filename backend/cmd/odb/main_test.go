@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -50,4 +52,41 @@ func TestAdminGenKey_AC2_Length(t *testing.T) {
 	var out2 bytes.Buffer
 	require.Equal(t, 0, run([]string{"admin", "gen-key"}, &out2, &errOut))
 	require.NotEqual(t, out.String(), out2.String(), "keys are random")
+}
+
+// OC-158: odb run reads --mappings (or --bundle, its older name), and says so when neither is set.
+func TestRun_MappingsFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	require.Equal(t, exitUsage, run([]string{"run"}, &out, &errOut))
+	require.Contains(t, errOut.String(), "--mappings is required")
+	for _, flag := range []string{"--mappings", "--bundle"} {
+		errOut.Reset()
+		require.Equal(t, exitPreflight, run([]string{"run", flag, t.TempDir() + "/missing.json"}, &out, &errOut), flag)
+		require.Contains(t, errOut.String(), "BUNDLE_INVALID", flag)
+	}
+}
+
+// OC-159: odb run target-path prints a directory target's folder, resolved against config.json's
+// folder, and nothing for another target.
+func TestRunTargetPath(t *testing.T) {
+	dir := t.TempDir()
+	write := func(body string) string {
+		p := filepath.Join(dir, "config.json")
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
+		return p
+	}
+	var out, errOut bytes.Buffer
+	p := write(`{"source": {"type": "postgres"}, "target": {"type": "directory", "path": "out"}}`)
+	require.Equal(t, exitOK, run([]string{"run", "target-path", "--config", p}, &out, &errOut), errOut.String())
+	want, _ := filepath.Abs(filepath.Join(dir, "out"))
+	require.Equal(t, want+"\n", out.String())
+
+	out.Reset()
+	p = write(`{"source": {"type": "postgres"}, "target": {"type": "couchbase", "connectionString": "couchbase://x"}}`)
+	require.Equal(t, exitOK, run([]string{"run", "target-path", "--config", p}, &out, &errOut))
+	require.Empty(t, out.String())
+
+	p = write(`{"target": {"type": "directory"}}`)
+	require.Equal(t, exitPreflight, run([]string{"run", "target-path", "--config", p}, &out, &errOut))
+	require.Contains(t, errOut.String(), "target.path is required")
 }

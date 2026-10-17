@@ -1,8 +1,7 @@
-# Shared setup for the migrate.sh suites. The Go test (bats_test.go) generates the scripts and
-# stubs and exports: SCRIPT_EMBEDDED (auto, with an embedded stub odb), SCRIPT_PLAIN (auto, no
-# embedded odb, downloads from a local server), SCRIPT_TAMPERED (binary, the server sends a
-# tampered tarball), SCRIPT_CONFIG (auto, a config-mode export beside its config.json), STUBS
-# (stub odb binaries and a stub docker), BUNDLE_SHA.
+# Shared setup for the migrate.sh suites. The Go test (bats_test.go) generates export folders
+# (the generic migrate.sh beside a config.json and a mappings.json) and stubs, and exports:
+# SCRIPT_PLAIN (downloads odb from a local server), SCRIPT_TAMPERED (the server sends a tampered
+# tarball), STUBS (stub odb binaries and a stub docker), BUNDLE_SHA (mappings.json's sha256).
 
 setup() {
   WORKDIR="$BATS_TEST_TMPDIR/work"
@@ -25,7 +24,19 @@ setup() {
     fi
   done
   export PATH="$BATS_TEST_TMPDIR/sysbin"
-  unset ODB_BIN ODB_RUNTIME ODB_CONFIG STUB_EXIT STUB_SLEEP
+  unset ODB_BIN ODB_RUNTIME ODB_CONFIG ODB_MAPPINGS STUB_EXIT STUB_SLEEP
+}
+
+# copy_export copies SCRIPT_PLAIN's folder and prints the copy's migrate.sh, for a test that adds
+# or removes files beside the script.
+copy_export() {
+  cp -R "$(dirname "$SCRIPT_PLAIN")" "$BATS_TEST_TMPDIR/export"
+  printf '%s' "$BATS_TEST_TMPDIR/export/migrate.sh"
+}
+
+# folder_of prints a script's folder as the script sees it.
+folder_of() {
+  (cd "$(dirname "$1")" && pwd)
 }
 
 # with_stub NAME puts stubs/NAME on the PATH as odb (or docker).

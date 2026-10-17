@@ -1,20 +1,23 @@
 # Migration: {{.Project}}
 
 Exported {{.ExportedAt}} by {{.ExportedBy}} with Omni-Data-Bus {{.Version}}.
-Bundle sha256: `{{.BundleSHA256}}`
+mappings.json sha256: `{{.BundleSHA256}}`
 
-`migrate.sh` runs this migration on any Linux or macOS machine that can reach the source database{{if ne .TargetKind "directory"}} and the target cluster{{end}}. It doesn't need the Omni-Data-Bus tool: it carries the mappings and runs the `odb` command-line runner, the same engine as the tool.
-{{- if .Plaintext}}
+This folder runs the migration on any Linux or macOS machine that can reach the source database{{if ne .TargetKind "directory"}} and the target cluster{{end}}, without the Omni-Data-Bus tool:
 
-> **Warning:** this export contains the database credentials in plain text. Anyone with
-> `migrate.sh` can connect to the source{{if .TargetHasCredentials}} and the target{{end}}. Keep it like a password, and delete it after use.
+| File | What it is |
+|---|---|
+| `migrate.sh` | The runner. The same script for every export of odb {{.Version}}: it reads the two files below and runs `odb`, the tool's engine |
+| `config.json` | **Where:** the source and target connection details. Edit it for another environment |
+| `mappings.json` | **What:** the tables, the documents they become, and how. Each mapping has an `outline` listing what fills each field |
+{{- if .OdbPlatform}}
+| `odb` | odb {{.Version}} for {{.OdbPlatform}}, used by `migrate.sh` on such a machine |
 {{- end}}
-{{- if .ConfigFile}}
+| `README.md` | This file |
 
 > **Warning:** `config.json` holds the database credentials. They are base64-encoded, which
 > keeps them from being read at a glance but is not encryption: anyone with the file can
 > connect to the source{{if .TargetHasCredentials}} and the target{{end}}. Keep it like a password, and delete it after use.
-{{- end}}
 
 ## What it migrates
 
@@ -26,10 +29,8 @@ Bundle sha256: `{{.BundleSHA256}}`
 
 - **Source:** {{.SourceSummary}}
 - **Target:** {{.TargetSummary}}
-- **Credentials:** {{.CredentialSummary}}
-{{- range .Refs}}
-  - {{.}}
-{{- end}}
+
+`./migrate.sh inspect` prints each mapping's outline: every document field and what fills it.
 
 ## Run it
 
@@ -39,15 +40,12 @@ report, a downloaded `odb`) stays in that folder, wherever you run it from.
 ```bash
 unzip {{.Folder}}.zip
 cd {{.Folder}}
-{{- range .EnvExample}}
-export {{.}}
-{{- end}}
 ./migrate.sh run         # checks everything first, then migrates; progress is printed as JSON lines
 ```
-{{if .Sealed}}
-The script asks for the export passphrase (or set `ODB_BUNDLE_PASSPHRASE` to run unattended).
-{{- end}}{{if eq .TargetKind "directory"}}
-The JSON files go to `{{.TargetPath}}`, as set in the project; set `ODB_TARGET_PATH` to write elsewhere.
+{{- if eq .TargetKind "directory"}}
+
+The JSON files go to `{{.TargetPath}}` (`target.path` in `config.json`; a relative path is
+relative to this folder). `ODB_TARGET_PATH` writes elsewhere for one run.
 {{- end}}
 
 - If the run stops (Ctrl+C, a reboot, a failure), `./migrate.sh resume` continues from the last
@@ -58,47 +56,44 @@ The JSON files go to `{{.TargetPath}}`, as set in the project; set `ODB_TARGET_P
   `archive/<time>/` in the state directory and starts over.
 - `./migrate.sh preflight` runs only the checks, writing nothing.
 - `./migrate.sh status` summarizes the run; `./migrate.sh verify` counts the documents in the target.
-- `./migrate.sh inspect` shows what the script will do; `./migrate.sh extract` writes
-  `bundle.odb.json` for use with `odb run --bundle` directly{{if .ConfigFile}} (add `--config config.json`){{end}}.
 - Pass `odb run` options after `--`, for example `./migrate.sh run -- --throttle 5000`.
-{{- if .ConfigFile}}
+- Without the script: `odb run --mappings mappings.json --config config.json`.
 
-### Run it against another environment
+## Run it elsewhere, or run other migrations
 
-The source{{if .TargetHasCredentials}} and target{{end}} connection details are in `config.json`, not in the script. To
-run the same migration elsewhere, or after a password change, edit that file and run again;
-there's no need to export again.
+`migrate.sh` holds nothing about this migration, so the same script runs any export of odb
+{{.Version}}:
 
-- Each section (`source`{{if .TargetHasCredentials}}, `target`{{end}}) lists the connection's `type`, its settings
-  (host, port, database, user…) and its `password`. The `type` can't change.
-- Passwords are kept as `"base64:…"`. To change one, replace the whole value, prefix
-  included, with the new password in plain text: the next `preflight`, `run`, `resume` or
-  `verify` encodes it and saves `config.json` again.
-- `ODB_CONFIG=/path/to/other.json ./migrate.sh run` uses another file, e.g. one per environment.
-- A checkpoint follows the migration, not the connection: use another `ODB_STATE_DIR` for each
-  environment.
-{{- end}}
+- **Another environment, same mappings:** edit `config.json`, or keep one file per environment
+  and pick it with `ODB_CONFIG=/path/to/prod.json ./migrate.sh run`. Use another
+  `ODB_STATE_DIR` for each environment: a checkpoint follows the migration, not the connection.
+- **Other mappings:** put another export's `mappings.json` (and its `config.json`) beside the
+  script, or point `ODB_MAPPINGS` at it.
+- In `config.json`, each section (`source`, `target`) lists the connection's `type`, its
+  settings (host, port, database, user…) and its `password`. The `type` can't change.
+  Passwords are kept as `"base64:…"`: to change one, replace the whole value, prefix included,
+  with the new password in plain text, and the next run encodes it and saves the file again.
+- `mappings.json` is checked against its sha256 when it runs: export it again from the tool to
+  change it, rather than editing it.
 
 ### Settings
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `ODB_CONFIG` | `config.json` in this folder | Where: source and target connection details |
+| `ODB_MAPPINGS` | `mappings.json` in this folder | What: the mappings |
 | `ODB_STATE_DIR` | `odb-state` in this folder | Checkpoint, `errors.jsonl` and `report.json` |
 {{- if eq .TargetKind "directory"}}
-| `ODB_TARGET_PATH` | `{{.TargetPath}}` | Folder the JSON files are written to |
+| `ODB_TARGET_PATH` | `target.path` in `config.json` | Folder the JSON files are written to |
 {{- end}}
-| `ODB_RUNTIME` | `{{.Runtime}}` | `auto`, `binary`, `docker` or `embedded` |
-{{- if .ConfigFile}}
-| `ODB_CONFIG` | `config.json` in this folder | Source and target connection details |
-{{- end}}
-{{- if .Sealed}}
-| `ODB_BUNDLE_PASSPHRASE` | (asked) | Passphrase of sealed credentials |
-{{- end}}
+| `ODB_RUNTIME` | `auto` | `auto`, `binary` (never Docker) or `docker` |
 | `ODB_BIN` | | An `odb` {{.Version}} binary to use |
 | `ODB_DOCKER_ARGS` | | Extra `docker run` arguments, e.g. `--network host` |
 | `ODB_CACHE_DIR` | `odb-cache` in this folder | Where a downloaded `odb` is kept |
 
-With `auto`, the script uses `ODB_BIN`, then {{if .EmbeddedPlatform}}the `odb` embedded in it ({{.EmbeddedPlatform}}), then {{end}}`odb` {{.Version}} on the `PATH`, then Docker (`{{.Image}}`), and finally downloads `odb` from `{{.DownloadURL}}`, checking it against the checksum written into the script.
+The script uses `ODB_BIN`, then `odb` beside it, then `odb` {{.Version}} on the `PATH`, then
+Docker (`{{.Image}}`, with this folder mounted at the same path), and finally downloads `odb`
+from `{{.DownloadURL}}`, checking it against the checksum written in the script.
 
 ## Exit codes
 
@@ -107,7 +102,7 @@ With `auto`, the script uses `ODB_BIN`, then {{if .EmbeddedPlatform}}the `odb` e
 | 0 | Completed |
 | 2 | Completed with errors, below the error threshold: see `errors.jsonl` |
 | 3 | Failed: error threshold exceeded or a fatal error; see `report.json` |
-| 4 | Not started: preflight or configuration problem (bad bundle{{if .ConfigFile}} or `config.json`{{end}}, schema drift, wrong {{if .Sealed}}passphrase{{else}}credentials{{end}}, target not writable) |
+| 4 | Not started: preflight or configuration problem (`config.json` or `mappings.json`, schema drift, wrong credentials, target not writable) |
 | 5 | Cancelled after saving the checkpoint: run `./migrate.sh resume` |
 
 After the run, import `report.json` from the state directory into the Omni-Data-Bus project

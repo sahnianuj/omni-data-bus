@@ -5,11 +5,12 @@ import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { Api } from './support/api'
 import { rowCount } from './support/db'
-import { password, uid } from './support/env'
+import { uid } from './support/env'
 import { SignIn } from './support/pages'
 
-/** OC-056 AC1: export a sealed migrate.sh from the UI, run it in a container against the fixture
- * database, then import its report.json — the run shows as External. */
+/** OC-056 AC1, OC-160: export the migration folder from the UI (migrate.sh, config.json,
+ * mappings.json), run it in a container against the fixture database, then import its
+ * report.json — the run shows as External. */
 test('AC1: export, run the script, import the report', async ({ page }) => {
   const api = await Api.signUp()
   const p = await api.send<{ id: string }>('POST', '/api/v1/projects', { name: `Export ${uid()}` })
@@ -24,7 +25,7 @@ test('AC1: export, run the script, import the report', async ({ page }) => {
   })
   await new SignIn(page).signIn(api.email)
 
-  // Review → Export… → New export: the project read-only, a generated passphrase, the script.
+  // Review → Export… → New export: the project read-only, then the options; no passphrase.
   await page.goto(`/projects/${p.id}/review`)
   await page.getByRole('link', { name: 'Export…' }).click()
   await expect(page.getByRole('link', { name: 'Guide: running migrations outside the tool' })).toBeVisible()
@@ -32,29 +33,24 @@ test('AC1: export, run the script, import the report', async ({ page }) => {
   const dialog = page.getByRole('dialog', { name: 'Export migration' })
   await expect(dialog.getByRole('region', { name: /Mappings: 1 of 1 ready/ })).toBeVisible()
   await dialog.getByRole('button', { name: 'Next' }).click()
-  await dialog.getByRole('button', { name: 'Generate' }).click()
-  await expect(dialog.getByLabel('Passphrase')).not.toHaveValue('')
-  await dialog.getByRole('button', { name: 'Next' }).click()
-  await dialog.getByRole('button', { name: 'Export' }).click()
-  // The session confirms the password first.
-  await dialog.getByLabel(/Confirm your password/).fill(password)
   const downloaded = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Confirm and export' }).click()
+  await dialog.getByRole('button', { name: 'Export' }).click()
   const zip = await downloaded
-  const passphrase = (await page.getByRole('dialog', { name: 'Export downloaded' }).locator('code').innerText()).trim()
-  expect(passphrase.split('-')).toHaveLength(6)
+  await expect(page.getByRole('dialog', { name: 'Export downloaded' }).getByLabel('Files in the export')).toContainText('mappings.json')
 
   const dir = mkdtempSync(join(tmpdir(), 'odb-export-'))
   await zip.saveAs(join(dir, 'export.zip'))
   execFileSync('unzip', ['-q', 'export.zip'], { cwd: dir })
+  const folder = join(dir, readdirSync(dir).find((f) => f.startsWith('odb-export-'))!)
+  expect(readdirSync(folder).sort()).toEqual(expect.arrayContaining(['README.md', 'config.json', 'mappings.json', 'migrate.sh']))
   // The script runs odb from the e2e image on the dev stack's network.
   const run = (cmd: string) =>
-    execFileSync(join(dir, 'migrate.sh'), [cmd], {
+    execFileSync(join(folder, 'migrate.sh'), [cmd], {
       cwd: dir,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'], // progress and logs stay out of the test output
       env: {
-        ...process.env, ODB_RUNTIME: 'docker', ODB_DOCKER_ARGS: '--network omni-connect-dev_default', ODB_BUNDLE_PASSPHRASE: passphrase,
+        ...process.env, ODB_RUNTIME: 'docker', ODB_DOCKER_ARGS: '--network omni-connect-dev_default',
         ODB_TARGET_PATH: join(dir, 'out'), ODB_STATE_DIR: join(dir, 'state'),
       },
     })

@@ -126,6 +126,11 @@
           "properties": { "schema": { "type": "string" }, "table": { "type": "string" } }
         },
         "location": { "$ref": "#/$defs/location" },
+        "outline": {
+          "description": "What each document field is filled from, for people reading the file (OC-158). Generated from spec; runners ignore it.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "spec": {
           "type": "object",
           "required": ["specVersion", "docSchema", "key"],

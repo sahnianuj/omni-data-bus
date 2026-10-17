@@ -90,7 +90,7 @@ func problemOf(t *testing.T, rec *httptest.ResponseRecorder) problem.Problem {
 	return p
 }
 
-func scriptReq() Input { return Input{Runtime: RuntimeScript} }
+func scriptReq() Input { return Input{} }
 
 // unzip returns the files of a zip download by name, without the top-level folder.
 func unzip(t *testing.T, body []byte) map[string]*zip.File {
@@ -116,10 +116,10 @@ func read(t *testing.T, f *zip.File) []byte {
 	return data
 }
 
-// exportedBundle is the bundle of a "bundle" runtime download.
+// exportedBundle is a download's mappings.json.
 func exportedBundle(t *testing.T, body []byte) *Bundle {
 	t.Helper()
-	b, err := Parse(read(t, unzip(t, body)["bundle.odb.json"]), "2.0.0")
+	b, err := Parse(read(t, unzip(t, body)[MappingsFile]), "2.0.0")
 	require.NoError(t, err)
 	return b
 }
@@ -138,16 +138,44 @@ func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 		names = append(names, f.Name)
 	}
 	const dir = "odb-export-shop-docs-20261001/"
-	require.ElementsMatch(t, []string{dir, dir + "migrate.sh", dir + "README.md", dir + "config.json"}, names)
-
-	// runtime bundle: the .odb.json and its config.json (OC-155).
-	rec = a.export(Input{Runtime: RuntimeBundle})
-	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	require.Equal(t, "application/zip", rec.Header().Get("Content-Type"))
+	require.ElementsMatch(t, []string{dir, dir + "migrate.sh", dir + "README.md", dir + "config.json", dir + "mappings.json"}, names)
 	files := unzip(t, rec.Body.Bytes())
-	require.Len(t, files, 2)
 	require.Equal(t, os.FileMode(0o600), files["config.json"].Mode().Perm())
-	require.Equal(t, ModeConfig, exportedBundle(t, rec.Body.Bytes()).Source.Credentials.Mode)
+	require.Equal(t, os.FileMode(0o644), files["mappings.json"].Mode().Perm())
+	b := exportedBundle(t, rec.Body.Bytes())
+	require.Equal(t, rec.Header().Get("X-Odb-Bundle-Sha256"), b.SHA256())
+	// OC-158 AC1: no connection settings in mappings.json; each mapping has its outline.
+	require.JSONEq(t, `{}`, string(b.Source.Config))
+	require.JSONEq(t, `{}`, string(b.Target.Config))
+	require.NotContains(t, string(read(t, files["mappings.json"])), "db.internal")
+	require.NotEmpty(t, b.Mappings[0].Outline)
+
+	// Including odb adds it beside the script (OC-160 AC1).
+	self := Platform{OS: runtime.GOOS, Arch: runtime.GOARCH}
+	rec = a.export(Input{IncludeOdb: &self})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	files = unzip(t, rec.Body.Bytes())
+	require.Len(t, files, 5)
+	require.Equal(t, os.FileMode(0o755), files["odb"].Mode().Perm())
+	require.Equal(t, self.String(), rec.Header().Get("X-Odb-Included"))
+
+	rec = a.export(Input{IncludeOdb: &Platform{OS: "windows", Arch: "amd64"}})
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+// OC-160 AC2: older requests get the same folder; "embedded" includes odb.
+func TestExportsAPI_OC160_AC2_OlderRequests(t *testing.T) {
+	a := newAPI(t)
+	for _, in := range []Input{{Runtime: RuntimeBundle}, {Runtime: RuntimeScript, Script: Script{Runtime: "docker", IncludeBundle: true}}} {
+		rec := a.export(in)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		files := unzip(t, rec.Body.Bytes())
+		require.Len(t, files, 4, "%+v", in)
+		require.Contains(t, files, MappingsFile)
+	}
+	rec := a.export(Input{Runtime: RuntimeScript, Script: Script{Runtime: "embedded", OS: runtime.GOOS, Arch: runtime.GOARCH}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	require.Contains(t, unzip(t, rec.Body.Bytes()), "odb")
 }
 
 func TestExportsAPI_AC4_Authorization(t *testing.T) {
@@ -273,8 +301,7 @@ func TestExportsAPI_ConfigFileCarriesCredentials(t *testing.T) {
 	require.JSONEq(t, `"couchbases://cb.example.com"`, string(rc.Target.Config["connectionString"]))
 	require.Equal(t, Secrets{"password": cbPassword}, rc.Target.Secrets)
 
-	// The bundle has no credential: they're in config.json.
-	rec = a.export(Input{Runtime: RuntimeBundle})
+	// mappings.json has no credential: they're in config.json.
 	b := exportedBundle(t, rec.Body.Bytes())
 	require.Equal(t, &Credentials{Mode: ModeConfig}, b.Source.Credentials)
 	require.Equal(t, &Credentials{Mode: ModeConfig}, b.Target.Credentials)
@@ -290,7 +317,7 @@ func TestExportsHistory_AC3_ListAndCompare(t *testing.T) {
 	rec := a.do(http.MethodGet, "/projects/"+a.f.project.ID+"/exports", nil)
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &page))
 	require.Len(t, page.Items, 3)
-	require.Equal(t, []string{RuntimeScript, RuntimeBundle, RuntimeScript}, []string{page.Items[0].Runtime, page.Items[1].Runtime, page.Items[2].Runtime})
+	require.Equal(t, []string{RuntimeScript, RuntimeScript, RuntimeScript}, []string{page.Items[0].Runtime, page.Items[1].Runtime, page.Items[2].Runtime}, "every export is the same folder")
 	require.Equal(t, ModeConfig, page.Items[0].CredentialMode)
 	require.True(t, page.Items[0].CreatedAt.After(page.Items[1].CreatedAt), "newest first")
 	require.Len(t, page.Items[0].BundleSHA256, 64)

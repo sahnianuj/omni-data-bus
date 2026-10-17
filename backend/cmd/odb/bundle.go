@@ -141,6 +141,9 @@ func checkPlans(b *export.Bundle) []string {
 func describeConn(c export.Connection) string {
 	var cfg map[string]any
 	_ = json.Unmarshal(c.Config, &cfg)
+	if len(cfg) == 0 {
+		return c.Type + " (connection details in " + export.RunConfigFile + ")"
+	}
 	str := func(k string) string {
 		if v, ok := cfg[k]; ok && v != nil {
 			return fmt.Sprint(v)
@@ -190,6 +193,9 @@ func inspect(w io.Writer, b *export.Bundle) {
 	fmt.Fprintf(w, "Mappings    %d (row counts are estimated at preflight)\n", len(b.Mappings))
 	for _, m := range b.Mappings {
 		fmt.Fprintf(w, "  %-20s %s → %s\n", m.Name, m.Source, m.Location.String())
+		for _, line := range m.Outline {
+			fmt.Fprintf(w, "      %s\n", line)
+		}
 	}
 	if len(b.Relationships) > 0 {
 		fmt.Fprintf(w, "Virtual relationships  %d\n", len(b.Relationships))

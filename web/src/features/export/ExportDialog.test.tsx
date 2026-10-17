@@ -36,7 +36,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-function setup(project = makeProject({ id: 'p1', name: 'Shop', source: repo('postgres'), target: repo('couchbase') })) {
+function setup(project = makeProject({ id: 'p1', name: 'Shop', source: repo('postgres'), target: repo('couchbase') }), headers: Record<string, string> = {}) {
   mockSession('editor')
   const requests: Record<string, unknown>[] = []
   server.use(
@@ -48,7 +48,7 @@ function setup(project = makeProject({ id: 'p1', name: 'Shop', source: repo('pos
       requests.push((await request.json()) as Record<string, unknown>)
       return new HttpResponse(new Blob(['zip']), {
         status: 201,
-        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="odb-export-shop-20261001.zip"', 'X-Odb-Bundle-Sha256': 'f'.repeat(64), 'X-Odb-Export-Id': 'e1' },
+        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="odb-export-shop-20261001.zip"', 'X-Odb-Bundle-Sha256': 'f'.repeat(64), 'X-Odb-Export-Id': 'e1', ...headers },
       })
     }),
   )
@@ -61,7 +61,7 @@ describe('ExportDialog', () => {
     const user = userEvent.setup()
     const { requests } = setup()
     // 1. The project as configured, read-only, each part linking to its step.
-    expect(within(screen.getByRole('list', { name: 'Export steps' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1. Project', '2. Runtime & options'])
+    expect(within(screen.getByRole('list', { name: 'Export steps' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1. Project', '2. Options'])
     const maps = await screen.findByRole('region', { name: /Mappings: 2 of 3 ready/ })
     expect(within(maps).getByText('public.refunds').closest('li')).toHaveTextContent('Not ready — not exported')
     expect(within(maps).getByRole('link', { name: 'Change in Design & map' })).toHaveAttribute('href', '/projects/p1/mappings')
@@ -70,18 +70,37 @@ describe('ExportDialog', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    // 2. Runtime: the script, then Export downloads it at once.
-    expect(screen.getByRole('radio', { name: /migrate.sh script/ })).toBeChecked()
+    // 2. Options: no bundle-or-script choice, odb not included by default; Export downloads at once.
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Include odb/ })).not.toBeChecked()
     expect(screen.queryByLabelText(/passphrase/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Export' }))
 
     await screen.findByText('Export downloaded')
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
     expect(requests).toHaveLength(1)
-    expect(requests[0]).toMatchObject({ runtime: 'script', script: { runtime: 'auto' } })
-    for (const k of ['passphrase', 'mappingIds', 'targetOverride', 'credentialMode', 'refs']) expect(requests[0]).not.toHaveProperty(k)
+    expect(requests[0]).toHaveProperty('jobOptions')
+    for (const k of ['passphrase', 'mappingIds', 'targetOverride', 'credentialMode', 'refs', 'runtime', 'script', 'includeOdb']) expect(requests[0]).not.toHaveProperty(k)
     expect(saved).toEqual(['odb-export-shop-20261001.zip'])
-    expect(screen.getByRole('note')).toHaveTextContent('config.json in the export holds the source and target connection details')
+    const files = screen.getByLabelText('Files in the export')
+    expect(within(files).getAllByRole('term').map((d) => d.textContent)).toEqual(['migrate.sh', 'config.json', 'mappings.json', 'README.md'])
+    expect(screen.getByRole('note')).toHaveTextContent('config.json holds the database credentials')
+  })
+
+  it('OC-160 AC1: one download with an optional odb', async () => {
+    const user = userEvent.setup()
+    const { requests } = setup(undefined, { 'X-Odb-Included': 'linux_amd64' })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('checkbox', { name: /Include odb/ }))
+    // Only platforms this server has can be picked.
+    const machine = screen.getByLabelText('Machine')
+    expect(within(machine).getByRole('option', { name: 'linux / amd64' })).toBeEnabled()
+    expect(within(machine).getByRole('option', { name: 'darwin / arm64' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await screen.findByText('Export downloaded')
+    expect(requests[0]).toMatchObject({ includeOdb: { os: 'linux', arch: 'amd64' } })
+    expect(within(screen.getByLabelText('Files in the export')).getAllByRole('term').map((d) => d.textContent)).toContain('odb')
   })
 
   it('shows a failed export in the dialog', async () => {

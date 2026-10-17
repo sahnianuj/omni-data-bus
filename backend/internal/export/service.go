@@ -32,8 +32,8 @@ const (
 
 // Runtimes of an export.
 const (
-	RuntimeBundle = "bundle" // the .odb.json alone, for `odb run`
-	RuntimeScript = "script" // a zip with migrate.sh (OC-053)
+	RuntimeBundle = "bundle" // older requests: now the same download as script
+	RuntimeScript = "script" // the export folder: migrate.sh, config.json, mappings.json (OC-160)
 )
 
 // Service runs exports (OC-050, OC-052, OC-053) and their history and reports (OC-055).
@@ -73,22 +73,38 @@ func forbidden(code, title, detail string) problem.Problem {
 // config.json beside the script, where operators change them per environment (OC-155); there is
 // no passphrase or password confirmation (OC-154). Changing the project happens in its steps.
 type Input struct {
-	// Runtime is "bundle" (the .odb.json alone) or "script" (a zip with migrate.sh, OC-053).
-	Runtime string `json:"runtime"`
-	Script  Script `json:"script"`
+	// IncludeOdb adds odb for this platform beside migrate.sh, for a machine that can't download
+	// it (OC-160). Nil: the script finds or downloads odb itself.
+	IncludeOdb *Platform `json:"includeOdb,omitempty"`
 	// JobOptions tune the run; omitted fields keep the defaults.
 	JobOptions json.RawMessage `json:"jobOptions,omitempty"`
+	// Runtime and Script are the older request's packaging, still accepted (OC-160): every
+	// export is now the same folder, and script runtime "embedded" means IncludeOdb.
+	Runtime string `json:"runtime,omitempty"`
+	Script  Script `json:"script"`
+}
+
+// include is the platform to include odb for ("" = none), from either request form.
+func (in Input) include() string {
+	switch {
+	case in.IncludeOdb != nil:
+		return in.IncludeOdb.String()
+	case in.Script.Runtime == "embedded":
+		return Platform{OS: in.Script.OS, Arch: in.Script.Arch}.String()
+	}
+	return ""
 }
 
 // Export builds the requested artifact, records it in the history and audits it. Credentials
 // are only in the artifact's config.json, never in the history, the audit or the logs.
 func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string, in Input) (Artifact, store.ExportRecord, error) {
 	mode := ModeConfig
-	req := Request{CredentialMode: mode, Runtime: in.Runtime, Script: in.Script, JobOptions: in.JobOptions}
+	req := Request{CredentialMode: mode, Runtime: RuntimeScript, JobOptions: in.JobOptions}
+	include := in.include()
 	if p.Role.Rank() < store.RoleEditor.Rank() {
 		return Artifact{}, store.ExportRecord{}, forbidden(problem.CodeForbiddenRole, "Not allowed", "Exporting needs the editor role.")
 	}
-	if err := s.checkRequest(&req); err != nil {
+	if err := checkInput(in, include); err != nil {
 		return Artifact{}, store.ExportRecord{}, err
 	}
 	if ok, wait := s.limit().Allow("export:"+p.UserID, MaxExportsPerHour, exportWindow); !ok {
@@ -109,19 +125,12 @@ func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string
 	if err != nil {
 		return Artifact{}, store.ExportRecord{}, err
 	}
-	var art Artifact
-	switch req.Runtime {
-	case RuntimeScript:
-		if art, err = RenderScript(b, raw, built.RunConfig, req.Script, s.Script, s.Version); err != nil {
-			if strings.Contains(err.Error(), "50 MB") {
-				return Artifact{}, store.ExportRecord{}, problem.New(http.StatusUnprocessableEntity, problem.CodeExportTooLarge, "Export too large", err.Error())
-			}
-			return Artifact{}, store.ExportRecord{}, unprocessable(problem.CodeValidation, "Can't build the script", err.Error())
+	art, err := RenderScript(b, raw, built.RunConfig, include, s.Script, s.Version)
+	if err != nil {
+		if strings.Contains(err.Error(), "larger than") {
+			return Artifact{}, store.ExportRecord{}, problem.New(http.StatusUnprocessableEntity, problem.CodeExportTooLarge, "Export too large", err.Error())
 		}
-	default:
-		if art, err = RenderBundle(b, raw, built.RunConfig); err != nil {
-			return Artifact{}, store.ExportRecord{}, err
-		}
+		return Artifact{}, store.ExportRecord{}, unprocessable(problem.CodeValidation, "Can't build the export", err.Error())
 	}
 
 	rec := store.ExportRecord{
@@ -144,22 +153,19 @@ func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string
 }
 
 // checkRequest applies the guard rails that don't need the bundle (OC-052 AC4).
-func (s *Service) checkRequest(req *Request) error {
-	switch req.Runtime {
-	case "", RuntimeBundle:
-		req.Runtime = RuntimeBundle
-	case RuntimeScript:
-		switch req.Script.Runtime {
-		case "", "auto", "binary", "docker":
-		case "embedded":
-			if !slices.Contains(Platforms, req.Script.OS+"_"+req.Script.Arch) {
-				return unprocessable(problem.CodeValidation, "Choose a platform", "An embedded odb needs the operating system and architecture: linux or darwin, amd64 or arm64.")
-			}
-		default:
-			return unprocessable(problem.CodeValidation, "Invalid runtime", "The script runtime is auto, binary, docker or embedded.")
-		}
+func checkInput(in Input, include string) error {
+	switch in.Runtime {
+	case "", RuntimeBundle, RuntimeScript:
 	default:
-		return unprocessable(problem.CodeValidation, "Invalid runtime", `runtime is "bundle" or "script".`)
+		return unprocessable(problem.CodeValidation, "Invalid runtime", `runtime is "bundle" or "script" (both give the same download now).`)
+	}
+	switch in.Script.Runtime {
+	case "", "auto", "binary", "docker", "embedded":
+	default:
+		return unprocessable(problem.CodeValidation, "Invalid runtime", "The script runtime is auto, binary, docker or embedded.")
+	}
+	if include != "" && !slices.Contains(Platforms, include) {
+		return unprocessable(problem.CodeValidation, "Choose a platform", "Including odb needs the operating system and architecture: linux or darwin, amd64 or arm64.")
 	}
 	return nil
 }

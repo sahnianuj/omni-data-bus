@@ -65,7 +65,9 @@ func replaceFile(path string, data []byte, mode os.FileMode) error {
 }
 
 // connection lays the run config's section for role over the bundle's connection (OC-155): the
-// settings it lists replace the bundle's, and its secrets replace the bundle's.
+// settings it lists replace the bundle's, and its secrets replace the bundle's. A mappings.json
+// has no settings at all (OC-158): its sections are required. A directory target's relative
+// path is relative to the config file's folder.
 func (c *Config) connection(role string, conn export.Connection, secrets export.Secrets) (json.RawMessage, export.Secrets, error) {
 	var sec *export.RunConnection
 	if c.RunConfig != nil {
@@ -79,19 +81,16 @@ func (c *Config) connection(role string, conn export.Connection, secrets export.
 	if name == "" {
 		name = export.RunConfigFile
 	}
+	inConfig = inConfig || noSettings(conn.Config)
 	if sec == nil {
 		switch {
 		case inConfig && c.RunConfig == nil:
-			return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: "This bundle's " + role + " connection details are in its " +
+			return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: "This migration's " + role + " connection details are in its " +
 				export.RunConfigFile + ": pass it with --config (migrate.sh does)."}
 		case inConfig:
 			return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: name + ": the " + role + " section is missing."}
 		}
 		return conn.Config, secrets, nil
-	}
-	if conn.Type == store.KindDirectory {
-		return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: name + ": a directory target has no " + role +
-			" section; set its folder with --target-path (ODB_TARGET_PATH for migrate.sh)."}
 	}
 	if sec.Type != "" && sec.Type != conn.Type {
 		return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: fmt.Sprintf(
@@ -106,6 +105,16 @@ func (c *Config) connection(role string, conn export.Connection, secrets export.
 	for k, v := range sec.Config {
 		merged[k] = v
 	}
+	if conn.Type == store.KindDirectory {
+		var p string
+		if json.Unmarshal(merged["path"], &p) == nil && p != "" && !filepath.IsAbs(p) {
+			abs, err := filepath.Abs(filepath.Join(filepath.Dir(name), p))
+			if err != nil {
+				return nil, nil, err
+			}
+			merged["path"], _ = json.Marshal(abs)
+		}
+	}
 	cfg, err := json.Marshal(merged)
 	if err != nil {
 		return nil, nil, err
@@ -114,4 +123,31 @@ func (c *Config) connection(role string, conn export.Connection, secrets export.
 		secrets = sec.Secrets
 	}
 	return cfg, secrets, nil
+}
+
+// noSettings reports a bundle connection without settings: a mappings.json's (OC-158).
+func noSettings(cfg json.RawMessage) bool {
+	var m map[string]json.RawMessage
+	return len(cfg) == 0 || (json.Unmarshal(cfg, &m) == nil && len(m) == 0)
+}
+
+// DirectoryTargetPath is the folder the run config's directory target writes to, absolute
+// (relative paths are relative to the config file's folder); "" when its target isn't a
+// directory (odb run target-path, OC-159).
+func DirectoryTargetPath(configPath string) (string, error) {
+	rc, err := LoadRunConfig(configPath, func(string) {})
+	if err != nil {
+		return "", err
+	}
+	if rc.Target == nil || rc.Target.Type != store.KindDirectory {
+		return "", nil
+	}
+	var p string
+	if err := json.Unmarshal(rc.Target.Config["path"], &p); err != nil || p == "" {
+		return "", &ConfigError{Code: export.CodeRunConfigInvalid, Message: configPath + ": target.path is required for a directory target."}
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(filepath.Dir(configPath), p)
+	}
+	return filepath.Abs(p)
 }
