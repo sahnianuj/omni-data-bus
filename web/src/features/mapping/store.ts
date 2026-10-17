@@ -1,6 +1,7 @@
+import { followDesign } from '@/features/computed/refs'
 import { createContext, useContext } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
-import { initHistory, push, redo, undo, type History } from '@/features/docschema/history'
+import { initHistory, push, redo, revert, squash, undo, type History } from '@/features/docschema/history'
 import { computeStats } from './computeStats'
 import type { Filter } from './selectVisible'
 import type { MappingIssue, MappingSpec, MappingStats, MappingView, SourceColumn } from './types'
@@ -31,6 +32,10 @@ export type WorkbenchState = {
   apply: (fn: (spec: MappingSpec) => MappingSpec) => void
   undo: () => void
   redo: () => void
+  /** Folds the steps since `mark` (history.past.length then) into one undo step. */
+  squash: (mark: number) => void
+  /** Drops the steps since `mark`, back to the state then. */
+  revert: (mark: number) => void
   saved: (view: MappingView) => void
   replace: (view: MappingView) => void
   setConflict: (c: boolean) => void
@@ -62,12 +67,15 @@ export function createWorkbenchStore(view: MappingView, columns: SourceColumn[])
     stats: () => computeStats(get().history.present, get().columns.map((c) => c.name)),
     apply: (fn) => {
       const cur = get().history.present
-      const next = fn(cur)
+      // Computed fields follow renames and moves in the same undo step (OC-139).
+      const next = followDesign(cur, fn(cur))
       if (next === cur) return
       set((s) => ({ history: push(s.history, next), revision: s.revision + 1 }))
     },
     undo: () => set((s) => ({ history: undo(s.history), revision: s.revision + 1 })),
     redo: () => set((s) => ({ history: redo(s.history), revision: s.revision + 1 })),
+    squash: (mark) => set((s) => ({ history: squash(s.history, mark) })),
+    revert: (mark) => set((s) => ({ history: revert(s.history, mark), revision: s.revision + 1 })),
     // A save round-trip: keep local edits made meanwhile, take the new version and issues.
     saved: (v) => set({ view: v, version: v.version, issues: v.issues, conflict: false }),
     // Server-side changes (auto-map, design replace, reload): the server's spec wins.

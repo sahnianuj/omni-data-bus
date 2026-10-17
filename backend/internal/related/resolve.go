@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,6 +42,8 @@ type Resolver struct {
 	// MemoryBytes caps the related rows held for one batch; 0 = MemoryLimitBytes(). A batch
 	// over the cap is split in half and retried, down to one parent row.
 	MemoryBytes int64
+	// NoShare reads every relation on its own (tests compare it with shared reads, OC-144).
+	NoShare bool
 }
 
 // Resolve returns each root row's related rows (index = row index) and the rows that failed
@@ -126,18 +130,29 @@ func (r *Resolver) resolveAll(ctx context.Context, rows [][]any) ([]source.Relat
 		errs := make([]error, len(plans))
 		sem := make(chan struct{}, max(r.Concurrency, 1))
 		var wg sync.WaitGroup
-		for n, p := range plans {
+		// Relations that read the same rows share one query (OC-144); the rest read alone.
+		for _, unit := range r.units(plans) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				select {
 				case sem <- struct{}{}:
 				case <-ctx.Done():
-					errs[n] = ctx.Err()
+					for _, n := range unit {
+						errs[n] = ctx.Err()
+					}
 					return
 				}
 				defer func() { <-sem }()
-				results[n], errs[n] = r.lookup(ctx, p, level[p.Parent], b)
+				if len(unit) == 1 {
+					n := unit[0]
+					results[n], errs[n] = r.lookup(ctx, plans[n], level[plans[n].Parent], b)
+					return
+				}
+				res, err := r.lookupShared(ctx, plans, unit, level, b)
+				for i, n := range unit {
+					results[n], errs[n] = res[i], err
+				}
 			}()
 		}
 		wg.Wait()
@@ -237,11 +252,46 @@ func rowBytes(row []any) int64 {
 	return n
 }
 
-func (r *Resolver) lookup(ctx context.Context, p Plan, parents []parentRow, b *budget) (lookupResult, error) {
-	res := lookupResult{per: make([][]source.RelatedRow, len(parents)), dangling: make([]int, len(parents))}
+// shareKey identifies the many-to-one relations whose reads can be one query: the same table,
+// join columns and order, keeping one row per key, with no filter, junction or key range.
+// "" = the relation reads alone.
+func shareKey(p Plan) string {
+	q := p.Query
+	if p.Many || p.Keep != 1 || q.Via != nil || len(q.Filter) > 0 || q.Range != nil || p.Strategy == StrategySortedMerge ||
+		len(p.DanglingIdx) > 0 || len(p.DistinctIdx) > 0 {
+		return ""
+	}
+	k := q.Table.Schema + "." + q.Table.Table + "|" + strings.Join(q.Join, ",") + "|" + strconv.Itoa(q.PerKeyLimit)
+	for _, o := range q.OrderBy {
+		k += "|" + o.Column + ":" + strconv.FormatBool(o.Desc)
+	}
+	return k
+}
+
+// units groups one depth's plans: relations with the same shareKey together, the rest alone.
+func (r *Resolver) units(plans []Plan) [][]int {
+	var out [][]int
+	shared := map[string]int{}
+	for n, p := range plans {
+		k := ""
+		if !r.NoShare {
+			k = shareKey(p)
+		}
+		if i, ok := shared[k]; ok && k != "" {
+			out[i] = append(out[i], n)
+			continue
+		}
+		if k != "" {
+			shared[k] = len(out)
+		}
+		out = append(out, []int{n})
+	}
+	return out
+}
+
+// keysOf are a plan's parents' join keys: per parent ("" = none) and each distinct one.
+func keysOf(p Plan, parents []parentRow, seen map[string]bool, keys [][]any) ([]string, [][]any) {
 	rowKeys := make([]string, len(parents))
-	seen := map[string]bool{}
-	var keys [][]any
 	for i, parent := range parents {
 		k, ok := KeyOf(parent.values, p.ParentIdx)
 		if !ok {
@@ -257,6 +307,49 @@ func (r *Resolver) lookup(ctx context.Context, p Plan, parents []parentRow, b *b
 			keys = append(keys, key)
 		}
 	}
+	return rowKeys, keys
+}
+
+// lookupShared reads the rows of several relations with one query: the union of their keys
+// and columns. Each relation gets its own parents' rows, as if it had read them alone.
+func (r *Resolver) lookupShared(ctx context.Context, plans []Plan, unit []int, level map[string][]parentRow, b *budget) ([]lookupResult, error) {
+	merged := plans[unit[0]]
+	merged.Query.Table.Project = append([]bool(nil), merged.Query.Table.Project...)
+	seen := map[string]bool{}
+	var keys [][]any
+	rowKeys := make([][]string, len(unit))
+	for i, n := range unit {
+		p := plans[n]
+		for c, on := range p.Query.Table.Project {
+			if on && c < len(merged.Query.Table.Project) {
+				merged.Query.Table.Project[c] = true
+			}
+		}
+		rowKeys[i], keys = keysOf(p, level[p.Parent], seen, keys)
+	}
+	out := make([]lookupResult, len(unit))
+	var groups map[string]*group
+	if len(keys) > 0 {
+		var err error
+		if groups, err = r.batched(ctx, merged, keys, b); err != nil {
+			return out, err
+		}
+	}
+	for i := range unit {
+		res := lookupResult{per: make([][]source.RelatedRow, len(rowKeys[i])), dangling: make([]int, len(rowKeys[i]))}
+		for j, k := range rowKeys[i] {
+			if g := groups[k]; k != "" && g != nil {
+				res.per[j] = g.rows
+			}
+		}
+		out[i] = res
+	}
+	return out, nil
+}
+
+func (r *Resolver) lookup(ctx context.Context, p Plan, parents []parentRow, b *budget) (lookupResult, error) {
+	res := lookupResult{per: make([][]source.RelatedRow, len(parents)), dangling: make([]int, len(parents))}
+	rowKeys, keys := keysOf(p, parents, map[string]bool{}, nil)
 	if len(keys) == 0 {
 		return res, nil
 	}

@@ -2,7 +2,7 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E9 Relationship Mapping | P0 | 3 | OC-042 | Not started |
+| E9 Relationship Mapping | P0 | 3 | OC-042 | Implemented |
 
 ## User story
 As a **data engineer** who has embedded a related object (an order line's `product`), I want the tool to know that object's own relationships (product → brand, product → category, product → reviews) however deep it sits in the document and however large the schema is, so that the source side can offer them for embedding (OC-142, OC-143).
@@ -20,15 +20,15 @@ The graph itself (`relations.Build`) has every hop, including self-references; o
 - A **direct hops** endpoint: `GET /api/v1/connections/{id}/relations/hops?table=<schema.table>` returning every relationship of one table:
   - many-to-one (↗) and one-to-many (↙) hops from foreign keys and virtual relationships (OC-042), **including self-references** (flagged `self: true`);
   - many-to-many candidates through junction tables where this table is one end (OC-044);
-  - per hop: join columns, constraint or virtual relationship id, whether the child side is indexed (index advice), and an **estimate**: rows per parent for one-to-many (from table statistics: row count ÷ distinct parent keys when available, else row-count ratio) and "1" for many-to-one.
+  - per hop: join columns, constraint or virtual relationship id, whether the child side is indexed (index advice), and an **estimate**: rows per parent for one-to-many (the row-count ratio of the two tables: discovery doesn't record distinct counts).
 - `maxRelationDepth` (the effective `OC_MAX_RELATION_DEPTH`) in the response, so the UI can tell how deep an embed may go.
-- A web hook `useRelationHops(connId, table)` cached per table (React Query, shared by both panels and the Embed actions), plus `hopsFor(table)` helpers replacing `edges(graph)` wherever the code needs "the relationships of this table" (`bindPrefill.foreignKeyOf`, `scope` reach, `EmbedDialog`).
+- Web hooks `useRelationHops(connId, table)` and `useTablesHops(connId, tables)` (React Query, cached per table and shared by every caller), returning a `hopsOf(table)` lookup that `bindPrefill.foreignKeyOf` uses instead of `edges(graph)` (OC-143). The Composer's Sources pane uses it in OC-142; the Canvas Related tables keeps the path graph, which already nests under embedded rows (OC-152).
 - The existing graph endpoint stays as is (it still serves the first level and the path ranking of the Related tree).
 
 **Out:** changing `Paths` ranking or limits; relationships across connections.
 
 ## Implementation details
-- `relations.Service.Hops(ctx, ws, connID, table) (HopsResult, error)` uses the cached `Graph` (built from the latest discovery snapshot and virtual relationships) and `Graph.Hops(table)`, which already returns the adjacency list; junctions come from `Junctions(snap, table)`. Add estimates in `relations/estimate.go` from snapshot stats (`rowEstimate`, column `nDistinct` where discovery recorded it).
+- `relations.Service.Hops(ctx, ws, connID, table) (HopsResult, error)` builds the `Graph` from the latest discovery snapshot and virtual relationships and returns `Graph.Hops(table)`, the adjacency list, with `self` and `rowsPerParent` set; junctions come from `Junctions(snap, table)`.
 - OpenAPI: `GET /connections/{id}/relations/hops` in `api/openapi.yaml`; regenerate the web client types.
 - Permissions: same as the graph endpoint (viewer).
 - Response size: one table's hops; no pagination needed (a table with > 500 hops returns the first 500 by quality and `truncated: true`).
@@ -40,22 +40,22 @@ The graph itself (`relations.Build`) has every hop, including self-references; o
 
 | Test | Location | Verifies |
 |---|---|---|
-| `TestHops_AC1_DirectHopsAndSelfReferences` | `backend/internal/relations/graph_test.go` | |
-| `TestHopsHandler_AC1` | `backend/internal/relations/handlers_test.go` | Contract, permissions |
+| `TestHops_AC1_DirectHopsAndSelfReferences` | `backend/internal/relations/hops_test.go` | |
+| `TestHopsHandler_AC1` | same | Contract, bad and unknown tables |
 
 ### AC2 — Not limited by the driving table's graph
 **Given** a synthetic schema of 400 tables where `products` is 3 hops from `orders` and the depth-4 graph from `orders` hits `MaxPaths` before listing `products → brands`, **then** `hops?table=sales.products` still lists `brands`.
 
 | Test | Location | Verifies |
 |---|---|---|
-| `TestHops_AC2_IndependentOfPathCap` | `backend/internal/relations/graph_test.go` | |
+| `TestHops_AC2_IndependentOfPathCap` | `backend/internal/relations/hops_test.go` | 250 parents of orders fill the capped path search |
 
 ### AC3 — Virtual relationships, junctions, index advice and estimates
 **Given** a virtual relationship `products.supplier_code → suppliers.code`, **then** it's listed with its id and `virtual: true`. **Given** `product_tags(product_id, tag_id)`, **then** ↔ tags via product_tags. **Given** `reviews.product_id` without an index, **then** `indexed: false`. **Given** stats of 12,000 reviews over 1,000 products, **then** the estimate is 12 per product.
 
 | Test | Location | Verifies |
 |---|---|---|
-| `TestHops_AC3_VirtualJunctionIndexEstimate` | `backend/internal/relations/graph_test.go` | |
+| `TestHops_AC3_VirtualJunctionIndexEstimate` | `backend/internal/relations/hops_test.go` | |
 
 ### AC4 — One cached fetch per table in the web app
 **Given** the Canvas and Composer both need `products`' hops, **then** one request is made, and `foreignKeyOf` finds `brand_id → brands` for a field in `items[].product` from that response, not from the driving graph.
@@ -63,4 +63,4 @@ The graph itself (`relations.Build`) has every hop, including self-references; o
 | Test | Location | Verifies |
 |---|---|---|
 | `relationsApi.test.ts` › `OC-141 AC4: hops cached per table` | `web/src/features/mapping/relationsApi.test.ts` | |
-| `bindPrefill.test.ts` › `OC-141 AC4: foreignKeyOf uses table hops` | `web/src/features/composer/bindPrefill.test.ts` | |
+| `composerOps.test.ts` › `OC-143 AC1: a foreign key at any depth…` | `web/src/features/composer/composerOps.test.ts` | `foreignKeyOf` uses table hops |

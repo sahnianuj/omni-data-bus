@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -13,7 +14,9 @@ import (
 
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/source"
+	"omnidatabus/internal/docschema"
 	"omnidatabus/internal/export"
+	"omnidatabus/internal/mapping"
 )
 
 // recordingSource is memSource remembering the config and password it was opened with.
@@ -200,4 +203,57 @@ func TestRunConfig_OC158_AC3_EmptyBundleConfig(t *testing.T) {
 	_, code, err = Run(context.Background(), cfg2)
 	require.Equal(t, ExitPreflight, code)
 	require.ErrorContains(t, err, path2+": the target section is missing")
+}
+
+// withComputed adds a computed field to the bundle's orders mapping (OC-140).
+func withComputed(t *testing.T, cfg *Config, fields ...mapping.FieldMapping) {
+	t.Helper()
+	b := *cfg.Bundle
+	b.Mappings = append([]export.Mapping(nil), b.Mappings...)
+	var spec mapping.Spec
+	require.NoError(t, json.Unmarshal(b.Mappings[0].Spec, &spec))
+	for _, f := range fields {
+		spec.DocSchema.Root.Children = append(spec.DocSchema.Root.Children, docschema.DocField{ID: f.TargetFieldID, Name: strings.TrimPrefix(f.TargetFieldID, "fld_"), Type: docschema.String})
+		spec.FieldMappings = append(spec.FieldMappings, f)
+	}
+	raw, err := json.Marshal(spec)
+	require.NoError(t, err)
+	b.Mappings[0].Spec = raw
+	// Sealed credentials are bound to the content hash, which the edit changes.
+	b.Source.Credentials = &export.Credentials{Mode: export.ModePlaintext, Values: export.Secrets{"password": pgSecret}}
+	require.NoError(t, b.Finalize())
+	cfg.Bundle = &b
+}
+
+func computedMapping(field, expr string) mapping.FieldMapping {
+	return mapping.FieldMapping{ID: "map_" + field, TargetFieldID: field, State: mapping.StateActive, Sources: []mapping.SourceRef{}, Transforms: []mapping.Step{},
+		Computed: &mapping.Computed{Lang: mapping.ComputedTemplate, Expr: expr}}
+}
+
+// OC-140 AC1: a bundle's computed fields are written by odb run as by the server (same
+// Compile); AC3: a computed cycle stops preflight with exit 4, naming the field.
+func TestRunComputed_OC140_BundleAndPreflight(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	cfg, out := memConfig(t, &memSource{rows: ordersRows()}, &stdout, &stderr)
+	withComputed(t, cfg, computedMapping("fld_ref", "ORD-${doc.id}/${doc.status}"))
+	_, code, err := Run(context.Background(), cfg)
+	require.NoError(t, err, stderr.String())
+	require.Equal(t, ExitOK, code, stderr.String())
+	raw, err := os.ReadFile(filepath.Join(out, "orders", "orders%3A%3A1.json"))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"id":1,"customerId":10,"status":"paid","type":"order","ref":"ORD-1/paid"}`, string(raw))
+
+	cfg, _ = memConfig(t, &memSource{rows: ordersRows()}, &stdout, &stderr)
+	withComputed(t, cfg, computedMapping("fld_a", "${doc.b}"), computedMapping("fld_b", "${doc.a}"))
+	rep, code := Preflight(context.Background(), cfg)
+	require.Equal(t, ExitPreflight, code)
+	require.False(t, rep.OK)
+	var failed []string
+	for _, c := range rep.Checks {
+		if c.Status == "fail" {
+			failed = append(failed, c.Label+" "+c.Detail)
+		}
+	}
+	require.NotEmpty(t, failed)
+	require.Contains(t, strings.Join(failed, "\n"), "read each other")
 }

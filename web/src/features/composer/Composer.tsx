@@ -11,19 +11,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSchema, useSourceTable } from '@/features/discovery/api'
 import { generateFromTable } from '@/features/docschema/generate'
 import { mappingSheet, runAutomapScope } from '@/features/mapping/api'
-import { useRelationGraph } from '@/features/mapping/relationsApi'
+import { useTablesHops } from '@/features/mapping/relationsApi'
 import { fieldTypeOf } from '@/features/docschema/generate'
 import { boundRelations } from './scope'
 import { computeStats } from '@/features/mapping/computeStats'
 import { connect, OpError, replaceSource, activeFor } from '@/features/mapping/mappingOps'
 import { srcKey } from '@/features/mapping/embeds'
 import { useWorkbench, useWorkbenchStore } from '@/features/mapping/store'
-import type { CanvasColumn, MappingSpec } from '@/features/mapping/types'
+import type { CanvasColumn, JunctionCandidate, MappingSpec } from '@/features/mapping/types'
 import { ApiError } from '@/lib/api/client'
 import { BindDialog } from './BindDialog'
 import { ComposerInspector, useScopeColumns } from './ComposerInspector'
-import { foreignKeyOf } from './bindPrefill'
-import { bindGroupRows, blank, collapseToId, nodeOf, setDrivingTable, setGroupBy, unboundContainers, type ForeignKey, type TableRef } from './composerOps'
+import { foreignKeyOf, scopeDepth } from './bindPrefill'
+import { addNode, bindGroupRows, blank, collapseToId, nodeOf, setDrivingTable, setGroupBy, singularName, unboundContainers, type ForeignKey, type TableRef } from './composerOps'
+import { rename as renameStyle } from '@/lib/naming'
+import type { AvailableHop, Instance } from './documentSources'
 import { CombineRowsDialog } from './CombineRowsDialog'
 import { EmbedKeyDialog } from './EmbedKeyDialog'
 import { DocumentTree } from './DocumentTree'
@@ -37,7 +39,7 @@ import { SuggestionsPanel } from './SuggestionsPanel'
 import { HelpLink } from '@/components/HelpLink'
 
 type DialogState =
-  | { kind: 'bind'; nodeId: string; table: TableRef; lookup: boolean }
+  | { kind: 'bind'; nodeId: string; table: TableRef; lookup: boolean; mark?: number }
   | { kind: 'pick'; nodeId: string; lookup: boolean }
   | { kind: 'import'; nodeId: string | null; initial?: { text: string; fileName?: string } }
   | { kind: 'start'; start: 'blank' | 'generated' }
@@ -187,11 +189,17 @@ export function Composer() {
   }
 
   // Foreign keys in the document (OC-064): embed the row a key refers to, or collapse it back.
-  const graph = useRelationGraph(conn, key(driving))
-  const fkOf = (fieldId: string) => foreignKeyOf(graph.data, spec, fieldId, own)
+  // Each scope table's own hops (OC-141) find keys at any depth (OC-143).
+  const { hopsOf, maxRelationDepth } = useTablesHops(conn, [key(driving), ...spec.relations.map((r) => key(r.table))])
+  const fkOf = (fieldId: string) => foreignKeyOf(hopsOf, spec, fieldId, own)
+  // At the depth limit the action shows, disabled, with why (OC-142 AC3, OC-143).
+  const embedBlocked = (fieldId: string) => {
+    const depth = scopeDepth(spec, fieldId)
+    return maxRelationDepth != null && depth >= maxRelationDepth ? t('embed.depthLimit', { depth, max: maxRelationDepth }) : undefined
+  }
   const embed = (fieldId: string) => {
     const fk = fkOf(fieldId)
-    if (fk) setDialog({ kind: 'embed', fieldId, fk })
+    if (fk && !embedBlocked(fieldId)) setDialog({ kind: 'embed', fieldId, fk })
   }
   const collapsible = (nodeId: string) => {
     const r = boundRelations(spec).get(nodeId)
@@ -209,7 +217,23 @@ export function Composer() {
     [snap.data],
   )
 
-  const sources = <SourcesPane onBind={(nodeId, table, lookup) => setDialog({ kind: 'bind', nodeId, table, lookup })} onGroupRows={groupRows} />
+  // "In this document" (OC-142): a node for the hop under the instance's object, then the Bind
+  // dialog pre-filled with the hop's join; the node, the bind and the auto-map are one undo step
+  // (OC-142 AC2), and cancelling removes the node.
+  const embedHop = (inst: Instance, hop: AvailableHop | JunctionCandidate) => {
+    const table = 'from' in hop ? hop.to : hop.table
+    const isObject = 'from' in hop && hop.kind === 'many-to-one'
+    const mark = store.getState().history.past.length
+    let id = ''
+    run((s) => {
+      const r = addNode(s, inst.containerId, isObject ? 'object' : 'array', isObject ? singularName(table.name) : renameStyle(table.name))
+      id = r.id
+      return r.spec
+    })
+    if (id) setDialog({ kind: 'bind', nodeId: id, table, lookup: false, mark })
+  }
+  const lookupHop = (inst: Instance, hop: AvailableHop) => setDialog({ kind: 'bind', nodeId: inst.containerId, table: hop.to, lookup: true })
+  const sources = <SourcesPane onBind={(nodeId, table, lookup) => setDialog({ kind: 'bind', nodeId, table, lookup })} onGroupRows={groupRows} onEmbedHop={embedHop} onLookupHop={lookupHop} />
   // A .json file dropped on the document opens the import with it (OC-059).
   const dropFile = async (nodeId: string | null, file: File) => setDialog({ kind: 'import', nodeId, initial: { text: await file.text(), fileName: file.name } })
   const document = (
@@ -237,6 +261,7 @@ export function Composer() {
           onDropFile={(nodeId, file) => void dropFile(nodeId, file)}
           onGroupRows={groupRows}
           embeddable={(id) => fkOf(id)?.table.name}
+          embedBlocked={embedBlocked}
           onEmbed={embed}
           collapsible={collapsible}
           onCollapse={collapse}
@@ -247,7 +272,7 @@ export function Composer() {
       </div>
     </div>
   )
-  const inspector = <ComposerInspector focusSource={focusSource} onBindTable={(nodeId, lookup) => setDialog({ kind: 'pick', nodeId, lookup: !!lookup })} embedTable={fkOf(selectedId)?.table.name} onEmbed={embed} />
+  const inspector = <ComposerInspector focusSource={focusSource} onBindTable={(nodeId, lookup) => setDialog({ kind: 'pick', nodeId, lookup: !!lookup })} embedTable={fkOf(selectedId)?.table.name} embedBlocked={embedBlocked(selectedId)} onEmbed={embed} />
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="composer">
@@ -369,7 +394,21 @@ export function Composer() {
       )}
       <SamplePane />
 
-      {dialog?.kind === 'bind' ? <BindDialog nodeId={dialog.nodeId} table={dialog.table} lookup={dialog.lookup} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'bind' ? (
+        <BindDialog
+          nodeId={dialog.nodeId}
+          table={dialog.table}
+          lookup={dialog.lookup}
+          onClose={() => {
+            if (dialog.mark != null) store.getState().squash(dialog.mark)
+            setDialog(null)
+          }}
+          onCancel={() => {
+            if (dialog.mark != null) store.getState().revert(dialog.mark)
+            setDialog(null)
+          }}
+        />
+      ) : null}
       {dialog?.kind === 'pick' ? (
         <TablePicker
           tables={tables}

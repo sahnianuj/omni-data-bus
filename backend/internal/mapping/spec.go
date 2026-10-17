@@ -103,6 +103,34 @@ type FieldMapping struct {
 	Reason        string      `json:"reason,omitempty"`
 	NeedsReview   bool        `json:"needsReview,omitempty"`
 	NullHandling  string      `json:"nullHandling,omitempty"` // overrides Spec.NullHandling
+	// Computed fills the field from the document's other fields instead of sources (OC-136):
+	// a mapping with Computed has no sources and no constant or expression step.
+	Computed *Computed `json:"computed,omitempty"`
+}
+
+// Computed field languages (OC-136). "js" is OC-137's (release 3.0): not runnable yet.
+const (
+	ComputedTemplate = "template"
+	ComputedJS       = "js"
+)
+
+// Computed row-error policies.
+const (
+	OnErrorFailRow = "fail-row"
+	OnErrorNull    = "null"
+	OnErrorOmit    = "omit"
+)
+
+// Computed is a computed field's rule: a template such as `${self.firstName} ${self.lastName}`
+// over doc, self, parent, index and row (OC-136).
+type Computed struct {
+	Lang string `json:"lang"`
+	Expr string `json:"expr"`
+	// NullIfAnyMissing makes the result null when any value it reads is missing or null,
+	// instead of rendering those as empty strings.
+	NullIfAnyMissing bool `json:"nullIfAnyMissing,omitempty"`
+	// OnError: fail-row (default), null or omit.
+	OnError string `json:"onError,omitempty"`
 }
 
 // Active reports whether the mapping takes part in the migration.

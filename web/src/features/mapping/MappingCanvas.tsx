@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import { buildEdges, parentMap, type Edge } from './buildEdges'
 import { canConnect } from './canConnect'
 import { canvasLeaves, embedColumns, embedContainer, fieldsById, removeEmbed } from './embeds'
-import { addSource, connect, createFieldAndMap, disconnect, OpError, replaceSource } from './mappingOps'
+import { addSource, connect, createFieldAndMap, disconnect, OpError, replaceSource, setComputed } from './mappingOps'
 import { RelatedTree } from './RelatedTree'
 import { selectVisible, type SourceState, type TargetState } from './selectVisible'
 import { useWorkbench } from './store'
@@ -225,13 +225,16 @@ export function MappingCanvas() {
   // (click the selected field's name, double-click or F2, OC-145) opens the same box.
   const [naming, setNaming] = useState<string | null>(null)
   const addTarget = insertionPoint(spec.docSchema, selection?.kind === 'field' ? selection.id : null)
-  const onAddField = () => {
+  const computedExpr = new Map(spec.fieldMappings.filter((m) => m.state === 'active' && m.computed).map((m) => [m.targetFieldId, m.computed!.expr]))
+  // computed: the new field is a template (OC-138), selected so the Inspector opens on it.
+  const onAddField = (computed = false) => {
     let id = ''
     try {
       apply((s) => {
-        const res = addField(s.docSchema, addTarget.parentId, 'newField', 'string', addTarget.index)
+        const res = addField(s.docSchema, addTarget.parentId, computed ? 'computedField' : 'newField', 'string', addTarget.index)
         id = res.id
-        return { ...s, docSchema: res.schema }
+        const next = { ...s, docSchema: res.schema }
+        return computed ? setComputed(next, id, { lang: 'template', expr: '' }) : next
       })
     } catch (e) {
       if (e instanceof OpError) toast.error(e.message)
@@ -240,7 +243,7 @@ export function MappingCanvas() {
     const owner = [...fields.values()].find((f) => f.id === addTarget.parentId || f.items?.id === addTarget.parentId)?.id
     if (owner && collapsed.has(owner)) toggleCollapsed(owner)
     select({ kind: 'field', id })
-    setNaming(id)
+    if (!computed) setNaming(id)
   }
   const onNamed = (id: string, draft: string) => {
     setNaming(null)
@@ -580,6 +583,11 @@ export function MappingCanvas() {
                     </span>
                   )}
                   {r.field.required ? <span className="text-danger">{t('mapping.requiredMark')}</span> : null}
+                  {computedExpr.has(r.field.id) ? (
+                    <span className="rounded border border-border px-1 font-mono text-[10px] text-muted" title={t('computed.badge', { expr: computedExpr.get(r.field.id)!.slice(0, 120) })}>
+                      {t('computed.fx')}
+                    </span>
+                  ) : null}
                   {embedTargets.has(r.field.id) ? (
                     <span className="rounded-full px-1.5 text-[10px] font-medium text-white" title={t('embed.badge')} style={{ background: embedVar(embedColor.byField.get(r.field.id) ?? 0) }}>
                       {relationBadge.get(r.field.id) ?? t('embed.badge')}
@@ -591,9 +599,12 @@ export function MappingCanvas() {
             })}
           </div>
           <div className="flex items-center gap-3 px-3 py-2 text-xs text-subtle">
-            <Button variant="link" size="sm" className="h-7 px-0" onClick={onAddField}>
+            <Button variant="link" size="sm" className="h-7 px-0" onClick={() => onAddField()}>
               <Plus aria-hidden />
               {addTarget.label ? t('designer.addFieldTo', { name: addTarget.label }) : t('designer.addField')}
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 px-1.5 font-mono" aria-label={t('computed.add')} title={t('computed.add')} onClick={() => onAddField(true)}>
+              {t('computed.fx')}
             </Button>
             <span>{t('mapping.dropToCreate')}</span>
           </div>

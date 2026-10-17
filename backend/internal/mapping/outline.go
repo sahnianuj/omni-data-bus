@@ -7,7 +7,8 @@ import (
 
 // Outline describes what a mapping writes, one line per document field, for people reading an
 // exported mappings.json (OC-158): "customer.name ← customers.name", "items[] ← order_items
-// (array, order_id = order_id, at most 1000)", "type = \"order\"". It follows the mapping sheet
+// (array, order_id = order_id, at most 1000)", "fullName = `${self.first} ${self.last}`",
+// "type = \"order\"". It follows the mapping sheet
 // (OC-061): fields in tree order, with their sources and transforms; fields nothing fills are
 // left out. The runner never reads it.
 func Outline(s *Spec, driving TableRef) []string {
@@ -46,6 +47,13 @@ func Outline(s *Spec, driving TableRef) []string {
 			}
 		case SheetConstant:
 			out = append(out, row.Path+" = "+row.Constant)
+		case SheetComputed:
+			expr := strings.TrimPrefix(row.Source, ComputedTemplate+": ")
+			line := row.Path + " = `" + expr + "`"
+			if row.Transform != "" {
+				line += " | " + strings.ReplaceAll(row.Transform, " → ", " | ")
+			}
+			out = append(out, line)
 		}
 	}
 	if s.TypeField.Enabled && s.TypeField.Name != "" {

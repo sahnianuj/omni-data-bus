@@ -37,6 +37,10 @@ type Hop struct {
 	Virtual        bool   `json:"virtual,omitempty"`
 	// Indexed reports whether To's join columns lead an index (the lookups use it).
 	Indexed bool `json:"indexed"`
+	// Self marks a self-reference (categories.parent_id → categories); RowsPerParent estimates
+	// a one-to-many hop's rows per From row. Both are set by Service.Hops (OC-141).
+	Self          bool    `json:"self,omitempty"`
+	RowsPerParent float64 `json:"rowsPerParent,omitempty"`
 }
 
 // Path is a chain of hops from the root table.

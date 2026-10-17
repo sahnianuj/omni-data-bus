@@ -3,6 +3,8 @@ package related
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -183,4 +185,78 @@ func TestPlans_OC157_ReverseOneToOneIsOneObject(t *testing.T) {
 	require.Equal(t, []string{"customer_id"}, plans[0].Query.Join)
 	require.Equal(t, []int{0}, plans[0].ParentIdx)
 	require.Equal(t, []int{1}, plans[0].ChildIdx)
+}
+
+// keysReader records each query's table, projection and number of keys.
+type keysReader struct {
+	fakeReader
+	mu      sync.Mutex
+	queries []string
+}
+
+func (k *keysReader) ReadRelated(ctx context.Context, q source.RelatedQuery, keys [][]any) ([][]any, error) {
+	k.mu.Lock()
+	k.queries = append(k.queries, fmt.Sprintf("%s keys=%d project=%v", q.Table.Table, len(keys), q.Table.Project))
+	k.mu.Unlock()
+	return k.fakeReader.ReadRelated(ctx, q, keys)
+}
+
+// OC-144 AC1: two many-to-one relations of one depth reading the same table by the same
+// columns (shipping and billing address) share one query, with the union of their keys and
+// columns, and each gets the rows it would have read alone; a filter keeps them apart.
+func TestResolver_OC144_AC1_SharedManyToOneReads(t *testing.T) {
+	c := func(n, udt string) schema.Column { return schema.Column{Name: n, UDTName: udt} }
+	customer := &schema.Table{Name: "customer", Columns: []schema.Column{c("customer_id", "int4"), c("ship_id", "int4"), c("bill_id", "int4")}}
+	address := &schema.Table{Name: "address", Columns: []schema.Column{c("address_id", "int4"), c("city", "text"), c("zip", "text")}}
+	addr := mapping.TableRef{Schema: "shop", Name: "address"}
+	build := func(filter bool) *mapping.Spec {
+		s := &mapping.Spec{
+			Relations: []mapping.Relation{
+				{ID: "ship", Kind: mapping.EmbedManyToOne, Table: addr, Join: []mapping.JoinPair{{Parent: "ship_id", Child: "address_id"}}},
+				{ID: "bill", Kind: mapping.EmbedManyToOne, Table: addr, Join: []mapping.JoinPair{{Parent: "bill_id", Child: "address_id"}}},
+			},
+			FieldMappings: []mapping.FieldMapping{
+				{ID: "m1", Sources: []mapping.SourceRef{{Column: "city", Relation: "ship"}}, State: mapping.StateActive},
+				{ID: "m2", Sources: []mapping.SourceRef{{Column: "zip", Relation: "bill"}}, State: mapping.StateActive},
+			},
+			DocSchema: docschema.Schema{Root: docschema.NewRoot()},
+		}
+		if filter {
+			s.Relations[1].Filter = []mapping.Filter{{Column: "zip", Op: "eq", Value: "06"}}
+		}
+		return s
+	}
+	related := func(_, n string) *schema.Table {
+		if n == "address" {
+			return address
+		}
+		return nil
+	}
+	rows := map[string][][]any{"address": {{int32(1), "Lyon", "69"}, {int32(2), "Nice", "06"}, {int32(3), "Pau", "64"}}}
+	parents := [][]any{{int32(7), int32(1), int32(2)}, {int32(8), int32(3), int32(3)}}
+
+	resolve := func(s *mapping.Spec, noShare bool) ([]source.Related, *keysReader) {
+		plans, err := Plans(s, customer, related)
+		require.NoError(t, err)
+		kr := &keysReader{fakeReader: fakeReader{rows: rows}}
+		got, fails, err := (&Resolver{Plans: plans, Reader: kr, NoShare: noShare}).Resolve(context.Background(), parents)
+		require.NoError(t, err)
+		require.Empty(t, fails)
+		return got, kr
+	}
+	shared, kr := resolve(build(false), false)
+	require.Len(t, kr.queries, 1, "one address query")
+	require.Equal(t, "address keys=3 project=[true true true]", kr.queries[0], "keys 1, 2, 3 once each; city and zip")
+	alone, kr2 := resolve(build(false), true)
+	require.Len(t, kr2.queries, 2)
+	for i := range parents {
+		for _, id := range []string{"ship", "bill"} {
+			require.Equal(t, alone[i][id].Rows, shared[i][id].Rows, "row %d %s", i, id)
+		}
+	}
+	require.Equal(t, []any{int32(1), "Lyon", "69"}, shared[0]["ship"].Rows[0].Values)
+	require.Equal(t, []any{int32(2), "Nice", "06"}, shared[0]["bill"].Rows[0].Values)
+
+	_, kr3 := resolve(build(true), false)
+	require.Len(t, kr3.queries, 2, "a filtered relation reads alone")
 }

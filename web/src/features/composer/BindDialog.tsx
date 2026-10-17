@@ -9,12 +9,12 @@ import { useSourceTable } from '@/features/discovery/api'
 import { runAutomapScope } from '@/features/mapping/api'
 import { DEFAULT_EMBED_LIMIT } from '@/features/mapping/EmbedDialog'
 import { FilterChips } from '@/features/mapping/FilterChips'
-import { useRelationGraph } from '@/features/mapping/relationsApi'
+import { useRelationGraph, useTablesHops } from '@/features/mapping/relationsApi'
 import { useWorkbench, useWorkbenchStore } from '@/features/mapping/store'
 import type { RelationFilter } from '@/features/mapping/types'
 import { VirtualRelationshipDialog } from '@/features/mapping/VirtualRelationshipDialog'
-import { kindOf, prefill, type BindOption, type JoinPair } from './bindPrefill'
-import { addLookup, bind, containerOf, nodeOf, OpError, type BindInput, type TableRef } from './composerOps'
+import { kindOf, prefill, scopeTable, type BindOption, type JoinPair } from './bindPrefill'
+import { addLookup, bind, containerOf, lookupScope, nodeOf, OpError, type BindInput, type TableRef } from './composerOps'
 
 const selectCls = 'h-8 w-full rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]'
 const joinText = (join: JoinPair[]) => join.map((j) => `${j.parent} = ${j.child}`).join(', ')
@@ -25,6 +25,8 @@ type Props = {
   /** "Values only": a lookup-only relation whose columns can fill any field in the node's scope. */
   lookup?: boolean
   onClose: () => void
+  /** Called instead of onClose when the dialog is dismissed without binding. */
+  onCancel?: () => void
 }
 
 /**
@@ -34,7 +36,7 @@ type Props = {
  * the array options (order, limit, filter, shape, overflow), generated item fields and a scoped
  * auto-map (OC-049). Without a path it offers to define a relationship (OC-042).
  */
-export function BindDialog({ nodeId, table, lookup, onClose }: Props) {
+export function BindDialog({ nodeId, table, lookup, onClose, onCancel }: Props) {
   const { t } = useTranslation()
   const store = useWorkbenchStore()
   const view = useWorkbench((s) => s.view)
@@ -45,7 +47,13 @@ export function BindDialog({ nodeId, table, lookup, onClose }: Props) {
   const driving = spec.root?.table ?? own
   const conn = `${view.projectId}::source`
   const graph = useRelationGraph(conn, `${driving.schema}.${driving.name}`)
-  const pf = useMemo(() => prefill(graph.data, spec, nodeId, table, own), [graph.data, spec, nodeId, table, own])
+  // A lookup joins from the relation it hangs under (addLookup): a bound node's own table.
+  const lookupRel = lookup ? spec.relations.find((r) => r.id === lookupScope(spec, nodeId)) : undefined
+  const scopeT = lookupRel?.table ?? scopeTable(spec, nodeId, own)
+  const scopeHops = useTablesHops(conn, [`${scopeT.schema}.${scopeT.name}`])
+  const hops = scopeHops.hopsOf(scopeT)
+  const junctions = scopeHops.junctionsOf(scopeT)
+  const pf = useMemo(() => prefill(graph.data, spec, nodeId, table, own, hops ? { hops, junctions } : undefined, lookupRel?.table), [graph.data, spec, nodeId, table, own, hops, junctions, lookupRel])
   const options = useMemo(() => (lookup ? pf.options.filter((o) => o.type === 'direct' && o.kind === 'many-to-one') : pf.options), [pf.options, lookup])
   const node = nodeOf(spec, nodeId)
   const isArray = node?.type === 'array'
@@ -128,7 +136,7 @@ export function BindDialog({ nodeId, table, lookup, onClose }: Props) {
   }
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <Dialog open onOpenChange={(o) => !o && (onCancel ?? onClose)()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{t(lookup ? 'composer.bind.lookupTitle' : 'composer.bind.title', { table: table.name, node: node?.name ?? '' })}</DialogTitle>
@@ -289,7 +297,7 @@ export function BindDialog({ nodeId, table, lookup, onClose }: Props) {
           </div>
         )}
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onCancel ?? onClose}>
             {t('common.cancel')}
           </Button>
           <Button onClick={() => void submit()} loading={busy} disabled={!opt || (isArray && shape === 'scalars' && !valueColumn) || (isArray && shape === 'keyed' && !keyColumn)}>

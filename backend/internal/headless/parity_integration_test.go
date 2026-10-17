@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"omnidatabus/internal/automap"
+	"omnidatabus/internal/docschema"
 	"omnidatabus/internal/export"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/mappings"
@@ -19,7 +20,8 @@ import (
 // TestParity_AC3_GoldenMappings (OC-056): five golden mappings — flat rows, a composite key, a
 // many-to-one plus a one-to-many embed, a two-level path plus a many-to-many, and every
 // PostgreSQL type — run by a server job and by `odb run` against the same source: every
-// document is byte-identical.
+// document is byte-identical. The orders mappings also carry template computed fields at the
+// root and in array items (OC-136 AC6).
 func TestParity_AC3_GoldenMappings(t *testing.T) {
 	ctx := context.Background()
 	serverDir := t.TempDir()
@@ -32,6 +34,9 @@ func TestParity_AC3_GoldenMappings(t *testing.T) {
 		for _, e := range embeds {
 			_, err = tl.maps.AddEmbed(ctx, itWS, "u1", tl.project.ID, v.ID, 0, e)
 			require.NoError(t, err, table)
+		}
+		if len(embeds) > 0 {
+			addComputed(t, tl, v.ID)
 		}
 		return tl.ready(t, v.ID).ID
 	}
@@ -77,7 +82,49 @@ func TestParity_AC3_GoldenMappings(t *testing.T) {
 		require.Positive(t, perFolder[f], "documents in %s", f)
 	}
 	require.Equal(t, len(server), len(runner), "same number of documents")
+	computed := 0
 	for path, doc := range server {
 		require.Equal(t, string(doc), string(runner[path]), path)
+		if bytes.Contains(doc, []byte(`"ref":"REF-`)) {
+			computed++
+		}
 	}
+	require.Positive(t, computed, "documents with computed fields")
+}
+
+// addComputed adds template computed fields (OC-136): "ref" at the root from its first scalar
+// field, and "position" in the items of its first array of objects, from the item's first
+// scalar, its index and the root's ref (a computed field reading another).
+func addComputed(t *testing.T, tl *tool, id string) {
+	t.Helper()
+	ctx := context.Background()
+	v, err := tl.maps.Get(ctx, itWS, tl.project.ID, id)
+	require.NoError(t, err)
+	spec := v.Spec
+	firstScalar := func(fs []docschema.DocField) string {
+		for _, f := range fs {
+			if f.Type != docschema.Object && f.Type != docschema.Array {
+				return f.Name
+			}
+		}
+		return ""
+	}
+	root := firstScalar(spec.DocSchema.Root.Children)
+	require.NotEmpty(t, root)
+	spec.DocSchema.Root.Children = append(spec.DocSchema.Root.Children, docschema.DocField{ID: "fld_cmp_ref", Name: "ref", Type: docschema.String})
+	spec.FieldMappings = append(spec.FieldMappings, mapping.FieldMapping{ID: "map_cmp_ref", TargetFieldID: "fld_cmp_ref", State: mapping.StateActive, Origin: mapping.OriginManual,
+		Sources: []mapping.SourceRef{}, Transforms: []mapping.Step{}, Computed: &mapping.Computed{Lang: mapping.ComputedTemplate, Expr: "REF-${doc." + root + "}"}})
+	for i := range spec.DocSchema.Root.Children {
+		f := &spec.DocSchema.Root.Children[i]
+		if f.Type != docschema.Array || f.Items == nil || f.Items.Type != docschema.Object {
+			continue
+		}
+		item := firstScalar(f.Items.Children)
+		f.Items.Children = append(f.Items.Children, docschema.DocField{ID: "fld_cmp_pos", Name: "position", Type: docschema.String})
+		spec.FieldMappings = append(spec.FieldMappings, mapping.FieldMapping{ID: "map_cmp_pos", TargetFieldID: "fld_cmp_pos", State: mapping.StateActive, Origin: mapping.OriginManual,
+			Sources: []mapping.SourceRef{}, Transforms: []mapping.Step{}, Computed: &mapping.Computed{Lang: mapping.ComputedTemplate, Expr: "${parent.ref}#${index}:${self." + item + "}"}})
+		break
+	}
+	_, err = tl.maps.Update(ctx, itWS, "u1", tl.project.ID, id, v.Version, mappings.UpdateInput{Spec: spec})
+	require.NoError(t, err)
 }

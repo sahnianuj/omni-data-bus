@@ -420,6 +420,23 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RelationGraph' }
         default: { $ref: '#/components/responses/Problem' }
+  /api/v1/connections/{id}/relations/hops:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [relations]
+      operationId: getRelationHops
+      summary: Every direct relationship of one table (foreign keys both ways, virtual relationships, self-references, junction candidates, index advice), not limited by a root table's path search (OC-141)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: table, in: query, required: true, schema: { type: string }, description: 'schema.table, e.g. sales.products' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelationHops' }
+        default: { $ref: '#/components/responses/Problem' }
   /api/v1/projects/{id}/relationships:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -2108,6 +2125,19 @@ components:
       properties:
         op: { type: string }
         args: { type: object, additionalProperties: true }
+    ComputedRule:
+      type: object
+      description: >-
+        A computed field (OC-136): its value comes from a template over the document's other fields, such as
+        `${self.firstName} ${self.lastName}`, with doc, self, parent, index and row (root fields) in scope. A mapping
+        with a computed rule has no sources and no constant or expression step. lang "js" is reserved for JavaScript
+        (OC-137, a later release) and is rejected until then.
+      required: [lang, expr]
+      properties:
+        lang: { type: string, enum: [template, js] }
+        expr: { type: string, maxLength: 8192 }
+        nullIfAnyMissing: { type: boolean, description: 'Null when a value it reads is missing or null, instead of an empty string' }
+        onError: { type: string, enum: [fail-row, null, omit], description: 'What a row error does (default fail-row)' }
     FieldMapping:
       type: object
       required: [id, targetFieldId, sources, transforms, origin, state]
@@ -2131,6 +2161,7 @@ components:
         reason: { type: string }
         needsReview: { type: boolean }
         nullHandling: { type: string, enum: [include, omit] }
+        computed: { $ref: '#/components/schemas/ComputedRule' }
     MappingSpec:
       type: object
       description: >-
@@ -2407,6 +2438,18 @@ components:
         relationshipId: { type: string }
         virtual: { type: boolean }
         indexed: { type: boolean }
+        self: { type: boolean, description: 'A self-reference (OC-141; hops endpoint only)' }
+        rowsPerParent: { type: number, description: 'Estimated rows per parent row of a one-to-many hop (OC-141; hops endpoint only)' }
+    RelationHops:
+      type: object
+      required: [table, hops, junctions, advice, maxRelationDepth]
+      properties:
+        table: { $ref: '#/components/schemas/TableRef' }
+        hops: { type: array, items: { $ref: '#/components/schemas/RelationHop' } }
+        junctions: { type: array, items: { $ref: '#/components/schemas/JunctionCandidate' } }
+        advice: { type: array, items: { $ref: '#/components/schemas/IndexAdvice' } }
+        maxRelationDepth: { type: integer, description: 'OC_MAX_RELATION_DEPTH: how deep relations may nest' }
+        truncated: { type: boolean, description: 'More than 500 hops: the first 500 are listed' }
     RelationPath:
       type: object
       required: [hops]

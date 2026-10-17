@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { insertionPoint, moveRelative, type DropPos } from '@/features/docschema/docschemaOps'
 import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } from '@/features/docschema/fieldDrag'
-import { activeFor } from '@/features/mapping/mappingOps'
+import { activeFor, setComputed } from '@/features/mapping/mappingOps'
 import { useWorkbench } from '@/features/mapping/store'
 import type { DocField, MappingIssue, MappingSpec } from '@/features/mapping/types'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,8 @@ type Props = {
   /** The table a field's foreign key refers to, when it's on one (OC-064). */
   embeddable?: (fieldId: string) => string | undefined
   onEmbed?: (fieldId: string) => void
+  /** Why the embed action is disabled (the depth limit), if it is. */
+  embedBlocked?: (fieldId: string) => string | undefined
   /** Whether an object can collapse to its key, and doing it (OC-064). */
   collapsible?: (nodeId: string) => boolean
   onCollapse?: (nodeId: string) => void
@@ -67,10 +69,11 @@ function rowsOf(spec: MappingSpec, collapsed: ReadonlySet<string>): Row[] {
   return out
 }
 
-/** A short label of a field's source: "← order_id", "← customers.name", "ƒ expression", "= constant". */
+/** A short label of a field's source: "← order_id", "← customers.name", "ƒ expression", "= constant", "ƒx template". */
 function sourceLabel(spec: MappingSpec, fieldId: string): string | undefined {
   const m = activeFor(spec, fieldId)
   if (!m) return undefined
+  if (m.computed) return `ƒx ${m.computed.expr.slice(0, 120)}`
   if (m.transforms.some((s) => s.op === 'expression')) return 'ƒ'
   if (m.sources.length === 0) return '='
   return m.sources
@@ -87,7 +90,7 @@ function sourceLabel(spec: MappingSpec, fieldId: string): string | undefined {
  * Enter adds a sibling field, Tab a child field (objects and arrays), Alt+↑/↓ or a drag reorders, F2
  * renames, Delete removes (Ctrl+Z undoes); every drag has a menu equivalent.
  */
-export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColumn, onPaste, onDropFile, onGroupRows, embeddable, onEmbed, collapsible, onCollapse }: Props) {
+export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColumn, onPaste, onDropFile, onGroupRows, embeddable, onEmbed, embedBlocked, collapsible, onCollapse }: Props) {
   const { t } = useTranslation()
   const spec = useWorkbench((s) => s.history.present)
   const selection = useWorkbench((s) => s.selection)
@@ -143,16 +146,17 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
       else throw e
     }
   }
-  const add = (parentId: string, kind: NodeKind, index?: number) => {
+  // computed: the new field is a template (OC-138), selected so the Inspector opens on it.
+  const add = (parentId: string, kind: NodeKind, index?: number, computed = false) => {
     try {
       let id = ''
       apply((s) => {
-        const r = addNode(s, parentId, kind, t(`composer.newName.${kind}`), index)
+        const r = addNode(s, parentId, kind, computed ? 'computedField' : t(`composer.newName.${kind}`), index)
         id = r.id
-        return r.spec
+        return computed ? setComputed(r.spec, r.id, { lang: 'template', expr: '' }) : r.spec
       })
       select({ kind: 'field', id })
-      setEditing(id)
+      if (!computed) setEditing(id)
     } catch (e) {
       if (e instanceof OpError) toast.error(e.message)
       else throw e
@@ -283,11 +287,11 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
   }
 
   const addTarget = insertionPoint(spec.docSchema, selected)
-  const addHere = () => {
+  const addHere = (computed = false) => {
     // Open the container first (an item object's array is the row that collapses).
     const owner = rows.find((r) => r.field.id === addTarget.parentId || (r.field.items?.id === addTarget.parentId && !r.item))?.field.id
     if (owner && collapsed.has(owner)) toggle(owner)
-    add(addTarget.parentId, 'field', addTarget.index)
+    add(addTarget.parentId, 'field', addTarget.index, computed)
   }
 
   return (
@@ -411,6 +415,7 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
                   onPaste={() => onPaste(f.id)}
                   onGroupRows={grouped && onGroupRows ? () => onGroupRows(f.id) : undefined}
                   embedTable={embeddable?.(f.id)}
+                  embedBlocked={embedBlocked?.(f.id)}
                   onEmbed={onEmbed ? () => onEmbed(f.id) : undefined}
                   onCollapse={onCollapse && collapsible?.(f.id) ? () => onCollapse(f.id) : undefined}
                   onDelete={() => run((s) => deleteNode(s, f.id))}
@@ -421,10 +426,15 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
         })}
       </ul>
       {/* Outside the tree (a tree owns only treeitems): adds where OC-081 puts it. */}
-      <button type="button" onClick={addHere} className="flex h-7 items-center gap-1.5 px-3 text-xs font-medium text-primary hover:underline">
-        <Plus className="size-3.5" aria-hidden />
-        {addTarget.label ? t('composer.addFieldTo', { name: addTarget.label }) : t('composer.addField')}
-      </button>
+      <div className="flex items-center">
+        <button type="button" onClick={() => addHere()} className="flex h-7 items-center gap-1.5 px-3 text-xs font-medium text-primary hover:underline">
+          <Plus className="size-3.5" aria-hidden />
+          {addTarget.label ? t('composer.addFieldTo', { name: addTarget.label }) : t('composer.addField')}
+        </button>
+        <button type="button" onClick={() => addHere(true)} aria-label={t('computed.add')} title={t('computed.add')} className="h-7 rounded px-1.5 font-mono text-xs text-primary hover:bg-surface-muted">
+          {t('computed.fx')}
+        </button>
+      </div>
     </>
   )
 }
@@ -464,6 +474,7 @@ type MenuProps = {
   onPaste: () => void
   onGroupRows?: () => void
   embedTable?: string
+  embedBlocked?: string
   onEmbed?: () => void
   onCollapse?: () => void
   onDelete: () => void
@@ -473,18 +484,21 @@ type MenuProps = {
  * A node's actions: the menu equivalent of every drag (OC-048 accessibility). Shift+F10 or the
  * Menu key opens it from the tree; arrows move between its items.
  */
-function NodeMenu({ row, open, onOpenChange: setOpen, isContainer, bound, onAdd, onRename, onBind, onUnbind, onMap, onPaste, onGroupRows, embedTable, onEmbed, onCollapse, onDelete }: MenuProps) {
+function NodeMenu({ row, open, onOpenChange: setOpen, isContainer, bound, onAdd, onRename, onBind, onUnbind, onMap, onPaste, onGroupRows, embedTable, embedBlocked, onEmbed, onCollapse, onDelete }: MenuProps) {
   const { t } = useTranslation()
   const isRoot = row.depth === 0
-  const item = (label: string, fn: () => void, danger?: boolean) => (
+  const item = (label: string, fn: () => void, danger?: boolean, blocked?: string) => (
     <button
       type="button"
       role="menuitem"
+      disabled={!!blocked}
+      aria-disabled={!!blocked || undefined}
+      title={blocked}
       onClick={() => {
         setOpen(false)
         fn()
       }}
-      className={cn('w-full rounded px-2 py-1.5 text-left text-[13px] hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none', danger && 'text-danger')}
+      className={cn('w-full rounded px-2 py-1.5 text-left text-[13px] hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:text-subtle', danger && 'text-danger')}
     >
       {label}
     </button>
@@ -537,7 +551,7 @@ function NodeMenu({ row, open, onOpenChange: setOpen, isContainer, bound, onAdd,
           {!isContainer || isRoot ? item(t('composer.lookupTable'), onBind) : null}
           {bound ? item(t('composer.unbind'), onUnbind) : null}
           {!isContainer && !isRoot ? item(t('composer.mapColumn'), onMap) : null}
-          {!isContainer && embedTable && onEmbed ? item(t('composer.embedHere', { table: embedTable }), onEmbed) : null}
+          {!isContainer && embedTable && onEmbed ? item(t('composer.embedHere', { table: embedTable }), onEmbed, false, embedBlocked) : null}
           {onCollapse ? item(t('composer.collapseToId'), onCollapse) : null}
           {!isRoot ? item(t('composer.rename'), onRename) : null}
           {!isRoot ? item(t('composer.delete'), onDelete, true) : null}

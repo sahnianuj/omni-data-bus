@@ -22,6 +22,7 @@ func (h Handlers) Routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireAuth)
 		r.Get("/connections/{id}/relations", h.graph)
+		r.Get("/connections/{id}/relations/hops", h.hops)
 		r.Get("/projects/{id}/relationships", h.list)
 		r.Get("/projects/{id}/relationships/{rid}", h.get)
 		r.Group(func(r chi.Router) {
@@ -57,6 +58,21 @@ func (h Handlers) graph(w http.ResponseWriter, r *http.Request) {
 		depth = n
 	}
 	res, err := h.Svc.Graph(r.Context(), principal(r).WorkspaceID, httpapi.URLParam(r, "id"), mapping.TableRef{Schema: sch, Name: tbl}, depth)
+	if err != nil {
+		problem.Write(w, r, err)
+		return
+	}
+	httpapi.WriteJSON(w, http.StatusOK, res)
+}
+
+// hops serves ?table=schema.table (OC-141).
+func (h Handlers) hops(w http.ResponseWriter, r *http.Request) {
+	sch, tbl, ok := strings.Cut(r.URL.Query().Get("table"), ".")
+	if !ok || sch == "" || tbl == "" {
+		problem.Write(w, r, problem.New(http.StatusBadRequest, problem.CodeBadRequest, "Invalid table", "table must be schema.table, e.g. public.orders."))
+		return
+	}
+	res, err := h.Svc.Hops(r.Context(), principal(r).WorkspaceID, httpapi.URLParam(r, "id"), mapping.TableRef{Schema: sch, Name: tbl})
 	if err != nil {
 		problem.Write(w, r, err)
 		return

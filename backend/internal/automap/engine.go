@@ -136,6 +136,13 @@ func Run(spec *mapping.Spec, cols []SourceCol, opts Options) Result {
 	blocked := map[[2]string]bool{}
 	usedSrc, usedTgt := map[string]bool{}, map[string]bool{}
 	for _, m := range spec.FieldMappings {
+		if m.Computed != nil {
+			// A computed field (OC-136) is the user's design: never replaced, even by a reset
+			// that includes manual mappings, and never mapped onto (OC-139).
+			kept = append(kept, m)
+			usedTgt[m.TargetFieldID] = true
+			continue
+		}
 		if mapping.UsesAnyRelation(m) {
 			kept = append(kept, m) // the embed's own run owns it
 			continue

@@ -7,7 +7,7 @@ import { Can } from '@/features/auth/Can'
 import { useSchema } from '@/features/discovery/api'
 import { useRelationGraph } from '@/features/mapping/relationsApi'
 import { useWorkbench } from '@/features/mapping/store'
-import type { RelationHop } from '@/features/mapping/types'
+import type { JunctionCandidate, RelationHop } from '@/features/mapping/types'
 import { VirtualRelationshipDialog } from '@/features/mapping/VirtualRelationshipDialog'
 import { humanizeCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,8 @@ import { edges, scopeTable } from './bindPrefill'
 import { nodeOf, type TableRef } from './composerOps'
 import { DND_GROUP, DND_TABLE } from './DocumentTree'
 import { boundRelations, scope } from './scope'
+import { InThisDocument } from './InThisDocument'
+import type { AvailableHop, Instance } from './documentSources'
 
 const key = (t: TableRef) => `${t.schema}.${t.name}`
 
@@ -28,7 +30,13 @@ type Item = { key: string; table: TableRef; depth: number; icon: 'parent' | 'chi
  * selected, tables in its scope are solid, tables it can reach outlined, the rest dimmed. Drag a
  * table onto a node to bind it; Enter on a table binds it to the selected node.
  */
-export function SourcesPane({ onBind, onGroupRows }: { onBind: (nodeId: string, table: TableRef, lookup: boolean) => void; onGroupRows?: (nodeId: string) => void }) {
+export function SourcesPane({ onBind, onGroupRows, onEmbedHop, onLookupHop }: {
+  onBind: (nodeId: string, table: TableRef, lookup: boolean) => void
+  onGroupRows?: (nodeId: string) => void
+  /** "In this document" (OC-142): embed or look up an instance's relationship. */
+  onEmbedHop?: (inst: Instance, hop: AvailableHop | JunctionCandidate) => void
+  onLookupHop?: (inst: Instance, hop: AvailableHop) => void
+}) {
   const { t } = useTranslation()
   const view = useWorkbench((s) => s.view)
   const spec = useWorkbench((s) => s.history.present)
@@ -125,6 +133,7 @@ export function SourcesPane({ onBind, onGroupRows }: { onBind: (nodeId: string, 
     <div className="flex min-h-0 flex-1 flex-col">
       <h2 className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-muted">{t('composer.sources.title')}</h2>
       <p className="px-3 pb-2 text-xs text-muted">{t(bindable ? 'composer.sources.hintBind' : 'composer.sources.hint')}</p>
+      {spec.relations.length > 0 && onEmbedHop && onLookupHop ? <InThisDocument onEmbed={onEmbedHop} onLookup={onLookupHop} /> : null}
       <ul aria-label={t('composer.sources.title')} className="flex flex-col gap-0.5 overflow-y-auto px-1.5 pb-2">
         {row({ key: 'driving', table: driving, depth: 1, icon: 'driving' })}
         {spec.root?.groupBy?.length && onGroupRows ? (

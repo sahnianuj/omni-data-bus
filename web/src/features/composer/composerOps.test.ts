@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DocSchema, MappingSpec } from '@/features/mapping/types'
 import { composedSpec } from '@/test/composer'
-import { foreignKeyOf } from './bindPrefill'
+import { foreignKeyOf, scopeDepth } from './bindPrefill'
 import { acceptSuggestion, addLookup, addNode, applyConstantHint, bind, bindGroupRows, blank, collapseToId, combineRows, pluralName, rebaseSources, deleteNode, expandForeignKey, dismissConstantHint, groupKey, importDesign, moveNode, nodeOf, OpError, setDrivingTable, setExpression, setGroupBy, setNodeType, singularName, unbind } from './composerOps'
 
 const itemsTable = { schema: 'public', name: 'order_items' }
@@ -231,13 +231,42 @@ describe('composerOps', () => {
 
     it('AC4: offered on relationships only', () => {
       const { s, pid } = grouped()
-      const hop = { from: detail, to: products, kind: 'many-to-one', join: fk.join, indexed: true }
-      const graph = { root: detail, depth: 2, paths: [{ hops: [hop] }], junctions: [], advice: [] } as never
-      expect(foreignKeyOf(graph, s, pid, detail)).toEqual({ table: products, join: fk.join, virtual: undefined })
+      const hop = { from: detail, to: products, kind: 'many-to-one' as const, join: fk.join, indexed: true }
+      // The scope table's own hops (OC-141).
+      const hopsOf = (t: { schema: string; name: string }) => (t.name === detail.name ? [hop] : undefined)
+      expect(foreignKeyOf(hopsOf, s, pid, detail)).toEqual({ table: products, join: fk.join, virtual: undefined })
       const line = s.fieldMappings.find((m) => m.id === 'm_line')!.targetFieldId
-      expect(foreignKeyOf(graph, s, line, detail)).toBeUndefined() // line_no isn't on a relationship
-      const virtual = { root: detail, depth: 2, paths: [{ hops: [{ ...hop, virtual: true }] }], junctions: [], advice: [] } as never
-      expect(foreignKeyOf(virtual, s, pid, detail)?.virtual).toBe(true)
+      expect(foreignKeyOf(hopsOf, s, line, detail)).toBeUndefined() // line_no isn't on a relationship
+      expect(foreignKeyOf((t) => (t.name === detail.name ? [{ ...hop, virtual: true }] : undefined), s, pid, detail)?.virtual).toBe(true)
+      expect(foreignKeyOf(() => undefined, s, pid, detail)).toBeUndefined() // hops still loading
+    })
+
+    it('OC-143 AC1: a foreign key at any depth, composite keys when every column is mapped', () => {
+      const orders = { schema: 'public', name: 'orders' }
+      const items = { schema: 'public', name: 'order_items' }
+      const brands = { schema: 'public', name: 'brands' }
+      // orders → items[] → product (embedded) with brandId mapped from products.brand_id.
+      let s: MappingSpec = { ...blank(composedSpec()), root: { table: orders } }
+      const arr = addNode(s, 'fld_root', 'array', 'items')
+      s = arr.spec
+      s = { ...s, relations: [{ id: 'r_i', parentId: null, kind: 'one-to-many', table: items, join: [{ parent: 'order_id', child: 'order_id' }], targetFieldId: arr.id }] }
+      const itemObj = nodeOf(s, arr.id)!.items!.id
+      const prod = addNode(s, itemObj, 'object', 'product')
+      s = { ...prod.spec, relations: [...prod.spec.relations, { id: 'r_p', parentId: 'r_i', kind: 'many-to-one', table: products, join: [{ parent: 'product_id', child: 'id' }], targetFieldId: prod.id }] }
+      const brandId = addNode(s, prod.id, 'field', 'brandId')
+      const region = addNode(brandId.spec, prod.id, 'field', 'region')
+      s = { ...region.spec, fieldMappings: [
+        { id: 'm_b', targetFieldId: brandId.id, sources: [{ relation: 'r_p', column: 'brand_id' }], transforms: [], origin: 'manual', state: 'active' },
+        { id: 'm_r', targetFieldId: region.id, sources: [{ relation: 'r_p', column: 'region' }], transforms: [], origin: 'manual', state: 'active' },
+      ] }
+      const toBrands = { from: products, to: brands, kind: 'many-to-one' as const, join: [{ parent: 'brand_id', child: 'id' }], indexed: true }
+      expect(foreignKeyOf((t) => (t.name === 'products' ? [toBrands] : []), s, brandId.id, orders)).toEqual({ table: brands, join: toBrands.join, virtual: undefined })
+      expect(scopeDepth(s, brandId.id)).toBe(2)
+      // A composite key (brand_id, region) qualifies only while both columns are mapped here.
+      const composite = { ...toBrands, join: [{ parent: 'brand_id', child: 'id' }, { parent: 'region', child: 'region' }] }
+      expect(foreignKeyOf((t) => (t.name === 'products' ? [composite] : []), s, brandId.id, orders)?.join).toHaveLength(2)
+      const without = { ...s, fieldMappings: s.fieldMappings.filter((m) => m.id !== 'm_r') }
+      expect(foreignKeyOf((t) => (t.name === 'products' ? [composite] : []), without, brandId.id, orders)).toBeUndefined()
     })
   })
 

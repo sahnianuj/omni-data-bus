@@ -22,6 +22,7 @@ func TestOutline_OC158_AC2(t *testing.T) {
 		items,
 		f("f_src", "source", docschema.String),
 		f("f_note", "note", docschema.String), // unmapped: not listed
+		f("f_label", "label", docschema.String),
 	}
 	s := &Spec{
 		SpecVersion: SpecVersion, Mode: ModeCanvas, DocSchema: docschema.Schema{Root: root},
@@ -37,6 +38,7 @@ func TestOutline_OC158_AC2(t *testing.T) {
 			{ID: "m3", TargetFieldID: "f_qty", Sources: []SourceRef{{Relation: "r_i", Column: "quantity"}}, Transforms: []Step{{Op: "toInteger"}}, State: StateActive},
 			{ID: "m4", TargetFieldID: "f_src", Transforms: []Step{{Op: "constant", Args: map[string]any{"value": "pos"}}}, State: StateActive},
 			{ID: "m5", TargetFieldID: "f_note", Sources: []SourceRef{{Column: "notes"}}, State: StatePending},
+			{ID: "m6", TargetFieldID: "f_label", Transforms: []Step{{Op: "upper"}}, State: StateActive, Computed: &Computed{Lang: ComputedTemplate, Expr: "ORD-${self.orderId}"}},
 		},
 	}
 	require.Equal(t, []string{
@@ -47,6 +49,7 @@ func TestOutline_OC158_AC2(t *testing.T) {
 		"items[] ← order_items (array, order_id = order_id, at most 1000)",
 		"items[].quantity ← order_items.quantity | toInteger",
 		`source = "pos"`,
+		"label = `ORD-${self.orderId}` | upper",
 		`type = "order"`,
 	}, Outline(s, TableRef{Schema: "shop", Name: "orders"}))
 }

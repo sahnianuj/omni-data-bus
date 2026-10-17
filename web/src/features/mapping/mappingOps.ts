@@ -2,7 +2,7 @@ import { addField, OpError, setRequired } from '@/features/docschema/docschemaOp
 import { rename, type NamingStyle } from '@/lib/naming'
 import { canConnect } from './canConnect'
 import { fieldScopes, inScope } from './embeds'
-import type { CanvasColumn, FieldType, MappingSpec, SourceColumn, SourceRef, TransformStep } from './types'
+import type { CanvasColumn, ComputedRule, FieldType, MappingSpec, SourceColumn, SourceRef, TransformStep } from './types'
 
 // Pure reducers for mapping edits (OC-018, OC-019). Each returns a new spec; the canvas and
 // the table view call the same functions, so both produce identical specs (OC-019 AC7).
@@ -194,6 +194,27 @@ export function setConstant(spec: MappingSpec, fieldId: string, value: unknown):
     ...spec,
     fieldMappings: [...others, { id: newMappingId(), targetFieldId: fieldId, sources: [], transforms: [{ op: 'constant', args: { value } }], origin: 'manual', state: 'active' }],
   }
+}
+
+/** Where a field's value comes from (OC-138): source columns, a fixed value or a template. */
+export type ValueSource = 'source' | 'fixed' | 'template'
+
+export function valueSourceOf(spec: MappingSpec, fieldId: string): ValueSource {
+  const m = spec.fieldMappings.find((x) => x.targetFieldId === fieldId && x.state === 'active')
+  if (m?.computed) return 'template'
+  if (m && m.sources.length === 0 && m.transforms.some((t) => t.op === 'constant')) return 'fixed'
+  return 'source'
+}
+
+/** Fills a field with a computed template (OC-136), replacing what filled it; null removes it. */
+export function setComputed(spec: MappingSpec, fieldId: string, computed: ComputedRule | null): MappingSpec {
+  const current = spec.fieldMappings.find((m) => m.targetFieldId === fieldId && m.state === 'active' && m.computed)
+  if (computed && current) {
+    return { ...spec, fieldMappings: spec.fieldMappings.map((m) => (m.id === current.id ? { ...m, computed } : m)) }
+  }
+  const others = spec.fieldMappings.filter((m) => !(m.targetFieldId === fieldId && m.state !== 'rejected'))
+  if (!computed) return { ...spec, fieldMappings: others }
+  return { ...spec, fieldMappings: [...others, { id: newMappingId(), targetFieldId: fieldId, sources: [], transforms: [], origin: 'manual', state: 'active', computed }] }
 }
 
 /** Maps nothing onto a field any more (manual removed, auto/suggested rejected). */

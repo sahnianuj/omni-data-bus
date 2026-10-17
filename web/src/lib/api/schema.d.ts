@@ -404,6 +404,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/relations/hops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Every direct relationship of one table (foreign keys both ways, virtual relationships, self-references, junction candidates, index advice), not limited by a root table's path search (OC-141) */
+        get: operations["getRelationHops"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{id}/relationships": {
         parameters: {
             query?: never;
@@ -1891,6 +1910,19 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description A computed field (OC-136): its value comes from a template over the document's other fields, such as `${self.firstName} ${self.lastName}`, with doc, self, parent, index and row (root fields) in scope. A mapping with a computed rule has no sources and no constant or expression step. lang "js" is reserved for JavaScript (OC-137, a later release) and is rejected until then. */
+        ComputedRule: {
+            /** @enum {string} */
+            lang: "template" | "js";
+            expr: string;
+            /** @description Null when a value it reads is missing or null, instead of an empty string */
+            nullIfAnyMissing?: boolean;
+            /**
+             * @description What a row error does (default fail-row)
+             * @enum {string}
+             */
+            onError?: "fail-row" | null | "omit";
+        };
         FieldMapping: {
             id: string;
             targetFieldId: string;
@@ -1919,6 +1951,7 @@ export interface components {
             needsReview?: boolean;
             /** @enum {string} */
             nullHandling?: "include" | "omit";
+            computed?: components["schemas"]["ComputedRule"];
         };
         /** @description Mapping spec v2 (OC-037). A 1.0 spec (no specVersion, embeds[] instead of relations[]) is still accepted on input and upgraded; responses are always v2. */
         MappingSpec: {
@@ -2176,6 +2209,20 @@ export interface components {
             relationshipId?: string;
             virtual?: boolean;
             indexed: boolean;
+            /** @description A self-reference (OC-141; hops endpoint only) */
+            self?: boolean;
+            /** @description Estimated rows per parent row of a one-to-many hop (OC-141; hops endpoint only) */
+            rowsPerParent?: number;
+        };
+        RelationHops: {
+            table: components["schemas"]["TableRef"];
+            hops: components["schemas"]["RelationHop"][];
+            junctions: components["schemas"]["JunctionCandidate"][];
+            advice: components["schemas"]["IndexAdvice"][];
+            /** @description OC_MAX_RELATION_DEPTH: how deep relations may nest */
+            maxRelationDepth: number;
+            /** @description More than 500 hops: the first 500 are listed */
+            truncated?: boolean;
         };
         RelationPath: {
             hops: components["schemas"]["RelationHop"][];
@@ -3884,6 +3931,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationGraph"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getRelationHops: {
+        parameters: {
+            query: {
+                /** @description schema.table, e.g. sales.products */
+                table: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationHops"];
                 };
             };
             default: components["responses"]["Problem"];

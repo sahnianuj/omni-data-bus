@@ -36,7 +36,12 @@ const (
 )
 
 // transformCodes are the issues only the compiler finds (the others come from Validate).
-var transformCodes = map[string]bool{mapping.CodeTransformInvalid: true, transform.CodeTypeMismatch: true}
+var transformCodes = map[string]bool{
+	mapping.CodeTransformInvalid: true, transform.CodeTypeMismatch: true,
+	// Computed fields (OC-136): only the compiler resolves templates against the design.
+	transform.CodeComputedUnknownField: true, transform.CodeComputedCycle: true, transform.CodeComputedOutOfScope: true,
+	transform.CodeComputedTemplateSyntax: true, transform.CodeComputedWithSources: true, transform.CodeComputedLangUnsupported: true,
+}
 
 // compileIssues are the transform compiler's findings (bad args, regex, expressions, types).
 func compileIssues(spec *mapping.Spec, t *schema.Table, rel mapping.RelatedTables) []mapping.Issue {

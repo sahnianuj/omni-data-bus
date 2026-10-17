@@ -6,6 +6,7 @@ export const helpLinks = {
   directoryTarget: { file: 'directory-targets.md', anchor: '' },
   embed: { file: 'relationship-mapping.md', anchor: 'embedding-a-related-table' },
   composer: { file: 'document-composer.md', anchor: '' },
+  computed: { file: 'computed-fields.md', anchor: 'writing-a-template' },
   export: { file: 'running-outside-the-tool.md', anchor: 'exporting' },
 } as const
 

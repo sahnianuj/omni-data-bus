@@ -9,7 +9,7 @@
 - **Document composer** — Design any JSON shape from scratch or import the customer's own design, get suggested bindings, group rows into one document, and fix differences from the design with guidance
 - **Portable runner** — Export a mapping as a self-contained `migrate.sh` / bundle and run it headless with `odb run`, credentials sealed, plaintext or external (Kubernetes kit descoped)
 - **All-in-one image** — One Docker image with the app and a bundled single-node Couchbase Server CE, plus a customer run kit
-- **Computed fields** — Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields (`concat()`, `substring()`, …), with autocomplete and live results on sample documents
+- **Computed fields** — Add any field whose value is fixed or a template over the document's other fields (`${doc.firstName} ${doc.lastName}`), with autocomplete and live results on sample documents (JavaScript expressions follow in 3.0)
 - **Chained embeds** — Once an object is embedded, its own foreign keys and child tables are offered under it on the source side, so order → items → product → brand → supplier builds one click at a time
 - **Upgrade** — 1.0 projects and mappings upgrade transparently to mapping spec v2; every page shows the release and build
 
@@ -21,20 +21,20 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **72** | **314** |
-| ✅ Implemented | 63 | 271 |
+| **Total** | **71** | **300** |
+| ✅ Implemented | 71 | 300 |
 | 🚧 In progress | 0 | 0 |
-| ⬜ Not started | 9 | 43 |
-| Not yet implemented (in progress + not started) | 9 | 43 |
-| **Completion** | 88% | 86% |
+| ⬜ Not started | 0 | 0 |
+| Not yet implemented (in progress + not started) | 0 | 0 |
+| **Completion** | 100% | 100% |
 | 🚫 Descoped (not counted above) | 1 | 5 |
 
 ### By priority
 
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
-| P0 | Must have — release blocker | 34 | 198 | 27 / 163 |
-| P1 | Should have — ships in 2.0 unless explicitly descoped | 34 | 112 | 32 / 104 |
+| P0 | Must have — release blocker | 33 | 187 | 33 / 187 |
+| P1 | Should have — ships in 2.0 unless explicitly descoped | 34 | 109 | 34 / 109 |
 | P2 | Nice to have | 4 | 4 | 4 / 4 |
 
 ### By epic
@@ -43,15 +43,15 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 |---|---|---|---|
 | E7 Foundations 2.0 | 3 | 13 | 3 / 13 |
 | E8 Directory Target | 6 | 27 | 6 / 27 |
-| E9 Relationship Mapping | 13 | 66 | 9 / 47 |
+| E9 Relationship Mapping | 13 | 60 | 13 / 60 |
 | E10 Document Composer | 23 | 90 | 23 / 90 |
 | E11 Portable Runner | 17 | 75 | 17 / 75 |
 | E12 Harden & Ship 2.0 | 5 | 19 | 5 / 19 |
-| E13 Computed Fields | 5 | 24 | 0 / 0 |
+| E13 Computed Fields | 4 | 16 | 4 / 16 |
 
 ## Stories by priority
 
-### P0 — Must have — release blocker (34 stories, 198 points)
+### P0 — Must have — release blocker (33 stories, 187 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -81,16 +81,15 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 24 | ~~[OC-073](OC-073-build-package-share-appliance-image.md)~~ | ~~Build, package and share the all-in-one image~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
 | 25 | ~~[OC-074](OC-074-appliance-customer-run-kit-readme.md)~~ | ~~Customer run kit and README for the all-in-one image~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
 | 26 | ~~[OC-080](OC-080-appliance-directory-target-host-folder.md)~~ | ~~All-in-one image: write directory targets to a folder on the user's computer~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
-| 27 | [OC-136](OC-136-computed-fields-spec-and-evaluation.md) | Computed fields: spec, evaluation order and template values | E13 Computed Fields | 5 | ⬜ Not started |
-| 28 | [OC-137](OC-137-javascript-computed-fields.md) | JavaScript computed fields: sandboxed runtime and helpers | E13 Computed Fields | 8 | ⬜ Not started |
-| 29 | [OC-138](OC-138-computed-field-editor.md) | Computed field editor: value source, autocomplete and live results | E13 Computed Fields | 5 | ⬜ Not started |
-| 30 | [OC-140](OC-140-computed-fields-export-compat-e2e.md) | Computed fields everywhere: export, older workers, E2E and benchmark | E13 Computed Fields | 3 | ⬜ Not started |
-| 31 | [OC-141](OC-141-relationship-hops-from-any-table.md) | Relationship hops from any table, on demand | E9 Relationship Mapping | 3 | ⬜ Not started |
-| 32 | [OC-142](OC-142-source-side-embedded-objects-relationships.md) | The source side lists each embedded object's own relationships | E9 Relationship Mapping | 8 | ⬜ Not started |
-| 33 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | E9 Relationship Mapping | 3 | ⬜ Not started |
-| 34 | ~~[OC-153](OC-153-mapping-edits-kept-when-leaving.md)~~ | ~~Mapping edits are kept when leaving Design & Map~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
+| 27 | ~~[OC-136](OC-136-computed-fields-spec-and-evaluation.md)~~ | ~~Computed fields: spec, evaluation order and template values~~ | ~~E13 Computed Fields~~ | ~~5~~ | ✅ Implemented |
+| 28 | ~~[OC-138](OC-138-computed-field-editor.md)~~ | ~~Computed field editor: value source, autocomplete and live results~~ | ~~E13 Computed Fields~~ | ~~5~~ | ✅ Implemented |
+| 29 | ~~[OC-140](OC-140-computed-fields-export-compat-e2e.md)~~ | ~~Computed fields everywhere: export, older workers, E2E and benchmark~~ | ~~E13 Computed Fields~~ | ~~3~~ | ✅ Implemented |
+| 30 | ~~[OC-141](OC-141-relationship-hops-from-any-table.md)~~ | ~~Relationship hops from any table, on demand~~ | ~~E9 Relationship Mapping~~ | ~~3~~ | ✅ Implemented |
+| 31 | ~~[OC-142](OC-142-source-side-embedded-objects-relationships.md)~~ | ~~The Composer's source side lists each embedded object's own relationships~~ | ~~E9 Relationship Mapping~~ | ~~5~~ | ✅ Implemented |
+| 32 | ~~[OC-143](OC-143-embed-from-any-foreign-key-field.md)~~ | ~~Embed from any foreign-key field, at any depth, in the Canvas and the Composer~~ | ~~E9 Relationship Mapping~~ | ~~3~~ | ✅ Implemented |
+| 33 | ~~[OC-153](OC-153-mapping-edits-kept-when-leaving.md)~~ | ~~Mapping edits are kept when leaving Design & Map~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 
-### P1 — Should have — ships in 2.0 unless explicitly descoped (34 stories, 112 points)
+### P1 — Should have — ships in 2.0 unless explicitly descoped (34 stories, 109 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -113,8 +112,8 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 17 | ~~[OC-081](OC-081-add-fields-anywhere-in-the-target-document.md)~~ | ~~Add fields anywhere in the target document, from every view~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
 | 18 | ~~[OC-082](OC-082-embedding-a-foreign-key-removes-the-key-field.md)~~ | ~~Embedding a foreign key removes the key field~~ | ~~E9 Relationship Mapping~~ | ~~2~~ | ✅ Implemented |
 | 19 | ~~[OC-083](OC-083-mapping-card-says-what-to-fix.md)~~ | ~~A mapping card says what to fix, not "Draft"~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
-| 20 | [OC-139](OC-139-computed-fields-follow-document-changes.md) | Computed fields follow changes to the document | E13 Computed Fields | 3 | ⬜ Not started |
-| 21 | [OC-144](OC-144-chained-embeds-runtime-hierarchies.md) | Chained embeds at runtime: shared lookups, hierarchies, parity and benchmark | E9 Relationship Mapping | 5 | ⬜ Not started |
+| 20 | ~~[OC-139](OC-139-computed-fields-follow-document-changes.md)~~ | ~~Computed fields follow changes to the document~~ | ~~E13 Computed Fields~~ | ~~3~~ | ✅ Implemented |
+| 21 | ~~[OC-144](OC-144-chained-embeds-read-same-rows-once.md)~~ | ~~Chained embeds read the same rows once~~ | ~~E9 Relationship Mapping~~ | ~~2~~ | ✅ Implemented |
 | 22 | ~~[OC-145](OC-145-rename-a-field-by-clicking-its-name.md)~~ | ~~Rename a target field by clicking its name, in every view~~ | ~~E10 Document Composer~~ | ~~2~~ | ✅ Implemented |
 | 23 | ~~[OC-146](OC-146-exact-row-counts-for-small-tables.md)~~ | ~~Exact row counts for small tables~~ | ~~E12 Harden & Ship 2.0~~ | ~~3~~ | ✅ Implemented |
 | 24 | ~~[OC-147](OC-147-embed-only-some-child-fields.md)~~ | ~~Embed only some of a child table's fields~~ | ~~E10 Document Composer~~ | ~~3~~ | ✅ Implemented |
@@ -150,8 +149,8 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase 3 — Document composer | ~~OC-047~~, ~~OC-048~~, ~~OC-049~~, ~~OC-059~~, ~~OC-060~~, ~~OC-061~~, ~~OC-062~~, ~~OC-063~~, ~~OC-064~~, ~~OC-065~~, ~~OC-066~~, ~~OC-067~~, ~~OC-069~~, ~~OC-070~~, ~~OC-071~~, ~~OC-075~~, ~~OC-076~~, ~~OC-077~~, ~~OC-081~~, ~~OC-083~~, ~~OC-145~~ | 85 | 21/21 (85 pts) | ✅ Done | Design any target JSON shape from scratch or import the customer's own JSON design, bind objects and arrays to source relations (with suggestions) or group a table's rows into one document, preview and validate it against the design |
 | Phase 4 — Portable runner | ~~OC-050~~, ~~OC-051~~, ~~OC-052~~, ~~OC-053~~, ~~OC-055~~, ~~OC-072~~, ~~OC-073~~, ~~OC-074~~, ~~OC-080~~ | 50 | 9/9 (50 pts) | ✅ Done | Export a finished mapping as a self-contained bash script and run it in production without the tool; hand customers one Docker image with the app and a bundled single-node Couchbase Server CE |
 | Phase 5 — Harden & ship 2.0 | ~~OC-078~~, ~~OC-057~~, ~~OC-056~~ | 13 | 3/3 (13 pts) | ✅ Done | Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate |
-| Phase 6 — Computed fields | OC-136, OC-137, OC-138, OC-139, OC-140 | 24 | 0/5 (0 pts) | 🚧 Current | Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields, see it on sample documents, and get the same value in every run, export and target |
-| Phase 7 — Chained embeds | OC-141, OC-142, OC-143, OC-144 | 19 | 0/4 (0 pts) | ⬜ Planned | Embed an embedded object's own relationships from the source side or its foreign-key field, at any depth up to the limit, including parent hierarchies, with shared reads and a size hint |
+| Phase 6 — Computed fields | ~~OC-136~~, ~~OC-138~~, ~~OC-139~~, ~~OC-140~~ | 16 | 4/4 (16 pts) | ✅ Done | Add any field whose value is fixed or a template over the document's other fields, see it on sample documents, and get the same value in every run, export and target |
+| Phase 7 — Chained embeds | ~~OC-141~~, ~~OC-142~~, ~~OC-143~~, ~~OC-144~~ | 13 | 4/4 (13 pts) | ✅ Done | Embed an embedded object's own relationships from the Composer's source side or any foreign-key field, at any depth up to the limit, with shared reads of the same rows |
 | Phase 8 — Trial feedback | ~~OC-153~~, ~~OC-147~~, ~~OC-146~~, ~~OC-150~~, ~~OC-151~~, ~~OC-148~~, ~~OC-152~~, ~~OC-149~~ | 16 | 8/8 (16 pts) | ✅ Done | Fixes from a customer trial: real row counts, partial embeds, no lost edits or sign-outs, one entry per related table, and seeing and moving where mappings write |
 | Phase 9 — Editable run settings | ~~OC-154~~, ~~OC-155~~, ~~OC-156~~ | 10 | 3/3 (10 pts) | ✅ Done | Export without a passphrase or password prompt; run the same script against another environment by editing the connection details in config.json, with passwords kept in base64 |
 | Phase 10 — Related tables by direction | ~~OC-157~~ | 5 | 1/1 (5 pts) | ✅ Done | Design & Map lists what a table references and what references it, each with its cardinality, and embeds 1:1 and N:1 as objects and 1:N and M:N as arrays |
@@ -252,28 +251,27 @@ _Upgrade path from 1.0, E2E suite and benchmarks for the new paths, release gate
 | 2 | [OC-057](OC-057-upgrade-compatibility-docs.md) | Upgrade from 1.0, compatibility & documentation | P0 | E12 Harden & Ship 2.0 | 3 | OC-036, OC-037, OC-055 | ✅ Implemented |
 | 3 | [OC-056](OC-056-e2e-benchmarks-release-gate.md) | End-to-end suite & benchmarks for 2.0 (release gate) | P0 | E12 Harden & Ship 2.0 | 8 | All P0 stories | ✅ Implemented |
 
-### Phase 6 — Computed fields — 🚧 Current (0/5 stories, 0/24 points)
+### Phase 6 — Computed fields — ✅ Done (4/4 stories, 16/16 points)
 
-_Add any field whose value is fixed, a template or a JavaScript expression over the document's other fields, see it on sample documents, and get the same value in every run, export and target._
-
-| # | ID | Story | Priority | Epic | Points | Depends on | Status |
-|---|---|---|---|---|---|---|---|
-| 1 | [OC-136](OC-136-computed-fields-spec-and-evaluation.md) | Computed fields: spec, evaluation order and template values | P0 | E13 Computed Fields | 5 | OC-020, OC-037, OC-047 | ⬜ Not started |
-| 2 | [OC-137](OC-137-javascript-computed-fields.md) | JavaScript computed fields: sandboxed runtime and helpers | P0 | E13 Computed Fields | 8 | OC-136 | ⬜ Not started |
-| 3 | [OC-138](OC-138-computed-field-editor.md) | Computed field editor: value source, autocomplete and live results | P0 | E13 Computed Fields | 5 | OC-136, OC-137, OC-048, OC-081 | ⬜ Not started |
-| 4 | [OC-139](OC-139-computed-fields-follow-document-changes.md) | Computed fields follow changes to the document | P1 | E13 Computed Fields | 3 | OC-136, OC-138, OC-061, OC-064 | ⬜ Not started |
-| 5 | [OC-140](OC-140-computed-fields-export-compat-e2e.md) | Computed fields everywhere: export, older workers, E2E and benchmark | P0 | E13 Computed Fields | 3 | OC-137, OC-138, OC-050, OC-051, OC-056, OC-057 | ⬜ Not started |
-
-### Phase 7 — Chained embeds — ⬜ Planned (0/4 stories, 0/19 points)
-
-_Embed an embedded object's own relationships from the source side or its foreign-key field, at any depth up to the limit, including parent hierarchies, with shared reads and a size hint._
+_Add any field whose value is fixed or a template over the document's other fields, see it on sample documents, and get the same value in every run, export and target._
 
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | [OC-141](OC-141-relationship-hops-from-any-table.md) | Relationship hops from any table, on demand | P0 | E9 Relationship Mapping | 3 | OC-042 | ⬜ Not started |
-| 2 | [OC-142](OC-142-source-side-embedded-objects-relationships.md) | The source side lists each embedded object's own relationships | P0 | E9 Relationship Mapping | 8 | OC-141, OC-043, OC-047, OC-048 | ⬜ Not started |
-| 3 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | P0 | E9 Relationship Mapping | 3 | OC-141, OC-064, OC-082 | ⬜ Not started |
-| 4 | [OC-144](OC-144-chained-embeds-runtime-hierarchies.md) | Chained embeds at runtime: shared lookups, hierarchies, parity and benchmark | P1 | E9 Relationship Mapping | 5 | OC-142, OC-143, OC-046, OC-056 | ⬜ Not started |
+| 1 | [OC-136](OC-136-computed-fields-spec-and-evaluation.md) | Computed fields: spec, evaluation order and template values | P0 | E13 Computed Fields | 5 | OC-020, OC-037, OC-047 | ✅ Implemented |
+| 2 | [OC-138](OC-138-computed-field-editor.md) | Computed field editor: value source, autocomplete and live results | P0 | E13 Computed Fields | 5 | OC-136, OC-048, OC-081 | ✅ Implemented |
+| 3 | [OC-139](OC-139-computed-fields-follow-document-changes.md) | Computed fields follow changes to the document | P1 | E13 Computed Fields | 3 | OC-136, OC-138, OC-061, OC-064 | ✅ Implemented |
+| 4 | [OC-140](OC-140-computed-fields-export-compat-e2e.md) | Computed fields everywhere: export, older workers, E2E and benchmark | P0 | E13 Computed Fields | 3 | OC-136, OC-138, OC-050, OC-051, OC-057 | ✅ Implemented |
+
+### Phase 7 — Chained embeds — ✅ Done (4/4 stories, 13/13 points)
+
+_Embed an embedded object's own relationships from the Composer's source side or any foreign-key field, at any depth up to the limit, with shared reads of the same rows._
+
+| # | ID | Story | Priority | Epic | Points | Depends on | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | [OC-141](OC-141-relationship-hops-from-any-table.md) | Relationship hops from any table, on demand | P0 | E9 Relationship Mapping | 3 | OC-042 | ✅ Implemented |
+| 2 | [OC-142](OC-142-source-side-embedded-objects-relationships.md) | The Composer's source side lists each embedded object's own relationships | P0 | E9 Relationship Mapping | 5 | OC-141, OC-043, OC-047, OC-048, OC-157 | ✅ Implemented |
+| 3 | [OC-143](OC-143-embed-from-any-foreign-key-field.md) | Embed from any foreign-key field, at any depth, in the Canvas and the Composer | P0 | E9 Relationship Mapping | 3 | OC-141, OC-064, OC-082 | ✅ Implemented |
+| 4 | [OC-144](OC-144-chained-embeds-read-same-rows-once.md) | Chained embeds read the same rows once | P1 | E9 Relationship Mapping | 2 | OC-043, OC-046 | ✅ Implemented |
 
 ### Phase 8 — Trial feedback — ✅ Done (8/8 stories, 16/16 points)
 

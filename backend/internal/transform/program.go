@@ -198,6 +198,9 @@ type Program struct {
 	helpers  map[string]any
 	envCache map[string]any // the current row's scoped environment
 	envBuilt bool
+	computed []*compProg // the root program's computed fields, in evaluation order (OC-136)
+	arena    jvArena     // the computed pass's document copy, reused per row
+	compBuf  []byte      // the computed pass's output buffer, swapped with the row's buffer
 }
 
 // Compile resolves a spec against the source table. Issues (bad args, bad regex, unknown
@@ -288,8 +291,8 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 	// Field programs for this scope's active mappings, by target field.
 	byField := map[string]*fieldProg{}
 	for _, m := range spec.FieldMappings {
-		if !m.Active() || sc.scopes[m.TargetFieldID] != sc.id {
-			continue
+		if !m.Active() || sc.scopes[m.TargetFieldID] != sc.id || m.Computed != nil {
+			continue // computed fields are filled after assembly (compileComputed)
 		}
 		path, ok := paths[m.TargetFieldID]
 		f := spec.DocSchema.Find(m.TargetFieldID)
@@ -385,7 +388,14 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		byField[f.ID] = fp
 		p.fields = append(p.fields, fp)
 	}
-	p.root = buildNodes(spec.DocSchema.Root.Children, byField, byEmbed, byAgg, !spec.OmitUnmapped)
+	// Computed fields (OC-136): the root program compiles every one; each scope writes a null
+	// placeholder where one goes, so the document keeps the design's order.
+	if !opts.embedded {
+		cps, cissues := compileComputed(spec, t, opts)
+		issues = append(issues, cissues...)
+		p.computed = cps
+	}
+	p.root = buildNodes(spec.DocSchema.Root.Children, byField, byEmbed, byAgg, computedIDs(sc.spec), !spec.OmitUnmapped)
 	mapping.SortIssues(issues)
 	for _, i := range issues {
 		if i.Severity == mapping.SeverityError {
@@ -409,10 +419,14 @@ func directSafe(c schema.Column, target docschema.FieldType) bool {
 // buildNodes lays out the document in design order. Leaf fields without an active mapping
 // become null nodes when includeUnmapped (the spec's "Include unmapped fields"), else they're
 // left out. Null handling only decides what a mapped field whose value is null becomes.
-func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEmbed map[string]*embedProg, byAgg map[string]*aggProg, includeUnmapped bool) []*node {
+func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEmbed map[string]*embedProg, byAgg map[string]*aggProg, computed map[string]bool, includeUnmapped bool) []*node {
 	var out []*node
 	for i := range fields {
 		f := &fields[i]
+		if computed[f.ID] {
+			out = append(out, &node{name: f.Name, null: true})
+			continue
+		}
 		if fp, ok := byField[f.ID]; ok {
 			out = append(out, &node{name: f.Name, field: fp})
 			continue
@@ -427,7 +441,7 @@ func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEm
 		}
 		switch {
 		case f.Type == docschema.Object && len(f.Children) > 0:
-			if kids := buildNodes(f.Children, byField, byEmbed, byAgg, includeUnmapped); len(kids) > 0 {
+			if kids := buildNodes(f.Children, byField, byEmbed, byAgg, computed, includeUnmapped); len(kids) > 0 {
 				out = append(out, &node{name: f.Name, children: kids})
 			}
 		case f.Type != docschema.Object && includeUnmapped:
@@ -587,6 +601,11 @@ func (p *Program) apply(row []any, related source.Related, buf []byte, trace map
 			return "", nil, nil, rerr
 		}
 		doc = append(doc, '}')
+		if len(p.computed) > 0 {
+			if doc, rerr = p.applyComputed(doc); rerr != nil {
+				return "", nil, nil, rerr
+			}
+		}
 		if len(doc) <= p.maxDocBytes() {
 			p.warnings = append(p.warnings, p.guard.warnings()...)
 			return key, doc, p.warnings, nil

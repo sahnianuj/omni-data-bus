@@ -2,7 +2,9 @@
 
 | Epic | Priority | Points | Depends on | Status |
 |---|---|---|---|---|
-| E13 Computed Fields | P0 | 8 | OC-136 | Not started |
+| E13 Computed Fields | P1 | 8 | OC-136 | Not started |
+
+> **Moved from 2.0 (2026-10-16):** product decision. 2.0 ships computed fields as fixed values and templates (OC-136, OC-138), without a JavaScript engine. This story adds JavaScript on the same model, with the `goja` dependency, the JavaScript option in the editor's value source, and the **JavaScript value** transform step that OC-138 left out. It also takes OC-140's Playwright smoke spec (add field → JavaScript → live result → migrate → document) and the **G8 — Computed fields throughput** benchmark gate.
 
 ## User story
 As a **data engineer**, I want to compute a field with a JavaScript expression over the document's other fields, using the string functions I already know (`concat()`, `substring()`, `slice()`, `replace()`, `padStart()`, `toUpperCase()`, …), conditions and arithmetic, so that I can derive values a template can't express without writing code outside the tool.

@@ -7,7 +7,10 @@ import { findField } from '@/features/docschema/docschemaOps'
 import { setRequired } from '@/features/docschema/docschemaOps'
 import { previewMapping } from './api'
 import { canConnect } from './canConnect'
-import { createFieldAndMap, ignoreColumn, setConstant, setTransforms, unignoreColumn, unmap } from './mappingOps'
+import { KeyActions } from './KeyActions'
+import { ComputedEditor } from '@/features/computed/ComputedEditor'
+import { ValueSourceControl } from '@/features/computed/ValueSourceControl'
+import { createFieldAndMap, ignoreColumn, setConstant, setTransforms, unignoreColumn, unmap, valueSourceOf } from './mappingOps'
 import { useWorkbench } from './store'
 import { parseLiteral, TransformPipelineEditor } from './TransformPipelineEditor'
 import type { TransformStep } from './types'
@@ -129,7 +132,10 @@ export function Inspector({ projectId }: { projectId: string }) {
       </header>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-3">
-          {mapping ? (
+          {field && field.field.type !== 'object' && field.field.type !== 'array' ? <ValueSourceControl fieldId={field.field.id} /> : null}
+          {field && valueSourceOf(spec, field.field.id) === 'template' ? (
+            <ComputedEditor key={field.field.id} fieldId={field.field.id} />
+          ) : mapping ? (
             <>
               <h4 className="text-xs font-medium uppercase tracking-wide text-subtle">{t('inspector.transforms')}</h4>
               <TransformPipelineEditor
@@ -156,6 +162,7 @@ export function Inspector({ projectId }: { projectId: string }) {
                   {t('mapping.unmap')}
                 </Button>
               ) : null}
+              <KeyActions fieldId={field.field.id} />
               {field.field.required && !mapping ? (
                 <Button size="sm" variant="ghost" onClick={() => apply((s) => ({ ...s, docSchema: setRequired(s.docSchema, field.field.id, false) }))}>
                   {t('inspector.markOptional')}

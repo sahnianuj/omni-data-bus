@@ -145,3 +145,18 @@ func TestAutomap_IgnoredColumnsAndStructuralBonus(t *testing.T) {
 	exp := r.Explain[m["f_city"].ID]
 	require.Equal(t, SignalStructural, exp.Signals[len(exp.Signals)-1].Name)
 }
+
+// OC-139 AC5: a computed field is never mapped onto, and a reset keeps it, even with manual
+// mappings included.
+func TestAutomap_AC5_SkipsComputed(t *testing.T) {
+	s := specWith(fld("f_full", "fullName", docschema.String), fld("f_email", "email", docschema.String))
+	s.FieldMappings = []mapping.FieldMapping{{ID: "c", TargetFieldID: "f_full", State: mapping.StateActive, Origin: mapping.OriginManual,
+		Computed: &mapping.Computed{Lang: mapping.ComputedTemplate, Expr: "${doc.email}"}}}
+	cols := []SourceCol{col("full_name", "string", 1), col("email", "string", 2)}
+	for _, opts := range []Options{{}, {Mode: ModeReset, IncludeManual: true}} {
+		m := byTarget(Run(s, cols, opts))
+		require.NotNil(t, m["f_full"].Computed, "%+v", opts)
+		require.Empty(t, m["f_full"].Sources)
+		require.Equal(t, "email", m["f_email"].Sources[0].Column)
+	}
+}

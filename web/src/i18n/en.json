@@ -1177,6 +1177,7 @@
     "rows": "~{{n}} rows",
     "embed": "Embed",
     "embedded": "Embedded",
+    "depthLimit": "Deepest level reached ({{depth}} of {{max}}). An administrator can raise OC_MAX_RELATION_DEPTH up to 6.",
     "tooMany": "About {{n}} rows per document, more than the limit of {{limit}}: arrays will be truncated.",
     "title": "Embed {{table}}",
     "description": "Rows of {{table}} are looked up for each document and nested inside it.",
@@ -1840,6 +1841,13 @@
       "missingOne": "{{path}} is in the customer's document but not generated.",
       "extraOne": "{{path}} is generated but isn't in the customer's document.",
       "typeDiffOne": "{{path}} has another type than in the customer's document."
+    },
+    "doc": {
+      "title": "In this document",
+      "embed": "Embed {{table}} into {{into}}",
+      "lookup": "Look up {{table}} in {{into}}",
+      "lookupShort": "Look up",
+      "lookupTag": "lookup"
     }
   },
   "export": {
@@ -1923,6 +1931,35 @@
     "directoryTarget": "Guide: directory targets",
     "embed": "Guide: relationship mapping",
     "composer": "Guide: document composer",
-    "export": "Guide: running migrations outside the tool"
+    "export": "Guide: running migrations outside the tool",
+    "computed": "Guide: computed fields"
+  },
+  "computed": {
+    "valueSource": "Value source",
+    "source": {
+      "source": "Source",
+      "fixed": "Fixed",
+      "template": "Template"
+    },
+    "sourceHint": {
+      "source": "Mapped from source columns, through its transforms",
+      "fixed": "The same value in every document",
+      "template": "Built from the document's other fields, e.g. ${doc.firstName} ${doc.lastName}"
+    },
+    "template": "Template",
+    "suggestions": "Fields you can use",
+    "at": "(line {{line}}, column {{column}})",
+    "nullIfAnyMissing": "Null if any value is missing",
+    "result": "Value for the sample documents",
+    "more": "+{{n}} more",
+    "noSample": "No sample document yet",
+    "leaveSourceTitle": "Stop mapping from source?",
+    "leaveSource": "This removes the mapping from {{columns}}. Undo brings it back.",
+    "leaveSourceConfirm": "Remove the mapping",
+    "add": "Add computed field",
+    "badge": "Computed: {{expr}}",
+    "fx": "ƒx",
+    "uses": "Uses:",
+    "usedBy": "Used by:"
   }
 }

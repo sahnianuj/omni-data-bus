@@ -500,11 +500,15 @@ export function setAdapter(spec: MappingSpec, nodeId: string, adapter: Adapter |
 }
 
 /** Adds a lookup-only relation in a node's scope: its columns can fill any field there ("values only"). */
+/** The relation a lookup at nodeId hangs under: a bound node's own relation (its fields' scope), else the node's scope; '' = the root. */
+export function lookupScope(spec: MappingSpec, nodeId: string): string {
+  const bound = nodeOf(spec, nodeId) ? boundRelations(spec).get(nodeId) : undefined
+  return bound ? bound.id : scopeOf(spec, nodeId)
+}
+
 export function addLookup(spec: MappingSpec, nodeId: string, input: Pick<Relation, 'table' | 'join'>): { spec: MappingSpec; relationId: string } {
   const id = newRelationId()
-  const container = nodeOf(spec, nodeId)
-  // A bound node's own relation is the scope of its fields.
-  const scope = container && boundRelations(spec).get(nodeId) ? boundRelations(spec).get(nodeId)!.id : scopeOf(spec, nodeId)
+  const scope = lookupScope(spec, nodeId)
   const rel: Relation = { id, parentId: scope || null, kind: 'many-to-one', lookupOnly: true, table: input.table, join: input.join }
   return { spec: { ...spec, relations: [...spec.relations, rel] }, relationId: id }
 }

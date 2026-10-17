@@ -136,6 +136,66 @@ func (s *Service) Graph(ctx context.Context, ws store.WorkspaceID, connectionID 
 	return res, nil
 }
 
+// MaxHops caps one table's hops in a response (a table with more is unusual).
+const MaxHops = 500
+
+// HopsResult is GET /connections/{id}/relations/hops: every direct relationship of one table
+// (OC-141), not limited by a root table's path search, self-references included.
+type HopsResult struct {
+	Table            mapping.TableRef `json:"table"`
+	Hops             []Hop            `json:"hops"`
+	Junctions        []Junction       `json:"junctions"`
+	Advice           []Advice         `json:"advice"`
+	MaxRelationDepth int              `json:"maxRelationDepth"`
+	Truncated        bool             `json:"truncated,omitempty"`
+}
+
+// Hops lists one table's direct relationships for a project's source connection: foreign keys
+// both ways and the project's virtual relationships, flagged self-references, junction
+// candidates, index advice, and a rows-per-parent estimate for one-to-many hops.
+func (s *Service) Hops(ctx context.Context, ws store.WorkspaceID, connectionID string, table mapping.TableRef) (HopsResult, error) {
+	conn, err := s.store.Connections().Get(ctx, ws, connectionID)
+	if err != nil {
+		return HopsResult{}, err
+	}
+	_, snap, err := s.schemas.Latest(ctx, ws, connectionID)
+	if err != nil {
+		return HopsResult{}, err
+	}
+	from := snap.Table(table.Schema, table.Name)
+	if from == nil {
+		return HopsResult{}, problem.New(http.StatusNotFound, problem.CodeNotFound, "Table not found", "The latest schema snapshot has no table "+table.String()+".")
+	}
+	virtual, err := s.store.Relationships().ListForProject(ctx, ws, conn.ProjectID)
+	if err != nil {
+		return HopsResult{}, err
+	}
+	res := HopsResult{Table: table, Hops: Build(snap, virtual).Hops(table), Junctions: Junctions(snap, table), Advice: []Advice{}, MaxRelationDepth: mapping.MaxRelationDepth()}
+	if res.Hops == nil {
+		res.Hops = []Hop{}
+	}
+	if len(res.Hops) > MaxHops {
+		res.Hops, res.Truncated = res.Hops[:MaxHops], true
+	}
+	seen := map[string]bool{}
+	for i := range res.Hops {
+		h := &res.Hops[i]
+		h.Self = h.From == h.To
+		if h.Kind != mapping.EmbedOneToMany {
+			continue
+		}
+		to := snap.Table(h.To.Schema, h.To.Name)
+		if to != nil && to.RowEstimate != nil && from.RowEstimate != nil && *from.RowEstimate > 0 {
+			h.RowsPerParent = float64(*to.RowEstimate) / float64(*from.RowEstimate)
+		}
+		if cols := childCols(h.Join); !h.Indexed && !seen[h.To.String()+strings.Join(cols, ",")] {
+			seen[h.To.String()+strings.Join(cols, ",")] = true
+			res.Advice = append(res.Advice, Advice{Code: mapping.CodeRelationNoIndex, Table: h.To, Columns: cols, Message: mapping.IndexAdvice(to, cols)})
+		}
+	}
+	return res, nil
+}
+
 // RelationshipInput creates or updates a virtual relationship.
 type RelationshipInput struct {
 	Name        string                `json:"name" validate:"max=200"`

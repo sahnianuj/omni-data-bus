@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input'
 import { useSchema } from '@/features/discovery/api'
 import { runAutomapScope } from '@/features/mapping/api'
 import { srcKey } from '@/features/mapping/embeds'
-import { activeFor, connect, OpError, replaceSource, setConstant, setTransforms, unmap } from '@/features/mapping/mappingOps'
+import { ComputedEditor } from '@/features/computed/ComputedEditor'
+import { ValueSourceControl } from '@/features/computed/ValueSourceControl'
+import { activeFor, connect, OpError, replaceSource, setConstant, setTransforms, unmap, valueSourceOf } from '@/features/mapping/mappingOps'
 import { useWorkbench, useWorkbenchStore } from '@/features/mapping/store'
 import { parseLiteral, TransformPipelineEditor } from '@/features/mapping/TransformPipelineEditor'
 import type { CanvasColumn, FieldType, MappingSpec, SourceColumn } from '@/features/mapping/types'
@@ -58,6 +60,8 @@ type Props = {
   onBindTable: (nodeId: string, lookup?: boolean) => void
   /** The table the field's key refers to, and embedding it (OC-064). */
   embedTable?: string
+  /** Why the embed action is disabled (the depth limit), if it is. */
+  embedBlocked?: string
   onEmbed?: (fieldId: string) => void
 }
 
@@ -67,7 +71,7 @@ type Props = {
  * — in-scope columns only, grouped by table — or a constant or expression with in-scope names,
  * and its transforms (OC-020).
  */
-export function ComposerInspector({ focusSource, onBindTable, embedTable, onEmbed }: Props) {
+export function ComposerInspector({ focusSource, onBindTable, embedTable, embedBlocked, onEmbed }: Props) {
   const { t } = useTranslation()
   const store = useWorkbenchStore()
   const spec = useWorkbench((s) => s.history.present)
@@ -274,7 +278,13 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, onEmbe
         </div>
       ) : null}
 
-      {!isContainer || (node.type === 'array' && !rel) ? (
+      {!isContainer ? (
+        <div className="flex flex-col gap-2">
+          <ValueSourceControl fieldId={nodeId} />
+          {valueSourceOf(spec, nodeId) === 'template' ? <ComputedEditor key={nodeId} fieldId={nodeId} /> : null}
+        </div>
+      ) : null}
+      {(!isContainer || (node.type === 'array' && !rel)) && valueSourceOf(spec, nodeId) !== 'template' ? (
         <div className="flex flex-col gap-3">
           <label htmlFor={sourceId} className="flex flex-col gap-1 text-xs font-medium text-muted">
             {t('composer.source')}
@@ -338,7 +348,7 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, onEmbe
                 {t('composer.unmap')}
               </Button>
               {embedTable && onEmbed ? (
-                <Button size="sm" variant="secondary" onClick={() => onEmbed(nodeId)}>
+                <Button size="sm" variant="secondary" disabled={!!embedBlocked} title={embedBlocked} onClick={() => onEmbed(nodeId)}>
                   {t('composer.embedHere', { table: embedTable })}
                 </Button>
               ) : null}

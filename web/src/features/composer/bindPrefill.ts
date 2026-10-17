@@ -1,4 +1,5 @@
-import type { JunctionCandidate, MappingSpec, RelationGraph, RelationHop } from '@/features/mapping/types'
+import type { HopsOf } from '@/features/mapping/relationsApi'
+import type { DocField, JunctionCandidate, MappingSpec, RelationGraph, RelationHop } from '@/features/mapping/types'
 import type { TableRef } from './composerOps'
 import { nodeOf, scopeOf, type ForeignKey } from './composerOps'
 
@@ -47,18 +48,28 @@ export function edges(graph: RelationGraph | undefined): RelationHop[] {
  * many-to-many, then many-to-one (wrapped); an object prefers many-to-one, then the first row of
  * a one-to-many or many-to-many.
  */
-export function prefill(graph: RelationGraph | undefined, spec: MappingSpec, nodeId: string, table: TableRef, own: TableRef): Prefill {
-  const from = scopeTable(spec, nodeId, own)
+export function prefill(
+  graph: RelationGraph | undefined,
+  spec: MappingSpec,
+  nodeId: string,
+  table: TableRef,
+  own: TableRef,
+  scopeHops?: { hops?: RelationHop[]; junctions?: JunctionCandidate[] },
+  /** The table joined from, when not the node's scope (a lookup at a bound node joins from its own table). */
+  fromTable?: TableRef,
+): Prefill {
+  const from = fromTable ?? scopeTable(spec, nodeId, own)
   const options: BindOption[] = []
-  for (const h of edges(graph)) {
+  // The scope table's own hops when they're known (OC-141, any depth), else the driving graph's.
+  const hops = scopeHops?.hops ?? edges(graph)
+  for (const h of hops) {
     if (same(h.from, from) && same(h.to, table)) {
       options.push({ type: 'direct', kind: h.kind as 'many-to-one' | 'one-to-many', table: h.to, join: h.join, virtual: h.virtual, constraint: h.constraint })
     }
   }
-  if (graph && same(graph.root, from)) {
-    for (const j of graph.junctions) {
-      if (same(j.table, table)) options.push({ type: 'm2m', table: j.table, via: j.via, parentJoin: j.parentJoin, childJoin: j.childJoin, payloadColumns: j.payloadColumns })
-    }
+  const junctions = scopeHops?.junctions ?? (graph && same(graph.root, from) ? graph.junctions : [])
+  for (const j of junctions) {
+    if (same(j.table, table)) options.push({ type: 'm2m', table: j.table, via: j.via, parentJoin: j.parentJoin, childJoin: j.childJoin, payloadColumns: j.payloadColumns })
   }
   const isArray = nodeOf(spec, nodeId)?.type === 'array'
   const rank = (o: BindOption) => {
@@ -73,15 +84,49 @@ export function prefill(graph: RelationGraph | undefined, spec: MappingSpec, nod
 export const kindOf = (o: BindOption) => (o.type === 'm2m' ? 'many-to-many' : o.kind)
 
 /**
- * The foreign key a field's column is on (OC-064): the field is mapped from one column of its
- * own scope table, and a many-to-one hop leaves that table on exactly that column.
+ * The foreign key a field's column is on (OC-064, OC-143): the field is mapped from one column of
+ * its own scope table, and a many-to-one hop leaves that table on that column, found among the
+ * scope table's own hops (OC-141), so a key at any depth qualifies. A composite key qualifies
+ * when its other columns are mapped in the same object too.
  */
-export function foreignKeyOf(graph: RelationGraph | undefined, spec: MappingSpec, fieldId: string, own: TableRef): ForeignKey | undefined {
-  const m = spec.fieldMappings.find((x) => x.targetFieldId === fieldId && x.state === 'active')
-  if (!m || m.sources.length !== 1 || m.transforms.some((t) => t.op === 'constant' || t.op === 'expression')) return undefined
-  const src = m.sources[0]!
-  if ((src.relation ?? '') !== scopeOf(spec, fieldId) || src.from) return undefined
+export function foreignKeyOf(hopsOf: HopsOf, spec: MappingSpec, fieldId: string, own: TableRef): ForeignKey | undefined {
+  const column = (id: string) => {
+    const m = spec.fieldMappings.find((x) => x.targetFieldId === id && x.state === 'active')
+    if (!m || m.sources.length !== 1 || m.transforms.some((t) => t.op === 'constant' || t.op === 'expression')) return undefined
+    const src = m.sources[0]!
+    return (src.relation ?? '') === scopeOf(spec, id) && !src.from ? src.column : undefined
+  }
+  const col = column(fieldId)
+  if (!col) return undefined
+  const scope = scopeOf(spec, fieldId)
+  const siblings = new Set(
+    (parentOf(spec.docSchema.root, fieldId)?.children ?? []).filter((c) => scopeOf(spec, c.id) === scope).map((c) => column(c.id)).filter((c): c is string => !!c),
+  )
   const from = scopeTable(spec, fieldId, own)
-  const hop = edges(graph).find((h) => same(h.from, from) && h.kind === 'many-to-one' && h.join.length === 1 && h.join[0]!.parent === src.column)
+  const hop = (hopsOf(from) ?? []).find(
+    (h) => h.kind === 'many-to-one' && same(h.from, from) && h.join.some((j) => j.parent === col) && h.join.every((j) => siblings.has(j.parent)),
+  )
   return hop ? { table: hop.to, join: hop.join, virtual: hop.virtual } : undefined
+}
+
+/** The object holding a field, if any. */
+function parentOf(node: DocField, id: string): DocField | undefined {
+  for (const c of node.children ?? []) {
+    if (c.id === id) return node
+    const inner = parentOf(c, id) ?? (c.items ? (c.items.id === id ? undefined : parentOf(c.items, id)) : undefined)
+    if (inner) return inner
+  }
+  return undefined
+}
+
+/** How deep a field's scope relation sits (0 = the root, 1 = a relation of the root…). */
+export function scopeDepth(spec: MappingSpec, fieldId: string): number {
+  let id: string | null | undefined = scopeOf(spec, fieldId) || null
+  let depth = 0
+  while (id) {
+    depth++
+    id = spec.relations.find((r) => r.id === id)?.parentId ?? null
+    if (depth > 16) break // a cycle: validation reports it
+  }
+  return depth
 }

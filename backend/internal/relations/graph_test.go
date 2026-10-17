@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"omnidatabus/internal/mapping"
+	"omnidatabus/internal/race"
 	"omnidatabus/internal/schema"
 	"omnidatabus/internal/store"
 )
@@ -170,13 +171,17 @@ func wideSnap() *schema.Snapshot {
 	return snap
 }
 
-func TestPaths_BoundedOnLargeSchemas(t *testing.T) {
+func TestPaths_Budget_BoundedOnLargeSchemas(t *testing.T) {
 	snap := wideSnap()
 	g := Build(snap, nil)
 	start := time.Now()
 	paths := g.Paths(mapping.TableRef{Schema: "s", Name: "t500"}, 4)
-	require.Less(t, time.Since(start), 50*time.Millisecond)
+	elapsed := time.Since(start)
 	require.Len(t, paths, MaxPaths)
+	if race.Enabled || testing.CoverMode() != "" {
+		t.Skip("timing budgets need uninstrumented code: run `make test-budgets`")
+	}
+	require.Less(t, elapsed, 50*time.Millisecond)
 }
 
 func BenchmarkPaths_1000Tables(b *testing.B) {

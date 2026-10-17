@@ -1,8 +1,9 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockPreview, renderWorkbench } from '@/test/mapping'
-import { setupMswServer } from '@/test/msw'
+import { http, HttpResponse } from 'msw'
+import { mappingView, mockPreview, renderWorkbench, sampleSpec, scol } from '@/test/mapping'
+import { server, setupMswServer } from '@/test/msw'
 import { mockSession } from '@/test/session'
 import { Inspector } from './Inspector'
 import type { MappingPreview } from './types'
@@ -62,5 +63,70 @@ describe('Inspector', () => {
       const override = bodies[1]!.specOverride!.fieldMappings.find((m) => m.id === 'm_first')!
       expect(override.transforms).toEqual([{ op: 'upper' }, { op: 'trim' }])
     })
+  })
+
+  it('OC-143 AC2: the Canvas embeds a foreign-key field and collapses it back', async () => {
+    const user = userEvent.setup()
+    const automap: unknown[] = []
+    server.use(
+      http.get('*/api/v1/connections/:id/relations/hops', ({ request }) =>
+        HttpResponse.json({
+          table: { schema: 'shop', name: 'customer' }, junctions: [], advice: [], maxRelationDepth: 4,
+          hops: new URL(request.url).searchParams.get('table') === 'shop.customer'
+            ? [{ from: { schema: 'shop', name: 'customer' }, to: { schema: 'shop', name: 'address' }, kind: 'many-to-one', join: [{ parent: 'address_id', child: 'address_id' }], indexed: true }]
+            : [],
+        })),
+      http.get('*/api/v1/connections/:id/schema/shop/address', () => HttpResponse.json({ name: 'address', columns: [scol('address_id', 'integer', { isPrimaryKey: true }), scol('city', 'string')] })),
+      http.post('*/api/v1/projects/:pid/mappings/:mid/automap', async ({ request }) => {
+        automap.push(await request.json())
+        return HttpResponse.json({ status: 500, code: 'X', title: 'not in this test' }, { status: 500 })
+      }),
+    )
+    const spec = sampleSpec()
+    spec.docSchema.root.children = [...(spec.docSchema.root.children ?? []), { id: 'f_addr', name: 'addressId', type: 'integer' }]
+    spec.fieldMappings = [...spec.fieldMappings, { id: 'm_addr', targetFieldId: 'f_addr', sources: [{ column: 'address_id' }], transforms: [], origin: 'manual', state: 'active' }]
+    const { store } = renderWorkbench(<Inspector projectId="p1" />, mappingView({ spec }))
+    act(() => store.getState().select({ kind: 'field', id: 'f_addr' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Embed address here…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Embed address' })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Embed' })).toBeEnabled())
+    await user.click(within(dialog).getByRole('button', { name: 'Embed' }))
+    const after = store.getState().history.present
+    const rel = after.relations.find((r) => r.table.name === 'address')!
+    expect(rel).toMatchObject({ kind: 'many-to-one', join: [{ parent: 'address_id', child: 'address_id' }] })
+    expect(after.docSchema.root.children!.some((c) => c.id === 'f_addr')).toBe(false) // replaced by the object (OC-082)
+    await waitFor(() => expect(automap).toEqual([{ mode: 'fill', nodeId: rel.targetFieldId }]))
+
+    // Collapse to id restores the key field.
+    act(() => store.getState().select({ kind: 'field', id: rel.targetFieldId! }))
+    await user.click(await screen.findByRole('button', { name: 'Collapse to id' }))
+    const back = store.getState().history.present
+    expect(back.relations.some((r) => r.table.name === 'address')).toBe(false)
+    expect(back.fieldMappings.find((m) => m.targetFieldId === rel.targetFieldId)!.sources).toEqual([{ column: 'address_id' }])
+  })
+
+  it('OC-143 AC3: at the depth limit the action shows, disabled, with why', async () => {
+    server.use(
+      http.get('*/api/v1/connections/:id/relations/hops', ({ request }) => {
+        const table = new URL(request.url).searchParams.get('table')
+        return HttpResponse.json({
+          table: { schema: 'shop', name: 'x' }, junctions: [], advice: [], maxRelationDepth: 1,
+          hops: table === 'shop.address'
+            ? [{ from: { schema: 'shop', name: 'address' }, to: { schema: 'shop', name: 'country' }, kind: 'many-to-one', join: [{ parent: 'country_code', child: 'code' }], indexed: true }]
+            : [],
+        })
+      }),
+    )
+    const spec = sampleSpec()
+    // profile is the customer's address (depth 1), holding countryCode ← address.country_code.
+    spec.docSchema.root.children = spec.docSchema.root.children!.map((c) => (c.id === 'f_profile' ? { ...c, children: [{ id: 'f_cc', name: 'countryCode', type: 'string' as const }] } : c))
+    spec.relations = [{ id: 'r_a', parentId: null, kind: 'many-to-one', table: { schema: 'shop', name: 'address' }, join: [{ parent: 'address_id', child: 'address_id' }], targetFieldId: 'f_profile' }]
+    spec.fieldMappings = [...spec.fieldMappings, { id: 'm_cc', targetFieldId: 'f_cc', sources: [{ relation: 'r_a', column: 'country_code' }], transforms: [], origin: 'manual', state: 'active' }]
+    const { store } = renderWorkbench(<Inspector projectId="p1" />, mappingView({ spec }))
+    act(() => store.getState().select({ kind: 'field', id: 'f_cc' }))
+    const button = await screen.findByRole('button', { name: 'Embed country here…' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', 'Deepest level reached (1 of 1). An administrator can raise OC_MAX_RELATION_DEPTH up to 6.')
   })
 })

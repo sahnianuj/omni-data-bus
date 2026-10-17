@@ -362,17 +362,6 @@ func connSummary(c Connection) string {
 	return c.Type
 }
 
-func wrap(s string, n int) string {
-	var b strings.Builder
-	for len(s) > n {
-		b.WriteString(s[:n])
-		b.WriteByte('\n')
-		s = s[n:]
-	}
-	b.WriteString(s)
-	return b.String()
-}
-
 func slug(s string) string {
 	var b strings.Builder
 	dash := false

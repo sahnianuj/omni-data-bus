@@ -21,7 +21,7 @@ type SheetRow struct {
 	Source    string
 	Transform string
 	Constant  string
-	Status    string // bound | grouping | mapped | constant | aggregate | suggested | unmapped
+	Status    string // bound | grouping | mapped | constant | computed | aggregate | suggested | unmapped
 	Issues    string
 }
 
@@ -31,6 +31,7 @@ const (
 	SheetGrouping  = "grouping"
 	SheetMapped    = "mapped"
 	SheetConstant  = "constant"
+	SheetComputed  = "computed" // a template over the document's fields (OC-136)
 	SheetAggregate = "aggregate"
 	SheetSuggested = "suggested"
 	SheetUnmapped  = "unmapped"
@@ -127,6 +128,14 @@ func Sheet(s *Spec, driving TableRef, issues []Issue) []SheetRow {
 				target += "." + a.Column
 			}
 			row.Source = a.Fn + "(" + target + ")"
+		case m != nil && m.Computed != nil:
+			row.Status = SheetComputed
+			row.Source = m.Computed.Lang + ": " + m.Computed.Expr
+			var steps []string
+			for _, st := range m.Transforms {
+				steps = append(steps, st.Op)
+			}
+			row.Transform = strings.Join(steps, " → ")
 		case m != nil:
 			row.Status = SheetMapped
 			var srcs, steps []string
