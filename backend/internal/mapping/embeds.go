@@ -16,6 +16,22 @@ const (
 	RelationManyToMany = "many-to-many" // through a junction table → an array
 )
 
+// Which way a relationship points, as seen from the table offering it (OC-157): References
+// are the tables its foreign keys point to; Referenced by are the tables pointing to it.
+const (
+	DirectionReferences   = "references"
+	DirectionReferencedBy = "referencedBy"
+)
+
+// Cardinalities as seen from the table offering the relationship (OC-157). A one-to-one is
+// embedded as an object both ways; Kind stays the embed shape.
+const (
+	CardinalityOneToOne   = "one-to-one"
+	CardinalityManyToOne  = "many-to-one"
+	CardinalityOneToMany  = "one-to-many"
+	CardinalityManyToMany = "many-to-many"
+)
+
 // Relation limits and empty-array handling.
 const (
 	DefaultEmbedLimit = 1000
@@ -327,6 +343,9 @@ type EmbedCandidate struct {
 	EmbedID string `json:"embedId,omitempty"`
 	// Virtual is the ID of the virtual relationship this candidate comes from (OC-042).
 	Virtual string `json:"virtual,omitempty"`
+	// Direction and Cardinality as seen from the parent (OC-157).
+	Direction   string `json:"direction"`
+	Cardinality string `json:"cardinality"`
 }
 
 // Candidates lists the embeddable relations of a table: its foreign keys (many-to-one) and the
@@ -345,7 +364,10 @@ func Candidates(snap *schema.Snapshot, parent *schema.Table, s *Spec) []EmbedCan
 		return ""
 	}
 	for _, fk := range parent.ForeignKeys {
-		c := EmbedCandidate{Kind: EmbedManyToOne, Table: TableRef{fk.RefSchema, fk.RefTable}, Constraint: fk.Name}
+		c := EmbedCandidate{Kind: EmbedManyToOne, Table: TableRef{fk.RefSchema, fk.RefTable}, Constraint: fk.Name, Direction: DirectionReferences, Cardinality: CardinalityManyToOne}
+		if parent.UniqueKey(fk.Columns) {
+			c.Cardinality = CardinalityOneToOne
+		}
 		for i := range fk.Columns {
 			if i < len(fk.RefColumns) {
 				c.Join = append(c.Join, JoinPair{Parent: fk.Columns[i], Child: fk.RefColumns[i]})
@@ -358,7 +380,7 @@ func Candidates(snap *schema.Snapshot, parent *schema.Table, s *Spec) []EmbedCan
 		out = append(out, c)
 	}
 	for _, ref := range parent.ReferencedBy {
-		c := EmbedCandidate{Kind: EmbedOneToMany, Table: TableRef{ref.Schema, ref.Table}, Constraint: ref.Name}
+		c := EmbedCandidate{Kind: EmbedOneToMany, Table: TableRef{ref.Schema, ref.Table}, Constraint: ref.Name, Direction: DirectionReferencedBy, Cardinality: CardinalityOneToMany}
 		for i := range ref.Columns {
 			if i < len(ref.RefColumns) {
 				c.Join = append(c.Join, JoinPair{Parent: ref.RefColumns[i], Child: ref.Columns[i]})
@@ -367,13 +389,20 @@ func Candidates(snap *schema.Snapshot, parent *schema.Table, s *Spec) []EmbedCan
 		if t := snap.Table(ref.Schema, ref.Table); t != nil {
 			c.RowEstimate = t.RowEstimate
 			c.RowsPerParent = rowsPerParent(parent, t)
+			// A unique foreign key gives at most one child per parent: an object, not an array.
+			if t.UniqueKey(ref.Columns) {
+				c.Kind, c.Cardinality, c.RowsPerParent = EmbedManyToOne, CardinalityOneToOne, 1
+			}
 		}
 		c.EmbedID = existing(c.Kind, c.Table, c.Join)
+		if c.EmbedID == "" && c.Cardinality == CardinalityOneToOne {
+			c.EmbedID = existing(EmbedOneToMany, c.Table, c.Join) // embedded as an array before OC-157
+		}
 		out = append(out, c)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Kind != out[j].Kind {
-			return out[i].Kind == EmbedManyToOne
+		if out[i].Direction != out[j].Direction {
+			return out[i].Direction == DirectionReferences
 		}
 		return out[i].Table.String() < out[j].Table.String()
 	})

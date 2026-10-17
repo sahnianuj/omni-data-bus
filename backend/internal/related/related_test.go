@@ -164,3 +164,23 @@ func TestKeyOf_NormalizesTypes(t *testing.T) {
 	_, ok := KeyOf([]any{"a"}, []int{3})
 	require.False(t, ok)
 }
+
+// OC-157 AC4: a one-to-one from the referenced side (customer ← customer_profile, unique
+// customer_id) is a many-to-one keyed on the child's foreign key: one object per parent.
+func TestPlans_OC157_ReverseOneToOneIsOneObject(t *testing.T) {
+	parent, _, _ := tables()
+	profile := &schema.Table{Name: "customer_profile", PrimaryKey: []string{"customer_id"}, Columns: []schema.Column{{Name: "bio", UDTName: "text"}, {Name: "customer_id", UDTName: "int4"}}}
+	s := &mapping.Spec{
+		Relations:     []mapping.Relation{{ID: "p", Kind: mapping.EmbedManyToOne, Table: mapping.TableRef{Schema: "shop", Name: "customer_profile"}, Join: []mapping.JoinPair{{Parent: "customer_id", Child: "customer_id"}}}},
+		FieldMappings: []mapping.FieldMapping{{ID: "m1", Sources: []mapping.SourceRef{{Column: "bio", Relation: "p"}}, State: mapping.StateActive}},
+		DocSchema:     docschema.Schema{Root: docschema.NewRoot()},
+	}
+	plans, err := Plans(s, parent, func(_, n string) *schema.Table { return map[string]*schema.Table{"customer_profile": profile}[n] })
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	require.False(t, plans[0].Many)
+	require.Equal(t, 1, plans[0].Keep)
+	require.Equal(t, []string{"customer_id"}, plans[0].Query.Join)
+	require.Equal(t, []int{0}, plans[0].ParentIdx)
+	require.Equal(t, []int{1}, plans[0].ChildIdx)
+}

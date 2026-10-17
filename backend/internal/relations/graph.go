@@ -25,8 +25,12 @@ const (
 type Hop struct {
 	From mapping.TableRef   `json:"from"`
 	To   mapping.TableRef   `json:"to"`
-	Kind string             `json:"kind"` // many-to-one | one-to-many (as seen from From)
+	Kind string             `json:"kind"` // the embed shape: many-to-one (object) | one-to-many (array)
 	Join []mapping.JoinPair `json:"join"` // parent = From's column, child = To's
+	// Direction (references | referencedBy) and Cardinality (one-to-one | many-to-one |
+	// one-to-many) as seen from From (OC-157). A one-to-one has Kind many-to-one both ways.
+	Direction   string `json:"direction"`
+	Cardinality string `json:"cardinality"`
 	// Constraint is the foreign key's name; RelationshipID the virtual relationship's.
 	Constraint     string `json:"constraint,omitempty"`
 	RelationshipID string `json:"relationshipId,omitempty"`
@@ -72,7 +76,8 @@ type Graph struct {
 func key(t mapping.TableRef) string { return t.Schema + "." + t.Name }
 
 // Build makes the graph: each foreign key gives a many-to-one hop from the referencing table
-// and a one-to-many hop back; each virtual relationship gives hops in both directions by its
+// and a one-to-many hop back (many-to-one when the foreign key's columns are unique: a
+// one-to-one, OC-157); each virtual relationship gives hops in both directions by its
 // cardinality (one-to-one relationships are objects both ways).
 func Build(snap *schema.Snapshot, virtual []store.Relationship) *Graph {
 	g := &Graph{snap: snap, adj: map[string][]Hop{}}
@@ -100,8 +105,14 @@ func Build(snap *schema.Snapshot, virtual []store.Relationship) *Graph {
 						down = append(down, mapping.JoinPair{Parent: fk.RefColumns[i], Child: fk.Columns[i]})
 					}
 				}
-				add(Hop{From: self, To: ref, Kind: mapping.EmbedManyToOne, Join: up, Constraint: fk.Name})
-				add(Hop{From: ref, To: self, Kind: mapping.EmbedOneToMany, Join: down, Constraint: fk.Name})
+				fwd := Hop{From: self, To: ref, Kind: mapping.EmbedManyToOne, Join: up, Constraint: fk.Name, Direction: mapping.DirectionReferences, Cardinality: mapping.CardinalityManyToOne}
+				back := Hop{From: ref, To: self, Kind: mapping.EmbedOneToMany, Join: down, Constraint: fk.Name, Direction: mapping.DirectionReferencedBy, Cardinality: mapping.CardinalityOneToMany}
+				if t.UniqueKey(fk.Columns) {
+					fwd.Cardinality = mapping.CardinalityOneToOne
+					back.Kind, back.Cardinality = mapping.EmbedManyToOne, mapping.CardinalityOneToOne
+				}
+				add(fwd)
+				add(back)
 			}
 		}
 	}
@@ -116,14 +127,17 @@ func Build(snap *schema.Snapshot, virtual []store.Relationship) *Graph {
 			}
 		}
 		fk, bk := mapping.EmbedManyToOne, mapping.EmbedOneToMany
+		fc, bc := mapping.CardinalityManyToOne, mapping.CardinalityOneToMany
 		switch r.Cardinality {
 		case CardinalityOneToMany:
 			fk, bk = mapping.EmbedOneToMany, mapping.EmbedManyToOne
+			fc, bc = mapping.CardinalityOneToMany, mapping.CardinalityManyToOne
 		case CardinalityOneToOne:
 			bk = mapping.EmbedManyToOne
+			fc, bc = mapping.CardinalityOneToOne, mapping.CardinalityOneToOne
 		}
-		add(Hop{From: from, To: to, Kind: fk, Join: fwd, RelationshipID: r.ID, Virtual: true})
-		add(Hop{From: to, To: from, Kind: bk, Join: back, RelationshipID: r.ID, Virtual: true})
+		add(Hop{From: from, To: to, Kind: fk, Join: fwd, RelationshipID: r.ID, Virtual: true, Direction: mapping.DirectionReferences, Cardinality: fc})
+		add(Hop{From: to, To: from, Kind: bk, Join: back, RelationshipID: r.ID, Virtual: true, Direction: mapping.DirectionReferencedBy, Cardinality: bc})
 	}
 	for k := range g.adj {
 		sort.SliceStable(g.adj[k], func(i, j int) bool { return key(g.adj[k][i].To) < key(g.adj[k][j].To) })

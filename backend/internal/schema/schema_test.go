@@ -53,3 +53,25 @@ func TestSnapshot_SummarizeDropsDetail(t *testing.T) {
 	require.NotContains(t, string(b), `"columns"`)
 	require.Contains(t, string(b), `"hasPrimaryKey":true`)
 }
+
+func TestUniqueKey(t *testing.T) {
+	tb := &Table{
+		PrimaryKey:        []string{"cart_id"},
+		UniqueConstraints: [][]string{{"store", "code"}},
+		Indexes: []Index{
+			{Name: "ix_pair", Columns: []string{"a", "b"}, Unique: true},
+			{Name: "ix_expr", Columns: []string{"expr", "c"}, Unique: true},
+			{Name: "ix_plain", Columns: []string{"d"}},
+		},
+		Columns: []Column{{Name: "email", IsUnique: true}, {Name: "d"}},
+	}
+	require.True(t, tb.UniqueKey([]string{"cart_id"}), "primary key")
+	require.True(t, tb.UniqueKey([]string{"code", "store"}), "unique constraint, any order")
+	require.True(t, tb.UniqueKey([]string{"b", "a"}), "unique index, any order")
+	require.True(t, tb.UniqueKey([]string{"email"}), "single unique column")
+	require.False(t, tb.UniqueKey([]string{"c"}), "expression index")
+	require.False(t, tb.UniqueKey([]string{"d"}), "non-unique index")
+	require.False(t, tb.UniqueKey([]string{"a"}), "subset of a unique index")
+	require.False(t, tb.UniqueKey([]string{"cart_id", "d"}), "superset of the key")
+	require.False(t, tb.UniqueKey(nil))
+}

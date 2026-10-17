@@ -1,11 +1,13 @@
 import { AlertTriangle, ChevronRight, Link2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ResizeHandle, usePaneSize } from '@/components/ui/resize-handle'
 import { Can } from '@/features/auth/Can'
 import { cn } from '@/lib/utils'
 import { DEFAULT_EMBED_LIMIT, EmbedDialog, type EmbedHop, type EmbedPlan } from './EmbedDialog'
+import { cardinalityChip, directionOf, groupByDirection, type Cardinality, type Direction } from './relatedGroups'
 import { useRelationGraph } from './relationsApi'
 import { fieldsById } from './embeds'
 import { useWorkbench } from './store'
@@ -15,7 +17,12 @@ import { VirtualRelationshipDialog } from './VirtualRelationshipDialog'
 type JoinPair = { parent: string; child: string }
 
 /** A node of the tree: one hop, the hops reachable after it, and what the view knows about it. */
-type Node = { key: string; hop: EmbedHop & { indexed?: boolean; relationshipId?: string }; children: Node[]; candidate?: EmbedCandidate }
+type Node = {
+  key: string
+  hop: EmbedHop & { indexed?: boolean; relationshipId?: string; direction: Direction; cardinality: Exclude<Cardinality, 'many-to-many'> }
+  children: Node[]
+  candidate?: EmbedCandidate
+}
 
 const joinKey = (j: JoinPair[]) => j.map((p) => `${p.parent}=${p.child}`).join(',')
 const hopKey = (h: { kind: string; to?: { schema: string; name: string }; table?: { schema: string; name: string }; join: JoinPair[] }) => {
@@ -24,21 +31,31 @@ const hopKey = (h: { kind: string; to?: { schema: string; name: string }; table?
 }
 const sameJoin = (a: JoinPair[] | undefined, b: JoinPair[]) => joinKey(a ?? []) === joinKey(b)
 
-/** The relation already embedding hop under parent ('' = the root), if any. */
+/**
+ * The relation already embedding hop under parent ('' = the root), if any. A one-to-one from
+ * the referenced side embedded as an array (before OC-157, or by choice) counts too.
+ */
 function relationFor(spec: MappingSpec, parent: string, hop: EmbedHop) {
+  const legacyArray = hop.direction === 'referencedBy' && hop.cardinality === 'one-to-one'
   return spec.relations.find(
-    (r) => (r.parentId ?? '') === parent && r.kind === hop.kind && r.table.schema === hop.table.schema && r.table.name === hop.table.name && sameJoin(r.join, hop.join),
+    (r) =>
+      (r.parentId ?? '') === parent &&
+      (r.kind === hop.kind || (legacyArray && r.kind === 'one-to-many')) &&
+      r.table.schema === hop.table.schema &&
+      r.table.name === hop.table.name &&
+      sameJoin(r.join, hop.join),
   )
 }
 
-const toHop = (h: RelationHop): Node['hop'] => ({ kind: h.kind, table: h.to, join: h.join, virtual: h.virtual, indexed: h.indexed, relationshipId: h.relationshipId })
+const toHop = (h: RelationHop): Node['hop'] => ({ kind: h.kind, table: h.to, join: h.join, virtual: h.virtual, indexed: h.indexed, relationshipId: h.relationshipId, ...directionOf(h) })
 
 /**
  * The source panel's Related tables as a tree (OC-042 AC6; OC-021 AC1 at the first level):
  * foreign-key parents (↗) and children (↙) of the mapped table and of theirs, several hops
  * deep, virtual relationships (badged), junction candidates (↔ products via order_items) and
  * index advice. Embedding a deeper row nests it under the relations already embedded on its
- * path, creating the missing ones in one step (OC-043 AC7).
+ * path, creating the missing ones in one step (OC-043 AC7). At every level the rows are split
+ * into References and Referenced by, each with its cardinality (OC-157).
  */
 export function RelatedTree() {
   const { t, i18n } = useTranslation()
@@ -47,9 +64,12 @@ export function RelatedTree() {
   const candidates = useMemo(() => view.embedCandidates ?? [], [view.embedCandidates])
   const graph = useRelationGraph(`${view.projectId}::source`, `${view.sourceSchema}.${view.sourceTable}`)
   const [open, setOpen] = useState(true)
+  // Its height, dragged from its top edge and remembered; the columns above keep at least 7rem.
+  const pane = usePaneSize('mapping.related', 320, 120, 2000)
   // Rows the user opened or closed: an embedded row starts open (what it references can be
   // embedded next), any other starts closed.
   const [toggled, setToggled] = useState<Set<string>>(new Set())
+  const [closedGroups, setClosedGroups] = useState<Set<Direction>>(new Set())
   const [plan, setPlan] = useState<EmbedPlan | null>(null)
   const [virtualOpen, setVirtualOpen] = useState(false)
   const n = (x: number) => Math.round(x).toLocaleString(i18n.language)
@@ -60,7 +80,7 @@ export function RelatedTree() {
     const byKey = new Map<string, Node>()
     const out: Node[] = []
     for (const c of candidates) {
-      const node: Node = { key: hopKey(c), hop: { kind: c.kind, table: c.table, join: c.join, virtual: !!c.virtual, relationshipId: c.virtual }, children: [], candidate: c }
+      const node: Node = { key: hopKey(c), hop: { kind: c.kind, table: c.table, join: c.join, virtual: !!c.virtual, relationshipId: c.virtual, ...directionOf(c) }, children: [], candidate: c }
       byKey.set(node.key, node)
       out.push(node)
     }
@@ -103,7 +123,7 @@ export function RelatedTree() {
       parent = r.id
       label = path[i]!.hop.table.name
     }
-    setPlan({ mode: 'hops', hops: path.slice(i).map((x) => ({ kind: x.hop.kind, table: x.hop.table, join: x.hop.join, virtual: x.hop.virtual })), parentId: parent || undefined, parentLabel: label || undefined })
+    setPlan({ mode: 'hops', hops: path.slice(i).map((x) => ({ kind: x.hop.kind, table: x.hop.table, join: x.hop.join, virtual: x.hop.virtual, direction: x.hop.direction, cardinality: x.hop.cardinality })), parentId: parent || undefined, parentLabel: label || undefined })
   }
 
   const embeddedPath = (path: Node[]) => {
@@ -114,6 +134,40 @@ export function RelatedTree() {
       parent = r.id
     }
     return true
+  }
+
+  /** "Several cart_items rows each, embedded as an array" and the like, for tooltips. */
+  const shapeTitle = (card: Cardinality, table: string) => t(`embed.shapeOf.${cardinalityChip[card].key}`, { table })
+
+  const chip = (cardinality: Cardinality, table: string) => {
+    const c = cardinalityChip[cardinality]
+    return (
+      <span className="rounded border border-border px-1 font-mono text-[10px] leading-4 text-muted" aria-label={t(`embed.card.${c.key}`)} title={shapeTitle(cardinality, table)}>
+        {c.text}
+      </span>
+    )
+  }
+
+  /** A node's hops under compact References / Referenced by headings; an empty one is left out. */
+  const renderSubgroups = (node: Node, path: Node[], depth: number) => {
+    const groups = groupByDirection(node.children)
+    return (['references', 'referencedBy'] as const).map((dir) =>
+      groups[dir].length === 0 ? null : (
+        <div key={dir} role="group" aria-label={t(`embed.${dir}Of`, { table: node.hop.table.name })}>
+          <div className="py-0.5 text-[11px] text-subtle" style={{ paddingLeft: 12 + depth * 14 + 18 }} aria-hidden>
+            {t(`embed.${dir}`)}
+          </div>
+          <ul>{groups[dir].map((k) => renderNode(k, path, depth))}</ul>
+        </div>
+      ),
+    )
+  }
+
+  const toggleGroup = (dir: Direction) => {
+    const next = new Set(closedGroups)
+    if (next.has(dir)) next.delete(dir)
+    else next.add(dir)
+    setClosedGroups(next)
   }
 
   const toggle = (key: string) => {
@@ -127,7 +181,7 @@ export function RelatedTree() {
     const c = node.candidate
     const h = node.hop
     const full = [...path, node]
-    const columns = h.join.map((j) => (h.kind === 'many-to-one' ? j.parent : j.child)).join(', ')
+    const columns = h.join.map((j) => (h.direction === 'references' ? j.parent : j.child)).join(', ')
     const perParent = c?.kind === 'one-to-many' ? (c.rowsPerParent ?? 0) : 0
     const tooMany = perParent > DEFAULT_EMBED_LIMIT
     const noIndex = h.kind === 'one-to-many' && h.indexed === false ? advice.get(`${h.table.schema}.${h.table.name}|${h.join.map((j) => j.child).join(',')}`) : undefined
@@ -144,12 +198,13 @@ export function RelatedTree() {
             <span className="w-3.5" />
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1" title={t(h.kind === 'many-to-one' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}>
-              <span className="truncate">{t(h.kind === 'many-to-one' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}</span>
+            <div className="flex min-w-0 items-center gap-1" title={t(h.direction === 'references' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}>
+              <span className="truncate">{t(h.direction === 'references' ? 'embed.parent' : 'embed.child', { table: h.table.name, columns })}</span>
               {h.virtual ? <Badge tone="primary">{t('embed.virtual')}</Badge> : null}
             </div>
             <div className="flex items-center gap-1 text-[11px] text-subtle">
-              {c?.kind === 'one-to-many' && c.rowsPerParent ? t('embed.perParent', { n: n(c.rowsPerParent) }) : c?.rowEstimate != null ? t('embed.rows', { n: n(c.rowEstimate) }) : null}
+              {chip(h.cardinality, h.table.name)}
+              {h.cardinality === 'one-to-one' ? null : c?.kind === 'one-to-many' && c.rowsPerParent ? t('embed.perParent', { n: n(c.rowsPerParent) }) : c?.rowEstimate != null ? t('embed.rows', { n: n(c.rowEstimate) }) : null}
               {tooMany ? (
                 <span className="inline-flex items-center gap-0.5 text-warning" title={t('embed.tooMany', { n: n(perParent), limit: DEFAULT_EMBED_LIMIT })}>
                   <AlertTriangle className="size-3" aria-label={t('embed.tooMany', { n: n(perParent), limit: DEFAULT_EMBED_LIMIT })} />
@@ -164,16 +219,16 @@ export function RelatedTree() {
             </div>
           </div>
           {embedded ? (
-            <Badge tone="success" className="shrink-0">{t('embed.embedded')}</Badge>
+            <Badge tone="success" className="shrink-0" title={shapeTitle(h.cardinality, h.table.name)}>{t('embed.embedded')}</Badge>
           ) : (
             <Can role="editor">
-              <Button size="sm" variant="secondary" className="h-7 shrink-0 px-2.5 text-xs" onClick={() => embedPath(full)}>
+              <Button size="sm" variant="secondary" className="h-7 shrink-0 px-2.5 text-xs" title={shapeTitle(h.cardinality, h.table.name)} onClick={() => embedPath(full)}>
                 {t('embed.embed')}
               </Button>
             </Can>
           )}
         </div>
-        {isOpen && node.children.length > 0 ? <ul>{node.children.map((k) => renderNode(k, full, depth + 1))}</ul> : null}
+        {isOpen && node.children.length > 0 ? renderSubgroups(node, full, depth + 1) : null}
       </li>
     )
   }
@@ -181,13 +236,73 @@ export function RelatedTree() {
   const junctionEmbedded = (j: JunctionCandidate) =>
     spec.relations.some((r) => (r.parentId ?? '') === base(j.parentJoin) && r.kind === 'many-to-many' && r.table.name === j.table.name && r.via?.table.name === j.via.name)
 
+  const groups = groupByDirection(roots)
+  const total = roots.length + junctions.length
+
+  const junctionRow = (j: JunctionCandidate) => (
+    <li key={`${j.via.name}-${j.table.name}-${joinKey(j.childJoin.map((c) => ({ parent: c.via, child: c.child ?? '' })))}`} data-testid={`junction-${j.via.name}-${j.table.name}`} className="flex items-center gap-2 py-1.5 pl-[26px] pr-3 text-[13px]">
+      <div className="min-w-0 flex-1">
+        <div className="truncate" title={`${t('embed.junction', { table: j.table.name, via: j.via.name })}${j.payloadColumns.length > 0 ? ` (${j.payloadColumns.join(', ')})` : ''}`}>
+          {t('embed.junction', { table: j.table.name, via: j.via.name })}
+          {j.payloadColumns.length > 0 ? <span className="text-subtle"> ({j.payloadColumns.join(', ')})</span> : null}
+        </div>
+        <div className="flex items-center gap-1 truncate text-[11px] text-subtle">
+          {chip('many-to-many', j.table.name)}
+          {t(`embed.confidence.${j.confidence}`)}
+        </div>
+      </div>
+      {junctionEmbedded(j) ? (
+        <Badge tone="success" className="shrink-0" title={shapeTitle('many-to-many', j.table.name)}>{t('embed.embedded')}</Badge>
+      ) : (
+        <Can role="editor">
+          {/* Same visible label as every row; the accessible name says it's an array. */}
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 shrink-0 px-2.5 text-xs"
+            aria-label={t('embed.embedArray', { table: j.table.name })}
+            title={t('embed.embedArray', { table: j.table.name })}
+            onClick={() => setPlan({ mode: 'junction', junction: j, ...(base(j.parentJoin) ? { parentId: base(j.parentJoin), parentLabel: groupName } : {}) })}
+          >
+            {t('embed.embed')}
+          </Button>
+        </Can>
+      )}
+    </li>
+  )
+
+  /** A top-level group: a sticky heading with its count that opens and closes it (OC-157). */
+  const section = (dir: Direction, count: number, rows: ReactNode) => {
+    const isOpen = !closedGroups.has(dir)
+    return (
+      <div role="group" aria-label={t(`embed.${dir}`)} data-testid={`related-group-${dir}`}>
+        <button
+          type="button"
+          className="sticky top-0 z-10 flex w-full items-center gap-1.5 bg-surface px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-subtle hover:text-foreground"
+          aria-expanded={isOpen}
+          onClick={() => toggleGroup(dir)}
+        >
+          <ChevronRight className={cn('size-3 transition-transform', isOpen && 'rotate-90')} aria-hidden />
+          {t(`embed.${dir}`)}
+          <span className="font-normal normal-case">{count}</span>
+        </button>
+        {isOpen ? count === 0 ? <p className="px-3 pb-1.5 pl-[26px] text-xs text-subtle">{t(dir === 'references' ? 'embed.noReferences' : 'embed.noReferencedBy', { table: view.sourceTable })}</p> : <ul>{rows}</ul> : null}
+      </div>
+    )
+  }
+
   return (
-    <section className="shrink-0 border-t border-border" aria-label={t('embed.related')}>
-      <div className="flex h-9 items-center bg-surface-muted pr-2 text-xs font-medium text-muted">
+    <section
+      className="relative flex min-h-0 shrink-0 flex-col border-t border-border"
+      style={open ? { height: pane.size, maxHeight: 'calc(100% - 7rem)' } : undefined}
+      aria-label={t('embed.related')}
+    >
+      {open ? <ResizeHandle pane={pane} edge="top" label={t('embed.resize')} /> : null}
+      <div className="flex h-9 shrink-0 items-center bg-surface-muted pr-2 text-xs font-medium text-muted">
         <button type="button" className="flex h-full flex-1 items-center gap-1.5 px-3" aria-expanded={open} onClick={() => setOpen(!open)}>
           <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} aria-hidden />
           {t('embed.related')}
-          <span className="ml-auto text-subtle">{roots.length}</span>
+          <span className="ml-auto text-subtle">{total}</span>
         </button>
         <Can role="editor">
           <button type="button" className="ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-muted hover:bg-surface hover:text-foreground" onClick={() => setVirtualOpen(true)}>
@@ -197,46 +312,16 @@ export function RelatedTree() {
         </Can>
       </div>
       {open ? (
-        <div className="max-h-72 overflow-y-auto py-1">
-          <ul>
-            {roots.length === 0 ? <li className="px-3 py-2 text-xs text-subtle">{t('embed.none')}</li> : null}
-            {roots.map((r) => renderNode(r, [], 0))}
-          </ul>
-          {junctions.length > 0 ? (
+        // Scrolls on its own; at either end the wheel stops here instead of scrolling the page.
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1">
+          {total === 0 ? (
+            <p className="px-3 py-2 text-xs text-subtle">{t('embed.none')}</p>
+          ) : (
             <>
-              <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-subtle">{t('embed.junctions')}</div>
-              <ul aria-label={t('embed.junctions')}>
-                {junctions.map((j) => (
-                  <li key={`${j.via.name}-${j.table.name}-${joinKey(j.childJoin.map((c) => ({ parent: c.via, child: c.child ?? '' })))}`} data-testid={`junction-${j.via.name}-${j.table.name}`} className="flex items-center gap-2 py-1.5 pl-[26px] pr-3 text-[13px]">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate" title={`${t('embed.junction', { table: j.table.name, via: j.via.name })}${j.payloadColumns.length > 0 ? ` (${j.payloadColumns.join(', ')})` : ''}`}>
-                        {t('embed.junction', { table: j.table.name, via: j.via.name })}
-                        {j.payloadColumns.length > 0 ? <span className="text-subtle"> ({j.payloadColumns.join(', ')})</span> : null}
-                      </div>
-                      <div className="truncate text-[11px] text-subtle">{t(`embed.confidence.${j.confidence}`)}</div>
-                    </div>
-                    {junctionEmbedded(j) ? (
-                      <Badge tone="success" className="shrink-0">{t('embed.embedded')}</Badge>
-                    ) : (
-                      <Can role="editor">
-                        {/* The row already names the table: a short label keeps the button from crowding it out. */}
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="h-7 shrink-0 px-2.5 text-xs"
-                          aria-label={t('embed.embedArray', { table: j.table.name })}
-                          title={t('embed.embedArray', { table: j.table.name })}
-                          onClick={() => setPlan({ mode: 'junction', junction: j, ...(base(j.parentJoin) ? { parentId: base(j.parentJoin), parentLabel: groupName } : {}) })}
-                        >
-                          {t('embed.embedArrayShort')}
-                        </Button>
-                      </Can>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              {section('references', groups.references.length, groups.references.map((r) => renderNode(r, [], 0)))}
+              {section('referencedBy', groups.referencedBy.length + junctions.length, [...groups.referencedBy.map((r) => renderNode(r, [], 0)), ...junctions.map(junctionRow)])}
             </>
-          ) : null}
+          )}
         </div>
       ) : null}
       {plan ? <EmbedDialog plan={plan} onClose={() => setPlan(null)} /> : null}

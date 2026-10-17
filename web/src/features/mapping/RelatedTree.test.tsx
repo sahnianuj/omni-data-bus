@@ -1,5 +1,6 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import axe from 'axe-core'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { server, setupMswServer } from '@/test/msw'
@@ -115,5 +116,96 @@ describe('RelatedTree', () => {
     }
     renderWorkbench(<RelatedTree />, view)
     expect(within(screen.getByTestId('related-product')).getByText('Embedded')).toBeInTheDocument()
+  })
+
+  it('OC-157 AC1/AC3: References and Referenced by, each with cardinality chips', async () => {
+    renderWorkbench(
+      <RelatedTree />,
+      embedView({
+        embedCandidates: [
+          { kind: 'many-to-one', table: { schema: 'shop', name: 'address' }, join: [{ parent: 'address_id', child: 'address_id' }], constraint: 'customer_address_fk', rowEstimate: 400, direction: 'references', cardinality: 'many-to-one' },
+          { kind: 'many-to-one', table: { schema: 'shop', name: 'profile' }, join: [{ parent: 'customer_id', child: 'customer_id' }], constraint: 'profile_customer_fk', rowEstimate: 1900, rowsPerParent: 1, direction: 'referencedBy', cardinality: 'one-to-one' },
+          { kind: 'one-to-many', table: { schema: 'shop', name: 'orders' }, join: [{ parent: 'customer_id', child: 'customer_id' }], constraint: 'orders_customer_fk', rowEstimate: 1_200_000, rowsPerParent: 600, embedId: 'emb_o', direction: 'referencedBy', cardinality: 'one-to-many' },
+        ],
+      }),
+    )
+    const refs = screen.getByRole('group', { name: 'References' })
+    const refBy = screen.getByRole('group', { name: 'Referenced by' })
+    expect(within(refs).getAllByRole('listitem').map((i) => i.textContent)).toEqual([expect.stringContaining('↗ address via address_id')])
+    expect(within(refBy).getAllByRole('listitem').map((i) => i.textContent)).toEqual([expect.stringContaining('↙ profile via customer_id'), expect.stringContaining('↙ orders via customer_id')])
+    expect(screen.getByRole('button', { name: /Related tables/ })).toHaveTextContent('3')
+
+    expect(within(refs).getByLabelText('many-to-one')).toHaveTextContent('N:1')
+    const [profile, orders] = within(refBy).getAllByRole('listitem')
+    // A one-to-one shows no estimate, and is embedded as an object.
+    expect(within(profile!).getByLabelText('one-to-one')).toHaveTextContent('1:1')
+    expect(profile).not.toHaveTextContent('rows')
+    expect(within(profile!).getByRole('button', { name: 'Embed' })).toHaveAttribute('title', 'At most one profile row each, embedded as an object')
+    expect(within(orders!).getByLabelText('one-to-many')).toHaveTextContent('1:N')
+    expect(orders).toHaveTextContent('~600 per row')
+
+    // Groups close and open on their own.
+    await userEvent.click(within(refBy).getByRole('button', { name: /Referenced by/ }))
+    expect(within(refBy).queryAllByRole('listitem')).toHaveLength(0)
+    expect(within(refs).getAllByRole('listitem')).toHaveLength(1)
+  })
+
+  it('OC-157 AC1: says when a group is empty', () => {
+    renderWorkbench(
+      <RelatedTree />,
+      embedView({ embedCandidates: [{ kind: 'one-to-many', table: { schema: 'shop', name: 'orders' }, join: [{ parent: 'customer_id', child: 'customer_id' }], constraint: 'orders_customer_fk' }] }),
+    )
+    expect(screen.getByRole('group', { name: 'References' })).toHaveTextContent("customer doesn't reference other tables.")
+  })
+
+  it('OC-157 AC1: hops under an embedded row are grouped too, and junctions are Referenced by', async () => {
+    server.use(http.get('*/api/v1/connections/:id/relations', () => HttpResponse.json(ordersGraph())))
+    const view = ordersView()
+    view.spec = { ...view.spec, relations: [{ id: 'emb_i', parentId: null, kind: 'one-to-many', table: { schema: 'public', name: 'order_items' }, join: [{ parent: 'order_id', child: 'order_id' }] }] }
+    renderWorkbench(<RelatedTree />, view)
+    await screen.findByTestId('related-order_items/products')
+    const under = screen.getByRole('group', { name: 'Tables order_items references' })
+    expect(within(under).getByTestId('related-order_items/products')).toHaveTextContent('↗ products via product_id')
+    expect(screen.queryByRole('group', { name: 'Tables referencing order_items' })).not.toBeInTheDocument()
+
+    const refBy = screen.getByRole('group', { name: 'Referenced by' })
+    const junction = within(refBy).getByTestId('junction-order_items-products')
+    expect(within(junction).getByLabelText('many-to-many')).toHaveTextContent('M:N')
+    expect(within(screen.getByRole('group', { name: 'References' })).getAllByTestId('related-customers')).toHaveLength(2)
+  })
+
+  it('OC-157 AC5: a one-to-one embedded earlier as an array shows as embedded', () => {
+    const view = embedView({
+      embedCandidates: [{ kind: 'many-to-one', table: { schema: 'shop', name: 'profile' }, join: [{ parent: 'customer_id', child: 'customer_id' }], constraint: 'profile_customer_fk', direction: 'referencedBy', cardinality: 'one-to-one' }],
+    })
+    view.spec = { ...view.spec, relations: [{ id: 'emb_p', parentId: null, kind: 'one-to-many', table: { schema: 'shop', name: 'profile' }, join: [{ parent: 'customer_id', child: 'customer_id' }] }] }
+    renderWorkbench(<RelatedTree />, view)
+    const row = within(screen.getByRole('group', { name: 'Referenced by' })).getByRole('listitem')
+    expect(within(row).getByText('Embedded')).toBeInTheDocument()
+  })
+
+  it('OC-157 AC7: the grouped panel has no axe violations', async () => {
+    server.use(http.get('*/api/v1/connections/:id/relations', () => HttpResponse.json(ordersGraph())))
+    renderWorkbench(<RelatedTree />, ordersView())
+    await screen.findByTestId('junction-order_items-products')
+    const res = await axe.run(screen.getByRole('region', { name: 'Related tables' }), { rules: { 'color-contrast': { enabled: false } } })
+    expect(res.violations).toEqual([])
+  })
+
+  it('the pane fills its height, scrolls on its own and is resized from its top edge', () => {
+    window.localStorage.removeItem('odb.pane.mapping.related')
+    const { unmount } = renderWorkbench(<RelatedTree />, embedView())
+    const pane = screen.getByRole('region', { name: 'Related tables' })
+    expect(pane).toHaveStyle({ height: '320px' })
+    const handle = within(pane).getByRole('separator', { name: 'Resize Related tables' })
+    fireEvent.keyDown(handle, { key: 'ArrowUp' })
+    expect(pane).toHaveStyle({ height: '336px' })
+    // Closed, it's just its header: no height and no handle.
+    fireEvent.click(within(pane).getByRole('button', { name: /Related tables/ }))
+    expect(pane).not.toHaveStyle({ height: '336px' })
+    expect(within(pane).queryByRole('separator')).not.toBeInTheDocument()
+    unmount()
+    renderWorkbench(<RelatedTree />, embedView())
+    expect(screen.getByRole('region', { name: 'Related tables' })).toHaveStyle({ height: '336px' })
   })
 })

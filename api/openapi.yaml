@@ -2268,6 +2268,16 @@ components:
         rowsPerParent: { type: number }
         embedId: { type: string }
         virtual: { type: string, description: 'The virtual relationship this candidate comes from (OC-042)' }
+        direction: { $ref: '#/components/schemas/RelationDirection' }
+        cardinality: { $ref: '#/components/schemas/RelationCardinality' }
+    RelationDirection:
+      type: string
+      description: 'references = a table this one''s foreign key points to; referencedBy = a table whose foreign key points here (OC-157). Always set by the server.'
+      enum: [references, referencedBy]
+    RelationCardinality:
+      type: string
+      description: 'As seen from the table offering the relationship (OC-157). kind stays the embed shape: a one-to-one is many-to-one (an object) both ways.'
+      enum: [one-to-one, many-to-one, one-to-many]
     EmbedTable:
       type: object
       required: [table, columns]
@@ -2390,6 +2400,8 @@ components:
         to: { $ref: '#/components/schemas/TableRef' }
         kind: { $ref: '#/components/schemas/EmbedKind' }
         join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
+        direction: { $ref: '#/components/schemas/RelationDirection' }
+        cardinality: { $ref: '#/components/schemas/RelationCardinality' }
         constraint: { type: string }
         relationshipId: { type: string }
         virtual: { type: boolean }

@@ -187,3 +187,59 @@ func BenchmarkPaths_1000Tables(b *testing.B) {
 		_ = g.Paths(root, 4)
 	}
 }
+
+// OC-157 AC2: a foreign key on unique columns is one-to-one: the hop back is an object too.
+func TestBuild_OC157_AC2_OneToOneForeignKeys(t *testing.T) {
+	snap := shopSnap()
+	sc := &snap.Schemas[0]
+	sc.Tables = append(sc.Tables, schema.Table{
+		Name: "order_totals", PrimaryKey: []string{"order_id"}, Columns: []schema.Column{cl("order_id", "int8"), cl("grand_total", "numeric")},
+		ForeignKeys: []schema.ForeignKey{{Name: "totals_order_fk", Columns: []string{"order_id"}, RefSchema: "public", RefTable: "orders", RefColumns: []string{"order_id"}}},
+	})
+	g := Build(snap, nil)
+	byTable := map[string]Hop{}
+	for _, h := range g.Hops(orders) {
+		byTable[h.To.Name] = h
+	}
+	require.Equal(t, mapping.DirectionReferences, byTable["customers"].Direction)
+	require.Equal(t, mapping.CardinalityManyToOne, byTable["customers"].Cardinality)
+	items := byTable["order_items"]
+	require.Equal(t, mapping.DirectionReferencedBy, items.Direction)
+	require.Equal(t, mapping.EmbedOneToMany, items.Kind)
+	require.Equal(t, mapping.CardinalityOneToMany, items.Cardinality)
+	totals := byTable["order_totals"]
+	require.Equal(t, mapping.DirectionReferencedBy, totals.Direction)
+	require.Equal(t, mapping.EmbedManyToOne, totals.Kind, "an object, not an array of one")
+	require.Equal(t, mapping.CardinalityOneToOne, totals.Cardinality)
+	require.Equal(t, []mapping.JoinPair{{Parent: "order_id", Child: "order_id"}}, totals.Join)
+
+	up := g.Hops(mapping.TableRef{Schema: "public", Name: "order_totals"})
+	require.Len(t, up, 1)
+	require.Equal(t, mapping.DirectionReferences, up[0].Direction)
+	require.Equal(t, mapping.CardinalityOneToOne, up[0].Cardinality)
+}
+
+// OC-157 AC6: a virtual relationship's From side references its To side, with its cardinality.
+func TestBuild_OC157_AC6_VirtualDirection(t *testing.T) {
+	v := []store.Relationship{{
+		ID: "vrel_1", From: store.RelationshipEnd{Schema: "public", Table: "orders", Columns: []string{"cust_code"}},
+		To: store.RelationshipEnd{Schema: "public", Table: "customers", Columns: []string{"code"}}, Cardinality: CardinalityOneToOne,
+	}}
+	g := Build(shopSnap(), v)
+	find := func(from mapping.TableRef, to string) Hop {
+		for _, h := range g.Hops(from) {
+			if h.Virtual && h.To.Name == to {
+				return h
+			}
+		}
+		t.Fatalf("no virtual hop %s → %s", from.Name, to)
+		return Hop{}
+	}
+	fwd := find(orders, "customers")
+	require.Equal(t, mapping.DirectionReferences, fwd.Direction)
+	require.Equal(t, mapping.CardinalityOneToOne, fwd.Cardinality)
+	back := find(mapping.TableRef{Schema: "public", Name: "customers"}, "orders")
+	require.Equal(t, mapping.DirectionReferencedBy, back.Direction)
+	require.Equal(t, mapping.CardinalityOneToOne, back.Cardinality)
+	require.Equal(t, mapping.EmbedManyToOne, back.Kind)
+}

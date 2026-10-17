@@ -78,8 +78,10 @@ LEFT JOIN pg_namespace fn ON fn.oid = fc.relnamespace
 WHERE con.contype IN ('p', 'u', 'f') AND NOT c.relispartition AND ` + userSchemas
 
 	// Only key columns (not INCLUDE columns); expression parts (attnum 0) are reported as "expr".
+	// A partial unique index (with a WHERE) is not reported as unique: it allows duplicate keys
+	// outside its predicate.
 	indexesSQL = `
-SELECT i.indrelid::int8, ic.relname, i.indisunique, i.indisprimary,
+SELECT i.indrelid::int8, ic.relname, i.indisunique AND i.indpred IS NULL, i.indisprimary,
        ARRAY(SELECT CASE WHEN k.attnum = 0 THEN 'expr' ELSE a.attname::text END
              FROM unnest(i.indkey::int2[]) WITH ORDINALITY k(attnum, ord)
              LEFT JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum

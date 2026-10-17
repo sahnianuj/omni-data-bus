@@ -182,3 +182,39 @@ func TestPreview_AC5_SeedTables(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, source.MaxPreviewLimit, "capped at 200")
 }
+
+// OC-157: a partial unique index allows duplicates outside its WHERE, so it isn't reported as
+// unique; a full unique index on the same column is, and a foreign key on it reads as one-to-one.
+func TestDiscover_PartialUniqueIndexNotUnique(t *testing.T) {
+	ctx := context.Background()
+	srv := pgServer(t)
+	owner, err := New().Open(ctx, srv.cfg(srv.owner), connectors.Credentials{Password: srv.ownerPw})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = owner.Close() })
+	conn := owner.(*pgSession).conn
+	_, err = conn.Exec(ctx, "SET default_transaction_read_only = off")
+	require.NoError(t, err)
+
+	schemaName := fmt.Sprintf("it_uniq_%d", time.Now().UnixNano())
+	_, err = conn.Exec(ctx, fmt.Sprintf(`
+CREATE SCHEMA %[1]s;
+CREATE TABLE %[1]s.cart (id int PRIMARY KEY);
+CREATE TABLE %[1]s.cart_note (id int PRIMARY KEY, cart_id int REFERENCES %[1]s.cart(id), active bool);
+CREATE UNIQUE INDEX cart_note_active ON %[1]s.cart_note (cart_id) WHERE active;
+CREATE TABLE %[1]s.cart_total (id int PRIMARY KEY, cart_id int REFERENCES %[1]s.cart(id));
+CREATE UNIQUE INDEX cart_total_cart ON %[1]s.cart_total (cart_id);`, schemaName))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := conn.Exec(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+		require.NoError(t, err)
+	})
+
+	snap, err := owner.Discover(ctx, source.DiscoverOptions{Schemas: []string{schemaName}})
+	require.NoError(t, err)
+	note := snap.Table(schemaName, "cart_note")
+	require.False(t, note.Column("cart_id").IsUnique)
+	require.False(t, note.UniqueKey([]string{"cart_id"}))
+	total := snap.Table(schemaName, "cart_total")
+	require.True(t, total.Column("cart_id").IsUnique)
+	require.True(t, total.UniqueKey([]string{"cart_id"}))
+}

@@ -3,7 +3,10 @@
 // the mapper (which reads it), so it depends on nothing else in the module.
 package schema
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // Relation kinds.
 const (
@@ -135,6 +138,45 @@ func (t *Table) Column(name string) *Column {
 		}
 	}
 	return nil
+}
+
+// UniqueKey reports whether cols (in any order) are unique in the table: they're its primary
+// key, a unique constraint or the columns of a unique index without expressions, or a single
+// column flagged unique. A foreign key on such columns is one-to-one (OC-157).
+func (t *Table) UniqueKey(cols []string) bool {
+	if len(cols) == 0 {
+		return false
+	}
+	same := func(other []string) bool {
+		if len(other) != len(cols) {
+			return false
+		}
+		for _, c := range cols {
+			if !slices.Contains(other, c) {
+				return false
+			}
+		}
+		return true
+	}
+	if same(t.PrimaryKey) {
+		return true
+	}
+	for _, u := range t.UniqueConstraints {
+		if same(u) {
+			return true
+		}
+	}
+	for _, ix := range t.Indexes {
+		if ix.Unique && !slices.Contains(ix.Columns, "expr") && same(ix.Columns) {
+			return true
+		}
+	}
+	if len(cols) == 1 {
+		if c := t.Column(cols[0]); c != nil && c.IsUnique {
+			return true
+		}
+	}
+	return false
 }
 
 // TableCount is the number of relations across all schemas.

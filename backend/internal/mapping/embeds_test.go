@@ -152,3 +152,39 @@ func TestEmbeds_ScopedAndFields(t *testing.T) {
 	require.Equal(t, "emb_2", s.Relations[1].ID)
 	require.Equal(t, DefaultEmbedLimit, Relation{}.EffectiveLimit())
 }
+
+// OC-157 AC2: a child whose foreign key is unique (here its primary key) is one-to-one: an object
+// both ways. Candidates are grouped References first, then Referenced by.
+func TestCandidates_OC157_AC2(t *testing.T) {
+	snap := shopSnap()
+	sc := &snap.Schemas[0]
+	sc.Tables = append(sc.Tables, schema.Table{
+		Name: "customer_profile", RowEstimate: est(1900), PrimaryKey: []string{"customer_id"},
+		Columns:     []schema.Column{{Name: "customer_id", UDTName: "int4", JSONType: schema.TypeInteger}, {Name: "bio", UDTName: "text", JSONType: schema.TypeString}},
+		ForeignKeys: []schema.ForeignKey{{Name: "profile_customer_fk", Columns: []string{"customer_id"}, RefSchema: "shop", RefTable: "customer", RefColumns: []string{"customer_id"}}},
+	})
+	cust := snap.Table("shop", "customer")
+	cust.ReferencedBy = append(cust.ReferencedBy, schema.Reference{Schema: "shop", Table: "customer_profile", Name: "profile_customer_fk", Columns: []string{"customer_id"}, RefColumns: []string{"customer_id"}})
+
+	got := Candidates(snap, cust, nil)
+	require.Len(t, got, 3)
+	require.Equal(t, DirectionReferences, got[0].Direction)
+	require.Equal(t, CardinalityManyToOne, got[0].Cardinality)
+	require.Equal(t, "customer_profile", got[1].Table.Name)
+	require.Equal(t, DirectionReferencedBy, got[1].Direction)
+	require.Equal(t, EmbedManyToOne, got[1].Kind, "an object, not an array of one")
+	require.Equal(t, CardinalityOneToOne, got[1].Cardinality)
+	require.InDelta(t, 1, got[1].RowsPerParent, 0.001)
+	require.Equal(t, "orders", got[2].Table.Name)
+	require.Equal(t, EmbedOneToMany, got[2].Kind)
+	require.Equal(t, CardinalityOneToMany, got[2].Cardinality)
+
+	back := Candidates(snap, snap.Table("shop", "customer_profile"), nil)
+	require.Len(t, back, 1)
+	require.Equal(t, DirectionReferences, back[0].Direction)
+	require.Equal(t, CardinalityOneToOne, back[0].Cardinality)
+
+	// AC5: embedded as an array before OC-157, it still counts as embedded.
+	s := Spec{Relations: []Relation{{ID: "emb_old", Kind: EmbedOneToMany, Table: TableRef{"shop", "customer_profile"}, Join: got[1].Join}}}
+	require.Equal(t, "emb_old", Candidates(snap, cust, &s)[1].EmbedID)
+}

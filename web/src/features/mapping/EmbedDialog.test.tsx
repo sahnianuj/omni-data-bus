@@ -172,4 +172,42 @@ describe('EmbedDialog', () => {
     expect(within(dialog).getByTestId('embed-creates')).toHaveTextContent('orderItems: array<integer>')
     expect(within(dialog).getByRole('button', { name: 'Embed' })).toBeEnabled()
   })
+
+  it('OC-157 AC4: a one-to-one from the referenced side embeds as an object by default, an array on request', async () => {
+    const bodies: AddEmbedRequest[] = []
+    const profile = {
+      kind: 'many-to-one' as const, table: { schema: 'shop', name: 'profile' }, join: [{ parent: 'customer_id', child: 'customer_id' }], constraint: 'profile_customer_fk',
+      direction: 'referencedBy' as const, cardinality: 'one-to-one' as const,
+    }
+    server.use(
+      http.get('*/api/v1/connections/:id/schema/:schema/:table', () => HttpResponse.json({ name: 'profile', columns: [scol('customer_id', 'integer'), scol('bio', 'string')] })),
+      http.post('*/api/v1/projects/:pid/mappings/:mid/embeds', async ({ request }) => {
+        bodies.push((await request.json()) as AddEmbedRequest)
+        return HttpResponse.json({ ...embedView(), version: 4 })
+      }),
+    )
+    const embed = async () => {
+      const row = within(await screen.findByRole('group', { name: 'Referenced by' })).getByRole('listitem')
+      await waitFor(() => expect(within(row).getByRole('button', { name: 'Embed' })).toBeEnabled())
+      await userEvent.click(within(row).getByRole('button', { name: 'Embed' }))
+      return screen.findByRole('dialog', { name: 'Embed profile' })
+    }
+    const { unmount } = renderWorkbench(<RelatedTree />, embedView({ embedCandidates: [profile] }))
+    let dialog = await embed()
+    expect(dialog).toHaveTextContent('Object (one-to-one)')
+    expect(within(dialog).getByLabelText('Embed as')).toHaveValue('object')
+    expect(within(dialog).queryByLabelText('At most')).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Embed' }))
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toMatchObject({ kind: 'many-to-one', table: { schema: 'shop', name: 'profile' }, join: [{ parent: 'customer_id', child: 'customer_id' }], targetName: 'profile' })
+    unmount()
+
+    renderWorkbench(<RelatedTree />, embedView({ embedCandidates: [profile] }))
+    dialog = await embed()
+    await userEvent.selectOptions(within(dialog).getByLabelText('Embed as'), 'array')
+    expect(within(dialog).getByLabelText('At most')).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Embed' }))
+    await waitFor(() => expect(bodies).toHaveLength(2))
+    expect(bodies[1]).toMatchObject({ kind: 'one-to-many', limit: 1000 })
+  })
 })

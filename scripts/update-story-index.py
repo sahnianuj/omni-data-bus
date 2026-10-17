@@ -103,6 +103,8 @@ RELEASES = {
              ["OC-153", "OC-147", "OC-146", "OC-150", "OC-151", "OC-148", "OC-152", "OC-149"]),
             ("Phase 9 — Editable run settings", "Export without a passphrase or password prompt; run the same script against another environment by editing the connection details in config.json, with passwords kept in base64",
              ["OC-154", "OC-155", "OC-156"]),
+            ("Phase 10 — Related tables by direction", "Design & Map lists what a table references and what references it, each with its cardinality, and embeds 1:1 and N:1 as objects and 1:N and M:N as arrays",
+             ["OC-157"]),
         ],
         "checklist": [
             "All P0 stories are Implemented (and P1 stories are Implemented or explicitly descoped with sign-off)",

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEven
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { ResizeHandle, usePaneWidth } from '@/components/ui/resize-handle'
+import { ResizeHandle, usePaneSize } from '@/components/ui/resize-handle'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Can } from '@/features/auth/Can'
 import { addField, insertionPoint, moveRelative, rename, type DropPos } from '@/features/docschema/docschemaOps'
@@ -331,8 +331,7 @@ export function MappingCanvas() {
     }
     return out
   }, [spec.relations])
-  const sourcePane = usePaneWidth('mapping.source', 300, 200, 720)
-  const height = Math.max(srcRows.length, tRows.length) * ROW + HEADER
+  const sourcePane = usePaneSize('mapping.source', 300, 200, 720)
   const yOf = (i: number, scrollTop: number) => HEADER + i * ROW + ROW / 2 - scrollTop
   // Edges to rows scrolled out of view are pinned to the pane's visible edge instead of
   // running past it (e.g. over the Related tables panel).
@@ -343,7 +342,7 @@ export function MappingCanvas() {
   return (
     <div className="relative flex min-h-0 flex-1 outline-none" tabIndex={0} onKeyDown={onKeyDown} aria-label={t('mapping.canvas')} role="application">
       {/* Source panel */}
-      <div className="relative flex min-w-[200px] shrink flex-col border-r border-border" style={{ width: sourcePane.width }}>
+      <div className="relative flex min-w-[200px] shrink flex-col border-r border-border" style={{ width: sourcePane.size }}>
         <div className="flex h-9 items-center border-b border-border bg-surface-muted px-3 text-xs font-medium text-muted">{t('mapping.sourcePanel', { count: srcRows.filter((r) => r.kind === 'column').length })}</div>
         {/* Focusable so keyboard users can scroll it (axe: scrollable-region-focusable). */}
         <div
@@ -427,7 +426,10 @@ export function MappingCanvas() {
       </div>
 
       {/* Edges */}
-      <svg className="pointer-events-none relative shrink-0 overflow-visible" width={GUTTER} height={height} aria-hidden>
+      {/* As tall as the canvas, not the rows: a taller box would let the canvas scroll away
+          from the page bottom (edges to rows out of view are pinned to the panes' edges). */}
+      <div className="pointer-events-none relative shrink-0" style={{ width: GUTTER }} aria-hidden>
+      <svg className="absolute inset-0 h-full w-full overflow-visible">
         {shownEdges.map((e) => {
           const ry1 = yOf(srcIndex.get(e.from)!, scroll.src)
           const ry2 = yOf(tgtIndex.get(e.to)!, scroll.tgt)
@@ -464,6 +466,7 @@ export function MappingCanvas() {
           )
         })}
       </svg>
+      </div>
 
       {/* Target panel */}
       <div

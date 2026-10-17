@@ -2043,7 +2043,19 @@ export interface components {
             embedId?: string;
             /** @description The virtual relationship this candidate comes from (OC-042) */
             virtual?: string;
+            direction?: components["schemas"]["RelationDirection"];
+            cardinality?: components["schemas"]["RelationCardinality"];
         };
+        /**
+         * @description references = a table this one's foreign key points to; referencedBy = a table whose foreign key points here (OC-157). Always set by the server.
+         * @enum {string}
+         */
+        RelationDirection: "references" | "referencedBy";
+        /**
+         * @description As seen from the table offering the relationship (OC-157). kind stays the embed shape: a one-to-one is many-to-one (an object) both ways.
+         * @enum {string}
+         */
+        RelationCardinality: "one-to-one" | "many-to-one" | "one-to-many";
         EmbedTable: {
             table: components["schemas"]["TableRef"];
             columns: components["schemas"]["SourceColumn"][];
@@ -2158,6 +2170,8 @@ export interface components {
             to: components["schemas"]["TableRef"];
             kind: components["schemas"]["EmbedKind"];
             join: components["schemas"]["JoinPair"][];
+            direction?: components["schemas"]["RelationDirection"];
+            cardinality?: components["schemas"]["RelationCardinality"];
             constraint?: string;
             relationshipId?: string;
             virtual?: boolean;

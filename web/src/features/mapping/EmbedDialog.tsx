@@ -20,8 +20,22 @@ export const DEFAULT_EMBED_LIMIT = 1000
 type TableRef = { schema: string; name: string }
 type JoinPair = { parent: string; child: string }
 
-/** One hop of a relation path: its direction, table and join (from the Related tree, OC-042). */
-export type EmbedHop = { kind: 'many-to-one' | 'one-to-many'; table: TableRef; join: JoinPair[]; virtual?: boolean }
+/**
+ * One hop of a relation path: its embed shape (kind), table and join (from the Related tree,
+ * OC-042), and which way it points and its cardinality (OC-157). A one-to-one from the
+ * referenced side has kind many-to-one (an object) and direction referencedBy.
+ */
+export type EmbedHop = {
+  kind: 'many-to-one' | 'one-to-many'
+  table: TableRef
+  join: JoinPair[]
+  virtual?: boolean
+  direction?: 'references' | 'referencedBy'
+  cardinality?: 'one-to-one' | 'many-to-one' | 'one-to-many'
+}
+
+/** The hop's arrow: ↗ for a table it references, ↙ for one referencing it. */
+export const hopArrow = (h: Pick<EmbedHop, 'kind' | 'direction'>) => ((h.direction ?? (h.kind === 'one-to-many' ? 'referencedBy' : 'references')) === 'referencedBy' ? '↙' : '↗')
 
 /**
  * What the Embed dialog adds: a path of hops (one hop for a direct relation; several nest
@@ -49,7 +63,11 @@ export function EmbedDialog({ plan, onClose }: { plan: EmbedPlan; onClose: () =>
   const junction = plan.mode === 'junction' ? plan.junction : undefined
   const hops: EmbedHop[] = plan.mode === 'hops' ? plan.hops : []
   const last = junction ? { kind: 'many-to-many' as const, table: junction.table } : hops[hops.length - 1]!
-  const many = last.kind !== 'many-to-one'
+  // A one-to-one from the referenced side is an object by default; it can be an array (OC-157).
+  const oneToOne = !junction && hops[hops.length - 1]!.direction === 'referencedBy' && hops[hops.length - 1]!.cardinality === 'one-to-one'
+  const [asArray, setAsArray] = useState(false)
+  const lastKind = oneToOne && asArray ? ('one-to-many' as const) : last.kind
+  const many = lastKind !== 'many-to-one'
   const table = useSourceTable(conn, last.table.schema, last.table.name)
   const via = useSourceTable(conn, junction?.via.schema ?? '', junction?.via.name ?? '')
   const [names, setNames] = useState<string[]>(() => (junction ? [rename(junction.table.name)] : hops.map((h) => rename(h.table.name))))
@@ -124,7 +142,7 @@ export function EmbedDialog({ plan, onClose }: { plan: EmbedPlan; onClose: () =>
           ...(keepDangling ? { keepDangling } : {}),
         }
       } else {
-        const reqs: AddEmbedRequest[] = hops.map((h, i) => ({ kind: h.kind, table: h.table, join: h.join, targetName: names[i]!.trim(), generate }))
+        const reqs: AddEmbedRequest[] = hops.map((h, i) => ({ kind: i === hops.length - 1 && lastKind !== 'many-to-many' ? lastKind : h.kind, table: h.table, join: h.join, targetName: names[i]!.trim(), generate }))
         const tail = reqs[reqs.length - 1]!
         Object.assign(tail, opts)
         if (!many && lookup) tail.lookupOnly = true
@@ -164,13 +182,22 @@ export function EmbedDialog({ plan, onClose }: { plan: EmbedPlan; onClose: () =>
         <div className="grid gap-3 text-[13px]">
           {hops.length > 1 ? (
             <div className="rounded-[var(--radius-control)] bg-surface-muted px-3 py-2 text-xs" data-testid="embed-path">
-              {t('embed.path')}: {hops.map((h) => `${h.kind === 'one-to-many' ? '↙' : '↗'} ${h.table.name}`).join(' → ')}
+              {t('embed.path')}: {hops.map((h) => `${hopArrow(h)} ${h.table.name}`).join(' → ')}
             </div>
           ) : null}
           <div className="flex items-center justify-between">
             <span className="text-muted">{t('embed.kind')}</span>
-            <span>{t(junction ? 'embed.kindManyMany' : many ? 'embed.kindMany' : 'embed.kindOne')}</span>
+            <span>{t(junction ? 'embed.kindManyMany' : oneToOne ? 'embed.kindOneToOne' : many ? 'embed.kindMany' : 'embed.kindOne')}</span>
           </div>
+          {oneToOne ? (
+            <label className="grid gap-1">
+              <span className="text-muted">{t('embed.embedAs')}</span>
+              <select className={selectCls} value={asArray ? 'array' : 'object'} onChange={(e) => setAsArray(e.target.value === 'array')}>
+                <option value="object">{t('embed.embedAsObject')}</option>
+                <option value="array">{t('embed.embedAsArray')}</option>
+              </select>
+            </label>
+          ) : null}
           {!many ? (
             <label className="grid gap-1">
               <span className="text-muted">{t('embed.mode')}</span>
@@ -340,7 +367,7 @@ export function EmbedDialog({ plan, onClose }: { plan: EmbedPlan; onClose: () =>
               <span>
                 {t('embed.generate')}
                 <span className="block text-xs text-subtle">
-                  {t(junction ? 'embed.generateHintJunction' : lookup ? 'embed.generateHintLookup' : last.kind === 'many-to-one' ? 'embed.generateHintObject' : 'embed.generateHint')}
+                  {t(junction ? 'embed.generateHintJunction' : lookup ? 'embed.generateHintLookup' : lastKind === 'many-to-one' && !oneToOne ? 'embed.generateHintObject' : 'embed.generateHint')}
                 </span>
               </span>
             </label>
