@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/licenses.txt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Licences (OC-189)
+         * @description LICENSE (Apache-2.0), NOTICE and THIRD_PARTY_NOTICES.md as one plain-text page, served from the binary. Public.
+         */
+        get: operations["licenses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/metrics": {
         parameters: {
             query?: never;
@@ -914,6 +934,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/mappings/{mid}/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The whole mapping of the mapping's design, proposed against the project's connected source (OC-163; changes nothing) */
+        post: operations["proposeMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/mappings/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A mapping proposed for a design that has no mapping yet - New mapping from a design (OC-163; changes nothing) */
+        post: operations["proposeDesign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/doc-schemas/infer": {
         parameters: {
             query?: never;
@@ -1075,7 +1134,7 @@ export interface paths {
         /** The project's export history, newest first, with the mappings changed since each export (OC-055) */
         get: operations["listExports"];
         put?: never;
-        /** Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip of one folder: the generic migrate.sh (OC-159), config.json with the connection details and base64-encoded credentials (OC-155, OC-156), mappings.json with the mappings and no connection details (OC-158), README.md, and odb when includeOdb is set (OC-160). Editors only; no passphrase or step-up (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
+        /** Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip of one folder that runs on any OS with the odb command (OC-182): config.json with the connection details and base64-encoded credentials (OC-155, OC-156), mappings.json with the mappings and no connection details (OC-158), README.md, and bin/odb (bin/odb.exe) for one machine when includeOdb is set. There is no script. Editors only; no passphrase or step-up (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour */
         post: operations["createExport"];
         delete?: never;
         options?: never;
@@ -1423,8 +1482,16 @@ export interface components {
         };
         /** @description Every field is optional because anonymous callers get a subset (OC-058). */
         Version: {
-            /** @example 2.0.0 */
+            /**
+             * @description The release, from the VERSION file; -dev for an untagged build (OC-172)
+             * @example 2.5.0
+             */
             version?: string;
+            /**
+             * @description The build of that release: the short commit, plus the CI run number (OC-172)
+             * @example 7f6cea2+418
+             */
+            build?: string;
             /** @enum {string} */
             channel?: "release" | "rc" | "dev";
             /** @example 3f2a9c1 */
@@ -1726,6 +1793,12 @@ export interface components {
             columns: components["schemas"]["SourceColumn"][];
             primaryKey: string[];
             uniqueConstraints: string[][];
+            checkConstraints?: {
+                name: string;
+                definition: string;
+            }[];
+            /** @description Column sets of which exactly one is set in every row, from CHECK constraints (OC-171) */
+            exclusiveArcs?: string[][];
             foreignKeys: {
                 name: string;
                 columns: string[];
@@ -1860,6 +1933,15 @@ export interface components {
             binding?: components["schemas"]["Binding"];
             /** @description A scalar value from an imported design (OC-059), shown next to the field; never written to documents */
             example?: string | number | boolean;
+            /** @description The values the design allows (JSON Schema enum, OC-166); a null in the design's enum makes the field nullable instead */
+            enum?: (string | number | boolean)[];
+            /** @description This object is one shape of its parent's items (OC-171): its fields are written in the item itself, for the rows of this variant */
+            variant?: {
+                title?: string;
+                /** @description The discriminator field */
+                field?: string;
+                value?: string | number | boolean;
+            };
         };
         /** @description Document composer metadata on an object or array node (OC-047). relationId mirrors the relation whose targetFieldId is this node (the relation is authoritative); adapter lets a node take a relation of the other cardinality. */
         Binding: {
@@ -1896,6 +1978,7 @@ export interface components {
                 path: string;
                 type: components["schemas"]["FieldType"];
                 required?: boolean;
+                enum?: (string | number | boolean)[];
             }[];
         };
         ConstantHint: {
@@ -1944,8 +2027,11 @@ export interface components {
             transforms: components["schemas"]["TransformStep"][];
             /** @enum {string} */
             origin: "auto" | "suggested" | "manual";
-            /** @enum {string} */
-            state: "active" | "pending" | "rejected";
+            /**
+             * @description notPopulated — the design leaves the field empty on purpose (OC-166): nothing is written, and it counts as done
+             * @enum {string}
+             */
+            state: "active" | "pending" | "rejected" | "notPopulated";
             confidence?: number;
             reason?: string;
             needsReview?: boolean;
@@ -2054,6 +2140,18 @@ export interface components {
             keepDangling?: boolean;
             /** @description The group's rows (OC-063): a one-to-many from the driving table to itself on root.groupBy, directly under the root; table, kind and join are filled from the root */
             group?: boolean;
+            /** @description Which variant of the array's items each row is (OC-171): the variant whose when column is set, or equals value */
+            variants?: {
+                /** @description The variant node */
+                fieldId: string;
+                when: string;
+                value?: string;
+            }[];
+            /**
+             * @description A row of no variant: skipped and counted (default), or the document fails
+             * @enum {string}
+             */
+            onNoMatch?: "skip" | "fail";
         };
         Aggregate: {
             id: string;
@@ -2168,6 +2266,10 @@ export interface components {
             via?: components["schemas"]["RelationVia"];
             virtual?: boolean;
             /** @enum {string} */
+            cardinality?: "one-to-one" | "many-to-one" | "one-to-many";
+            /** @enum {string} */
+            direction?: "references" | "referencedBy";
+            /** @enum {string} */
             adapter?: "first" | "wrap";
             /** @enum {string} */
             shape?: "scalars";
@@ -2178,6 +2280,67 @@ export interface components {
             orderBy?: components["schemas"]["EmbedOrder"][];
             score: number;
             reasons: string[];
+        };
+        ProposeRequest: {
+            specOverride?: components["schemas"]["MappingSpec"];
+            /** @description schema.table; empty chooses it */
+            drivingTable?: string;
+            /** @description Keep the mapping's bindings and mappings and propose only what's missing (OC-170) */
+            base?: boolean;
+            /** @description Propose only under this node (OC-168) */
+            nodeId?: string;
+        };
+        ProposeDesignRequest: {
+            docSchema: components["schemas"]["DocSchema"];
+            drivingTable?: string;
+        };
+        Proposal: {
+            /** @description Driving tables, best first; spec drives from the first */
+            driving: {
+                table: components["schemas"]["TableRef"];
+                score: number;
+                reasons: string[];
+            }[];
+            spec: components["schemas"]["MappingSpec"];
+            items: components["schemas"]["ProposalItem"][];
+            coverage: components["schemas"]["ProposalCoverage"];
+        };
+        ProposalItem: {
+            fieldId: string;
+            path: string;
+            /** @enum {string} */
+            kind: "binding" | "field";
+            /** @enum {string} */
+            status: "bound" | "fromParent" | "mapped" | "converted" | "lookup" | "constant" | "computed" | "aggregate" | "notPopulated" | "unresolved" | "alreadyMapped";
+            /** @enum {string} */
+            band?: "high" | "medium" | "low";
+            score: number;
+            /** @example ← cart_items.price × 100 */
+            summary: string;
+            reasons: string[];
+            required?: boolean;
+            /**
+             * @description Why nothing (or something uncertain) fills it (OC-169)
+             * @enum {string}
+             */
+            code?: "NO_COLUMN" | "NO_PATH" | "TYPE_MISMATCH" | "DEPTH_LIMIT" | "REFERENCE_TEMPLATE" | "UNTYPED_ITEMS";
+            /** @description The best columns or tables, as schema.table or table.column */
+            candidates?: string[];
+            alternatives?: components["schemas"]["BindingCandidate"][];
+            relationIds?: string[];
+            mappingIds?: string[];
+            aggregateIds?: string[];
+            /** @description The expression a REFERENCE_TEMPLATE field can use */
+            fix?: string;
+        };
+        ProposalCoverage: {
+            fields: number;
+            proposed: number;
+            needsReview: number;
+            notPopulated: number;
+            unresolved: number;
+            containers: number;
+            bound: number;
         };
         RelationVia: {
             table: components["schemas"]["TableRef"];
@@ -2440,6 +2603,16 @@ export interface components {
             autoMapRatio: number;
             coverageRatio: number;
             averageConfidence: number;
+            /** @description The document's fields (array items and variants included; containers counted through their fields), OC-178 */
+            targetFields: number;
+            /** @description Fields done: filled by a mapping, a total or a relation, or marked not populated */
+            targetFieldsDone: number;
+            /** @description targetFieldsDone / targetFields; the score wheel (OC-178) */
+            doneRatio: number;
+            /** @description Done fields filled with data: a mapping, a total or a relation fills them (OC-187) */
+            targetFieldsFilled: number;
+            /** @description Done fields left empty on purpose: marked not populated, or under a container that is; filled + notPopulated = done (OC-187) */
+            targetFieldsNotPopulated: number;
             /** @description Columns of embedded tables, counted separately */
             embedded?: {
                 tables: number;
@@ -2471,7 +2644,7 @@ export interface components {
             fieldMappingId?: string;
             fix?: {
                 /** @enum {string} */
-                kind: "mark-optional" | "accept-suggestions" | "add-transform" | "enable-create" | "repoint-source" | "combine-rows" | "add-to-design" | "restore-field" | "map-field";
+                kind: "mark-optional" | "accept-suggestions" | "add-transform" | "enable-create" | "repoint-source" | "combine-rows" | "add-to-design" | "restore-field" | "map-field" | "remove-relation" | "replace-step";
                 label: string;
                 step?: components["schemas"]["TransformStep"];
                 /** @description repoint-source: read the column from this relation (OC-065) */
@@ -2523,6 +2696,7 @@ export interface components {
             version: number;
             /** Format: date-time */
             createdAt: string;
+            createdBy?: string;
             /** Format: date-time */
             updatedAt: string;
             embedTables?: {
@@ -2553,6 +2727,9 @@ export interface components {
                 objects: number;
                 groupBy?: string[];
             };
+            /** @description The document key template (OC-170 shows it before an import updates the mapping) */
+            keyTemplate?: string;
+            createdBy?: string;
             /** @description Error issues in the live validation; any makes the status draft (OC-083) */
             errors: number;
             warnings: number;
@@ -2722,6 +2899,8 @@ export interface components {
                     missing: string[];
                     extra: string[];
                     typeDiff: string[];
+                    /** @description Paths holding a value the design's enum doesn't allow (REFERENCE_ENUM_VALUE, OC-166) */
+                    enumValues?: string[];
                 };
             }[];
             worstCase?: {
@@ -2758,6 +2937,12 @@ export interface components {
             content: string;
             /** @description The imported file's name */
             fileName?: string;
+            /** @description A JSON Schema split across files (OC-171): the files content's $refs point to, and item designs of its untyped arrays (variants) */
+            files?: {
+                /** @description Path as in the $refs, e.g. payments/scc.schema.json */
+                name: string;
+                content: string;
+            }[];
         };
         InferResult: {
             docSchema: components["schemas"]["DocSchema"];
@@ -2991,22 +3176,33 @@ export interface components {
             version: string;
             image: string;
             downloadUrl: string;
-            /** @description Platforms (os_arch) a script can download odb for (checksums known) */
+            /** @description Platforms (os_arch) whose odb download the README links (checksums known) */
             downloadable: string[];
-            /** @description Platforms this server can embed odb for */
+            /** @description Platforms this server can include odb for, as bin/odb: now, or downloaded on first use */
             embeddable: string[];
-            /** @description The platform (os_arch) every export includes odb for, because no platform can be downloaded; absent when downloads work */
-            autoEmbed?: string;
+            /** @description Every platform, with whether this server can add its odb now, on first use (downloaded from the release and verified against the checksums built into the server), or not, and why (OC-188) */
+            machines: {
+                platform: string;
+                /** @enum {string} */
+                state: "available" | "onDemand" | "unavailable";
+                /** @description Why the machine is unavailable */
+                reason?: string;
+            }[];
+            /** @description Platforms whose odb is signed for its OS (Apple notarization, Authenticode); macOS or Windows warns before running the others (development builds, OC-185) */
+            signed: string[];
             maxPerHour: number;
         };
         /** @description How to package the export. What is exported is the project as configured — its source, target, saved credentials and every ready mapping; change them in the project's steps. The connection details and credentials go in the zip's config.json, where operators change them per environment. */
         ExportRequest: {
-            /** @description Put odb for this platform beside migrate.sh, for a machine that can't download it (OC-160). Absent or null — the script finds or downloads odb itself. */
+            /** @description Add odb for this platform as bin/odb (bin/odb.exe), for a machine without internet access (OC-182). Absent or null — no binary; the export runs with the odb installed on the machine. */
             includeOdb?: {
                 /** @enum {string} */
-                os: "linux" | "darwin";
-                /** @enum {string} */
-                arch: "amd64" | "arm64";
+                os: "linux" | "darwin" | "windows";
+                /**
+                 * @description universal: one macOS binary for Intel and Apple silicon (OC-185)
+                 * @enum {string}
+                 */
+                arch: "amd64" | "arm64" | "universal";
             } | null;
             jobOptions?: components["schemas"]["JobOptions"];
             /**
@@ -3251,7 +3447,7 @@ export interface components {
          */
         RowErrorCode: "PARSE_FAILED" | "TYPE_MISMATCH" | "EXPR_ERROR" | "NON_FINITE_NUMBER" | "TRANSFORM_INVALID" | "KEY_TEMPLATE_INVALID" | "KEY_NULL_COMPONENT" | "KEY_TOO_LONG" | "KEY_INVALID" | "DOC_TOO_LARGE" | "TEMPORARY_FAILURE_EXHAUSTED" | "WRITE_FAILED" | "DECODE_FAILED" | "KEY_PATH_COLLISION";
         /** @enum {string} */
-        ErrorCode: "INTERNAL" | "VALIDATION_FAILED" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "VERSION_CONFLICT" | "UNAVAILABLE" | "UNAUTHENTICATED" | "SESSION_EXPIRED" | "INVALID_CREDENTIALS" | "EMAIL_TAKEN" | "SIGNUP_DISABLED" | "CSRF_FAILED" | "FORBIDDEN_ROLE" | "RATE_LIMITED" | "INVALID_CURSOR" | "PROJECT_NAME_TAKEN" | "PROJECT_HAS_RUNNING_JOB" | "SOURCE_TYPE_UNSUPPORTED" | "TARGET_TYPE_UNSUPPORTED" | "TARGET_KIND_UNKNOWN" | "TARGET_KIND_DISABLED" | "TARGET_KIND_IN_USE" | "LOCATION_INVALID" | "DIRECTORY_OUTSIDE_ALLOWED_ROOTS" | "DOCUMENT_NOT_FOUND" | "SCHEMA_NOT_DISCOVERED" | "KEYSPACE_EXISTS" | "CAPELLA_BUCKET_CREATE_UNSUPPORTED" | "PROJECT_REPOSITORIES_INCOMPLETE" | "MAPPING_EXISTS" | "MAPPING_VERSION_CONFLICT" | "MAPPING_NEWER_VERSION" | "PREVIEW_TIMEOUT" | "MAPPING_INVALID" | "INVALID_SAMPLE" | "SCHEMA_REF_CYCLE" | "SAMPLING_UNAVAILABLE" | "JOB_INVALID_TRANSITION" | "PREFLIGHT_FAILED" | "NO_READY_MAPPINGS" | "RETRY_NOT_POSSIBLE" | "SOURCE_UNREACHABLE" | "SOURCE_DNS" | "SOURCE_TIMEOUT" | "SOURCE_TLS" | "SOURCE_AUTH_FAILED" | "SOURCE_DB_NOT_FOUND" | "SOURCE_PERMISSION_DENIED" | "SOURCE_UNKNOWN" | "TARGET_UNREACHABLE" | "TARGET_DNS" | "TARGET_TIMEOUT" | "TARGET_TLS" | "TARGET_AUTH_FAILED" | "TARGET_DB_NOT_FOUND" | "TARGET_PERMISSION_DENIED" | "TARGET_UNKNOWN" | "EGRESS_DENIED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_CONCURRENT_OPERATIONS" | "BUNDLED_TARGET_NOT_EXPORTABLE" | "PASSPHRASE_WEAK" | "STEP_UP_REQUIRED" | "REPORT_UNKNOWN_BUNDLE" | "EXPORT_TOO_LARGE";
+        ErrorCode: "INTERNAL" | "VALIDATION_FAILED" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "VERSION_CONFLICT" | "UNAVAILABLE" | "UNAUTHENTICATED" | "SESSION_EXPIRED" | "INVALID_CREDENTIALS" | "EMAIL_TAKEN" | "SIGNUP_DISABLED" | "CSRF_FAILED" | "FORBIDDEN_ROLE" | "RATE_LIMITED" | "INVALID_CURSOR" | "PROJECT_NAME_TAKEN" | "PROJECT_HAS_RUNNING_JOB" | "SOURCE_TYPE_UNSUPPORTED" | "TARGET_TYPE_UNSUPPORTED" | "TARGET_KIND_UNKNOWN" | "TARGET_KIND_DISABLED" | "TARGET_KIND_IN_USE" | "LOCATION_INVALID" | "DIRECTORY_OUTSIDE_ALLOWED_ROOTS" | "DOCUMENT_NOT_FOUND" | "SCHEMA_NOT_DISCOVERED" | "KEYSPACE_EXISTS" | "CAPELLA_BUCKET_CREATE_UNSUPPORTED" | "PROJECT_REPOSITORIES_INCOMPLETE" | "MAPPING_EXISTS" | "MAPPING_VERSION_CONFLICT" | "MAPPING_NEWER_VERSION" | "PREVIEW_TIMEOUT" | "MAPPING_INVALID" | "INVALID_SAMPLE" | "SCHEMA_REF_CYCLE" | "SAMPLING_UNAVAILABLE" | "JOB_INVALID_TRANSITION" | "PREFLIGHT_FAILED" | "NO_READY_MAPPINGS" | "RETRY_NOT_POSSIBLE" | "SOURCE_UNREACHABLE" | "SOURCE_DNS" | "SOURCE_TIMEOUT" | "SOURCE_TLS" | "SOURCE_AUTH_FAILED" | "SOURCE_DB_NOT_FOUND" | "SOURCE_PERMISSION_DENIED" | "SOURCE_UNKNOWN" | "TARGET_UNREACHABLE" | "TARGET_DNS" | "TARGET_TIMEOUT" | "TARGET_TLS" | "TARGET_AUTH_FAILED" | "TARGET_DB_NOT_FOUND" | "TARGET_PERMISSION_DENIED" | "TARGET_UNKNOWN" | "EGRESS_DENIED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_CONCURRENT_OPERATIONS" | "BUNDLED_TARGET_NOT_EXPORTABLE" | "PASSPHRASE_WEAK" | "STEP_UP_REQUIRED" | "REPORT_UNKNOWN_BUNDLE" | "EXPORT_TOO_LARGE" | "ODB_DOWNLOAD_FAILED" | "ODB_DOWNLOAD_INVALID";
     };
     responses: {
         /** @description Error */
@@ -3305,6 +3501,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    licenses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The licence texts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
         };
@@ -4879,6 +5095,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BindingSuggestions"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    proposeMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProposeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Proposal"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    proposeDesign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeDesignRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Proposal"];
                 };
             };
             default: components["responses"]["Problem"];

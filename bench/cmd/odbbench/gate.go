@@ -63,26 +63,37 @@ func gateCmd(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// coldStartCmd times `migrate.sh preflight` of an exported bundle (OC-056, runner cold start):
-// one untimed run first (the binary is downloaded or the image pulled), then --runs timed runs;
-// the median is recorded as the coldstart scenario. The bundle's passphrase comes from the
-// environment (ODB_BUNDLE_PASSPHRASE), as for any unattended run.
+// coldStartCmd times `odb preflight` in an export folder (OC-056 runner cold start, OC-184): one
+// untimed run first (caches warm), then --runs timed runs; the median is recorded as the
+// coldstart scenario. --odb is the odb to run (default: odb on the PATH). --script times a 2.0
+// export's migrate.sh instead. A sealed bundle's passphrase comes from the environment
+// (ODB_BUNDLE_PASSPHRASE), as for any unattended run.
 func coldStartCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("odbbench coldstart", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	script := fs.String("script", "", "the exported migrate.sh (required)")
+	dir := fs.String("dir", "", "the export folder (config.json, mappings.json)")
+	odb := fs.String("odb", "odb", "the odb to run")
+	script := fs.String("script", "", "a 2.0 export's migrate.sh, instead of --dir")
 	runs := fs.Int("runs", 5, "timed runs")
-	out := fs.String("out", "results/2.0.0", "results directory")
+	out := fs.String("out", "results/2.5.0", "results directory")
 	var env multiFlag
 	fs.Var(&env, "env", "environment note for the report, key=value (repeatable)")
-	if err := fs.Parse(args); err != nil || *script == "" || *runs < 1 {
-		fmt.Fprintln(stderr, "usage: odbbench coldstart --script <migrate.sh> [--runs 5] [--out dir]")
+	if err := fs.Parse(args); err != nil || (*dir == "") == (*script == "") || *runs < 1 {
+		fmt.Fprintln(stderr, "usage: odbbench coldstart --dir <export folder> [--odb odb] [--runs 5] [--out dir]\n       odbbench coldstart --script <2.0 migrate.sh> [--runs 5] [--out dir]")
 		return 2
 	}
 	ctx := context.Background()
+	what := "odb preflight in the export folder"
+	if *script != "" {
+		what = "migrate.sh preflight with the binary present"
+	}
 	preflight := func() (time.Duration, error) {
-		cmd := exec.CommandContext(ctx, *script, "preflight") //nolint:gosec // the operator's script
-		cmd.Dir = filepath.Dir(*script)
+		cmd := exec.CommandContext(ctx, *odb, "preflight") //nolint:gosec // the operator's odb
+		cmd.Dir = *dir
+		if *script != "" {
+			cmd = exec.CommandContext(ctx, *script, "preflight") //nolint:gosec // the operator's script
+			cmd.Dir = filepath.Dir(*script)
+		}
 		cmd.Stdout, cmd.Stderr = io.Discard, stderr
 		start := time.Now()
 		err := cmd.Run()
@@ -92,7 +103,7 @@ func coldStartCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "odbbench coldstart: warm-up preflight:", err)
 		return 2
 	}
-	res := report.Result{Dataset: "coldstart", Scenario: "coldstart", Description: "migrate.sh preflight with the binary present",
+	res := report.Result{Dataset: "coldstart", Scenario: "coldstart", Description: what,
 		StartedAt: time.Now().UTC(), JobStatus: "completed",
 		Environment: map[string]string{"harness": fmt.Sprintf("%s/%s, %d CPU", runtime.GOOS, runtime.GOARCH, runtime.NumCPU())}}
 	for _, kv := range env {

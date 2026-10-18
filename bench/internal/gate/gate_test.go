@@ -131,3 +131,30 @@ func TestReference_OC056_DropsLocalRuns(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+// OC-173: a quality gate bounds a named score of a correctness run.
+func TestEvaluate_OC173_Quality(t *testing.T) {
+	min, zero := 0.9, 0.0
+	f := File{Release: "2.5.0", Gates: []Gate{
+		{ID: "G10c", Scenario: "propose-quality", Metric: "quality", Key: "fields", Min: &min},
+		{ID: "G10e", Scenario: "propose-quality", Metric: "quality", Key: "wrongHigh", Max: &zero},
+		{ID: "G10x", Scenario: "propose-quality", Metric: "quality", Key: "nope", Min: &min},
+	}}
+	for _, g := range f.Gates {
+		if err := g.check(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res := map[string]report.Result{"propose-quality": {Scenario: "propose-quality", JobStatus: "completed", Quality: map[string]float64{"fields": 0.97, "wrongHigh": 1}}}
+	out := Evaluate(f, res, ".")
+	if out[0].Status != Pass || out[1].Status != Fail || out[2].Status != Missing {
+		t.Fatalf("got %+v", out)
+	}
+	res["propose-quality"].Quality["wrongHigh"] = 0
+	if out := Evaluate(f, res, "."); out[1].Status != Pass {
+		t.Fatalf("max 0 is inclusive: got %+v", out[1])
+	}
+	if err := (Gate{ID: "x", Scenario: "s", Metric: "quality", Min: &min}).check(); err == nil {
+		t.Fatal("a quality gate needs a key")
+	}
+}

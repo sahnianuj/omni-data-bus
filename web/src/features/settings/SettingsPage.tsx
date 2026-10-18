@@ -42,6 +42,14 @@ function AboutSection() {
         <span className="text-muted">{t('settings.about.description')}</span>
       </div>
       {info.data ? <BuildDetails v={info.data} /> : null}
+      {/* OC-189: the licence, copyright and author, and every dependency's licence (offline). */}
+      <div className="flex flex-col gap-1 border-t border-border pt-3 text-muted" data-testid="about-licence">
+        <span>{t('settings.about.licence')}</span>
+        <span>{t('settings.about.author')}</span>
+        <a href="/licenses.txt" target="_blank" rel="noreferrer" className="w-fit font-medium text-primary hover:underline">
+          {t('settings.about.licences')}
+        </a>
+      </div>
     </section>
   )
 }

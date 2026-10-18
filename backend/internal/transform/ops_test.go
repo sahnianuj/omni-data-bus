@@ -231,5 +231,5 @@ func TestOps_ArgErrors(t *testing.T) {
 		_, err := ops[b.op].compile(b.args, &compileEnv{sources: b.sources})
 		require.Error(t, err, "%s %v", b.op, b.args)
 	}
-	require.Len(t, Ops(), 23)
+	require.Len(t, Ops(), 24)
 }

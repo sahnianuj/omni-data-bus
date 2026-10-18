@@ -64,17 +64,80 @@ type Props = {
 export function MappingScoreHeader({ automap, live, onFilter, onRerun, rerunning, onRequiredClick }: Props) {
   const { t } = useTranslation()
   const [confirmReset, setConfirmReset] = useState(false)
-  const covered = live.autoMapped + live.manuallyMapped
+  const own = live.autoMapped + live.manuallyMapped
+  const emb = live.embedded && live.embedded.totalColumns > 0 ? live.embedded : null
+  const embUsed = emb ? emb.autoMapped + emb.manuallyMapped : 0
+  const used = own + embUsed
+  const usedTotal = live.totalSourceColumns + (emb?.totalColumns ?? 0)
+  const toGo = live.targetFields - live.targetFieldsDone
+  const filled = live.targetFieldsFilled
+  const empty = live.targetFieldsNotPopulated
+  const fieldPct = (n: number) => (live.targetFields > 0 ? Math.round((n / live.targetFields) * 100) : 0)
   return (
     <section aria-label={t('mapping.score')} className="flex items-start gap-4 border-b border-border px-6 py-4">
-      <ScoreRing ratio={automap.autoMapRatio} label={t('mapping.autoPercent', { pct: Math.round(automap.autoMapRatio * 100) })} />
+      {/* How much of the document is done (OC-178), filled with data apart from left empty (OC-187). */}
+      <ScoreRing
+        ratio={live.doneRatio}
+        filled={live.targetFields > 0 ? filled / live.targetFields : 0}
+        label={
+          empty > 0
+            ? t('mapping.doneSplit', { pct: Math.round(live.doneRatio * 100), filled: fieldPct(filled), empty: fieldPct(empty) })
+            : t('mapping.donePercent', { pct: Math.round(live.doneRatio * 100) })
+        }
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <h2 className="text-base font-semibold">
-          {automap.totalSourceColumns === 0 ? t('mapping.noColumns') : t('mapping.headline', { count: automap.totalSourceColumns, auto: automap.autoMapped })}
-        </h2>
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-base font-semibold">
+            {live.targetFields === 0
+              ? t('mapping.noFields')
+              : live.targetFieldsDone === live.targetFields
+                ? t('mapping.allDone', { count: live.targetFields })
+                : t('mapping.fieldsDone', { done: live.targetFieldsDone, count: live.targetFields })}
+          </h2>
+          {live.targetFields > 0 ? (
+            <p className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted" data-testid="done-split" title={toGo > 0 ? t('mapping.toGoHint') : undefined}>
+              <span className="flex items-center gap-1">
+                <span className="size-2 rounded-full bg-current text-success" aria-hidden />
+                {t('mapping.filledCount', { count: filled })}
+              </span>
+              {empty > 0 ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-current text-success opacity-40" aria-hidden />
+                    {t('mapping.notPopulatedCount', { count: empty })}
+                  </span>
+                </>
+              ) : null}
+              {toGo > 0 ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>
+                    {live.requiredTargetUnmapped > 0
+                      ? t('mapping.toGoRequired', { count: toGo, required: live.requiredTargetUnmapped })
+                      : t('mapping.toGoCount', { count: toGo })}
+                  </span>
+                  <button type="button" className="ml-1 font-medium text-primary hover:underline" onClick={() => onFilter('unmapped')}>
+                    {t('mapping.showThem', { count: toGo })}
+                  </button>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
+        {/* Detail: the source columns, and what the last auto-map run did with them. */}
+        {automap.totalSourceColumns > 0 ? (
+          <p className="text-xs font-medium text-muted">{t('mapping.sourceColumns', { count: automap.totalSourceColumns, auto: automap.autoMapped })}</p>
+        ) : null}
         <SegmentBar stats={live} onFilter={onFilter} />
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted" aria-live="polite">
-          <span>{t('mapping.coverage', { pct: Math.round(live.coverageRatio * 100), covered, total: live.totalSourceColumns })}</span>
+          {usedTotal > 0 ? (
+            <span data-testid="source-used">
+              {emb
+                ? t('mapping.sourceUsedSplit', { used, total: usedTotal, own, ownTotal: live.totalSourceColumns, emb: embUsed, embTotal: emb.totalColumns })
+                : t('mapping.sourceUsed', { used, total: usedTotal })}
+            </span>
+          ) : null}
           {live.requiredTargetUnmapped > 0 ? (
             <button type="button" onClick={onRequiredClick} className="flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-warning">
               <AlertTriangle className="size-3" aria-hidden />
@@ -82,11 +145,6 @@ export function MappingScoreHeader({ automap, live, onFilter, onRerun, rerunning
             </button>
           ) : null}
           {live.averageConfidence > 0 ? <span>{t('mapping.avgConfidence', { pct: Math.round(live.averageConfidence * 100) })}</span> : null}
-          {live.embedded && live.embedded.totalColumns > 0 ? (
-            <span data-testid="score-embedded">
-              {t('embed.scoreEmbedded', { mapped: live.embedded.autoMapped + live.embedded.manuallyMapped, total: live.embedded.totalColumns })}
-            </span>
-          ) : null}
         </p>
       </div>
       {/* Each control is wrapped on its own: Can disables its direct child, and a div can't be disabled. */}

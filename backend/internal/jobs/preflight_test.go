@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -144,4 +145,21 @@ func TestCreate_OC037_RecordsPlanHashes(t *testing.T) {
 	opts, err := ParseOptions(j.Options)
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{f.maps["customer"].ID: "hash-customer"}, opts.PlanHashes)
+}
+
+// OC-170: two mappings of one run writing the same keys into the same place are a warning.
+func TestPreflight_OC170_KeyOverlap(t *testing.T) {
+	loc := store.Location{Kind: store.KindCouchbase, Bucket: "shop", Scope: "pos", Collection: "carts"}
+	m := func(id, table, key string, l store.Location) store.Mapping {
+		x := store.Mapping{ID: id, SourceTable: table, Spec: json.RawMessage(`{"key":{"template":"` + key + `"}}`)}
+		x.SetLocation(l)
+		return x
+	}
+	other := loc
+	other.Collection = "carts_v2"
+	got := keyOverlapChecks([]store.Mapping{m("a", "carts", "cart::{id}", loc), m("b", "cart_view", "cart::{id}", loc), m("c", "x", "cart::{id}", other), m("d", "y", "order::{id}", loc)})
+	require.Len(t, got, 1)
+	require.Equal(t, CheckWarn, got[0].Status)
+	require.Equal(t, "KEY_OVERLAP", got[0].Code)
+	require.Contains(t, got[0].Detail, "carts and cart_view both write cart::{id} keys")
 }

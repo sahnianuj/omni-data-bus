@@ -200,6 +200,7 @@ func (p *Preflighter) Run(ctx context.Context, ws store.WorkspaceID, userID, pro
 	}
 	wg.Wait()
 	add(p.targetChecks(ctx, ws, tgtID, maps, plan, opts)...)
+	add(keyOverlapChecks(maps)...)
 
 	if canWrite != nil && !*canWrite {
 		add(Check{
@@ -225,6 +226,35 @@ func (p *Preflighter) Run(ctx context.Context, ws store.WorkspaceID, userID, pro
 		})
 	}
 	return res, nil
+}
+
+// keyOverlapChecks warns about two mappings of the run that write the same location with keys
+// that can collide (OC-170): each overwrites the other's documents, and the last one wins.
+func keyOverlapChecks(maps []store.Mapping) []Check {
+	keyOf := func(m store.Mapping) string {
+		var s struct {
+			Key struct {
+				Template string `json:"template"`
+			} `json:"key"`
+		}
+		_ = json.Unmarshal(m.Spec, &s)
+		return s.Key.Template
+	}
+	var out []Check
+	for i := range maps {
+		for j := i + 1; j < len(maps); j++ {
+			a, b := maps[i], maps[j]
+			if a.Where() != b.Where() || !mapping.KeyOverlap(keyOf(a), keyOf(b)) {
+				continue
+			}
+			out = append(out, Check{
+				ID: "keys." + a.ID + "." + b.ID, Label: "Keys don't collide", Status: CheckWarn, Code: "KEY_OVERLAP", MappingID: a.ID,
+				Detail: fmt.Sprintf("%s and %s both write %s keys into the same place: the last one to run overwrites the other's documents.", a.SourceTable, b.SourceTable, keyOf(a)),
+				Hint:   "Give one of them another collection or key template.",
+			})
+		}
+	}
+	return out
 }
 
 // checkOrder groups the list: repositories, snapshot, per-mapping checks (by table), warnings.

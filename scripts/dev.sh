@@ -50,6 +50,28 @@ if [ "${FORCE:-}" = 1 ]; then
 fi
 trap 'exit 130' INT TERM
 
-(cd backend && CGO_ENABLED=0 go run ./cmd/odb) &
+# Stamp the release and build as `make build` does (OC-172): the footer then shows
+# "2.5.0-dev · build 7f6cea2", not "dev · build none". `make dev` passes them; run directly,
+# the script works them out the same way.
+if [ -z "${ODB_LDFLAGS:-}" ]; then
+  release=$(cat VERSION 2>/dev/null || echo 0.0.0)
+  version="$release-dev"
+  [ "$(git describe --tags --exact-match 2>/dev/null)" = "v$release" ] && version="$release"
+  commit=$(git rev-parse --short HEAD 2>/dev/null || echo none)
+  dirty=false
+  [ -n "$(git status --porcelain 2>/dev/null)" ] && dirty=true
+  bi=omnidatabus/internal/buildinfo
+  ODB_LDFLAGS="-X $bi.version=$version -X $bi.commit=$commit -X $bi.buildID=$commit -X $bi.dirty=$dirty -X $bi.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  export VITE_ODB_VERSION="${VITE_ODB_VERSION:-$version}"
+fi
+
+# Every machine's odb for exports (OC-188): built in the background into dist/odb when it's
+# missing or older than the sources; the server picks it up as soon as it's there.
+if [ -z "${OC_EXPORT_DIST_DIR:-}" ]; then
+  export OC_EXPORT_DIST_DIR="$PWD/dist/odb"
+  scripts/dev-dist.sh "${VITE_ODB_VERSION:-$(cat VERSION 2>/dev/null || echo 0.0.0)-dev}" "$ODB_LDFLAGS" &
+fi
+
+(cd backend && CGO_ENABLED=0 go run -ldflags "$ODB_LDFLAGS" ./cmd/odb) &
 (cd web && npm run dev) &
 wait

@@ -1,5 +1,5 @@
 import { srcKey } from './embeds'
-import type { MappingIssue, MappingSpec } from './types'
+import type { FieldMapping, MappingIssue, MappingSpec } from './types'
 
 export type EdgeState = 'auto' | 'suggested' | 'manual' | 'error'
 
@@ -22,7 +22,14 @@ export type Edge = {
  * collapsed object bundle onto its row: one edge per source column with the mapping count.
  * parentOf maps a field id to its parent object id (for bundling).
  */
-export function buildEdges(spec: MappingSpec, collapsed: ReadonlySet<string>, parentOf: ReadonlyMap<string, string>, issues: MappingIssue[] = []): Edge[] {
+export function buildEdges(
+  spec: MappingSpec,
+  collapsed: ReadonlySet<string>,
+  parentOf: ReadonlyMap<string, string>,
+  issues: MappingIssue[] = [],
+  // The columns a mapping reads (mappingReads: its expressions' columns too); its sources by default.
+  reads: (m: FieldMapping) => string[] = (m) => m.sources.map(srcKey),
+): Edge[] {
   const errored = new Set(issues.filter((i) => i.severity === 'error' && i.fieldMappingId).map((i) => i.fieldMappingId))
   const visibleTarget = (id: string): string => {
     let outer = id
@@ -35,8 +42,8 @@ export function buildEdges(spec: MappingSpec, collapsed: ReadonlySet<string>, pa
     if (m.state === 'rejected') continue
     const state: EdgeState = errored.has(m.id) ? 'error' : m.state === 'pending' ? 'suggested' : m.origin === 'auto' ? 'auto' : 'manual'
     const to = visibleTarget(m.targetFieldId)
-    for (const s of m.sources) {
-      const from = srcKey(s)
+    const from_ = reads(m)
+    for (const from of from_) {
       if (to !== m.targetFieldId) {
         const key = `${from}→${to}`
         const b = bundles.get(key)
@@ -51,7 +58,7 @@ export function buildEdges(spec: MappingSpec, collapsed: ReadonlySet<string>, pa
       }
       edges.push({
         id: `${m.id}:${from}`, mappingId: m.id, from, to, state,
-        transformCount: m.transforms.length, firstOp: m.transforms[0]?.op, bundle: 1, multi: m.sources.length > 1,
+        transformCount: m.transforms.length, firstOp: m.transforms[0]?.op, bundle: 1, multi: from_.length > 1,
       })
     }
   }

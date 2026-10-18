@@ -18,11 +18,38 @@ withFixedLayout(320, 600)
 beforeEach(() => mockSession('owner'))
 
 describe('MappingScoreHeader', () => {
-  it('AC1: headline text and percent', () => {
-    renderUI(<MappingScoreHeader automap={stats()} live={stats()} onFilter={() => {}} onRerun={() => {}} />)
-    expect(screen.getByRole('heading', { name: 'Omni-Data-Bus auto-mapped 10 of 23 columns' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: '43% auto-mapped' })).toBeInTheDocument()
+  it('AC1 / OC-178 AC2: the wheel and headline are the fields done; auto-mapping is the detail', async () => {
+    const onFilter = vi.fn()
+    renderUI(<MappingScoreHeader automap={stats()} live={stats()} onFilter={onFilter} onRerun={() => {}} />)
+    expect(screen.getByRole('heading', { name: '13 of 20 target fields done' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: "65% of the document's fields done: 50% filled with data, 15% not populated" })).toBeInTheDocument()
+    expect(screen.getByTestId('done-split')).toHaveTextContent('10 filled with data·3 not populated·7 to go (2 required)Show them')
+    await userEvent.click(screen.getByRole('button', { name: 'Show them' }))
+    expect(onFilter).toHaveBeenCalledWith('unmapped')
+    expect(screen.getByText('Source columns · auto-mapped 10 of 23 on the last run')).toBeInTheDocument()
     expect(screen.getByText('Average confidence 94%')).toBeInTheDocument()
+  })
+
+  it('OC-187 AC3: filled apart from left empty; one line for the source columns used, embedded included', () => {
+    const live = stats({
+      targetFields: 100, targetFieldsDone: 98, doneRatio: 0.98, targetFieldsFilled: 73, targetFieldsNotPopulated: 25, requiredTargetUnmapped: 1,
+      totalSourceColumns: 28, autoMapped: 18, manuallyMapped: 0, suggested: 0, unmappedSource: 10,
+      embedded: { tables: 3, totalColumns: 84, autoMapped: 50, manuallyMapped: 2, suggested: 0, unmappedSource: 32 },
+    })
+    renderUI(<MappingScoreHeader automap={live} live={live} onFilter={() => {}} onRerun={() => {}} />)
+    expect(screen.getByRole('heading', { name: '98 of 100 target fields done' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: "98% of the document's fields done: 73% filled with data, 25% not populated" })).toBeInTheDocument()
+    expect(screen.getByTestId('done-split')).toHaveTextContent('73 filled with data·25 not populated·2 to go (1 required)Show them')
+    expect(screen.getByTestId('source-used')).toHaveTextContent('Source columns used: 70 of 112 (18 of 28 from the table, 52 of 84 embedded)')
+    expect(screen.getByText('10 not used')).toBeInTheDocument()
+    expect(screen.queryByText(/coverage/)).toBeNull()
+  })
+
+  it('OC-187: nothing left empty and nothing to go: only the filled count', () => {
+    const live = stats({ targetFields: 20, targetFieldsDone: 20, doneRatio: 1, targetFieldsFilled: 20, targetFieldsNotPopulated: 0 })
+    renderUI(<MappingScoreHeader automap={live} live={live} onFilter={() => {}} onRerun={() => {}} />)
+    expect(screen.getByRole('img', { name: "100% of the document's fields done" })).toBeInTheDocument()
+    expect(screen.getByTestId('done-split')).toHaveTextContent(/^20 filled with data$/)
   })
 
   it('viewers see the re-run controls disabled', async () => {
@@ -36,11 +63,15 @@ describe('MappingScoreHeader', () => {
     const { unmount } = renderUI(
       <MappingScoreHeader automap={stats({ totalSourceColumns: 1, autoMapped: 1 })} live={stats({ requiredTargetUnmapped: 1 })} onFilter={() => {}} onRerun={() => {}} />,
     )
-    expect(screen.getByRole('heading', { name: 'Omni-Data-Bus auto-mapped 1 of 1 column' })).toBeInTheDocument()
+    expect(screen.getByText('Source column · auto-mapped 1 of 1 on the last run')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '1 required field unmapped' })).toBeInTheDocument()
     unmount()
-    renderUI(<MappingScoreHeader automap={stats({ totalSourceColumns: 0, autoMapped: 0 })} live={stats()} onFilter={() => {}} onRerun={() => {}} />)
-    expect(screen.getByRole('heading', { name: 'This table has no columns to map.' })).toBeInTheDocument()
+    const again = renderUI(<MappingScoreHeader automap={stats()} live={stats({ targetFields: 20, targetFieldsDone: 20, doneRatio: 1 })} onFilter={() => {}} onRerun={() => {}} />)
+    expect(screen.getByRole('heading', { name: 'All 20 target fields done' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show them' })).toBeNull()
+    again.unmount()
+    renderUI(<MappingScoreHeader automap={stats({ totalSourceColumns: 0, autoMapped: 0 })} live={stats({ targetFields: 0, targetFieldsDone: 0, doneRatio: 0 })} onFilter={() => {}} onRerun={() => {}} />)
+    expect(screen.getByRole('heading', { name: 'The document has no fields yet' })).toBeInTheDocument()
   })
 
   it('AC3: announces coverage change', async () => {
@@ -56,11 +87,11 @@ describe('MappingScoreHeader', () => {
       )
     }
     renderUI(<Harness />)
-    const live = screen.getByText(/coverage/).closest('[aria-live]')
+    const live = screen.getByTestId('source-used').closest('[aria-live]')
     expect(live).toHaveAttribute('aria-live', 'polite')
-    expect(live).toHaveTextContent('57% coverage (13 of 23 columns)')
+    expect(live).toHaveTextContent('Source columns used: 13 of 23')
     await userEvent.click(screen.getByRole('button', { name: 'edit' }))
-    expect(live).toHaveTextContent('61% coverage (14 of 23 columns)')
+    expect(live).toHaveTextContent('Source columns used: 14 of 23')
   })
 
   it('AC7: reset asks for confirmation, then re-runs in reset mode', async () => {
@@ -90,7 +121,7 @@ describe('SegmentBar', () => {
     renderUI(<SegmentBar stats={stats()} onFilter={onFilter} />)
     await userEvent.click(screen.getByTestId('segment-suggested'))
     expect(onFilter).toHaveBeenLastCalledWith('suggested')
-    await userEvent.click(screen.getByText('6 unmapped'))
+    await userEvent.click(screen.getByText('6 not used'))
     expect(onFilter).toHaveBeenLastCalledWith('unmapped')
     await userEvent.click(screen.getByText('1 ignored'))
     expect(onFilter).toHaveBeenCalledTimes(2)
@@ -115,7 +146,9 @@ describe('SegmentBar', () => {
     )
     // In the field list (Table view, on demand since OC-067), which shows each field's source.
     renderRoutes(routes, '/projects/p1/mappings/m1?view=table')
-    expect(await screen.findByRole('heading', { name: 'Omni-Data-Bus auto-mapped 10 of 23 columns' })).toBeInTheDocument()
+    // The live count: customerId, name.first and createdAt of 7 fields (email is only suggested).
+    expect(await screen.findByRole('heading', { name: '3 of 7 target fields done' })).toBeInTheDocument()
+    expect(screen.getByText('Source columns · auto-mapped 10 of 23 on the last run')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Auto-map options' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Reset auto and suggested mappings' }))
@@ -123,7 +156,8 @@ describe('SegmentBar', () => {
     expect(dialog).toHaveTextContent('Your manual mappings are kept.')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Reset' }))
 
-    expect(await screen.findByRole('heading', { name: 'Omni-Data-Bus auto-mapped 12 of 23 columns' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '4 of 7 target fields done' })).toBeInTheDocument()
+    expect(screen.getByText('Source columns · auto-mapped 12 of 23 on the last run')).toBeInTheDocument()
     expect(calls).toEqual([{ ifMatch: '"3"', body: { mode: 'reset' } }])
     expect(await screen.findByRole('combobox', { name: 'Source for age' })).toHaveValue('age_text')
     expect(screen.getByRole('combobox', { name: 'Source for createdAt' })).toHaveValue('created_on')

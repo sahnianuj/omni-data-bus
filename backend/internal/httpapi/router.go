@@ -47,6 +47,7 @@ func NewRouter(o Options) chi.Router {
 
 	r.Get("/healthz", Healthz)
 	r.Get("/readyz", Readyz(o.Ready))
+	r.Get("/licenses.txt", Licenses) // OC-189
 	if o.Metrics != nil {
 		r.Method(http.MethodGet, "/metrics", o.Metrics)
 	} else {

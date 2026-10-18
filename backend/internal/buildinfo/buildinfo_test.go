@@ -48,7 +48,29 @@ func TestBuildInfo_AC1_Defaults(t *testing.T) {
 
 func TestBuildInfo_Text(t *testing.T) {
 	i := Info{Version: "2.0.0", Commit: "3f2a9c1", BuildTime: "2026-11-02T14:05:11Z", Channel: "release", GoVersion: "go1.26.8", Platform: "linux/amd64"}
-	assert.Equal(t, "Omni-Data-Bus 2.0.0 (release)\nCommit: 3f2a9c1  Built: 2026-11-02T14:05:11Z  Go: go1.26.8  Platform: linux/amd64\n", i.Text())
+	assert.Equal(t, "Omni-Data-Bus 2.0.0 (release)\nCommit: 3f2a9c1  Built: 2026-11-02T14:05:11Z  Go: go1.26.8  Platform: linux/amd64\n"+
+		"Licensed under Apache-2.0 · Copyright 2026 Couchbase, Inc.\n", i.Text()) // OC-189 AC2
 	i.Dirty = true
 	assert.Contains(t, i.Text(), "2.0.0 (dirty) (release)")
+}
+
+// OC-172 AC1: an untagged build of VERSION 2.5.0 says the release and the build, never a bare
+// commit; a CI run number and a dirty tree are part of the build.
+func TestBuildInfo_OC172_AC1_DevBuild(t *testing.T) {
+	i := buildWith("2.5.0-dev", "7f6cea2e0b11", "2026-10-17T08:00:00Z", "", "", "")
+	assert.Equal(t, "2.5.0-dev", i.Version)
+	assert.Equal(t, ChannelDev, i.Channel)
+	assert.Equal(t, "7f6cea2", i.Build, "the short commit by default")
+	assert.Equal(t, "2.5.0-dev · build 7f6cea2", i.Summary())
+	assert.False(t, i.Dirty)
+
+	ci := buildWith("2.5.0", "7f6cea2e0b11", "", "", "7f6cea2 #418", "true")
+	assert.Equal(t, ChannelRelease, ci.Channel)
+	assert.Equal(t, "2.5.0 · build 7f6cea2 #418", ci.Summary())
+	assert.True(t, ci.Dirty, "dirty from the build, not the version suffix")
+	assert.Contains(t, ci.Text(), "Build: 7f6cea2 #418  Commit: 7f6cea2")
+
+	assert.Equal(t, "dev", Get().Summary(), "plain go build: no commit, no build")
+	defer Override("2.5.0", "abcdef0123", "", "")()
+	assert.Equal(t, "2.5.0 · build abcdef0", Get().Summary())
 }

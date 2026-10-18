@@ -1,0 +1,1278 @@
+{
+ "root": {
+  "id": "fld_root",
+  "name": "$",
+  "type": "object",
+  "description": "A point-of-sale cart. Document ID: cart::{uuid}. Embedded payment variants: see payments/*.schema.json. Saved orders are folded onto status/savedAt/orderCollectionType below.",
+  "children": [
+   {
+    "id": "fld_d0a3e7f81a",
+    "name": "type",
+    "type": "string",
+    "required": true,
+    "example": "cart"
+   },
+   {
+    "id": "fld_87ea5dfc8b",
+    "name": "id",
+    "type": "string",
+    "required": true,
+    "example": "cart::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"
+   },
+   {
+    "id": "fld_c692273deb",
+    "name": "version",
+    "type": "integer",
+    "required": true,
+    "example": 1
+   },
+   {
+    "id": "fld_48a3661d84",
+    "name": "status",
+    "type": "string",
+    "required": true,
+    "description": "'saved' is derived: the cart's status column stays 'open' while a saved_orders row exists for the cart.",
+    "example": "open",
+    "enum": [
+     "open",
+     "payment_pending",
+     "closed",
+     "abandoned",
+     "voided",
+     "queued",
+     "saved"
+    ]
+   },
+   {
+    "id": "fld_fbe7d7baac",
+    "name": "channel",
+    "type": "string",
+    "required": true,
+    "example": "cafe"
+   },
+   {
+    "id": "fld_849e5009f3",
+    "name": "skipFulfillment",
+    "type": "boolean",
+    "example": false
+   },
+   {
+    "id": "fld_cb3086079d",
+    "name": "submitAfterTipAbort",
+    "type": "boolean",
+    "example": false
+   },
+   {
+    "id": "fld_890c94d82f",
+    "name": "consumptionType",
+    "type": "string",
+    "required": true,
+    "example": "ConsumeInStore",
+    "enum": [
+     "ConsumeInStore",
+     "ConsumeOutOfStore"
+    ]
+   },
+   {
+    "id": "fld_ec9b0493d7",
+    "name": "storeNumber",
+    "type": "string",
+    "required": true,
+    "example": "11111"
+   },
+   {
+    "id": "fld_0abb4123cb",
+    "name": "partnerNumber",
+    "type": "string",
+    "required": true,
+    "example": "1000001"
+   },
+   {
+    "id": "fld_6af5b9adbc",
+    "name": "registerNumber",
+    "type": "integer",
+    "example": 41
+   },
+   {
+    "id": "fld_c87d1a18b6",
+    "name": "orderNotes",
+    "type": "string",
+    "example": "Extra hot, please"
+   },
+   {
+    "id": "fld_696b97b727",
+    "name": "customerNamePrompt",
+    "type": "boolean",
+    "description": "Not populated - no column.",
+    "example": false
+   },
+   {
+    "id": "fld_b39f008e31",
+    "name": "customer",
+    "type": "object",
+    "description": "The cart's customer: the first customers row of the cart.",
+    "children": [
+     {
+      "id": "fld_ec8b763913",
+      "name": "userID",
+      "type": "string",
+      "description": "Not populated."
+     },
+     {
+      "id": "fld_cc87c530c3",
+      "name": "firstName",
+      "type": "string",
+      "example": "John"
+     },
+     {
+      "id": "fld_65a30ab169",
+      "name": "lastName",
+      "type": "string",
+      "example": "Doe"
+     },
+     {
+      "id": "fld_3dba58f6ab",
+      "name": "starsEarned",
+      "type": "number",
+      "example": 25
+     },
+     {
+      "id": "fld_a8c804d222",
+      "name": "loyaltyID",
+      "type": "string",
+      "example": "loyalty-12"
+     },
+     {
+      "id": "fld_f38034b2ff",
+      "name": "alias",
+      "type": "string"
+     },
+     {
+      "id": "fld_10a2b4331d",
+      "name": "validPartner",
+      "type": "boolean",
+      "example": true
+     },
+     {
+      "id": "fld_37bbd7ef78",
+      "name": "partnerNumber",
+      "type": "string"
+     },
+     {
+      "id": "fld_bc4c5a2fd0",
+      "name": "partnerName",
+      "type": "string"
+     },
+     {
+      "id": "fld_c140dfe260",
+      "name": "partnerStatus",
+      "type": "string"
+     },
+     {
+      "id": "fld_908a56818b",
+      "name": "eligibleBenefits",
+      "type": "array",
+      "items": {
+       "id": "fld_0698976d6d",
+       "name": "[]",
+       "type": "string"
+      }
+     },
+     {
+      "id": "fld_e17f0ec363",
+      "name": "tierNumber",
+      "type": "integer"
+     }
+    ]
+   },
+   {
+    "id": "fld_3624db8830",
+    "name": "partner",
+    "type": "object",
+    "required": true,
+    "description": "A lightweight reference to the partner who rang up the cart.",
+    "children": [
+     {
+      "id": "fld_1755f270c2",
+      "name": "number",
+      "type": "string",
+      "example": "1000001"
+     },
+     {
+      "id": "fld_bc00ae5245",
+      "name": "name",
+      "type": "string",
+      "example": "Ana Lopez"
+     }
+    ]
+   },
+   {
+    "id": "fld_7316c8b2e7",
+    "name": "items",
+    "type": "array",
+    "required": true,
+    "items": {
+     "id": "fld_064ce51406",
+     "name": "[]",
+     "type": "object",
+     "children": [
+      {
+       "id": "fld_44a280b145",
+       "name": "id",
+       "type": "string",
+       "example": "2a6c0f4e-55aa-4c1b-8b3e-0e9a7d2c1b00"
+      },
+      {
+       "id": "fld_1732aaf596",
+       "name": "name",
+       "type": "string",
+       "example": "Latte"
+      },
+      {
+       "id": "fld_169dcb7497",
+       "name": "quantity",
+       "type": "integer",
+       "description": "Always 1 - cart_items has no quantity column, each unit is its own row.",
+       "example": 1
+      },
+      {
+       "id": "fld_332cafe88a",
+       "name": "sellableItemId",
+       "type": "integer",
+       "example": 5004
+      },
+      {
+       "id": "fld_54f0309c68",
+       "name": "menuProductId",
+       "type": "integer",
+       "example": 104
+      },
+      {
+       "id": "fld_6ffbe765d0",
+       "name": "formCode",
+       "type": "string",
+       "example": "HOT"
+      },
+      {
+       "id": "fld_10036f1afb",
+       "name": "sizeCode",
+       "type": "string",
+       "example": "GR"
+      },
+      {
+       "id": "fld_c8a672520f",
+       "name": "productTypeId",
+       "type": "integer",
+       "example": 1
+      },
+      {
+       "id": "fld_c4f5af5168",
+       "name": "servingSizeName",
+       "type": "string",
+       "example": "Grande"
+      },
+      {
+       "id": "fld_aa99a43191",
+       "name": "sequenceNumber",
+       "type": "integer",
+       "example": 1
+      },
+      {
+       "id": "fld_d41d5bef98",
+       "name": "displayIndex",
+       "type": "integer",
+       "example": 0
+      },
+      {
+       "id": "fld_c467c80b08",
+       "name": "basePrice",
+       "type": "integer",
+       "example": 495
+      },
+      {
+       "id": "fld_ddc527408b",
+       "name": "price",
+       "type": "integer",
+       "example": 495
+      },
+      {
+       "id": "fld_bb6aeac6e6",
+       "name": "priceOverride",
+       "type": "integer"
+      },
+      {
+       "id": "fld_9697bd4df4",
+       "name": "priceOverrideAuthorized",
+       "type": "boolean",
+       "example": false
+      },
+      {
+       "id": "fld_048f67ed7a",
+       "name": "priceOverrideAuthorizedBy",
+       "type": "string",
+       "description": "Not populated - only whether an override happened is tracked."
+      },
+      {
+       "id": "fld_c322d2bc9f",
+       "name": "priceOverrideReason",
+       "type": "string",
+       "description": "Not populated."
+      },
+      {
+       "id": "fld_b8e3a7e2c1",
+       "name": "redemptionTier",
+       "type": "string"
+      },
+      {
+       "id": "fld_688dd6e803",
+       "name": "isRefund",
+       "type": "boolean",
+       "example": false
+      },
+      {
+       "id": "fld_ce8928625e",
+       "name": "isAvailable",
+       "type": "boolean",
+       "example": true
+      },
+      {
+       "id": "fld_854371d446",
+       "name": "isImpulseItem",
+       "type": "boolean",
+       "example": false
+      },
+      {
+       "id": "fld_5d5af9c484",
+       "name": "isRefill",
+       "type": "boolean",
+       "example": false
+      },
+      {
+       "id": "fld_c0d0776c2f",
+       "name": "itemAvailabilityOverride",
+       "type": "boolean"
+      },
+      {
+       "id": "fld_829e2f5a64",
+       "name": "askMeInstructions",
+       "type": "string"
+      },
+      {
+       "id": "fld_66526cc8ea",
+       "name": "imageUrl",
+       "type": "string",
+       "example": "https://img.example/items/5004.png"
+      },
+      {
+       "id": "fld_bad5b9fe76",
+       "name": "voided",
+       "type": "boolean",
+       "example": false
+      },
+      {
+       "id": "fld_a6dd7f5ef7",
+       "name": "modifiers",
+       "type": "array",
+       "items": {
+        "id": "fld_4018216fcb",
+        "name": "[]",
+        "type": "object",
+        "description": "value/valueString mirror label - customizations has a single name column.",
+        "children": [
+         {
+          "id": "fld_6999dd648f",
+          "name": "id",
+          "type": "string",
+          "example": "6d1e2f3a-0000-4000-8000-000000000001"
+         },
+         {
+          "id": "fld_154685c33f",
+          "name": "label",
+          "type": "string",
+          "example": "Oat Milk"
+         },
+         {
+          "id": "fld_ea71d427fb",
+          "name": "value",
+          "type": "string",
+          "example": "Oat Milk"
+         },
+         {
+          "id": "fld_1db3b8b010",
+          "name": "valueString",
+          "type": "string",
+          "example": "Oat Milk"
+         },
+         {
+          "id": "fld_ed56200995",
+          "name": "menuProductId",
+          "type": "integer"
+         },
+         {
+          "id": "fld_68204482c8",
+          "name": "sellableItemId",
+          "type": "integer",
+          "example": 15001
+         },
+         {
+          "id": "fld_94b6b2237e",
+          "name": "formCode",
+          "type": "string",
+          "example": "ADD"
+         },
+         {
+          "id": "fld_203943b4b3",
+          "name": "sizeCode",
+          "type": "string",
+          "example": "STD"
+         },
+         {
+          "id": "fld_e43d41c88e",
+          "name": "quantity",
+          "type": "integer",
+          "example": 1
+         },
+         {
+          "id": "fld_09b324f680",
+          "name": "price",
+          "type": "integer",
+          "example": 70
+         },
+         {
+          "id": "fld_2622031777",
+          "name": "isAvailable",
+          "type": "boolean",
+          "example": true
+         },
+         {
+          "id": "fld_1453ce4718",
+          "name": "itemAvailabilityOverride",
+          "type": "boolean"
+         },
+         {
+          "id": "fld_c4868a825c",
+          "name": "voided",
+          "type": "boolean",
+          "example": false
+         }
+        ]
+       }
+      },
+      {
+       "id": "fld_f62bdc102c",
+       "name": "appliedRewards",
+       "type": "array",
+       "items": {
+        "id": "fld_7103f7d306",
+        "name": "[]",
+        "type": "object",
+        "description": "rewardType, accessibilityLabel and value are not populated - applied_rewards only tracks a code and description.",
+        "children": [
+         {
+          "id": "fld_5399aae54f",
+          "name": "id",
+          "type": "string",
+          "example": "9b8a7c6d-0000-4000-8000-000000000002"
+         },
+         {
+          "id": "fld_004fea09cc",
+          "name": "rewardCode",
+          "type": "string",
+          "example": "STARS-25"
+         },
+         {
+          "id": "fld_43bda393dc",
+          "name": "rewardType",
+          "type": "string",
+          "description": "Not populated.",
+          "example": "STAR_REDEMPTION"
+         },
+         {
+          "id": "fld_cd1f382b49",
+          "name": "description",
+          "type": "string",
+          "example": "25 Stars Reward"
+         },
+         {
+          "id": "fld_370008fb85",
+          "name": "accessibilityLabel",
+          "type": "string",
+          "description": "Not populated.",
+          "example": "25 stars applied"
+         },
+         {
+          "id": "fld_7d375334e8",
+          "name": "value",
+          "type": "integer",
+          "description": "Not populated.",
+          "example": -100
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "fld_00317b5e81",
+    "name": "pricing",
+    "type": "object",
+    "required": true,
+    "description": "tipInCents is the sum of payments[].tipInCents (collected_payments.tip_in_cents).",
+    "children": [
+     {
+      "id": "fld_41151cf207",
+      "name": "totalInCents",
+      "type": "integer",
+      "example": 395
+     },
+     {
+      "id": "fld_e1a68c7a43",
+      "name": "subTotalInCents",
+      "type": "integer",
+      "example": 495
+     },
+     {
+      "id": "fld_3480384e1e",
+      "name": "taxInCents",
+      "type": "integer",
+      "example": 0
+     },
+     {
+      "id": "fld_8d94c004c4",
+      "name": "discountInCents",
+      "type": "integer",
+      "example": 100
+     },
+     {
+      "id": "fld_507ec7e713",
+      "name": "tipInCents",
+      "type": "integer",
+      "description": "Sum of collected_payments.tip_in_cents.",
+      "example": 0
+     },
+     {
+      "id": "fld_f100cfa4f1",
+      "name": "totalToDisplay",
+      "type": "string",
+      "example": "3.95"
+     },
+     {
+      "id": "fld_d7c9d57089",
+      "name": "label",
+      "type": "string",
+      "description": "Not populated - no aggregation for item-level discount summaries.",
+      "example": "Total"
+     },
+     {
+      "id": "fld_8cd04847fe",
+      "name": "modifiers",
+      "type": "array",
+      "description": "Not populated.",
+      "items": {
+       "id": "fld_8935bb92c7",
+       "name": "[]",
+       "type": "object",
+       "children": [
+        {
+         "id": "fld_c6b88c0ca1",
+         "name": "modifierName",
+         "type": "string",
+         "example": "Discount"
+        },
+        {
+         "id": "fld_8878bea23b",
+         "name": "label",
+         "type": "string",
+         "example": "Item Discounts"
+        },
+        {
+         "id": "fld_0d3ca043fc",
+         "name": "value",
+         "type": "string",
+         "example": "-$1.00"
+        }
+       ]
+      }
+     },
+     {
+      "id": "fld_0e50f5dd68",
+      "name": "taxLabels",
+      "type": "array",
+      "description": "Not populated - no itemized tax label aggregation.",
+      "items": {
+       "id": "fld_7e3fad31bb",
+       "name": "[]",
+       "type": "object",
+       "children": [
+        {
+         "id": "fld_b3b63c721f",
+         "name": "name",
+         "type": "string",
+         "example": "Sales Tax"
+        },
+        {
+         "id": "fld_3a0b2faaf4",
+         "name": "value",
+         "type": "integer",
+         "example": 0
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "fld_6add1d2283",
+    "name": "taxDataID",
+    "type": "string",
+    "description": "References the separate tax data document; nil if the cart has never been priced.",
+    "example": "tax_data::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"
+   },
+   {
+    "id": "fld_4a4631061e",
+    "name": "selectedPaymentID",
+    "type": "string",
+    "description": "Not populated - not tracked at the cart level."
+   },
+   {
+    "id": "fld_40c4770202",
+    "name": "payments",
+    "type": "array",
+    "description": "Payment entries - see payments/*.schema.json for the field set of each paymentType.",
+    "items": {
+     "id": "fld_ec21da83ad",
+     "name": "[]",
+     "type": "object"
+    }
+   },
+   {
+    "id": "fld_58a3847947",
+    "name": "associatedScan",
+    "type": "object",
+    "description": "Not populated - superseded by payments[].",
+    "children": [
+     {
+      "id": "fld_ace7353a54",
+      "name": "type",
+      "type": "string",
+      "example": "SVC"
+     },
+     {
+      "id": "fld_d67c212e91",
+      "name": "paymentID",
+      "type": "string",
+      "example": "9c1d2e3f-0000-4000-8000-000000000003"
+     }
+    ]
+   },
+   {
+    "id": "fld_14e60ace3d",
+    "name": "receipt",
+    "type": "object",
+    "description": "Not populated - receipts are generated per request, never stored.",
+    "children": [
+     {
+      "id": "fld_692b40f6b1",
+      "name": "id",
+      "type": "string",
+      "example": "receipt-1"
+     },
+     {
+      "id": "fld_94a91a143a",
+      "name": "data",
+      "type": "string",
+      "example": "base64-receipt"
+     },
+     {
+      "id": "fld_7604622ca5",
+      "name": "generationDate",
+      "type": "datetime",
+      "format": "iso8601",
+      "example": "2026-07-19T10:30:00Z"
+     },
+     {
+      "id": "fld_62b38fcea3",
+      "name": "messageType",
+      "type": "string",
+      "example": "RECEIPT"
+     }
+    ]
+   },
+   {
+    "id": "fld_0156631f50",
+    "name": "loyaltyTransactionID",
+    "type": "string"
+   },
+   {
+    "id": "fld_d7f892f37f",
+    "name": "savedAt",
+    "type": "datetime",
+    "description": "Set only when status is 'saved' - sourced from saved_orders.saved_at.",
+    "format": "iso8601"
+   },
+   {
+    "id": "fld_98c93a6982",
+    "name": "orderCollectionType",
+    "type": "string",
+    "description": "Set only when status is 'saved' - sourced from saved_orders.order_collection_type.",
+    "enum": [
+     "IN_STORE",
+     "DRIVE_THRU",
+     "CURBSIDE",
+     "OUTDOOR"
+    ]
+   },
+   {
+    "id": "fld_93a3c92732",
+    "name": "createdAt",
+    "type": "datetime",
+    "required": true,
+    "format": "iso8601",
+    "example": "2026-07-19T10:00:00Z"
+   },
+   {
+    "id": "fld_ecdd260189",
+    "name": "updatedAt",
+    "type": "datetime",
+    "required": true,
+    "format": "iso8601",
+    "example": "2026-07-19T10:30:00Z"
+   },
+   {
+    "id": "fld_4b2d38c421",
+    "name": "closedAt",
+    "type": "datetime",
+    "format": "iso8601"
+   },
+   {
+    "id": "fld_e282fba32c",
+    "name": "voidedAt",
+    "type": "datetime",
+    "format": "iso8601"
+   }
+  ]
+ },
+ "source": "json-schema",
+ "imported": {
+  "at": "2026-10-17T08:00:00Z",
+  "fileName": "cart.schema.json",
+  "format": "json-schema",
+  "samples": 0,
+  "fieldCount": 110,
+  "fields": [
+   {
+    "path": "type",
+    "type": "string",
+    "required": true
+   },
+   {
+    "path": "id",
+    "type": "string",
+    "required": true
+   },
+   {
+    "path": "version",
+    "type": "integer",
+    "required": true
+   },
+   {
+    "path": "status",
+    "type": "string",
+    "required": true,
+    "enum": [
+     "open",
+     "payment_pending",
+     "closed",
+     "abandoned",
+     "voided",
+     "queued",
+     "saved"
+    ]
+   },
+   {
+    "path": "channel",
+    "type": "string",
+    "required": true
+   },
+   {
+    "path": "skipFulfillment",
+    "type": "boolean"
+   },
+   {
+    "path": "submitAfterTipAbort",
+    "type": "boolean"
+   },
+   {
+    "path": "consumptionType",
+    "type": "string",
+    "required": true,
+    "enum": [
+     "ConsumeInStore",
+     "ConsumeOutOfStore"
+    ]
+   },
+   {
+    "path": "storeNumber",
+    "type": "string",
+    "required": true
+   },
+   {
+    "path": "partnerNumber",
+    "type": "string",
+    "required": true
+   },
+   {
+    "path": "registerNumber",
+    "type": "integer"
+   },
+   {
+    "path": "orderNotes",
+    "type": "string"
+   },
+   {
+    "path": "customerNamePrompt",
+    "type": "boolean"
+   },
+   {
+    "path": "customer",
+    "type": "object"
+   },
+   {
+    "path": "customer.userID",
+    "type": "string"
+   },
+   {
+    "path": "customer.firstName",
+    "type": "string"
+   },
+   {
+    "path": "customer.lastName",
+    "type": "string"
+   },
+   {
+    "path": "customer.starsEarned",
+    "type": "number"
+   },
+   {
+    "path": "customer.loyaltyID",
+    "type": "string"
+   },
+   {
+    "path": "customer.alias",
+    "type": "string"
+   },
+   {
+    "path": "customer.validPartner",
+    "type": "boolean"
+   },
+   {
+    "path": "customer.partnerNumber",
+    "type": "string"
+   },
+   {
+    "path": "customer.partnerName",
+    "type": "string"
+   },
+   {
+    "path": "customer.partnerStatus",
+    "type": "string"
+   },
+   {
+    "path": "customer.eligibleBenefits",
+    "type": "array"
+   },
+   {
+    "path": "customer.eligibleBenefits[]",
+    "type": "string"
+   },
+   {
+    "path": "customer.tierNumber",
+    "type": "integer"
+   },
+   {
+    "path": "partner",
+    "type": "object",
+    "required": true
+   },
+   {
+    "path": "partner.number",
+    "type": "string"
+   },
+   {
+    "path": "partner.name",
+    "type": "string"
+   },
+   {
+    "path": "items",
+    "type": "array",
+    "required": true
+   },
+   {
+    "path": "items[]",
+    "type": "object"
+   },
+   {
+    "path": "items[].id",
+    "type": "string"
+   },
+   {
+    "path": "items[].name",
+    "type": "string"
+   },
+   {
+    "path": "items[].quantity",
+    "type": "integer"
+   },
+   {
+    "path": "items[].sellableItemId",
+    "type": "integer"
+   },
+   {
+    "path": "items[].menuProductId",
+    "type": "integer"
+   },
+   {
+    "path": "items[].formCode",
+    "type": "string"
+   },
+   {
+    "path": "items[].sizeCode",
+    "type": "string"
+   },
+   {
+    "path": "items[].productTypeId",
+    "type": "integer"
+   },
+   {
+    "path": "items[].servingSizeName",
+    "type": "string"
+   },
+   {
+    "path": "items[].sequenceNumber",
+    "type": "integer"
+   },
+   {
+    "path": "items[].displayIndex",
+    "type": "integer"
+   },
+   {
+    "path": "items[].basePrice",
+    "type": "integer"
+   },
+   {
+    "path": "items[].price",
+    "type": "integer"
+   },
+   {
+    "path": "items[].priceOverride",
+    "type": "integer"
+   },
+   {
+    "path": "items[].priceOverrideAuthorized",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].priceOverrideAuthorizedBy",
+    "type": "string"
+   },
+   {
+    "path": "items[].priceOverrideReason",
+    "type": "string"
+   },
+   {
+    "path": "items[].redemptionTier",
+    "type": "string"
+   },
+   {
+    "path": "items[].isRefund",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].isAvailable",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].isImpulseItem",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].isRefill",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].itemAvailabilityOverride",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].askMeInstructions",
+    "type": "string"
+   },
+   {
+    "path": "items[].imageUrl",
+    "type": "string"
+   },
+   {
+    "path": "items[].voided",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].modifiers",
+    "type": "array"
+   },
+   {
+    "path": "items[].modifiers[]",
+    "type": "object"
+   },
+   {
+    "path": "items[].modifiers[].id",
+    "type": "string"
+   },
+   {
+    "path": "items[].modifiers[].label",
+    "type": "string"
+   },
+   {
+    "path": "items[].modifiers[].value",
+    "type": "string"
+   },
+   {
+    "path": "items[].modifiers[].valueString",
+    "type": "string"
+   },
+   {
+    "path": "items[].modifiers[].menuProductId",
+    "type": "integer"
+   },
+   {
+    "path": "items[].modifiers[].sellableItemId",
+    "type": "integer"
+   },
+   {
+    "path": "items[].modifiers[].formCode",
+    "type": "string"
+   },
+   {
+    "path": "items[].modifiers[].sizeCode",
+    "type": "string"
+   },
+   {
+    "path": "items[].modifiers[].quantity",
+    "type": "integer"
+   },
+   {
+    "path": "items[].modifiers[].price",
+    "type": "integer"
+   },
+   {
+    "path": "items[].modifiers[].isAvailable",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].modifiers[].itemAvailabilityOverride",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].modifiers[].voided",
+    "type": "boolean"
+   },
+   {
+    "path": "items[].appliedRewards",
+    "type": "array"
+   },
+   {
+    "path": "items[].appliedRewards[]",
+    "type": "object"
+   },
+   {
+    "path": "items[].appliedRewards[].id",
+    "type": "string"
+   },
+   {
+    "path": "items[].appliedRewards[].rewardCode",
+    "type": "string"
+   },
+   {
+    "path": "items[].appliedRewards[].rewardType",
+    "type": "string"
+   },
+   {
+    "path": "items[].appliedRewards[].description",
+    "type": "string"
+   },
+   {
+    "path": "items[].appliedRewards[].accessibilityLabel",
+    "type": "string"
+   },
+   {
+    "path": "items[].appliedRewards[].value",
+    "type": "integer"
+   },
+   {
+    "path": "pricing",
+    "type": "object",
+    "required": true
+   },
+   {
+    "path": "pricing.totalInCents",
+    "type": "integer"
+   },
+   {
+    "path": "pricing.subTotalInCents",
+    "type": "integer"
+   },
+   {
+    "path": "pricing.taxInCents",
+    "type": "integer"
+   },
+   {
+    "path": "pricing.discountInCents",
+    "type": "integer"
+   },
+   {
+    "path": "pricing.tipInCents",
+    "type": "integer"
+   },
+   {
+    "path": "pricing.totalToDisplay",
+    "type": "string"
+   },
+   {
+    "path": "pricing.label",
+    "type": "string"
+   },
+   {
+    "path": "pricing.modifiers",
+    "type": "array"
+   },
+   {
+    "path": "pricing.modifiers[]",
+    "type": "object"
+   },
+   {
+    "path": "pricing.modifiers[].modifierName",
+    "type": "string"
+   },
+   {
+    "path": "pricing.modifiers[].label",
+    "type": "string"
+   },
+   {
+    "path": "pricing.modifiers[].value",
+    "type": "string"
+   },
+   {
+    "path": "pricing.taxLabels",
+    "type": "array"
+   },
+   {
+    "path": "pricing.taxLabels[]",
+    "type": "object"
+   },
+   {
+    "path": "pricing.taxLabels[].name",
+    "type": "string"
+   },
+   {
+    "path": "pricing.taxLabels[].value",
+    "type": "integer"
+   },
+   {
+    "path": "taxDataID",
+    "type": "string"
+   },
+   {
+    "path": "selectedPaymentID",
+    "type": "string"
+   },
+   {
+    "path": "payments",
+    "type": "array"
+   },
+   {
+    "path": "payments[]",
+    "type": "object"
+   },
+   {
+    "path": "associatedScan",
+    "type": "object"
+   },
+   {
+    "path": "associatedScan.type",
+    "type": "string"
+   },
+   {
+    "path": "associatedScan.paymentID",
+    "type": "string"
+   },
+   {
+    "path": "receipt",
+    "type": "object"
+   },
+   {
+    "path": "receipt.id",
+    "type": "string"
+   },
+   {
+    "path": "receipt.data",
+    "type": "string"
+   },
+   {
+    "path": "receipt.generationDate",
+    "type": "datetime"
+   },
+   {
+    "path": "receipt.messageType",
+    "type": "string"
+   },
+   {
+    "path": "loyaltyTransactionID",
+    "type": "string"
+   },
+   {
+    "path": "savedAt",
+    "type": "datetime"
+   },
+   {
+    "path": "orderCollectionType",
+    "type": "string",
+    "enum": [
+     "IN_STORE",
+     "DRIVE_THRU",
+     "CURBSIDE",
+     "OUTDOOR"
+    ]
+   },
+   {
+    "path": "createdAt",
+    "type": "datetime",
+    "required": true
+   },
+   {
+    "path": "updatedAt",
+    "type": "datetime",
+    "required": true
+   },
+   {
+    "path": "closedAt",
+    "type": "datetime"
+   },
+   {
+    "path": "voidedAt",
+    "type": "datetime"
+   }
+  ]
+ },
+ "constantHints": [
+  {
+   "fieldId": "fld_d0a3e7f81a",
+   "value": "cart",
+   "reason": "schema-const"
+  },
+  {
+   "fieldId": "fld_c692273deb",
+   "value": 1,
+   "reason": "schema-const"
+  }
+ ]
+}

@@ -7,15 +7,21 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"omnidatabus/internal/legal"
 )
 
 // Set at build time with -ldflags "-X omnidatabus/internal/buildinfo.version=… ". A plain
-// `go build` keeps the defaults.
+// `go build` keeps the defaults. version is the release from the repository's VERSION file
+// ("2.5.0", or "2.5.0-dev" for an untagged build, OC-172); build is the short commit plus the
+// CI run number ("7f6cea2 #418"); dirty is "true" when the tree had uncommitted changes.
 var (
 	version   = "dev"
 	commit    = "none"
 	buildTime = ""
 	channel   = ""
+	buildID   = ""
+	dirty     = ""
 )
 
 // Channels.
@@ -27,7 +33,9 @@ const (
 
 // Info describes the running binary.
 type Info struct {
-	Version   string `json:"version"`
+	Version string `json:"version"`
+	// Build identifies the build of that release: the short commit, plus the CI run number.
+	Build     string `json:"build"`
 	Commit    string `json:"commit"`
 	BuildTime string `json:"buildTime"`
 	Channel   string `json:"channel"`
@@ -37,18 +45,25 @@ type Info struct {
 }
 
 // Get returns the build metadata of this binary.
-func Get() Info { return build(version, commit, buildTime, channel) }
+func Get() Info { return buildWith(version, commit, buildTime, channel, buildID, dirty) }
 
-func build(v, c, t, ch string) Info {
+func build(v, c, t, ch string) Info { return buildWith(v, c, t, ch, "", "") }
+
+func buildWith(v, c, t, ch, b, d string) Info {
 	v = Normalize(v)
 	if ch == "" {
 		ch = ChannelFor(v)
 	}
-	return Info{
+	i := Info{
 		Version: v, Commit: c, BuildTime: t, Channel: ch,
 		GoVersion: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH,
-		Dirty: strings.HasSuffix(v, "-dirty"),
+		Dirty: d == "true" || strings.HasSuffix(v, "-dirty"),
 	}
+	i.Build = strings.TrimSpace(b)
+	if i.Build == "" && c != "" && c != "none" {
+		i.Build = i.ShortCommit()
+	}
+	return i
 }
 
 // Normalize drops the "v" of a tag ("v2.0.0" → "2.0.0"); "" becomes "dev".
@@ -89,6 +104,15 @@ func (i Info) ShortCommit() string {
 	return i.Commit
 }
 
+// Summary is the release and build in one line, as the footer, the exports and the run
+// report say it: "2.5.0 · build 7f6cea2" (OC-172).
+func (i Info) Summary() string {
+	if i.Build == "" {
+		return i.Version
+	}
+	return i.Version + " · build " + i.Build
+}
+
 // Text is the plain-text block printed by `odb --version` and copied by the footer's
 // "Copy build info" (the web client adds the browser line).
 func (i Info) Text() string {
@@ -100,14 +124,18 @@ func (i Info) Text() string {
 	if i.Dirty {
 		name += " (dirty)"
 	}
-	return fmt.Sprintf("%s (%s)\nCommit: %s  Built: %s  Go: %s  Platform: %s\n",
-		name, i.Channel, i.ShortCommit(), built, i.GoVersion, i.Platform)
+	b := ""
+	if i.Build != "" && i.Build != i.ShortCommit() {
+		b = "Build: " + i.Build + "  "
+	}
+	return fmt.Sprintf("%s (%s)\n%sCommit: %s  Built: %s  Go: %s  Platform: %s\n%s\n",
+		name, i.Channel, b, i.ShortCommit(), built, i.GoVersion, i.Platform, legal.Line())
 }
 
 // Override replaces the build variables until the returned restore func is called. For tests
 // of packages that print build info; production builds set them with -ldflags.
 func Override(v, c, t, ch string) (restore func()) {
-	ov, oc, ot, och := version, commit, buildTime, channel
-	version, commit, buildTime, channel = v, c, t, ch
-	return func() { version, commit, buildTime, channel = ov, oc, ot, och }
+	ov, oc, ot, och, ob, od := version, commit, buildTime, channel, buildID, dirty
+	version, commit, buildTime, channel, buildID, dirty = v, c, t, ch, "", ""
+	return func() { version, commit, buildTime, channel, buildID, dirty = ov, oc, ot, och, ob, od }
 }

@@ -1,0 +1,10 @@
+{
+  "release": "2.5.0",
+  "gates": [
+    { "id": "G10a", "name": "Design-first: driving table", "scenario": "propose-quality", "metric": "quality", "key": "driving", "min": 1 },
+    { "id": "G10b", "name": "Design-first: bindings", "scenario": "propose-quality", "metric": "quality", "key": "bindings", "min": 0.95 },
+    { "id": "G10c", "name": "Design-first: fields", "scenario": "propose-quality", "metric": "quality", "key": "fields", "min": 0.90 },
+    { "id": "G10d", "name": "Design-first: computed and aggregate fields", "scenario": "propose-quality", "metric": "quality", "key": "computed", "min": 0.70 },
+    { "id": "G10e", "name": "Design-first: wrong high-confidence proposals", "scenario": "propose-quality", "metric": "quality", "key": "wrongHigh", "max": 0 }
+  ]
+}

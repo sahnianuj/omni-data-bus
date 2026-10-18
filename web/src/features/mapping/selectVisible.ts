@@ -1,5 +1,5 @@
 import type { Leaf } from '@/features/docschema/docschemaOps'
-import { srcKey } from './embeds'
+import { mappingReads } from './reads'
 import type { MappingIssue, MappingSpec, SourceColumn } from './types'
 
 export type Filter = 'all' | 'unmapped' | 'suggested' | 'auto' | 'manual' | 'errors' | 'required'
@@ -12,11 +12,12 @@ export function sourceStates(spec: MappingSpec, columns: SourceColumn[]): Map<st
   const ignored = new Set(spec.ignoredColumns)
   for (const c of columns) out.set(c.name, ignored.has(c.name) ? 'ignored' : 'unmapped')
   const rank: Record<SourceState, number> = { ignored: 4, manual: 3, auto: 2, suggested: 1, unmapped: 0 }
+  // Columns an expression reads count too: concat(row.first_name, …) uses first_name.
+  const reads = mappingReads(spec, new Set(out.keys()))
   for (const m of spec.fieldMappings) {
     if (m.state === 'rejected') continue
     const s: SourceState = m.state === 'pending' ? 'suggested' : m.origin === 'auto' ? 'auto' : 'manual'
-    for (const src of m.sources) {
-      const k = srcKey(src)
+    for (const k of reads(m)) {
       const cur = out.get(k)
       if (cur !== undefined && rank[s] > rank[cur]) out.set(k, s)
     }
@@ -44,8 +45,9 @@ export function selectVisible(spec: MappingSpec, columns: SourceColumn[], leaves
   const ss = sourceStates(spec, columns)
   const ts = targetStates(spec, leaves)
   const errFields = new Set(issues.filter((i) => i.severity === 'error').map((i) => i.fieldId).filter(Boolean) as string[])
+  const reads = mappingReads(spec, new Set(columns.map((c) => c.name)))
   const errCols = new Set<string>()
-  for (const m of spec.fieldMappings) if (errFields.has(m.targetFieldId)) m.sources.forEach((s) => errCols.add(srcKey(s)))
+  for (const m of spec.fieldMappings) if (errFields.has(m.targetFieldId)) reads(m).forEach((k) => errCols.add(k))
   const q = search.trim().toLowerCase()
 
   const srcOk = (c: SourceColumn) => {
@@ -84,8 +86,9 @@ export function selectVisible(spec: MappingSpec, columns: SourceColumn[], leaves
     // Keep the other end of every mapping that touches a match, so its edge stays visible.
     for (const m of spec.fieldMappings) {
       if (m.state === 'rejected') continue
-      if (m.sources.some((s) => srcMatch.has(srcKey(s)))) keepTgt.add(m.targetFieldId)
-      if (tgtMatch.has(m.targetFieldId)) m.sources.forEach((s) => keepSrc.add(srcKey(s)))
+      const ks = reads(m)
+      if (ks.some((k) => srcMatch.has(k))) keepTgt.add(m.targetFieldId)
+      if (tgtMatch.has(m.targetFieldId)) ks.forEach((k) => keepSrc.add(k))
     }
     sources = sources.filter((c) => keepSrc.has(c.name))
     targets = targets.filter((l) => keepTgt.has(l.fieldId))

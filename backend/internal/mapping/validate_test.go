@@ -447,3 +447,144 @@ func TestValidate_EmbeddedRequiredFieldsNeedNoMapping(t *testing.T) {
 	s.DocSchema.Imported.Fields[0].Required = false
 	require.Contains(t, codesOf(Validate(&s, Context{})), "info:REFERENCE_FIELD_UNMAPPED@address.zip", "optional in the imported design: info")
 }
+
+// OC-165 AC3: a lookup reads one row: by a key of its table (one-to-one included), never by a
+// column several rows share.
+func TestValidate_OC165_AC3_LookupNotUnique(t *testing.T) {
+	c := func(n string) schema.Column { return schema.Column{Name: n, JSONType: schema.TypeString} }
+	carts := &schema.Table{Name: "carts", PrimaryKey: []string{"id"}, Columns: []schema.Column{c("id"), c("status")}}
+	tables := map[string]*schema.Table{
+		"customers":    {Name: "customers", PrimaryKey: []string{"id"}, Columns: []schema.Column{c("id"), c("cart_id"), c("first_name")}},
+		"saved_orders": {Name: "saved_orders", PrimaryKey: []string{"cart_id"}, Columns: []schema.Column{c("cart_id"), c("saved_at")}},
+	}
+	spec := func(table, child string) *Spec {
+		return &Spec{
+			SpecVersion: 2, Key: KeySpec{Template: "cart::{id}"},
+			DocSchema: docschema.Schema{Root: docschema.DocField{ID: docschema.RootID, Name: "$", Type: docschema.Object, Children: []docschema.DocField{{ID: "f_x", Name: "x", Type: docschema.String}}}},
+			Relations: []Relation{{ID: "lk", Kind: EmbedManyToOne, LookupOnly: true, Table: TableRef{Schema: "pos", Name: table}, Join: []JoinPair{{Parent: "id", Child: child}}}},
+		}
+	}
+	ctx := Context{Table: carts, Related: func(_, n string) *schema.Table { return tables[n] }}
+	codes := func(s *Spec) []string {
+		var out []string
+		for _, i := range Validate(s, ctx) {
+			out = append(out, i.Code)
+		}
+		return out
+	}
+	require.NotContains(t, codes(spec("saved_orders", "cart_id")), CodeLookupNotUnique, "one-to-one: its key")
+	require.Contains(t, codes(spec("customers", "cart_id")), CodeLookupNotUnique)
+}
+
+// A field filled twice says what each mapping fills it from, not their ids.
+func TestValidate_DuplicateTargetNamesBothSources(t *testing.T) {
+	s := baseSpec()
+	s.FieldMappings = append(s.FieldMappings,
+		FieldMapping{ID: "m_dup", TargetFieldID: "f_id", Sources: []SourceRef{{Column: "first_name"}}, Origin: OriginManual, State: StateActive},
+		FieldMapping{ID: "m_const", TargetFieldID: "f_first", Transforms: []Step{{Op: "constant", Args: map[string]any{"value": "web"}}}, Origin: OriginManual, State: StateActive},
+	)
+	var msgs []string
+	for _, is := range Validate(&s, Context{Table: custTable()}) {
+		if is.Code == CodeDuplicateTarget {
+			msgs = append(msgs, is.Message)
+		}
+	}
+	require.Equal(t, []string{
+		"Field customerId is filled twice: from customer.customer_id and from customer.first_name. Keep one.",
+		`Field firstName is filled twice: from customer.first_name and the constant "web". Keep one.`,
+	}, msgs)
+}
+
+// OC-177 AC1: a lookup nothing reads is reported, with a fix; any use clears it.
+func TestValidate_OC177_LookupUnused(t *testing.T) {
+	withLookup := func(edit func(*Spec)) []Issue {
+		s := baseSpec()
+		s.Relations = append(s.Relations, Relation{ID: "rel_lk", Kind: EmbedManyToOne, LookupOnly: true, Table: TableRef{Name: "partners"}, Join: []JoinPair{{Parent: "customer_id", Child: "id"}}})
+		if edit != nil {
+			edit(&s)
+		}
+		var out []Issue
+		for _, is := range Validate(&s, Context{Table: custTable()}) {
+			if is.Code == CodeLookupUnused {
+				out = append(out, is)
+			}
+		}
+		return out
+	}
+	got := withLookup(nil)
+	require.Len(t, got, 1)
+	require.Equal(t, SeverityInfo, got[0].Severity)
+	require.Equal(t, "relations.rel_lk", got[0].Path)
+	require.Equal(t, "Lookup partners (values only) isn't read by any field. Remove it, or map a field from it.", got[0].Message)
+	require.Equal(t, &Fix{Kind: "remove-relation", Label: "Remove lookup", RelationID: "rel_lk"}, got[0].Fix)
+
+	expr := func(e string) func(*Spec) {
+		return func(s *Spec) {
+			s.FieldMappings = append(s.FieldMappings, FieldMapping{ID: "m_x", TargetFieldID: "f_desc", Transforms: []Step{{Op: "expression", Args: map[string]any{"expr": e}}}, Origin: OriginManual, State: StateActive})
+		}
+	}
+	pid := "rel_lk"
+	for name, use := range map[string]func(*Spec){
+		"source": func(s *Spec) {
+			s.FieldMappings = append(s.FieldMappings, FieldMapping{ID: "m_x", TargetFieldID: "f_desc", Sources: []SourceRef{{Relation: "rel_lk", Column: "number"}}, Origin: OriginManual, State: StateActive})
+		},
+		"expression by table": expr("upper(partners.number)"),
+		"expression by id":    expr("rel_lk . number"),
+		"total": func(s *Spec) {
+			s.Aggregates = append(s.Aggregates, Aggregate{ID: "a", TargetFieldID: "f_age", RelationID: "rel_lk", Fn: "count"})
+		},
+		"relation under it": func(s *Spec) {
+			s.Relations = append(s.Relations, Relation{ID: "rel_sub", ParentID: &pid, Kind: EmbedManyToOne, LookupOnly: true, Table: TableRef{Name: "stores"}, Join: []JoinPair{{Parent: "store_id", Child: "id"}}, TargetFieldID: ""})
+			s.FieldMappings = append(s.FieldMappings, FieldMapping{ID: "m_y", TargetFieldID: "f_desc", Sources: []SourceRef{{Relation: "rel_sub", Column: "name"}}, Origin: OriginManual, State: StateActive})
+		},
+	} {
+		require.Empty(t, withLookup(use), name)
+	}
+	// A string that merely mentions the table doesn't count as a read through it.
+	require.Len(t, withLookup(expr("mypartners.number")), 1)
+}
+
+// OC-179 AC3: a now step's format must suit the field: an epoch for a number, written-out text
+// for a string or date; the fix switches it, keeping when and the time zone where it applies.
+func TestValidate_OC179_NowFormatType(t *testing.T) {
+	now := func(fieldID string, args map[string]any) []Issue {
+		s := baseSpec()
+		s.FieldMappings = append(s.FieldMappings, FieldMapping{ID: "m_now", TargetFieldID: fieldID, Sources: []SourceRef{}, Transforms: []Step{{Op: "now", Args: args}}, Origin: OriginManual, State: StateActive})
+		var out []Issue
+		for _, is := range Validate(&s, Context{Table: custTable()}) {
+			if is.Code == CodeNowFormatType {
+				out = append(out, is)
+			}
+		}
+		return out
+	}
+	// f_age is an integer; f_desc a string.
+	got := now("f_age", map[string]any{"at": "write", "format": "iso8601", "timezone": "Asia/Kolkata"})
+	require.Len(t, got, 1)
+	require.Equal(t, "Field age is integer, but the current date and time is written as written-out text. Use epoch milliseconds.", got[0].Message)
+	require.Equal(t, &Fix{Kind: "replace-step", Label: "Use epoch milliseconds", Step: &Step{Op: "now", Args: map[string]any{"at": "write", "format": "epoch_ms"}}}, got[0].Fix)
+	require.Empty(t, now("f_age", map[string]any{"format": "epoch_s"}))
+
+	got = now("f_desc", map[string]any{"format": "epoch_ms"})
+	require.Len(t, got, 1)
+	require.Equal(t, "Use ISO 8601", got[0].Fix.Label)
+	require.Empty(t, now("f_desc", map[string]any{}))
+	require.Empty(t, now("f_desc", map[string]any{"format": "custom", "pattern": "yyyy-MM-dd"}))
+
+	require.Equal(t, "the current date and time (when the run started, epoch ms)", DescribeNow(map[string]any{"format": "epoch_ms"}))
+	require.Equal(t, "the current date and time (when each document is written, yyyy-MM-dd, UTC)", DescribeNow(map[string]any{"at": "write", "format": "custom", "pattern": "yyyy-MM-dd", "timezone": "UTC"}))
+}
+
+// OC-179 AC4: the coverage sheet names the clock as the field's source.
+func TestSheet_OC179_Now(t *testing.T) {
+	s := baseSpec()
+	s.FieldMappings = append(s.FieldMappings, FieldMapping{ID: "m_now", TargetFieldID: "f_age", Sources: []SourceRef{}, Transforms: []Step{{Op: "now", Args: map[string]any{"format": "epoch_ms"}}}, Origin: OriginManual, State: StateActive})
+	for _, r := range Sheet(&s, TableRef{Name: "customer"}, nil) {
+		if r.Path == "age" {
+			require.Equal(t, SheetMapped, r.Status)
+			require.Equal(t, "the current date and time (when the run started, epoch ms)", r.Source)
+			return
+		}
+	}
+	t.Fatal("no row for age")
+}

@@ -19,6 +19,9 @@ const (
 	StateActive   = "active"
 	StatePending  = "pending" // a suggestion awaiting accept or reject
 	StateRejected = "rejected"
+	// StateNotPopulated: the design says the field is left empty on purpose (OC-166). Nothing
+	// is written, and it counts as done.
+	StateNotPopulated = "notPopulated"
 
 	NullInclude = "include"
 	NullOmit    = "omit"

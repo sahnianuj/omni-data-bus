@@ -55,7 +55,7 @@ func (p projectCtx) links() automap.Links {
 	return func(from mapping.TableRef) []automap.Link {
 		var out []automap.Link
 		for _, h := range g.Hops(from) {
-			out = append(out, automap.Link{Kind: h.Kind, Table: h.To, Join: h.Join, Virtual: h.Virtual})
+			out = append(out, automap.Link{Kind: h.Kind, Table: h.To, Join: h.Join, Virtual: h.Virtual, Cardinality: h.Cardinality, Direction: h.Direction})
 		}
 		for _, j := range relations.Junctions(p.snap, from) {
 			out = append(out, automap.Link{Kind: mapping.RelationManyToMany, Table: j.Table, Via: &mapping.Via{Table: j.Via, ParentJoin: j.ParentJoin, ChildJoin: j.ChildJoin, Columns: j.PayloadColumns}})

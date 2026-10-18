@@ -51,6 +51,17 @@ func Import(kind, content, fileName string) (Schema, []string, error) {
 	return s, warnings, nil
 }
 
+// ImportFiles imports a JSON Schema design split across files (OC-171): the first is the
+// document, the others its referenced or item designs (FromJSONSchemaFiles).
+func ImportFiles(files []File) (Schema, []string, error) {
+	s, warnings, err := FromJSONSchemaFiles(files)
+	if err != nil {
+		return Schema{}, nil, err
+	}
+	s.Imported = &Imported{At: time.Now().UTC(), FileName: files[0].Name, Format: FormatJSONSchema, FieldCount: namedFields(&s), Fields: Contract(&s)}
+	return s, warnings, nil
+}
+
 // namedFields counts the design's fields, not the item node of each array.
 func namedFields(s *Schema) int {
 	n := 0

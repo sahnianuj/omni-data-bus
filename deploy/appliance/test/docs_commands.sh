@@ -8,7 +8,8 @@
 #    deploy/appliance/README.md runs, in order, in a copy of the shared folder (make appliance-save).
 # 2. Then the data round trip from the guide: sign up, back up, delete everything, restore, upgrade;
 #    the account survives each step.
-# 3. Main README: its marked blocks must name real make targets (make -n; the builds take too long).
+# 3. Deployment guide (docs/deployment.md, moved from the main README): its marked blocks must name
+#    real make targets (make -n; the builds take too long).
 #
 # Uses its own container name, port and volume, removed at the end.
 set -euo pipefail
@@ -85,14 +86,14 @@ echo "  (upgrading from $(basename "$archive"))"
 [ "$(login)" = 200 ] && ok "account kept across the upgrade" || bad "login after upgrade"
 (cd "$WORK" && ./run.sh stop >/dev/null) && ok "./run.sh stop" || bad "stop"
 
-echo "Main README: the marked build commands name real make targets"
+echo "Deployment guide (docs/deployment.md): the marked build commands name real make targets"
 while IFS= read -r line; do
   cmd=${line%%#*}
   cmd=${cmd%"${cmd##*[![:space:]]}"}
   [ -n "$cmd" ] || continue
   # shellcheck disable=SC2086 # the command's words, as written
   if make -n ${cmd#make } >/dev/null 2>&1; then ok "$cmd (make -n)"; else bad "$cmd"; fi
-done < <(blocks README.md)
+done < <(blocks docs/deployment.md)
 
 echo
 [ "$FAILS" = 0 ] && echo "All checks passed." || {

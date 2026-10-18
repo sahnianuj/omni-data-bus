@@ -64,7 +64,7 @@ WHERE a.attnum > 0 AND NOT a.attisdropped AND ` + relkinds + ` AND NOT c.relispa
 
 	// Multi-column keys keep their declared order via unnest … WITH ORDINALITY.
 	constraintsSQL = `
-SELECT con.conrelid::int8, con.conname, con.contype::text,
+SELECT con.conrelid::int8, con.conname, con.contype::text, CASE WHEN con.contype = 'c' THEN pg_get_constraintdef(con.oid) ELSE '' END,
        ARRAY(SELECT a.attname::text FROM unnest(con.conkey) WITH ORDINALITY k(attnum, ord)
              JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum ORDER BY k.ord),
        COALESCE(fn.nspname, ''), COALESCE(fc.relname, ''),
@@ -75,7 +75,7 @@ JOIN pg_class c ON c.oid = con.conrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_class fc ON fc.oid = con.confrelid
 LEFT JOIN pg_namespace fn ON fn.oid = fc.relnamespace
-WHERE con.contype IN ('p', 'u', 'f') AND NOT c.relispartition AND ` + userSchemas
+WHERE con.contype IN ('p', 'u', 'f', 'c') AND NOT c.relispartition AND ` + userSchemas
 
 	// Only key columns (not INCLUDE columns); expression parts (attnum 0) are reported as "expr".
 	// A partial unique index (with a WHERE) is not reported as unique: it allows duplicate keys
@@ -137,7 +137,8 @@ type (
 	rawConstraint struct {
 		RelOID     int64
 		Name       string
-		Type       string // p, u, f
+		Type       string // p, u, f, c
+		Def        string // a CHECK constraint's definition
 		Columns    []string
 		RefSchema  string
 		RefTable   string
@@ -247,6 +248,12 @@ func AssembleSnapshot(raw rawCatalog, opts source.DiscoverOptions) *schema.Snaps
 			t.PrimaryKey = con.Columns
 		case "u":
 			t.UniqueConstraints = append(t.UniqueConstraints, con.Columns)
+		case "c":
+			// CHECK constraints are listed; "exactly one of these is set" is recognised (OC-171).
+			t.CheckConstraints = append(t.CheckConstraints, schema.Check{Name: con.Name, Definition: con.Def})
+			if arc := schema.ExclusiveArc(con.Def); len(arc) > 1 {
+				t.ExclusiveArcs = append(t.ExclusiveArcs, arc)
+			}
 		case "f":
 			t.ForeignKeys = append(t.ForeignKeys, schema.ForeignKey{
 				Name: con.Name, Columns: con.Columns, RefSchema: con.RefSchema, RefTable: con.RefTable, RefColumns: con.RefColumns,
@@ -495,7 +502,7 @@ func readCatalog(ctx context.Context, q querier, schemas []string) (rawCatalog, 
 		return raw, fmt.Errorf("columns: %w", err)
 	}
 	if raw.Constraints, err = collect(ctx, q, constraintsSQL, schemas, func(r pgx.Row, v *rawConstraint) error {
-		return r.Scan(&v.RelOID, &v.Name, &v.Type, &v.Columns, &v.RefSchema, &v.RefTable, &v.RefColumns)
+		return r.Scan(&v.RelOID, &v.Name, &v.Type, &v.Def, &v.Columns, &v.RefSchema, &v.RefTable, &v.RefColumns)
 	}); err != nil {
 		return raw, fmt.Errorf("constraints: %w", err)
 	}

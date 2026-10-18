@@ -31,8 +31,11 @@ describe('MappingCanvas', () => {
     renderWorkbench(<MappingCanvas />)
     // Active and pending mappings draw edges; the suggestion is dashed via its state.
     expect(edges().map((e) => e.getAttribute('data-state')).sort()).toEqual(['auto', 'auto', 'manual', 'suggested'])
-    const badges = [...document.querySelectorAll('[data-testid^="badge-"]')].map((b) => b.textContent)
-    expect(badges.sort()).toEqual(['ⓕ forma', 'ⓕ trim'])
+    // Lines carry no transform labels until hovered or selected: then a small ƒ names the steps.
+    expect(document.querySelectorAll('[data-testid^="badge-"]')).toHaveLength(0)
+    fireEvent.mouseEnter(screen.getByTestId('source-created_on'))
+    const marks = [...document.querySelectorAll('[data-testid^="badge-"]')]
+    expect(marks.map((b) => [b.textContent?.replace(/\s+/g, ''), b.querySelector('title')?.textContent])).toEqual([['Formatdatetimeƒ', 'Format datetime']])
     expect(screen.getByTestId('source-legacy_flag')).toHaveClass('line-through')
     expect(screen.getByText('Source: 8 columns')).toBeInTheDocument()
   })
@@ -185,5 +188,142 @@ describe('MappingCanvas', () => {
     fireEvent.keyDown(screen.getByRole('application'), { key: 'F2' })
     await userEvent.keyboard('{Backspace}{Enter}')
     expect(names()).toContain('years')
+  })
+  describe('OC-174: selecting one end reveals the other', () => {
+    /** Records each pane's scrollTo calls (jsdom doesn't scroll). */
+    function recordScrolls() {
+      const scrolls: { el: Element; top: number }[] = []
+      const original = Element.prototype.scrollTo
+      onTestFinished(() => {
+        Element.prototype.scrollTo = original
+      })
+      Element.prototype.scrollTo = vi.fn(function (this: Element, opts?: ScrollToOptions | number) {
+        if (typeof opts === 'object' && opts.top != null) scrolls.push({ el: this, top: opts.top })
+      }) as typeof Element.prototype.scrollTo
+      vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(5000)
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
+      return scrolls
+    }
+    const pane = (name: RegExp) => screen.getByRole('region', { name })
+    /** sampleSpec with 60 fields ahead of a "deep" object holding f_far, filled by first_name too. */
+    function farView() {
+      const spec = sampleSpec()
+      const filler = Array.from({ length: 60 }, (_, i) => ({ id: `f_x${i}`, name: `x${i}`, type: 'string' as const }))
+      spec.docSchema.root.children = [...filler, ...spec.docSchema.root.children!, { id: 'f_deep', name: 'deep', type: 'object', children: [{ id: 'f_far', name: 'far', type: 'string' }] }]
+      spec.fieldMappings.push({ id: 'm_far', targetFieldId: 'f_far', sources: [{ column: 'first_name' }], transforms: [], origin: 'manual', state: 'active' })
+      return mappingView({ spec })
+    }
+
+    it('AC1: a source click scrolls to its field, opening collapsed parents, and cycles 1 of N', async () => {
+      const scrolls = recordScrolls()
+      const { store } = renderWorkbench(<MappingCanvas />, farView())
+      act(() => store.getState().toggleCollapsed('f_deep'))
+      const target = pane(/^Target/)
+      fireEvent.click(screen.getByTestId('source-first_name'))
+      // first_name fills name.first, then deep.far: the first comes first.
+      expect(screen.getByRole('status')).toHaveTextContent('first_name · 1 of 2')
+      await vi.waitFor(() => expect(scrolls.some((s) => s.el === target && s.top > 0)).toBe(true))
+      scrolls.length = 0
+      fireEvent.click(screen.getByTestId('source-first_name'))
+      expect(screen.getByRole('status')).toHaveTextContent('first_name · 2 of 2')
+      expect(store.getState().collapsed.has('f_deep')).toBe(false)
+      await vi.waitFor(() => expect(scrolls.some((s) => s.el === target && s.top > 0)).toBe(true))
+      // Around again.
+      fireEvent.click(screen.getByTestId('source-first_name'))
+      expect(screen.getByRole('status')).toHaveTextContent('1 of 2')
+    })
+
+    it('AC2: a target click scrolls to its column; a mapping click to both ends', async () => {
+      const scrolls = recordScrolls()
+      const many = Array.from({ length: 60 }, (_, i) => scol(`a_${i}`, 'string', { ordinal: i + 1 }))
+      const spec = sampleSpec()
+      spec.docSchema.root.children!.push({ id: 'f_late', name: 'late', type: 'string' })
+      spec.fieldMappings.push({ id: 'm_late', targetFieldId: 'f_late', sources: [{ column: 'a_59' }], transforms: [], origin: 'manual', state: 'active' })
+      const { store } = renderWorkbench(<MappingCanvas />, mappingView({ spec }), [...columns, ...many])
+      // Table order, so a_59 sits at the bottom of the source pane.
+      fireEvent.click(screen.getByRole('radio', { name: 'Table' }))
+      const source = pane(/^Source:/)
+      scrolls.length = 0
+      fireEvent.click(screen.getByTestId('target-late'))
+      expect(store.getState().selection).toEqual({ kind: 'field', id: 'f_late' })
+      await vi.waitFor(() => expect(scrolls.some((s) => s.el === source && s.top > 0)).toBe(true))
+    })
+
+    it('AC3: an end hidden by the filter says so and offers to show it', async () => {
+      const { store } = renderWorkbench(<MappingCanvas />, farView())
+      // Manual: first_name shows (it fills deep.far by hand), name.first (auto-mapped) doesn't.
+      act(() => store.getState().setFilter('manual'))
+      fireEvent.click(screen.getByTestId('source-first_name'))
+      const notice = screen.getByRole('status')
+      expect(notice).toHaveTextContent('name.first is hidden by the filter.')
+      fireEvent.click(within(notice).getByRole('button', { name: 'Show it' }))
+      expect(store.getState().filter).toBe('all')
+      // The notice goes; the column's "1 of 2" stays.
+      expect(screen.getByRole('status')).toHaveTextContent('first_name · 1 of 2')
+    })
+  })
+
+  it('OC-175 AC3: the source order toggle is remembered', () => {
+    localStorage.removeItem('odb.canvas.sourceOrder')
+    onTestFinished(() => localStorage.removeItem('odb.canvas.sourceOrder'))
+    const first = renderWorkbench(<MappingCanvas />)
+    expect(screen.getByRole('radio', { name: 'Document' })).toHaveAttribute('aria-checked', 'true')
+    // Document order: mapped columns by field, the unmapped after "Not mapped".
+    expect(screen.getByTestId('divider-root')).toHaveTextContent('Not mapped')
+    fireEvent.click(screen.getByRole('radio', { name: 'Table' }))
+    expect(screen.queryByTestId('divider-root')).toBeNull()
+    first.unmount()
+    renderWorkbench(<MappingCanvas />)
+    expect(screen.getByRole('radio', { name: 'Table' })).toHaveAttribute('aria-checked', 'true')
+  })
+  it('OC-176 AC2: a field revealed from the Issues panel scrolls into view and flashes', async () => {
+    const scrolled: number[] = []
+    const original = Element.prototype.scrollTo
+    onTestFinished(() => {
+      Element.prototype.scrollTo = original
+    })
+    Element.prototype.scrollTo = vi.fn(function (this: Element, opts?: ScrollToOptions | number) {
+      if (typeof opts === 'object' && opts.top != null) scrolled.push(opts.top)
+    }) as typeof Element.prototype.scrollTo
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(5000)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
+    const spec = sampleSpec()
+    spec.docSchema.root.children = [...Array.from({ length: 60 }, (_, i) => ({ id: `f_x${i}`, name: `x${i}`, type: 'string' as const })), ...spec.docSchema.root.children!]
+    const { store } = renderWorkbench(<MappingCanvas />, mappingView({ spec }))
+    act(() => store.getState().revealField('f_age'))
+    await vi.waitFor(() => expect(scrolled.some((top) => top > 0)).toBe(true))
+    act(() => store.getState().revealField('f_x1'))
+    expect(screen.getByTestId('target-x1')).toHaveClass('odb-reveal')
+    expect(screen.getByTestId('target-x0')).not.toHaveClass('odb-reveal')
+  })
+
+  it('OC-177 AC2: an unused lookup shows only its header until opened', async () => {
+    const view = embedView()
+    // A lookup of the same orders table (its columns come from the same fixture), read by nothing.
+    view.spec.relations.push({ id: 'rel_lk', parentId: null, kind: 'many-to-one', lookupOnly: true, table: { schema: 'shop', name: 'orders' }, join: [{ parent: 'customer_id', child: 'customer_id' }] })
+    view.embedTables = { ...view.embedTables, rel_lk: view.embedTables!.emb_o! }
+    const { store } = renderWorkbench(<MappingCanvas />, view)
+    const header = await screen.findByTestId('embed-group-rel_lk')
+    expect(header).toHaveTextContent('orders (values only)· not used')
+    expect(screen.getByTestId('source-emb_o:total')).toBeInTheDocument()
+    expect(screen.queryByTestId('source-rel_lk:total')).toBeNull()
+    fireEvent.click(within(header).getByRole('button', { name: "Show orders's columns" }))
+    expect(await screen.findByTestId('source-rel_lk:total')).toBeInTheDocument()
+    fireEvent.click(within(header).getByRole('button', { name: "Hide orders's columns" }))
+    expect(screen.queryByTestId('source-rel_lk:total')).toBeNull()
+    // Once a field reads it, it's an ordinary group.
+    act(() => store.getState().apply((s) => ({ ...s, fieldMappings: [...s.fieldMappings, { id: 'm_lk', targetFieldId: 'f_age', sources: [{ relation: 'rel_lk', column: 'total' }], transforms: [], origin: 'manual', state: 'active' }] })))
+    expect(screen.getByTestId('embed-group-rel_lk')).not.toHaveTextContent('not used')
+    expect(screen.getByTestId('source-rel_lk:total')).toBeInTheDocument()
+  })
+
+  it('OC-179 AC4: a field filled with the current date and time shows a clock badge and no line', () => {
+    const spec = sampleSpec()
+    spec.fieldMappings.push({ id: 'm_now', targetFieldId: 'f_age', sources: [], transforms: [{ op: 'now', args: { at: 'run', format: 'epoch_ms' } }], origin: 'manual', state: 'active' })
+    renderWorkbench(<MappingCanvas />, mappingView({ spec }))
+    const badge = screen.getByTestId('now-age')
+    expect(badge).toHaveTextContent('now · epoch ms')
+    expect(badge).toHaveAttribute('title', 'the current date and time (when the run started, epoch ms)')
+    expect(edges().some((e) => e.getAttribute('data-testid')!.startsWith('edge-m_now'))).toBe(false)
   })
 })

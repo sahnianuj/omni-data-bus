@@ -138,7 +138,8 @@ func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 		names = append(names, f.Name)
 	}
 	const dir = "odb-export-shop-docs-20261001/"
-	require.ElementsMatch(t, []string{dir, dir + "migrate.sh", dir + "README.md", dir + "config.json", dir + "mappings.json"}, names)
+	// OC-182 AC1: no script, nothing OS-specific.
+	require.ElementsMatch(t, []string{dir, dir + "README.md", dir + "config.json", dir + "mappings.json"}, names)
 	files := unzip(t, rec.Body.Bytes())
 	require.Equal(t, os.FileMode(0o600), files["config.json"].Mode().Perm())
 	require.Equal(t, os.FileMode(0o644), files["mappings.json"].Mode().Perm())
@@ -150,32 +151,32 @@ func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 	require.NotContains(t, string(read(t, files["mappings.json"])), "db.internal")
 	require.NotEmpty(t, b.Mappings[0].Outline)
 
-	// Including odb adds it beside the script (OC-160 AC1).
+	// Including odb adds it as bin/odb (OC-182 AC3).
 	self := Platform{OS: runtime.GOOS, Arch: runtime.GOARCH}
 	rec = a.export(Input{IncludeOdb: &self})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	files = unzip(t, rec.Body.Bytes())
-	require.Len(t, files, 5)
-	require.Equal(t, os.FileMode(0o755), files["odb"].Mode().Perm())
+	require.Len(t, files, 9, "bin/, bin/odb and bin/LICENSES/ with its three files (OC-189)")
+	require.Equal(t, os.FileMode(0o755), files["bin/odb"].Mode().Perm())
 	require.Equal(t, self.String(), rec.Header().Get("X-Odb-Included"))
 
 	rec = a.export(Input{IncludeOdb: &Platform{OS: "windows", Arch: "amd64"}})
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 
-// OC-160 AC2: older requests get the same folder; "embedded" includes odb.
+// OC-160 AC2, OC-182 AC5: older requests get the same folder; "embedded" includes odb in bin/.
 func TestExportsAPI_OC160_AC2_OlderRequests(t *testing.T) {
 	a := newAPI(t)
 	for _, in := range []Input{{Runtime: RuntimeBundle}, {Runtime: RuntimeScript, Script: Script{Runtime: "docker", IncludeBundle: true}}} {
 		rec := a.export(in)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 		files := unzip(t, rec.Body.Bytes())
-		require.Len(t, files, 4, "%+v", in)
+		require.Len(t, files, 3, "%+v", in)
 		require.Contains(t, files, MappingsFile)
 	}
 	rec := a.export(Input{Runtime: RuntimeScript, Script: Script{Runtime: "embedded", OS: runtime.GOOS, Arch: runtime.GOARCH}})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	require.Contains(t, unzip(t, rec.Body.Bytes()), "odb")
+	require.Contains(t, unzip(t, rec.Body.Bytes()), "bin/odb")
 }
 
 func TestExportsAPI_AC4_Authorization(t *testing.T) {
@@ -453,4 +454,22 @@ func jobsDefault() jobs.Options {
 	n := 500
 	o.MaxDocsPerSecond = &n
 	return o
+}
+
+// OC-188: a failed download of a machine's odb fails the export with a 502 naming the machine,
+// not a generic error.
+func TestExportsAPI_OC188_DownloadFailure(t *testing.T) {
+	a := newAPI(t)
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+	a.svc.Script.Dist.Fetch = &Fetcher{BaseURL: srv.URL, CacheDir: t.TempDir(), Client: srv.Client()}
+	pl := Platform{OS: "linux", Arch: "amd64"} // its checksum is in the test dist's SHA256SUMS
+	if selfPlatform() == pl.String() {
+		pl = Platform{OS: "darwin", Arch: "arm64"}
+	}
+	rec := a.export(Input{IncludeOdb: &pl})
+	require.Equal(t, http.StatusBadGateway, rec.Code, rec.Body.String())
+	pr := problemOf(t, rec)
+	require.Equal(t, problem.CodeOdbDownloadFailed, pr.Code)
+	require.Contains(t, pr.Detail, PlatformLabel(pl.String()))
 }

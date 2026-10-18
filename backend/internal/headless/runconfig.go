@@ -61,7 +61,7 @@ func replaceFile(path string, data []byte, mode os.FileMode) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return rename(tmp, path)
 }
 
 // connection lays the run config's section for role over the bundle's connection (OC-155): the
@@ -85,8 +85,11 @@ func (c *Config) connection(role string, conn export.Connection, secrets export.
 	if sec == nil {
 		switch {
 		case inConfig && c.RunConfig == nil:
-			return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: "This migration's " + role + " connection details are in its " +
-				export.RunConfigFile + ": pass it with --config (migrate.sh does)."}
+			msg := "This migration's " + role + " connection details are in its " + export.RunConfigFile + ": run odb in the export folder, or use --config or ODB_CONFIG."
+			if c.RunConfigMissing != "" {
+				msg = c.RunConfigMissing
+			}
+			return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: msg}
 		case inConfig:
 			return nil, nil, &ConfigError{Code: export.CodeRunConfigInvalid, Message: name + ": the " + role + " section is missing."}
 		}

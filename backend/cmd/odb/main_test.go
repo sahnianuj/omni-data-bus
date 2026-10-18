@@ -56,9 +56,11 @@ func TestAdminGenKey_AC2_Length(t *testing.T) {
 
 // OC-158: odb run reads --mappings (or --bundle, its older name), and says so when neither is set.
 func TestRun_MappingsFlag(t *testing.T) {
+	noExportEnv(t)
+	t.Chdir(t.TempDir())
 	var out, errOut bytes.Buffer
 	require.Equal(t, exitUsage, run([]string{"run"}, &out, &errOut))
-	require.Contains(t, errOut.String(), "--mappings is required")
+	require.Contains(t, errOut.String(), "mappings.json not found")
 	for _, flag := range []string{"--mappings", "--bundle"} {
 		errOut.Reset()
 		require.Equal(t, exitPreflight, run([]string{"run", flag, t.TempDir() + "/missing.json"}, &out, &errOut), flag)
@@ -89,4 +91,13 @@ func TestRunTargetPath(t *testing.T) {
 	p = write(`{"target": {"type": "directory"}}`)
 	require.Equal(t, exitPreflight, run([]string{"run", "target-path", "--config", p}, &out, &errOut))
 	require.Contains(t, errOut.String(), "target.path is required")
+}
+
+// TestMain lets a test run this test binary as odb itself (ODB_TEST_AS_ODB=1): end-to-end tests
+// start real odb processes, interrupt them and read their exit codes, on any OS (OC-186).
+func TestMain(m *testing.M) {
+	if os.Getenv("ODB_TEST_AS_ODB") == "1" {
+		os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	}
+	os.Exit(m.Run())
 }

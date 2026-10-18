@@ -25,7 +25,7 @@ describe('BuildInfoFooter', () => {
     renderUI(<BuildInfoFooter />)
     const f = await footer()
     expect(
-      await within(f).findByText('Omni-Data-Bus 2.0.0 · build 3f2a9c1 · Nov 2, 2026'),
+      await within(f).findByText('v2.0.0 · build 3f2a9c1 · Nov 2, 2026'),
     ).toBeInTheDocument()
     // The full UTC timestamp is in the tooltip.
     expect(within(f).getByRole('button')).toHaveAttribute('title', '2026-11-02T14:05:11Z')
@@ -47,7 +47,7 @@ describe('BuildInfoFooter', () => {
     )
     renderRoutes(routes, '/signin')
     const f = await footer()
-    expect(await within(f).findByText('Omni-Data-Bus 2.0.0')).toBeInTheDocument()
+    expect(await within(f).findByText('v2.0.0')).toBeInTheDocument()
     expect(within(f).queryByRole('button')).not.toBeInTheDocument()
     expect(screen.getByText('Release 2.0.0')).toBeInTheDocument()
   })
@@ -84,9 +84,12 @@ describe('BuildInfoFooter', () => {
     serve({ nodes: { api: ['2.0.0'], worker: ['1.0.1'] }, consistent: false })
     renderUI(<BuildInfoFooter />)
     const f = await footer()
-    expect(await within(f).findByText('Mixed versions')).toBeInTheDocument()
+    // The footer stays short (version, build, date, DEV/RC); the popover says it.
+    await within(f).findByText(/v2\.0\.0/)
+    expect(within(f).queryByText('Mixed versions')).toBeNull()
     await user.click(within(f).getByRole('button'))
     const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Mixed versions')).toBeInTheDocument()
     expect(within(dialog).getByText(/running different versions/)).toBeInTheDocument()
     expect(within(dialog).getByText('1.0.1')).toBeInTheDocument()
     expect(within(dialog).getAllByText('2.0.0').length).toBeGreaterThan(0)
@@ -107,7 +110,7 @@ describe('BuildInfoFooter', () => {
   it('AC5: no prompt when versions match or the SPA is a dev build', async () => {
     vi.stubEnv('VITE_ODB_VERSION', '2.0.0')
     renderUI(<BuildInfoFooter />)
-    await within(await footer()).findByText(/Omni-Data-Bus 2\.0\.0/)
+    await within(await footer()).findByText(/v2\.0\.0/)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(staleVersion('2.0.1', 'dev')).toBeNull()
     expect(staleVersion(undefined, '2.0.0')).toBeNull()
@@ -123,9 +126,11 @@ describe('BuildInfoFooter', () => {
     serve(over)
     renderUI(<BuildInfoFooter />)
     const f = await footer()
-    expect(await within(f).findByText(badge)).toBeInTheDocument()
-    await user.click(within(f).getByRole('button'))
+    await user.click(await within(f).findByRole('button'))
     const dialog = await screen.findByRole('dialog')
+    // DEV and RC show in the footer too; dirty only in the popover.
+    expect(within(dialog).getByText(badge)).toBeInTheDocument()
+    expect(within(f).queryByText(badge) !== null).toBe(badge !== 'dirty')
     expect(within(dialog).queryByRole('link', { name: /release notes/i }) !== null).toBe(releaseNotes)
     for (const dark of [false, true]) {
       document.documentElement.classList.toggle('dark', dark)
@@ -142,5 +147,16 @@ describe('BuildInfoFooter', () => {
     expect(buildInfoText({ version: '2.0.0', channel: 'release' }, 'UA')).toBe(
       'Omni-Data-Bus 2.0.0 (release)\nBrowser: UA\n',
     )
+  })
+
+  it('OC-172 AC1: shows the release and its build, with the build in the details and copied text', async () => {
+    serve({ version: '2.5.0-dev', channel: 'dev', build: '7f6cea2+418', commit: '7f6cea2e0b' })
+    renderUI(<BuildInfoFooter />)
+    const f = await footer()
+    expect(await within(f).findByText('v2.5.0-dev · build 7f6cea2+418 · Nov 2, 2026')).toBeInTheDocument()
+    expect(within(f).getByText('DEV')).toBeInTheDocument()
+    await userEvent.click(within(f).getByRole('button'))
+    expect(await screen.findByRole('dialog', { name: 'About this build' })).toHaveTextContent('Build7f6cea2+418')
+    expect(buildInfoText(sampleVersion({ version: '2.5.0', build: '7f6cea2+418', commit: '7f6cea2e0b' }), 'UA')).toContain('Build: 7f6cea2+418  Commit: 7f6cea2')
   })
 })

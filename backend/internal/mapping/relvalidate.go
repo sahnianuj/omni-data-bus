@@ -3,6 +3,7 @@ package mapping
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,10 +16,17 @@ import (
 const (
 	CodeRelationFieldOutsideParent = "RELATION_FIELD_OUTSIDE_PARENT"
 	CodeRelationLookupKind         = "RELATION_LOOKUP_KIND"
-	CodeRelationViaInvalid         = "RELATION_VIA_INVALID"
-	CodeRelationFilterValue        = "RELATION_FILTER_VALUE"
-	CodeRelationAggregateInvalid   = "RELATION_AGGREGATE_INVALID"
-	CodeRelationOptionInvalid      = "RELATION_OPTION_INVALID"
+	// CodeLookupNotUnique: a lookup's join doesn't name one row of its table (OC-165).
+	CodeLookupNotUnique = "LOOKUP_NOT_UNIQUE"
+	// CodeVariantInvalid: a relation's variants don't fit its items or table (OC-171);
+	// CodeVariantArcUnconfirmed: no CHECK constraint says exactly one of the variants'
+	// columns is set, so a row may match none or several (the first wins).
+	CodeVariantInvalid           = "VARIANT_INVALID"
+	CodeVariantArcUnconfirmed    = "VARIANT_ARC_UNCONFIRMED"
+	CodeRelationViaInvalid       = "RELATION_VIA_INVALID"
+	CodeRelationFilterValue      = "RELATION_FILTER_VALUE"
+	CodeRelationAggregateInvalid = "RELATION_AGGREGATE_INVALID"
+	CodeRelationOptionInvalid    = "RELATION_OPTION_INVALID"
 )
 
 // Filter operators (OC-045).
@@ -88,6 +96,10 @@ func ValidateRelations(s *Spec, root *schema.Table, related RelatedTables) []Iss
 		case e.LookupOnly:
 			if e.Kind != EmbedManyToOne {
 				bad(CodeRelationLookupKind, "only a many-to-one relation can be lookup-only (it gives at most one row per parent).")
+			} else if t := tables.Table[e.ID]; t != nil && declaresKeys(t) && !t.UniqueKey(childColumns(e.Join)) {
+				// A one-to-one table looked up by its key is fine (OC-165); a column several rows
+				// share isn't: which row would the field get?
+				bad(CodeLookupNotUnique, "a lookup reads one row, but "+strings.Join(childColumns(e.Join), ", ")+" isn't a key of "+e.Table.Name+". Embed it as an object (first row) instead.")
 			}
 		case e.TargetFieldID == "":
 			if !e.Many() || !aggregated[e.ID] {
@@ -125,6 +137,7 @@ func ValidateRelations(s *Spec, root *schema.Table, related RelatedTables) []Iss
 			bad(CodeEmbedTableMissing, "table "+e.Table.String()+" isn't in the latest schema snapshot.")
 			continue
 		}
+		out = append(out, validateVariants(s, e, child, path, targets)...)
 		parent := root
 		if p := e.Parent(); p != "" {
 			parent = tables.Table[p]
@@ -361,6 +374,81 @@ func validateVia(e Relation, parent, child, junction *schema.Table, bad func(cod
 			bad(CodeRelationViaInvalid, "junction column "+c+" is a join column; it can't also be a payload column.")
 		}
 	}
+}
+
+// validateVariants checks a relation's variants (OC-171): each names a variant node of its
+// items and a column of its rows; values are distinct; an arc not confirmed by a CHECK is a
+// warning.
+func validateVariants(s *Spec, e Relation, t *schema.Table, path string, targets map[string]string) []Issue {
+	if len(e.Variants) == 0 && e.OnNoMatch == "" {
+		return nil
+	}
+	var out []Issue
+	bad := func(sev, code, msg string) {
+		out = append(out, Issue{Severity: sev, Code: code, Path: path, FieldID: e.TargetFieldID, Message: "Embed " + e.ID + ": " + msg})
+	}
+	if e.OnNoMatch != "" && e.OnNoMatch != VariantNoMatchSkip && e.OnNoMatch != VariantNoMatchFail {
+		bad(SeverityError, CodeVariantInvalid, "onNoMatch must be skip or fail.")
+	}
+	c := RelationContainer(&s.DocSchema, e)
+	if c == nil || !e.Many() {
+		bad(SeverityError, CodeVariantInvalid, "only an array of objects has variants.")
+		return out
+	}
+	mine := map[string]bool{}
+	for i := range c.Children {
+		if c.Children[i].Variant != nil {
+			mine[c.Children[i].ID] = true
+		}
+	}
+	seen := map[string]bool{}
+	var arc []string
+	for _, v := range e.Variants {
+		switch {
+		case !mine[v.FieldID]:
+			bad(SeverityError, CodeVariantInvalid, "variant "+v.FieldID+" isn't one of "+path+"'s variants.")
+		case t.Column(v.When) == nil:
+			bad(SeverityError, CodeVariantInvalid, "column "+v.When+" isn't in "+e.Table.String()+".")
+		case targets[v.FieldID] != "":
+			bad(SeverityError, CodeVariantInvalid, "variant "+v.FieldID+" is filled by relation "+targets[v.FieldID]+" too.")
+		}
+		k := v.When + "=" + v.Value
+		if seen[k] {
+			bad(SeverityError, CodeVariantInvalid, "two variants match the same rows ("+k+").")
+		}
+		seen[k] = true
+		if v.Value == "" {
+			arc = append(arc, v.When)
+		}
+	}
+	if len(arc) > 1 && !coveredByArc(t, arc) {
+		bad(SeverityWarning, CodeVariantArcUnconfirmed, "nothing in "+e.Table.Name+" says exactly one of "+strings.Join(arc, ", ")+" is set: a row with several takes the first variant, one with none is skipped.")
+	}
+	return out
+}
+
+func coveredByArc(t *schema.Table, cols []string) bool {
+	for _, a := range t.ExclusiveArcs {
+		all := true
+		for _, c := range cols {
+			all = all && slices.Contains(a, c)
+		}
+		if all {
+			return true
+		}
+	}
+	return false
+}
+
+// declaresKeys: the table has a primary or unique key, so a join on other columns isn't one.
+func declaresKeys(t *schema.Table) bool { return len(t.PrimaryKey) > 0 || len(t.UniqueConstraints) > 0 }
+
+func childColumns(j []JoinPair) []string {
+	out := make([]string, len(j))
+	for i, p := range j {
+		out[i] = p.Child
+	}
+	return out
 }
 
 // validateAggregates checks OC-045 aggregates: a known array relation and function, a numeric

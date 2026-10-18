@@ -100,7 +100,7 @@ func CheckVersion(bundleVersion int, odbRange, running string) error {
 	}
 	if !inRange(v, odbRange) {
 		return &Error{Code: CodeVersionUnsupported, Message: fmt.Sprintf(
-			"This bundle needs odb %s; this is odb %s.", odbRange, running)}
+			"This export needs odb %s; this is odb %s. Install a matching odb (README.md, Install odb).", odbRange, running)}
 	}
 	return nil
 }

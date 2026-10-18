@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TicketDocument",
+  "description": "A support ticket and everything that happened on it, oldest first. Document ID: ticket::{id}.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "integer" },
+    "title": { "type": "string" },
+    "activity": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "title": "Comment", "type": "object", "properties": { "type": { "const": "comment" }, "body": { "type": "string" }, "author": { "type": "string" }, "createdAt": { "type": "string", "format": "date-time" } } },
+          { "title": "StatusChange", "type": "object", "properties": { "type": { "const": "statusChange" }, "fromStatus": { "type": "string" }, "toStatus": { "type": "string" }, "createdAt": { "type": "string", "format": "date-time" } } },
+          { "title": "Attachment", "type": "object", "properties": { "type": { "const": "attachment" }, "fileName": { "type": "string" }, "sizeBytes": { "type": "integer" }, "createdAt": { "type": "string", "format": "date-time" } } }
+        ]
+      }
+    }
+  }
+}

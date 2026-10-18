@@ -32,8 +32,9 @@ func requireStats(t *testing.T, want, got Stats, msg string) {
 	require.InDelta(t, want.AutoMapRatio, got.AutoMapRatio, 1e-9, msg)
 	require.InDelta(t, want.CoverageRatio, got.CoverageRatio, 1e-9, msg)
 	require.InDelta(t, want.AverageConfidence, got.AverageConfidence, 1e-9, msg)
-	want.AutoMapRatio, want.CoverageRatio, want.AverageConfidence = 0, 0, 0
-	got.AutoMapRatio, got.CoverageRatio, got.AverageConfidence = 0, 0, 0
+	require.InDelta(t, want.DoneRatio, got.DoneRatio, 1e-9, msg)
+	want.AutoMapRatio, want.CoverageRatio, want.AverageConfidence, want.DoneRatio = 0, 0, 0, 0
+	got.AutoMapRatio, got.CoverageRatio, got.AverageConfidence, got.DoneRatio = 0, 0, 0, 0
 	require.Equal(t, want, got, msg)
 }
 
@@ -85,4 +86,39 @@ func TestComputeStats_GroupedRowsAreOwnColumns(t *testing.T) {
 		}
 	}
 	require.Equal(t, 0.5, ComputeStats(s, cols).AutoMapRatio)
+}
+
+// OC-178 AC1: every field of the document counts, array items and variants included; filled
+// (a mapping, a total, a relation) or not populated is done; a pending suggestion isn't.
+func TestComputeStats_OC178_FieldsDone(t *testing.T) {
+	cs := statsCases(t)
+	c := cs[len(cs)-1]
+	st := ComputeStatsWith(&c.Spec, c.Columns, c.Embedded)
+	require.Equal(t, 10, st.TargetFields)
+	require.Equal(t, 7, st.TargetFieldsDone)
+	require.InDelta(t, 0.7, st.DoneRatio, 1e-9)
+	// Marking the pending and the empty fields not populated finishes the document.
+	c.Spec.FieldMappings = append(c.Spec.FieldMappings,
+		FieldMapping{ID: "np1", TargetFieldID: "f_pending", State: StateNotPopulated, Origin: OriginManual},
+		FieldMapping{ID: "np2", TargetFieldID: "f_qty", State: StateNotPopulated, Origin: OriginManual},
+		FieldMapping{ID: "np3", TargetFieldID: "f_empty", State: StateNotPopulated, Origin: OriginManual})
+	st = ComputeStatsWith(&c.Spec, c.Columns, c.Embedded)
+	require.Equal(t, st.TargetFields, st.TargetFieldsDone)
+	require.InDelta(t, 1.0, st.DoneRatio, 1e-9)
+}
+
+// OC-187 AC1: done splits into filled with data and left empty on purpose; a field under a
+// not-populated container counts as not populated, unless something fills it.
+func TestStats_OC187_AC1_FilledAndNotPopulated(t *testing.T) {
+	cs := statsCases(t)
+	c := cs[len(cs)-1]
+	st := ComputeStatsWith(&c.Spec, c.Columns, c.Embedded)
+	require.Equal(t, 5, st.TargetFieldsFilled)
+	require.Equal(t, 2, st.TargetFieldsNotPopulated, "the not-populated object's two fields")
+	require.Equal(t, st.TargetFieldsDone, st.TargetFieldsFilled+st.TargetFieldsNotPopulated)
+	// Leaving the pending field empty moves it to not populated, not filled.
+	c.Spec.FieldMappings = append(c.Spec.FieldMappings, FieldMapping{ID: "np1", TargetFieldID: "f_pending", State: StateNotPopulated, Origin: OriginManual})
+	st = ComputeStatsWith(&c.Spec, c.Columns, c.Embedded)
+	require.Equal(t, 5, st.TargetFieldsFilled)
+	require.Equal(t, 3, st.TargetFieldsNotPopulated)
 }

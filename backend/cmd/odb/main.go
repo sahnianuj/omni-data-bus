@@ -49,6 +49,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		switch fs.Arg(0) {
 		case "run":
 			return runRun(fs.Args()[1:], stdout, stderr)
+		// The operator commands, as migrate.sh named them (OC-181).
+		case "preflight", "status", "verify":
+			return runRun(fs.Args(), stdout, stderr)
+		case "resume":
+			return runRun(append([]string{"--resume"}, fs.Args()[1:]...), stdout, stderr)
+		case "inspect":
+			return runInspect(fs.Args()[1:], stdout, stderr)
+		case "help":
+			fmt.Fprintln(stdout, operatorUsage)
+			return 0
 		case "bundle":
 			return runBundle(fs.Args()[1:], stdout, stderr)
 		case "doc":
@@ -69,11 +79,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 		case "healthcheck":
 			return runHealthcheck(fs.Args()[1:], stdout, stderr)
 		default:
-			fmt.Fprintf(stderr, "unknown command %q (commands: admin, bundle, doc, healthcheck, run, version; flags: --version, --role)\n", fs.Arg(0))
+			fmt.Fprintf(stderr, "unknown command %q\n\n%s\n", fs.Arg(0), operatorUsage)
 			return 2
 		}
 	}
 
+	// odb on its own, in an export folder on a machine with no server settings: the operator
+	// wants the commands, not a server start that fails on OC_META_CONNSTR (OC-181).
+	if fs.NArg() == 0 && os.Getenv("OC_META_CONNSTR") == "" && os.Getenv("OC_DEV") == "" {
+		if _, ok := mappingsFile.resolve(""); ok {
+			fmt.Fprintln(stderr, operatorUsage)
+			return exitUsage
+		}
+	}
 	cfg, err := config.Load(nil)
 	if err != nil {
 		slog.New(slog.NewJSONHandler(stderr, nil)).Error("startup failed", "error", err.Error())
@@ -123,6 +141,36 @@ func runVersion(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
+
+// operatorUsage is `odb help`: the commands that run an export first, as migrate.sh listed
+// them, then the rest (OC-181).
+const operatorUsage = `usage: odb <command> [options]
+
+Run a migration (in the export folder, or name the files with --config and --mappings):
+  preflight          check the source, credentials, schema drift and target; writes nothing
+  run [--mapping M]  migrate (the run checks everything first)
+  resume             continue an interrupted run from the state directory
+  status             summarize the run in the state directory
+  verify             count each mapping's documents in the target
+  inspect [FILE]     what mappings.json migrates, field by field (no secrets)
+  help               this text
+
+files (in the current directory, else beside odb):
+  config.json    where: source and target connection details   (--config or ODB_CONFIG)
+  mappings.json  what: the mappings                            (--mappings or ODB_MAPPINGS)
+  odb-state/     checkpoint, errors.jsonl and report.json      (--state-dir or ODB_STATE_DIR)
+Run options (--readers, --writers, --throttle, --restart, ...): odb run help.
+
+exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration
+            error, 5 cancelled (run odb resume)
+
+Other commands:
+  version [--json]   the release and build (also --version)
+  bundle             validate, inspect or diff mappings files
+  doc                document design tools
+  admin              server administration (provision, gen-key, rotate-secrets)
+  healthcheck        probe a running server
+  (no command)       start the Omni-Data-Bus server (needs OC_* settings; --role all|api|worker)`
 
 const adminUsage = `usage: odb admin <command>
 

@@ -39,6 +39,8 @@ type Gate struct {
 	// fraction the throughput may fall below it.
 	Baseline  string  `json:"baseline,omitempty"`
 	Tolerance float64 `json:"tolerance,omitempty"`
+	// Key names the quality score a quality gate reads (OC-173).
+	Key string `json:"key,omitempty"`
 }
 
 // Status of a judged gate.
@@ -86,9 +88,11 @@ func (g Gate) check() error {
 		return errors.New("a regression needs baseline")
 	case g.Metric != "regression" && g.Min == nil && g.Max == nil:
 		return errors.New("min or max is required")
+	case g.Metric == "quality" && g.Key == "":
+		return errors.New("a quality gate needs key")
 	}
 	switch g.Metric {
-	case "throughput", "peakRssMB", "coldStartSeconds", "noLoss", "ratio", "regression":
+	case "throughput", "peakRssMB", "coldStartSeconds", "noLoss", "ratio", "regression", "quality":
 		return nil
 	}
 	return fmt.Errorf("unknown metric %q", g.Metric)
@@ -171,6 +175,13 @@ func evaluate(g Gate, results map[string]report.Result, base string) Outcome {
 		o.Value = r.Measured.PeakRSSBytes / (1 << 20)
 	case "coldStartSeconds":
 		o.Value = r.ColdStartSeconds
+	case "quality":
+		v, ok := r.Quality[g.Key]
+		if !ok {
+			o.Status, o.Detail = Missing, "no "+g.Key+" in "+g.Scenario
+			return o
+		}
+		o.Value = v
 	case "noLoss":
 		m := r.Measured
 		if m.Written == m.SourceRows && (m.Verified == "passed" || m.Verified == "passed_with_warnings") {
@@ -201,7 +212,9 @@ func evaluate(g Gate, results map[string]report.Result, base string) Outcome {
 		return o
 	}
 	o.Status = Pass
-	if (g.Min != nil && o.Value < *g.Min) || (g.Max != nil && o.Value >= *g.Max) {
+	// A quality maximum is inclusive (max 0: none); the other metrics' are exclusive.
+	over := g.Max != nil && (o.Value > *g.Max || (g.Metric != "quality" && o.Value >= *g.Max))
+	if (g.Min != nil && o.Value < *g.Min) || over {
 		o.Status = Fail
 	}
 	return o
@@ -262,6 +275,11 @@ func (g Gate) format(v float64) string {
 			return "yes"
 		}
 		return "no"
+	case "quality":
+		if g.Max != nil && *g.Max == 0 {
+			return fmt.Sprintf("%.0f", v)
+		}
+		return fmt.Sprintf("%.0f %%", 100*v)
 	}
 	return fmt.Sprintf("%.2f×", v)
 }
@@ -274,6 +292,9 @@ func (g Gate) target() string {
 		return "yes"
 	case g.Min != nil:
 		return "≥ " + g.format(*g.Min)
+	}
+	if g.Metric == "quality" {
+		return "≤ " + g.format(*g.Max)
 	}
 	return "< " + g.format(*g.Max)
 }

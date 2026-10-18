@@ -41,6 +41,10 @@ type Link struct {
 	Join    []mapping.JoinPair
 	Via     *mapping.Via
 	Virtual bool
+	// Cardinality (one-to-one | many-to-one | one-to-many) and Direction (references |
+	// referencedBy) as seen from the table the link leaves (OC-157, OC-164); "" when unknown.
+	Cardinality string
+	Direction   string
 }
 
 // Links lists the links out of a table.
@@ -55,6 +59,8 @@ type BindingCandidate struct {
 	Join        []mapping.JoinPair `json:"join,omitempty"`
 	Via         *mapping.Via       `json:"via,omitempty"`
 	Virtual     bool               `json:"virtual,omitempty"`
+	Cardinality string             `json:"cardinality,omitempty"`
+	Direction   string             `json:"direction,omitempty"`
 	Adapter     string             `json:"adapter,omitempty"`
 	Shape       string             `json:"shape,omitempty"`
 	ValueColumn string             `json:"valueColumn,omitempty"`
@@ -230,16 +236,28 @@ func (sg *suggester) fit(fields []docschema.DocField, cols []colVariants, parent
 	return total / float64(len(fields)), matched
 }
 
-// cardinality scores a node type against a relation kind, with the adapter a mismatch needs.
-func cardinality(t docschema.FieldType, kind string) (score float64, adapter, reason string) {
+// cardinality scores a node type against a relation (OC-164), with the adapter a mismatch
+// needs: an object fits 1:1 and N:1 (1.0), 1:N through its first row (0.7) and M:N (0.5); an
+// array fits 1:N and M:N (1.0), and N:1 or 1:1 as a 0- or 1-item array (0.6).
+func cardinality(t docschema.FieldType, l Link) (score float64, adapter, reason string) {
+	kind := l.Kind
 	many := kind != mapping.EmbedManyToOne
+	card := l.Cardinality
+	if card == "" {
+		card = kind
+	}
 	switch {
 	case t == docschema.Array && many, t == docschema.Object && !many:
+		if card == mapping.CardinalityOneToOne {
+			return 1, "", "one-to-one ✓"
+		}
 		return 1, "", kind + " ✓"
-	case t == docschema.Object:
+	case t == docschema.Object && kind == mapping.RelationManyToMany:
 		return 0.5, docschema.AdapterFirst, "object ← " + kind + ": first row"
+	case t == docschema.Object:
+		return 0.7, docschema.AdapterFirst, "object ← " + kind + ": first row"
 	default:
-		return 0.5, docschema.AdapterWrap, "array ← " + kind + ": 0 or 1 item"
+		return 0.6, docschema.AdapterWrap, "array ← " + card + ": 0 or 1 item"
 	}
 }
 
@@ -292,9 +310,9 @@ func (sg *suggester) candidates(f *docschema.DocField, scope mapping.TableRef, a
 			continue
 		}
 		name, _ := sg.in.Dicts.nameScore(sg.in.Dicts.sourceVariants(SourceCol{Name: l.Table.Name, Table: scope.Name}), sg.leaf(f.Name, ""))
-		card, adapter, cardReason := cardinality(f.Type, l.Kind)
+		card, adapter, cardReason := cardinality(f.Type, l)
 		table := l.Table
-		c := BindingCandidate{Kind: l.Kind, Table: &table, Join: l.Join, Via: l.Via, Virtual: l.Virtual, Adapter: adapter}
+		c := BindingCandidate{Kind: l.Kind, Table: &table, Join: l.Join, Via: l.Via, Virtual: l.Virtual, Cardinality: l.Cardinality, Direction: l.Direction, Adapter: adapter}
 		var fit float64
 		var fitReason string
 		switch {

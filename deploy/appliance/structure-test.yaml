@@ -3,6 +3,9 @@
 schemaVersion: 2.0.0
 
 metadataTest:
+  labels:
+    - key: org.opencontainers.image.licenses
+      value: Apache-2.0 AND LicenseRef-Couchbase-CE
   entrypoint: ["/usr/bin/tini", "--", "/usr/local/bin/odb-appliance"]
   exposedPorts: ["8080", "8091"]
   volumes: ["/opt/couchbase/var"]
@@ -40,7 +43,16 @@ fileExistenceTests:
     path: /opt/couchbase/LICENSE.txt
     shouldExist: true
   - name: our notice about the bundled Couchbase
+    path: /usr/share/doc/omni-data-bus/NOTICE.all-in-one
+    shouldExist: true
+  - name: "OC-189: Omni-Data-Bus's licence, NOTICE and third-party notices"
+    path: /usr/share/doc/omni-data-bus/LICENSE
+    shouldExist: true
+  - name: "OC-189: NOTICE"
     path: /usr/share/doc/omni-data-bus/NOTICE
+    shouldExist: true
+  - name: "OC-189: third-party notices"
+    path: /usr/share/doc/omni-data-bus/THIRD_PARTY_NOTICES.md
     shouldExist: true
 
 commandTests:

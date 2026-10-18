@@ -1,0 +1,20 @@
+{
+  "dataset": "pos",
+  "description": "design-first proposal vs the expected mapping (OC-173)",
+  "environment": {
+    "kind": "correctness",
+    "reference": "true"
+  },
+  "finishedAt": "2026-10-17T22:02:43.567601Z",
+  "jobStatus": "completed",
+  "quality": {
+    "bindings": 1,
+    "computed": 1,
+    "driving": 1,
+    "fields": 1,
+    "wrongHigh": 0
+  },
+  "samples": [],
+  "scenario": "propose-quality",
+  "startedAt": "2026-10-17T22:02:43.567599Z"
+}

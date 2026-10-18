@@ -33,7 +33,7 @@ const (
 // Runtimes of an export.
 const (
 	RuntimeBundle = "bundle" // older requests: now the same download as script
-	RuntimeScript = "script" // the export folder: migrate.sh, config.json, mappings.json (OC-160)
+	RuntimeScript = "script" // the export folder: config.json, mappings.json, README.md (OC-182)
 )
 
 // Service runs exports (OC-050, OC-052, OC-053) and their history and reports (OC-055).
@@ -73,8 +73,8 @@ func forbidden(code, title, detail string) problem.Problem {
 // config.json beside the script, where operators change them per environment (OC-155); there is
 // no passphrase or password confirmation (OC-154). Changing the project happens in its steps.
 type Input struct {
-	// IncludeOdb adds odb for this platform beside migrate.sh, for a machine that can't download
-	// it (OC-160). Nil: the script finds or downloads odb itself.
+	// IncludeOdb adds odb for this platform as bin/odb, for a machine without internet access
+	// (OC-182). Nil: no binary; the export runs with the odb installed on the machine.
 	IncludeOdb *Platform `json:"includeOdb,omitempty"`
 	// JobOptions tune the run; omitted fields keep the defaults.
 	JobOptions json.RawMessage `json:"jobOptions,omitempty"`
@@ -100,7 +100,7 @@ func (in Input) include() string {
 func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string, in Input) (Artifact, store.ExportRecord, error) {
 	mode := ModeConfig
 	req := Request{CredentialMode: mode, Runtime: RuntimeScript, JobOptions: in.JobOptions}
-	include := in.include()
+	include := s.Script.Dist.Preferred(in.include())
 	if p.Role.Rank() < store.RoleEditor.Rank() {
 		return Artifact{}, store.ExportRecord{}, forbidden(problem.CodeForbiddenRole, "Not allowed", "Exporting needs the editor role.")
 	}
@@ -125,7 +125,10 @@ func (s *Service) Export(ctx context.Context, p auth.Principal, projectID string
 	if err != nil {
 		return Artifact{}, store.ExportRecord{}, err
 	}
-	art, err := RenderScript(b, raw, built.RunConfig, include, s.Script, s.Version)
+	art, err := RenderScript(ctx, b, raw, built.RunConfig, include, s.Script, s.Version)
+	if fe, ok := isFetchError(err); ok {
+		return Artifact{}, store.ExportRecord{}, problem.New(http.StatusBadGateway, fe.Code, "Couldn't get odb for "+PlatformLabel(fe.Platform), fe.Message)
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "larger than") {
 			return Artifact{}, store.ExportRecord{}, problem.New(http.StatusUnprocessableEntity, problem.CodeExportTooLarge, "Export too large", err.Error())
@@ -165,7 +168,7 @@ func checkInput(in Input, include string) error {
 		return unprocessable(problem.CodeValidation, "Invalid runtime", "The script runtime is auto, binary, docker or embedded.")
 	}
 	if include != "" && !slices.Contains(Platforms, include) {
-		return unprocessable(problem.CodeValidation, "Choose a platform", "Including odb needs the operating system and architecture: linux or darwin, amd64 or arm64.")
+		return unprocessable(problem.CodeValidation, "Choose a platform", "Including odb needs one of these machines: "+strings.Join(Platforms, ", ")+".")
 	}
 	return nil
 }
@@ -395,28 +398,36 @@ type Options struct {
 	Version     string `json:"version"`
 	Image       string `json:"image"`
 	DownloadURL string `json:"downloadUrl"`
-	// Downloadable lists platforms whose checksum is known (the script can download odb).
+	// Downloadable lists platforms whose checksum is known (the README links their download).
 	Downloadable []string `json:"downloadable"`
-	// Embeddable lists platforms this server can embed odb for.
+	// Embeddable lists platforms this server can include odb for (bin/odb, OC-182).
 	Embeddable []string `json:"embeddable"`
-	// AutoEmbed is the platform an "auto" script carries odb for when nothing downloads.
-	AutoEmbed  string `json:"autoEmbed,omitempty"`
-	MaxPerHour int    `json:"maxPerHour"`
+	// Signed lists the platforms whose odb is signed for its OS; on the others macOS or Windows
+	// warns before running it (a development build, OC-185).
+	Signed []string `json:"signed"`
+	// Machines is every platform with whether this server can add its odb now, on first use
+	// (downloaded and verified), or not, and why (OC-188).
+	Machines   []Machine `json:"machines"`
+	MaxPerHour int       `json:"maxPerHour"`
 }
 
 // Describe returns the server's export options.
 func (s *Service) Describe() Options {
 	o := Options{
 		Version: s.Version, Image: s.Script.Image, DownloadURL: s.Script.DownloadURL,
-		Downloadable: []string{}, Embeddable: s.Script.Dist.Available(), MaxPerHour: MaxExportsPerHour,
+		Downloadable: []string{}, MaxPerHour: MaxExportsPerHour, Machines: s.Script.Dist.Machines(),
 	}
+	o.Embeddable = availableOrOnDemand(o.Machines)
 	for p := range s.Script.Dist.Checksums() {
 		o.Downloadable = append(o.Downloadable, p)
 	}
 	slices.Sort(o.Downloadable)
-	o.AutoEmbed = s.Script.fallbackPlatform(s.Script.Dist.Checksums())
 	if o.Embeddable == nil {
 		o.Embeddable = []string{}
+	}
+	o.Signed = s.Script.Dist.Signed()
+	if o.Signed == nil {
+		o.Signed = []string{}
 	}
 	return o
 }

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentDocument (CREDIT_CARD)",
+  "description": "A credit or debit card.",
+  "type": "object",
+  "required": [
+    "paymentType",
+    "id",
+    "amountChargedInCents",
+    "tipInCents",
+    "status"
+  ],
+  "properties": {
+    "paymentType": {
+      "type": "string",
+      "const": "CREDIT_CARD"
+    },
+    "id": {
+      "type": "string",
+      "examples": [
+        "9c1d2e3f-0000-4000-8000-000000000003"
+      ]
+    },
+    "cardBrand": {
+      "type": "string",
+      "examples": [
+        "VISA"
+      ]
+    },
+    "merchantID": {
+      "type": "string",
+      "examples": [
+        "m-001"
+      ]
+    },
+    "authCode": {
+      "type": "string",
+      "examples": [
+        "A2"
+      ]
+    },
+    "presentationMethod": {
+      "type": "string",
+      "examples": [
+        "Contactless"
+      ]
+    },
+    "processorTransactionID": {
+      "type": "string",
+      "examples": [
+        "ptx-2"
+      ]
+    },
+    "maskedAccountNumber": {
+      "type": "string",
+      "examples": [
+        "************4002"
+      ]
+    },
+    "last4Digits": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "4002"
+      ]
+    },
+    "cardHolderName": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "Card Holder 2"
+      ]
+    },
+    "amountChargedInCents": {
+      "type": "integer",
+      "examples": [
+        795
+      ]
+    },
+    "tipInCents": {
+      "type": "integer",
+      "examples": [
+        0
+      ]
+    },
+    "transactionID": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "5e6f7a8b-0000-4000-8000-000000000004"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "const": "completed"
+    },
+    "voided": {
+      "type": "boolean",
+      "description": "Not populated.",
+      "examples": [
+        false
+      ]
+    },
+    "voidedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "createdAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "examples": [
+        "2026-07-19T10:29:58Z"
+      ]
+    }
+  }
+}

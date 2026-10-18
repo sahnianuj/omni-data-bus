@@ -58,7 +58,8 @@ export function sampleSpec(): MappingSpec {
 
 export const stats = (over: Partial<MappingStats> = {}): MappingStats => ({
   totalSourceColumns: 23, autoMapped: 10, suggested: 4, manuallyMapped: 3, unmappedSource: 6, ignored: 1,
-  totalTargetLeaves: 20, mappedTargetLeaves: 13, requiredTargetUnmapped: 2, autoMapRatio: 10 / 23, coverageRatio: 13 / 23, averageConfidence: 0.94, ...over,
+  totalTargetLeaves: 20, mappedTargetLeaves: 13, requiredTargetUnmapped: 2, autoMapRatio: 10 / 23, coverageRatio: 13 / 23, averageConfidence: 0.94,
+  targetFields: 20, targetFieldsDone: 13, doneRatio: 13 / 20, targetFieldsFilled: 10, targetFieldsNotPopulated: 3, ...over,
 })
 
 export function mappingView(over: Partial<MappingView> = {}): MappingView {

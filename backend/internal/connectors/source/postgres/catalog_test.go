@@ -108,8 +108,9 @@ func catalogQuerier() *fakeQuerier {
 			{int64(2), int32(3), "customer_id", "integer", "int4", "b", "int4", "b", "", "", int64(0), int32(-1), false, nil, "", "s", nil},
 		},
 		constraintsSQL: {
-			{int64(1), "customer_pkey", "p", []string{"customer_id"}, "", "", []string{}},
-			{int64(2), "orders_customer_fk", "f", []string{"customer_id"}, "shop", "customer", []string{"customer_id"}},
+			{int64(1), "customer_pkey", "p", "", []string{"customer_id"}, "", "", []string{}},
+			{int64(2), "orders_customer_fk", "f", "", []string{"customer_id"}, "shop", "customer", []string{"customer_id"}},
+			{int64(2), "orders_one_pay", "c", "CHECK ((num_nonnulls(card_id, cash_id) = 1))", []string{"card_id", "cash_id"}, "", "", []string{}},
 		},
 		indexesSQL: {{int64(1), "customer_pkey", true, true, []string{"customer_id"}}},
 		enumsSQL:   {{int64(77), []string{"pending", "paid"}}},
@@ -142,6 +143,9 @@ func TestReadCatalog_AC1_ScansEveryQuery(t *testing.T) {
 	require.True(t, orders.Column("customer_id").IsGenerated)
 	require.Equal(t, "People", snap.Table("shop", "customer").Comment)
 	require.Len(t, snap.Table("shop", "customer").ReferencedBy, 1)
+	// OC-171: CHECK constraints are listed, and an "exactly one is set" one is an exclusive arc.
+	require.Equal(t, []schema.Check{{Name: "orders_one_pay", Definition: "CHECK ((num_nonnulls(card_id, cash_id) = 1))"}}, orders.CheckConstraints)
+	require.Equal(t, [][]string{{"card_id", "cash_id"}}, orders.ExclusiveArcs)
 }
 
 func TestReadCatalog_ErrorsNameTheFailingQuery(t *testing.T) {

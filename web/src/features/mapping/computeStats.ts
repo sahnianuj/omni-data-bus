@@ -82,6 +82,40 @@ export function requiredToMap(spec: MappingSpec): (l: { fieldId: string; path: s
  * Live mapping score; mirrors mapping.ComputeStatsWith (parity: computeStats.test.ts). Columns
  * of embedded tables (embed id → names) are counted in the separate embedded group.
  */
+/**
+ * The design's fields and those done (OC-178), as the server's fieldsDone: a field holds a value
+ * (a scalar, an array of scalars, an empty object or array); objects and arrays of objects are
+ * containers, counted through their fields (arrays' items and variants included). Done: an
+ * active mapping, a total or a relation fills it, or it's not populated (so is everything under
+ * a not-populated container). A done field counts as filled when something fills it, else as not
+ * populated (OC-187).
+ */
+export function fieldsDone(spec: MappingSpec): [done: number, total: number, filled: number, notPopulated: number] {
+  const filled = new Set<string>()
+  const empty = new Set<string>()
+  for (const m of spec.fieldMappings) {
+    if (m.state === 'active') filled.add(m.targetFieldId)
+    else if (m.state === 'notPopulated') empty.add(m.targetFieldId)
+  }
+  for (const a of spec.aggregates ?? []) filled.add(a.targetFieldId)
+  for (const r of spec.relations) if (!r.lookupOnly && r.targetFieldId) filled.add(r.targetFieldId)
+  let total = 0
+  let fills = 0
+  let left0 = 0
+  const visit = (f: DocField, left: boolean) => {
+    left = left || empty.has(f.id)
+    if (f.type === 'object' && (f.children?.length ?? 0) > 0) for (const c of f.children!) visit(c, left)
+    else if (f.type === 'array' && f.items && (f.items.type === 'array' || (f.items.type === 'object' && (f.items.children?.length ?? 0) > 0))) visit(f.items, left)
+    else {
+      total++
+      if (filled.has(f.id)) fills++
+      else if (left) left0++
+    }
+  }
+  for (const c of spec.docSchema.root.children ?? []) visit(c, false)
+  return [fills + left0, total, fills, left0]
+}
+
 export function computeStats(spec: MappingSpec, columns: string[], embedded?: Record<string, string[]>): MappingStats {
   const auto = new Set<string>()
   const manual = new Set<string>()
@@ -103,12 +137,15 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
       }
     } else if (m.state === 'pending') {
       for (const s of m.sources) suggested.add(own(s))
+    } else if (m.state === 'notPopulated') {
+      mappedTargets.add(m.targetFieldId) // left empty on purpose: done (OC-166)
     }
   }
   const ignored = new Set(spec.ignoredColumns)
   const st: MappingStats = {
     totalSourceColumns: 0, autoMapped: 0, suggested: 0, manuallyMapped: 0, unmappedSource: 0, ignored: 0,
     totalTargetLeaves: 0, mappedTargetLeaves: 0, requiredTargetUnmapped: 0, autoMapRatio: 0, coverageRatio: 0, averageConfidence: 0,
+    targetFields: 0, targetFieldsDone: 0, doneRatio: 0, targetFieldsFilled: 0, targetFieldsNotPopulated: 0,
   }
   const mapped = (k: string) => manual.has(k) || auto.has(k) || suggested.has(k)
   // The parent's join columns of its many-to-one relations: an unmapped one is carried by the object.
@@ -136,6 +173,12 @@ export function computeStats(spec: MappingSpec, columns: string[], embedded?: Re
     st.coverageRatio = (st.autoMapped + st.manuallyMapped) / st.totalSourceColumns
   }
   if (confN > 0) st.averageConfidence = confSum / confN
+  const [done, fields, filledN, notPopulatedN] = fieldsDone(spec)
+  st.targetFieldsDone = done
+  st.targetFields = fields
+  st.targetFieldsFilled = filledN
+  st.targetFieldsNotPopulated = notPopulatedN
+  if (st.targetFields > 0) st.doneRatio = st.targetFieldsDone / st.targetFields
   if (spec.relations.length > 0 && embedded) {
     const e = { tables: 0, totalColumns: 0, autoMapped: 0, manuallyMapped: 0, suggested: 0, unmappedSource: 0 }
     for (const emb of spec.relations) {

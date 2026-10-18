@@ -9,8 +9,9 @@ import { previewMapping } from './api'
 import { canConnect } from './canConnect'
 import { KeyActions } from './KeyActions'
 import { ComputedEditor } from '@/features/computed/ComputedEditor'
-import { ValueSourceControl } from '@/features/computed/ValueSourceControl'
-import { createFieldAndMap, ignoreColumn, setConstant, setTransforms, unignoreColumn, unmap, valueSourceOf } from './mappingOps'
+import { NowSourceEditor } from '@/features/computed/NowSourceEditor'
+import { useValueMode, ValueSourceControl } from '@/features/computed/ValueSourceControl'
+import { createFieldAndMap, ignoreColumn, setConstant, setNotPopulated, setTransforms, unignoreColumn, unmap, valueSourceOf } from './mappingOps'
 import { useWorkbench } from './store'
 import { parseLiteral, TransformPipelineEditor } from './TransformPipelineEditor'
 import type { TransformStep } from './types'
@@ -79,6 +80,10 @@ export function Inspector({ projectId }: { projectId: string }) {
   }, [selection, spec.fieldMappings])
   const fieldId = mapping?.targetFieldId ?? (selection?.kind === 'field' ? selection.id : undefined)
   const field = fieldId ? findField(spec.docSchema, fieldId) : undefined
+  const notPopulated = mapping?.state === 'notPopulated'
+  // Source shows the mapped columns (or how to map one); Fixed, the value box.
+  const valueMode = useValueMode(field?.field.id)
+  const fixedValue = valueMode.mode === 'fixed' ? mapping?.transforms.find((s) => s.op === 'constant')?.args?.value : undefined
   if (!selection) return null
 
   const close = (
@@ -123,18 +128,49 @@ export function Inspector({ projectId }: { projectId: string }) {
     <aside aria-label={t('inspector.title')} className="flex max-h-[45vh] flex-col gap-4 overflow-y-auto border-t border-border bg-surface px-6 py-4">
       <header className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">
-          {mapping ? mapping.sources.map((s) => s.column).join(' + ') || t('inspector.constant') : t('inspector.unmapped')}
+          {notPopulated
+            ? t('inspector.notPopulated')
+            : mapping?.transforms.some((s) => s.op === 'now') && !mapping.sources.length
+              ? t('now.title')
+              : mapping
+                ? mapping.sources.map((s) => s.column).join(' + ') || t('inspector.constant')
+                : t('inspector.unmapped')}
           <span className="px-1.5 text-subtle">→</span>
           <span className="font-mono">{field?.path}</span>
         </h3>
-        {mapping ? <span className="text-xs text-muted">{t(`mapping.state.${mapping.state === 'pending' ? 'suggested' : mapping.origin}`)}</span> : null}
+        {mapping && !notPopulated ? <span className="text-xs text-muted">{t(`mapping.state.${mapping.state === 'pending' ? 'suggested' : mapping.origin}`)}</span> : null}
         {close}
       </header>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-3">
-          {field && field.field.type !== 'object' && field.field.type !== 'array' ? <ValueSourceControl fieldId={field.field.id} /> : null}
-          {field && valueSourceOf(spec, field.field.id) === 'template' ? (
+          {field && field.field.type !== 'object' && field.field.type !== 'array' ? <ValueSourceControl fieldId={field.field.id} fixed={valueMode.fixed} onFixedChange={valueMode.onFixedChange} /> : null}
+          {notPopulated && field ? (
+            // Left empty on purpose (OC-166): counted as done, nothing written.
+            <p role="note" className="flex flex-wrap items-center gap-2 rounded bg-surface-muted p-2 text-xs text-muted">
+              {t('propose.notPopulatedNote')}
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => apply((s) => setNotPopulated(s, field.field.id, false))}>
+                {t('propose.mapInstead')}
+              </Button>
+            </p>
+          ) : field && valueSourceOf(spec, field.field.id) === 'now' ? (
+            <NowSourceEditor key={field.field.id} fieldId={field.field.id} />
+          ) : field && valueSourceOf(spec, field.field.id) === 'template' ? (
             <ComputedEditor key={field.field.id} fieldId={field.field.id} />
+          ) : field && valueMode.mode === 'fixed' ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs text-muted">
+                {t('inspector.constantLabel')}
+                <input
+                  value={constant}
+                  placeholder={fixedValue !== undefined ? JSON.stringify(fixedValue) : undefined}
+                  onChange={(e) => setConstantText(e.target.value)}
+                  className="h-8 rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 font-mono text-xs text-foreground"
+                />
+              </label>
+              <Button size="sm" variant="secondary" disabled={!constant} onClick={() => apply((s) => setConstant(s, field.field.id, parseLiteral(constant)))}>
+                {t('inspector.setConstant')}
+              </Button>
+            </div>
           ) : mapping ? (
             <>
               <h4 className="text-xs font-medium uppercase tracking-wide text-subtle">{t('inspector.transforms')}</h4>
@@ -150,19 +186,18 @@ export function Inspector({ projectId }: { projectId: string }) {
           )}
           {field ? (
             <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-xs text-muted">
-                {t('inspector.constantLabel')}
-                <input value={constant} onChange={(e) => setConstantText(e.target.value)} className="h-8 rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 font-mono text-xs text-foreground" />
-              </label>
-              <Button size="sm" variant="secondary" disabled={!constant} onClick={() => apply((s) => setConstant(s, field.field.id, parseLiteral(constant)))}>
-                {t('inspector.setConstant')}
-              </Button>
               {mapping ? (
                 <Button size="sm" variant="destructive" onClick={() => apply((s) => unmap(s, field.field.id))}>
                   {t('mapping.unmap')}
                 </Button>
               ) : null}
               <KeyActions fieldId={field.field.id} />
+              {!mapping && !(spec.aggregates ?? []).some((a) => a.targetFieldId === field.field.id) ? (
+                // Nothing fills it: leave it empty on purpose, so it counts as done (OC-178).
+                <Button size="sm" variant="ghost" onClick={() => apply((s) => setNotPopulated(s, field.field.id, true))}>
+                  {t('propose.markNotPopulated')}
+                </Button>
+              ) : null}
               {field.field.required && !mapping ? (
                 <Button size="sm" variant="ghost" onClick={() => apply((s) => ({ ...s, docSchema: setRequired(s.docSchema, field.field.id, false) }))}>
                   {t('inspector.markOptional')}

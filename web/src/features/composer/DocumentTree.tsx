@@ -6,9 +6,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { insertionPoint, moveRelative, type DropPos } from '@/features/docschema/docschemaOps'
 import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } from '@/features/docschema/fieldDrag'
 import { activeFor, setComputed } from '@/features/mapping/mappingOps'
+import { formatLabel, nowOf } from '@/features/mapping/nowSource'
 import { useWorkbench } from '@/features/mapping/store'
 import type { DocField, MappingIssue, MappingSpec } from '@/features/mapping/types'
 import { cn } from '@/lib/utils'
+import type { ProposalItem } from '@/features/mapping/api'
+import { edited, itemsById, matches, needsReview, type Review, type ReviewFilter } from './review'
 import { addNode, deleteNode, moveNode, OpError, renameNode, unbind, type NodeKind, type TableRef } from './composerOps'
 import { boundRelations } from './scope'
 
@@ -42,6 +45,8 @@ type Props = {
   /** Whether an object can collapse to its key, and doing it (OC-064). */
   collapsible?: (nodeId: string) => boolean
   onCollapse?: (nodeId: string) => void
+  /** While a proposal is reviewed (OC-168): which rows show. */
+  reviewFilter?: ReviewFilter
 }
 
 const typeIcon: Record<string, typeof Hash> = {
@@ -69,12 +74,16 @@ function rowsOf(spec: MappingSpec, collapsed: ReadonlySet<string>): Row[] {
   return out
 }
 
-/** A short label of a field's source: "← order_id", "← customers.name", "ƒ expression", "= constant", "ƒx template". */
+/** A short label of a field's source: "← order_id", "← customers.name", "ƒ expression", "= constant", "ƒx template", "now (epoch ms)". */
 function sourceLabel(spec: MappingSpec, fieldId: string): string | undefined {
   const m = activeFor(spec, fieldId)
   if (!m) return undefined
   if (m.computed) return `ƒx ${m.computed.expr.slice(0, 120)}`
-  if (m.transforms.some((s) => s.op === 'expression')) return 'ƒ'
+  // An expression over the field's own value still reads its column (cents, OC-167).
+  if (m.transforms.some((s) => s.op === 'expression') && m.sources.length === 0) return 'ƒ'
+  // The current date and time (OC-179): "now (epoch ms)".
+  const now = m.sources.length === 0 ? nowOf(spec, fieldId) : undefined
+  if (now) return `now (${formatLabel(now)})`
   if (m.sources.length === 0) return '='
   return m.sources
     .map((s) => {
@@ -90,16 +99,30 @@ function sourceLabel(spec: MappingSpec, fieldId: string): string | undefined {
  * Enter adds a sibling field, Tab a child field (objects and arrays), Alt+↑/↓ or a drag reorders, F2
  * renames, Delete removes (Ctrl+Z undoes); every drag has a menu equivalent.
  */
-export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColumn, onPaste, onDropFile, onGroupRows, embeddable, onEmbed, embedBlocked, collapsible, onCollapse }: Props) {
+export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColumn, onPaste, onDropFile, onGroupRows, embeddable, onEmbed, embedBlocked, collapsible, onCollapse, reviewFilter = 'all' }: Props) {
   const { t } = useTranslation()
   const spec = useWorkbench((s) => s.history.present)
+  const review = useWorkbench((s) => s.review)
+  const reviewItems = useMemo(() => itemsById(review), [review])
   const selection = useWorkbench((s) => s.selection)
   const select = useWorkbench((s) => s.select)
   const apply = useWorkbench((s) => s.apply)
   const collapsed = useWorkbench((s) => s.collapsed)
   const toggle = useWorkbench((s) => s.toggleCollapsed)
   const issues = useWorkbench((s) => s.issues)
-  const rows = useMemo(() => rowsOf(spec, collapsed), [spec, collapsed])
+  const allRows = useMemo(() => rowsOf(spec, collapsed), [spec, collapsed])
+  // A review filter shows the matching rows and the rows above them (OC-168).
+  const rows = useMemo(() => {
+    if (!review || reviewFilter === 'all') return allRows
+    const keep = new Set<string>()
+    const byId = new Map(allRows.map((r) => [r.field.id, r]))
+    for (const row of allRows) {
+      if (row.depth === 0 || !matches(spec, review, reviewItems.get(row.field.id), reviewFilter)) continue
+      for (let r: Row | undefined = row; r; r = byId.get(r.parentId)) keep.add(r.field.id)
+    }
+    return allRows.filter((r) => r.depth === 0 || keep.has(r.field.id))
+  }, [allRows, review, reviewFilter, reviewItems, spec])
+  const notPopulated = useMemo(() => new Set(spec.fieldMappings.filter((m) => m.state === 'notPopulated').map((m) => m.targetFieldId)), [spec.fieldMappings])
   const bound = useMemo(() => boundRelations(spec), [spec])
   const grouped = !!spec.root?.groupBy?.length
   const selected = selection?.kind === 'field' ? selection.id : spec.docSchema.root.id
@@ -201,6 +224,20 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
       case 'End':
         go(rows.length - 1)
         break
+      case 'n':
+      case 'p': {
+        // The next (previous) row that needs review (OC-168).
+        if (!review || e.ctrlKey || e.metaKey || e.altKey) return
+        const step = e.key === 'n' ? 1 : -1
+        for (let i = at + step; i >= 0 && i < rows.length; i += step) {
+          const it = reviewItems.get(rows[i]!.field.id)
+          if (it && needsReview(it) && !edited(spec, review, it)) {
+            go(i)
+            break
+          }
+        }
+        break
+      }
       case 'Enter':
         if (isRoot || row.item) add(containerFor(row), 'field')
         else {
@@ -309,6 +346,8 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
           const isContainer = f.type === 'object' || f.type === 'array'
           const name = row.depth === 0 ? '$' : row.item ? t('composer.item') : f.name
           const renamable = row.depth > 0 && !row.item
+          const proposed = review && !row.item ? reviewItems.get(f.id) : undefined
+          const chip = proposed ? reviewChip(spec, review!, proposed) : undefined
           return (
             <li
               key={f.id}
@@ -320,7 +359,7 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
               aria-level={row.depth + 1}
               aria-selected={isSel}
               aria-expanded={row.expandable ? !collapsed.has(f.id) : undefined}
-              aria-label={[name, f.type, rel ? t('composer.boundTo', { table: rel.table.name }) : '', src ? t('composer.mappedFrom', { source: src }) : '', errors ? t('composer.errors', { count: errors }) : '', warnings ? t('composer.warnings', { count: warnings }) : ''].filter(Boolean).join(', ')}
+              aria-label={[name, f.variant ? t('composer.variant') : f.type, rel ? t('composer.boundTo', { table: rel.table.name }) : '', src ? t('composer.mappedFrom', { source: src }) : '', notPopulated.has(f.id) ? t('propose.notPopulatedDesign') : '', chip ? t(`propose.chip.${chip}`) : '', errors ? t('composer.errors', { count: errors }) : '', warnings ? t('composer.warnings', { count: warnings }) : ''].filter(Boolean).join(', ')}
               tabIndex={isSel ? 0 : -1}
               data-node={f.id}
               onClick={() => select({ kind: 'field', id: f.id })}
@@ -380,6 +419,13 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
                   {name}
                 </span>
               )}
+              {f.variant ? (
+                // One shape of the items (OC-171): its fields are the item's when the row is of it.
+                <span className="rounded border border-border px-1 font-mono text-[10px] text-muted" aria-hidden>
+                  {t('composer.variant')}
+                  {f.variant.value !== undefined ? ` = ${JSON.stringify(f.variant.value)}` : ''}
+                </span>
+              ) : null}
               {rel ? (
                 <span className="flex items-center gap-0.5 rounded bg-primary-soft px-1 text-xs text-primary-soft-foreground" aria-hidden>
                   <Link2 className="size-3" />
@@ -387,9 +433,23 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
                   {f.binding?.adapter ? <span className="text-muted">({f.binding.adapter})</span> : null}
                 </span>
               ) : null}
+              {chip ? (
+                <span data-chip={chip} title={proposed!.reasons.join('\n')} aria-hidden className={cn('shrink-0 rounded px-1 text-[10px] font-medium uppercase', chipCls[chip])}>
+                  {t(`propose.chipShort.${chip}`)}
+                </span>
+              ) : null}
               {src ? (
                 <span className="truncate font-mono text-xs text-muted" aria-hidden>
                   ← {src}
+                  {proposed && proposed.kind === 'field' && /× 100|toString/.test(proposed.summary) ? ' ' + proposed.summary.replace(/^← \S+ ?/, '') : ''}
+                </span>
+              ) : notPopulated.has(f.id) ? (
+                <span className="truncate text-xs italic text-subtle" aria-hidden>
+                  {t('propose.notPopulatedDesign')}
+                </span>
+              ) : proposed?.status === 'unresolved' ? (
+                <span className="truncate text-xs text-danger" aria-hidden>
+                  {t('propose.unresolved')}
                 </span>
               ) : f.example !== undefined ? (
                 <span className="truncate font-mono text-xs text-muted" aria-hidden title={t('composer.example')}>
@@ -437,6 +497,26 @@ export function DocumentTree({ onBindTable, onDropTable, onDropColumn, onMapColu
       </div>
     </>
   )
+}
+
+type Chip = 'high' | 'medium' | 'low' | 'notPopulated' | 'unresolved' | 'edited'
+
+const chipCls: Record<Chip, string> = {
+  high: 'bg-success-soft text-success',
+  medium: 'bg-warning-soft text-warning',
+  low: 'bg-danger-soft text-danger',
+  notPopulated: 'bg-surface-muted text-subtle',
+  unresolved: 'bg-danger-soft text-danger',
+  edited: 'bg-primary-soft text-primary',
+}
+
+/** The chip a reviewed row shows: edited, its band, or what it is. */
+function reviewChip(spec: MappingSpec, review: Review, it: ProposalItem): Chip | undefined {
+  if (edited(spec, review, it)) return 'edited'
+  if (it.status === 'alreadyMapped') return undefined
+  if (it.status === 'notPopulated') return 'notPopulated'
+  if (it.status === 'unresolved') return 'unresolved'
+  return it.band
 }
 
 function RenameInput({ name, label, onDone }: { name: string; label: string; onDone: (name: string | null) => void }) {

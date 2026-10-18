@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContactDocument",
+  "description": "A customer and how to reach them. Document ID: contact::{id}.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "integer", "examples": [7] },
+    "name": { "type": "string", "examples": ["Customer 7"] },
+    "contactMethods": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "title": "Email", "type": "object", "properties": { "kind": { "const": "email" }, "address": { "type": "string", "examples": ["c7@example.com"] } } },
+          { "title": "Phone", "type": "object", "properties": { "kind": { "const": "phone" }, "number": { "type": "string", "examples": ["+1 555 0170"] } } },
+          { "title": "Postal", "type": "object", "properties": { "kind": { "const": "postal" }, "street": { "type": "string" }, "city": { "type": "string" }, "zip": { "type": "string" } } }
+        ]
+      }
+    }
+  }
+}

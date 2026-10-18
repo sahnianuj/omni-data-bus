@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -8,10 +8,11 @@ import { rowCount } from './support/db'
 import { uid } from './support/env'
 import { SignIn } from './support/pages'
 
-/** OC-056 AC1, OC-160: export the migration folder from the UI (migrate.sh, config.json,
- * mappings.json), run it in a container against the fixture database, then import its
- * report.json — the run shows as External. */
-test('AC1: export, run the script, import the report', async ({ page }) => {
+/** OC-056 AC1, OC-182, OC-184 AC1: export the migration folder from the UI (config.json,
+ * mappings.json, README.md — no script), run it with the odb commands alone (the README's
+ * docker command, on the dev stack's network), then import its report.json — the run shows as
+ * External. */
+test('OC-184 AC1: export, run it with odb alone, import the report', async ({ page }) => {
   const api = await Api.signUp()
   const p = await api.send<{ id: string }>('POST', '/api/v1/projects', { name: `Export ${uid()}` })
   await api.sourceRepo(p.id)
@@ -42,24 +43,28 @@ test('AC1: export, run the script, import the report', async ({ page }) => {
   await zip.saveAs(join(dir, 'export.zip'))
   execFileSync('unzip', ['-q', 'export.zip'], { cwd: dir })
   const folder = join(dir, readdirSync(dir).find((f) => f.startsWith('odb-export-'))!)
-  expect(readdirSync(folder).sort()).toEqual(expect.arrayContaining(['README.md', 'config.json', 'mappings.json', 'migrate.sh']))
-  // The script runs odb from the e2e image on the dev stack's network.
-  const run = (cmd: string) =>
-    execFileSync(join(folder, 'migrate.sh'), [cmd], {
-      cwd: dir,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'], // progress and logs stay out of the test output
-      env: {
-        ...process.env, ODB_RUNTIME: 'docker', ODB_DOCKER_ARGS: '--network omni-connect-dev_default',
-        ODB_TARGET_PATH: join(dir, 'out'), ODB_STATE_DIR: join(dir, 'state'),
-      },
-    })
-  run('run')
-  expect(readdirSync(join(dir, 'out', 'orders')).filter((f) => f.endsWith('.json'))).toHaveLength(rowCount('shop.orders'))
+  // OC-182 AC1: nothing OS-specific — no script, no binary.
+  expect(readdirSync(folder).sort()).toEqual(['README.md', 'config.json', 'mappings.json'])
+  const readme = readFileSync(join(folder, 'README.md'), 'utf8')
+  for (const cmd of ['odb preflight', 'odb run', 'odb status']) expect(readme).toContain(cmd)
+  expect(readme).not.toContain('migrate.sh')
+
+  // The README's docker command (OC-183), on the dev stack's network: odb finds config.json and
+  // mappings.json in the working directory; the JSON files go inside the folder.
+  const out = join(folder, 'out')
+  const odb = (cmd: string) =>
+    execFileSync('docker', [
+      'run', '--rm', '--user', `${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`, '-v', `${folder}:${folder}`, '-w', folder,
+      '--network', 'omni-connect-dev_default', process.env.ODB_IMAGE ?? 'omni-data-bus:e2e', cmd, '--target-path', out,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) // progress and logs stay out of the test output
+  expect(odb('preflight')).toContain('ready to run')
+  odb('run')
+  expect(odb('verify')).toContain('OK ')
+  expect(readdirSync(join(out, 'orders')).filter((f) => f.endsWith('.json'))).toHaveLength(rowCount('shop.orders'))
 
   // Import report.json: the project gets an External run with the counts.
   await page.goto(`/projects/${p.id}/export`)
-  await page.getByLabel('Import report').setInputFiles(join(dir, 'state', 'report.json'))
+  await page.getByLabel('Import report').setInputFiles(join(folder, 'odb-state', 'report.json'))
   await expect(page).toHaveURL(/\/jobs\/[^/]+$/)
   await expect(page.getByRole('region', { name: 'External run' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Written' })).toContainText(rowCount('shop.orders').toLocaleString('en'))

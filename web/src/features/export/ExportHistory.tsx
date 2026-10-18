@@ -39,7 +39,7 @@ export function ExportHistory({ projectId }: { projectId: string }) {
                   <td className="px-3 py-2">{e.createdByEmail}</td>
                   <td className="px-3 py-2 tabular-nums">{e.mappingIds.length}</td>
                   <td className="px-3 py-2">{t(`projects.types.${e.targetType}`)}</td>
-                  <td className="px-3 py-2">{e.runtime === 'script' ? 'migrate.sh' : '.odb.json'}</td>
+                  <td className="px-3 py-2">{e.runtime === 'script' ? t('export.history.folder') : '.odb.json'}</td>
                   <td className="px-3 py-2 font-mono text-xs">{e.odbVersion}</td>
                   <td className="px-3 py-2 font-mono text-xs" title={e.bundleSha256}>{e.bundleSha256.slice(0, 12)}</td>
                   <td className="px-3 py-2"><Changed e={e} /></td>

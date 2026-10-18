@@ -78,16 +78,24 @@ type BundledConfig struct {
 
 // ExportConfig shapes exported migrations (OC-052, OC-053).
 type ExportConfig struct {
-	// Image is what migrate.sh's docker runtime runs; pin it by digest. Default:
-	// ghcr.io/sahnianuj/omni-data-bus:<this version>.
+	// Image is the image an export's README gives for running it with Docker (OC-183); pin it by
+	// digest. Default: ghcr.io/sahnianuj/omni-data-bus:<this version>.
 	Image string `env:"OC_EXPORT_IMAGE"`
-	// DownloadURL is where scripts download odb_<version>_<os>_<arch>.tar.gz. Default: this
-	// version's GitHub release.
+	// DownloadURL is where an export's README links odb_<version>_<os>_<arch>.tar.gz (.zip for
+	// Windows) from. Default: this version's GitHub release.
 	DownloadURL string `env:"OC_EXPORT_DOWNLOAD_URL"`
-	// DistDir holds this version's odb tarballs and SHA256SUMS (`make dist`): their checksums are
-	// written into scripts, and they can be embedded for any platform.
+	// DistDir holds this version's odb archives, SHA256SUMS and SIGNED (`make dist`, the
+	// release): READMEs list their checksums, and any platform's odb can be added to an export.
 	DistDir string `env:"OC_EXPORT_DIST_DIR"`
-	// CosignIdentity is the release workflow identity scripts verify signatures against.
+	// Fetch lets the server download a machine's odb from DownloadURL the first time an export
+	// adds it, verified against the checksums built into the image (OC-188). Off: only DistDir
+	// and the server's own binary (an air-gapped server).
+	Fetch bool `env:"OC_EXPORT_FETCH" envDefault:"true"`
+	// CacheDir keeps verified downloads (default: odb-export-cache in the temp directory).
+	CacheDir string `env:"OC_EXPORT_CACHE_DIR"`
+	// SumsDir holds the release's SHA256SUMS and SIGNED, built into the image.
+	SumsDir string `env:"OC_EXPORT_SUMS_DIR" envDefault:"/usr/local/share/odb"`
+	// CosignIdentity is the release workflow identity 2.0 scripts verify signatures against.
 	CosignIdentity string `env:"OC_EXPORT_COSIGN_IDENTITY" envDefault:"^https://github.com/sahnianuj/omni-data-bus/"`
 }
 

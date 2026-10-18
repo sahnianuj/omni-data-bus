@@ -182,4 +182,6 @@ docker info > docker-info.txt
 
 ---
 
-This image includes Couchbase Server Community Edition, unmodified, under Couchbase's own license (`docker run --rm --entrypoint cat omni-data-bus-appliance:<version> /opt/couchbase/LICENSE.txt`).
+**Licences.** This image combines two products, so it isn't licensed under Apache-2.0 as a whole (its OCI label is `Apache-2.0 AND LicenseRef-Couchbase-CE`):
+- **Omni-Data-Bus** is licensed under the Apache License 2.0, Copyright 2026 Couchbase, Inc. Its `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES.md` are in `/usr/share/doc/omni-data-bus/`.
+- **Couchbase Server Community Edition**, unmodified, is under Couchbase's own license (`docker run --rm --entrypoint cat omni-data-bus-appliance:<version> /opt/couchbase/LICENSE.txt`).

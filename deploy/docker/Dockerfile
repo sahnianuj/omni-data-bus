@@ -29,6 +29,9 @@ ARG COMMIT=none
 # SOURCE_DATE_EPOCH (the commit time) so rebuilding a tag gives the same binary.
 ARG BUILD_TIME=""
 ARG CHANNEL=""
+# The build of that release (short commit + CI run) and whether the tree was dirty (OC-172).
+ARG BUILD=""
+ARG DIRTY=""
 WORKDIR /src/backend
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -38,7 +41,8 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -tags embedspa -trimpath \
       -ldflags "-s -w -X omnidatabus/internal/buildinfo.version=${VERSION} -X omnidatabus/internal/buildinfo.commit=${COMMIT} \
-        -X omnidatabus/internal/buildinfo.buildTime=${BUILD_TIME} -X omnidatabus/internal/buildinfo.channel=${CHANNEL}" \
+        -X omnidatabus/internal/buildinfo.buildTime=${BUILD_TIME} -X omnidatabus/internal/buildinfo.channel=${CHANNEL} \
+        -X omnidatabus/internal/buildinfo.buildID=${BUILD} -X omnidatabus/internal/buildinfo.dirty=${DIRTY}" \
       -o /out/odb ./cmd/odb \
  && mkdir -p /out/data/odb-out
 
@@ -56,8 +60,17 @@ LABEL org.opencontainers.image.title="Omni-Data-Bus" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_TIME}" \
-      org.opencontainers.image.source="${SOURCE_URL}"
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.vendor="Couchbase, Inc." \
+      org.opencontainers.image.authors="Anuj Sahni"
 COPY --from=build /out/odb /usr/local/bin/odb
+# The release's SHA256SUMS and SIGNED (OC-188): the server checks each machine's odb it downloads
+# for an export against them. The release workflow puts them in deploy/docker/odb-sums/ before
+# building; a local build has none, and offers only its own platform (or OC_EXPORT_DIST_DIR's).
+COPY deploy/docker/odb-sums/ /usr/local/share/odb/
+# The licence, NOTICE and the third-party notices travel with the image (OC-189).
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/omni-data-bus/
 # Directory targets (OC-038) write under /data; a volume mounted at /data/odb-out takes this
 # folder's owner, so the server (uid 65532) can write there.
 COPY --from=build --chown=65532:65532 /out/data /data

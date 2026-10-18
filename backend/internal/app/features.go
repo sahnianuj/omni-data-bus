@@ -2,6 +2,8 @@ package app
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"omnidatabus/internal/audit"
@@ -57,8 +59,8 @@ type Deps struct {
 // release binaries, with this version's defaults.
 func ExportScript(c config.ExportConfig, version string) export.ScriptConfig {
 	sc := export.ScriptConfig{
-		Image: c.Image, DownloadURL: c.DownloadURL, CosignIdentity: c.CosignIdentity,
-		Dist: export.Dist{Dir: c.DistDir, Version: version}, EmbedWhenNoDownload: true,
+		Image: c.Image, DownloadURL: c.DownloadURL, CosignIdentity: c.CosignIdentity, Build: buildinfo.Get().Build,
+		Dist: export.Dist{Dir: c.DistDir, Version: version},
 	}
 	if sc.Image == "" {
 		sc.Image = "ghcr.io/sahnianuj/omni-data-bus:" + version
@@ -66,6 +68,15 @@ func ExportScript(c config.ExportConfig, version string) export.ScriptConfig {
 	if sc.DownloadURL == "" {
 		sc.DownloadURL = "https://github.com/sahnianuj/omni-data-bus/releases/download/v" + version
 	}
+	// Any machine's odb, fetched once from the release and verified (OC-188).
+	f := &export.Fetcher{SumsDir: c.SumsDir, CacheDir: c.CacheDir}
+	if f.CacheDir == "" {
+		f.CacheDir = filepath.Join(os.TempDir(), "odb-export-cache")
+	}
+	if c.Fetch {
+		f.BaseURL = sc.DownloadURL
+	}
+	sc.Dist.Fetch = f
 	return sc
 }
 

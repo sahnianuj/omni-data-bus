@@ -117,7 +117,29 @@ type Relation struct {
 	// Group marks the relation holding a grouped document's rows (OC-063): a one-to-many from
 	// the driving table to itself on the root's group-by columns, kept in sync by SyncGroup.
 	Group bool `json:"group,omitempty"`
+	// Variants pick, for each of the array's rows, which variant of its items the row is
+	// (OC-171): the variant whose When column is set (an exclusive arc), or equals Value (a type
+	// column). A variant's own table is a lookup under this relation. OnNoMatch is what a row of
+	// no variant does: skip (default, counted) or fail.
+	Variants  []RelationVariant `json:"variants,omitempty"`
+	OnNoMatch string            `json:"onNoMatch,omitempty"`
 }
+
+// RelationVariant matches rows to one variant node of the relation's items (OC-171).
+type RelationVariant struct {
+	// FieldID is the variant node (an object child of the items marked as a variant).
+	FieldID string `json:"fieldId"`
+	// When is a column of the relation's rows; Value, when set, the text it must equal. Without
+	// Value, the row is of this variant when When isn't null.
+	When  string `json:"when"`
+	Value string `json:"value,omitempty"`
+}
+
+// Variant no-match policies.
+const (
+	VariantNoMatchSkip = "skip"
+	VariantNoMatchFail = "fail"
+)
 
 // Parent is the parent relation's ID, "" for a child of the root table.
 func (e Relation) Parent() string {
@@ -218,6 +240,14 @@ func RelationContainer(d *docschema.Schema, e Relation) *docschema.DocField {
 	}
 	f := d.Find(e.TargetFieldID)
 	if f == nil {
+		return nil
+	}
+	if f.Variant != nil && f.Type == docschema.Object {
+		// A variant node bound to its own rows: the array is the union of its variants' rows
+		// (OC-171), each row an item with the variant's fields.
+		if e.Many() && e.EffectiveShape() == ShapeObjects {
+			return f
+		}
 		return nil
 	}
 	switch adapterOf(f) {

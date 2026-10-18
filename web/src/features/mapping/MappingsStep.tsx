@@ -1,5 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { AlertTriangle, ArrowRight, ChevronDown, Table2, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowRight, ChevronDown, FileJson, Table2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useOutletContext } from 'react-router'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Can } from '@/features/auth/Can'
 import type { Project } from '@/features/projects/api'
 import { useDeleteMapping, useMappings } from './api'
+import { NewFromDesign } from './NewFromDesign'
 import { ScoreRing } from './ScoreRing'
 import type { MappingSummary } from './types'
 import { formatLocation } from '@/features/targets/kinds'
@@ -38,13 +39,23 @@ export function MappingsStep() {
   const mappings = useMappings(project.id)
   const del = useDeleteMapping(project.id)
   const [removing, setRemoving] = useState<MappingSummary | null>(null)
+  const [fromDesign, setFromDesign] = useState(false)
   const shapeText = useShapeText()
   return (
     <div className="flex flex-col gap-5 px-8 py-7">
-      <div className="flex flex-col gap-1.5">
-        <h2 className="text-lg font-semibold">{t('mappings.title')}</h2>
-        <p className="text-[13px] text-muted">{t('mappings.intro')}</p>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-lg font-semibold">{t('mappings.title')}</h2>
+          <p className="text-[13px] text-muted">{t('mappings.intro')}</p>
+        </div>
+        <Can role="editor">
+          <Button variant="secondary" className="ml-auto" onClick={() => setFromDesign(true)}>
+            <FileJson aria-hidden />
+            {t('newFromDesign.open')}
+          </Button>
+        </Can>
       </div>
+      {fromDesign ? <NewFromDesign project={project} mappings={mappings.data ?? []} onClose={() => setFromDesign(false)} /> : null}
       <AsyncBoundary
         query={mappings}
         isEmpty={(ms) => ms.length === 0}
@@ -66,8 +77,20 @@ export function MappingsStep() {
             {ms.map((m) => {
               return (
                 <li key={m.id} className="flex items-center gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-                  {/* How complete the mapping is now: columns with a mapping in effect (pending suggestions don't count). */}
-                  <ScoreRing ratio={m.stats.coverageRatio} label={t('mappings.coverage', { pct: Math.round(m.stats.coverageRatio * 100) })} />
+                  {/* How much of the document is done (OC-178), filled with data apart from left empty (OC-187). */}
+                  <ScoreRing
+                    ratio={m.stats.doneRatio}
+                    filled={m.stats.targetFields > 0 ? m.stats.targetFieldsFilled / m.stats.targetFields : 0}
+                    label={
+                      m.stats.targetFieldsNotPopulated > 0
+                        ? t('mappings.doneSplit', {
+                            pct: Math.round(m.stats.doneRatio * 100),
+                            filled: Math.round((m.stats.targetFieldsFilled / m.stats.targetFields) * 100),
+                            empty: Math.round((m.stats.targetFieldsNotPopulated / m.stats.targetFields) * 100),
+                          })
+                        : t('mappings.donePercent', { pct: Math.round(m.stats.doneRatio * 100) })
+                    }
+                  />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="truncate text-[13px] font-medium">
                       {m.mode === 'composed' ? `${m.driving.schema}.${m.driving.name}` : `${m.sourceSchema}.${m.sourceTable}`}
@@ -82,7 +105,8 @@ export function MappingsStep() {
                         {m.status === 'draft' && m.errors ? t('mappings.toFix', { count: m.errors }) : t(`mappings.status.${m.status}`)}
                       </Badge>
                       {m.mode === 'composed' ? <Badge tone="primary">{t('composer.badge')}</Badge> : null}
-                      {t('mappings.autoScore', { pct: Math.round(m.stats.autoMapRatio * 100) })}
+                      {m.stats.targetFields > 0 ? t('mappings.fieldsDone', { done: m.stats.targetFieldsDone, count: m.stats.targetFields }) : t('mappings.noFields')}
+                      {m.stats.targetFieldsNotPopulated > 0 ? <span className="text-subtle">({t('mappings.notPopulatedShort', { count: m.stats.targetFieldsNotPopulated })})</span> : null}
                       {m.target.createIfMissing ? <Badge tone="primary">{t('targets.willBeCreated')}</Badge> : null}
                     </span>
                     <span className="text-xs text-muted" data-testid="shape">

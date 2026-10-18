@@ -44,7 +44,8 @@ func TestVersion_AC1_LdflagsInjected(t *testing.T) {
 	var out, errOut bytes.Buffer
 	require.Equal(t, 0, run([]string{"--version"}, &out, &errOut))
 	want := "Omni-Data-Bus 2.0.0 (release)\nCommit: 9f8e7d6  Built: 2026-11-02T14:05:11Z  Go: " + runtime.Version() +
-		"  Platform: " + runtime.GOOS + "/" + runtime.GOARCH + "\n"
+		"  Platform: " + runtime.GOOS + "/" + runtime.GOARCH + "\n" +
+		"Licensed under Apache-2.0 · Copyright 2026 Couchbase, Inc.\n" // OC-189 AC2
 	require.Equal(t, want, out.String())
 
 	out.Reset()

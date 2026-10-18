@@ -55,6 +55,31 @@ type DocField struct {
 	// Example is a scalar value from an imported design (OC-059): shown next to the field,
 	// never written to documents.
 	Example json.RawMessage `json:"example,omitempty"`
+	// Enum are the values the design allows (JSON Schema enum, OC-166), checked in the preview
+	// and conformance. A null in the design's enum makes the field nullable instead.
+	Enum []json.RawMessage `json:"enum,omitempty"`
+	// Variant marks an object child of an array's items (or of an object) as one of the shapes
+	// the items take (OC-171): its fields are written in the item itself, not under its name,
+	// for the rows that are of this variant.
+	Variant *Variant `json:"variant,omitempty"`
+}
+
+// Variant is one shape of a variant set: its title and its discriminator (the field whose
+// constant tells the variants apart, and this variant's value).
+type Variant struct {
+	Title string          `json:"title,omitempty"`
+	Field string          `json:"field,omitempty"`
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+// HasVariants reports whether an object's children include variants (OC-171).
+func (f *DocField) HasVariants() bool {
+	for i := range f.Children {
+		if f.Children[i].Variant != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // Adapters let a node take a relation of the other cardinality (OC-047).
@@ -102,14 +127,53 @@ type ContractField struct {
 	Path     string    `json:"path"`
 	Type     FieldType `json:"type"`
 	Required bool      `json:"required,omitempty"`
+	// Enum are the values the design allows (OC-166).
+	Enum []json.RawMessage `json:"enum,omitempty"`
 }
 
-// Contract lists a design's fields (array items included, as "x[]") in tree order.
+// Contract lists a design's fields (array items included, as "x[]") in tree order. A
+// variant's fields are at the document's paths (payments[].tipInCents, not
+// payments[].SCC.tipInCents), once each (OC-171).
 func Contract(s *Schema) []ContractField {
 	out := []ContractField{}
-	s.Walk(func(f *DocField, path string, _ *DocField) {
-		out = append(out, ContractField{Path: path, Type: f.Type, Required: f.Required})
-	})
+	seen := map[string]bool{}
+	add := func(f ContractField) {
+		if !seen[f.Path] {
+			seen[f.Path] = true
+			out = append(out, f)
+		}
+	}
+	var fields func(parent *DocField, prefix string)
+	var nested func(f *DocField, p string)
+	nested = func(f *DocField, p string) {
+		switch f.Type {
+		case Object:
+			fields(f, p)
+		case Array:
+			if f.Items != nil {
+				ip := p + "[]"
+				add(ContractField{Path: ip, Type: f.Items.Type, Required: f.Items.Required, Enum: f.Items.Enum})
+				nested(f.Items, ip)
+			}
+		}
+	}
+	fields = func(parent *DocField, prefix string) {
+		for i := range parent.Children {
+			f := &parent.Children[i]
+			if f.Variant != nil {
+				fields(f, prefix) // a variant's fields are its parent's
+				continue
+			}
+			p := f.Name
+			if prefix != "" {
+				p = prefix + "." + f.Name
+			}
+			// A field only some variants have is optional for the item.
+			add(ContractField{Path: p, Type: f.Type, Required: f.Required && parent.Variant == nil, Enum: f.Enum})
+			nested(f, p)
+		}
+	}
+	fields(&s.Root, "")
 	return out
 }
 
@@ -195,6 +259,49 @@ func visitNested(f *DocField, p string, fn func(*DocField, string, *DocField), w
 			visitNested(f.Items, ip, fn, walk)
 		}
 	}
+}
+
+// WalkDocument visits the fields at the paths documents have (OC-171): a variant node isn't
+// visited and adds no path segment; its fields are at their parent's paths (the first one
+// found where several variants have the same field).
+func (s *Schema) WalkDocument(fn func(f *DocField, path string)) {
+	seen := map[string]bool{}
+	visit := func(f *DocField, p string) {
+		if !seen[p] {
+			seen[p] = true
+			fn(f, p)
+		}
+	}
+	var fields func(parent *DocField, prefix string)
+	var nested func(f *DocField, p string)
+	nested = func(f *DocField, p string) {
+		switch f.Type {
+		case Object:
+			fields(f, p)
+		case Array:
+			if f.Items != nil {
+				ip := p + "[]"
+				visit(f.Items, ip)
+				nested(f.Items, ip)
+			}
+		}
+	}
+	fields = func(parent *DocField, prefix string) {
+		for i := range parent.Children {
+			f := &parent.Children[i]
+			if f.Variant != nil {
+				fields(f, prefix)
+				continue
+			}
+			p := f.Name
+			if prefix != "" {
+				p = prefix + "." + f.Name
+			}
+			visit(f, p)
+			nested(f, p)
+		}
+	}
+	fields(&s.Root, "")
 }
 
 // Paths maps field IDs to their paths.

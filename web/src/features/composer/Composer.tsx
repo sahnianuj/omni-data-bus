@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDown, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +21,14 @@ import { useWorkbench, useWorkbenchStore } from '@/features/mapping/store'
 import type { CanvasColumn, JunctionCandidate, MappingSpec } from '@/features/mapping/types'
 import { ApiError } from '@/lib/api/client'
 import { BindDialog } from './BindDialog'
+import { Can } from '@/features/auth/Can'
+import { ReviewBanner, useReview } from './ReviewBanner'
+import { ProposalPanel } from './ProposalPanel'
+import { pendingImportKey } from '@/features/mapping/NewFromDesign'
+import type { ReviewFilter } from './review'
+import { proposeMapping } from '@/features/mapping/api'
+import { useSearchParams } from 'react-router'
+import { Sparkles } from 'lucide-react'
 import { ComposerInspector, useScopeColumns } from './ComposerInspector'
 import { foreignKeyOf, scopeDepth } from './bindPrefill'
 import { addNode, bindGroupRows, blank, collapseToId, nodeOf, setDrivingTable, setGroupBy, singularName, unboundContainers, type ForeignKey, type TableRef } from './composerOps'
@@ -41,7 +49,7 @@ import { HelpLink } from '@/components/HelpLink'
 type DialogState =
   | { kind: 'bind'; nodeId: string; table: TableRef; lookup: boolean; mark?: number }
   | { kind: 'pick'; nodeId: string; lookup: boolean }
-  | { kind: 'import'; nodeId: string | null; initial?: { text: string; fileName?: string } }
+  | { kind: 'import'; nodeId: string | null; initial?: { text: string; fileName?: string }; propose?: boolean }
   | { kind: 'start'; start: 'blank' | 'generated' }
   | { kind: 'suggest' }
   | { kind: 'embed'; fieldId: string; fk: ForeignKey }
@@ -64,6 +72,23 @@ function useNarrow() {
 }
 
 /**
+ * The import a "New mapping from a design" of an already mapped table opens with (OC-170): the
+ * design it stashed for this mapping, to update it (the import's Update keeps what's mapped).
+ */
+function pendingImport(pending: boolean, mappingId: string): DialogState {
+  if (!pending) return null
+  let initial: { text: string; fileName?: string } | undefined
+  try {
+    const raw = window.sessionStorage.getItem(pendingImportKey(mappingId))
+    window.sessionStorage.removeItem(pendingImportKey(mappingId))
+    if (raw) initial = JSON.parse(raw) as { text: string; fileName?: string }
+  } catch {
+    // No session storage: an empty import.
+  }
+  return { kind: 'import', nodeId: null, initial, propose: true }
+}
+
+/**
  * The document composer (OC-048): design the target JSON first, then bind its objects and arrays
  * to source tables and map its fields. Sources (relationship tree) · Document (tree) · Inspector,
  * with the score, problems and a live sample. It edits the workbench's spec, so undo, autosave
@@ -79,7 +104,12 @@ export function Composer() {
   const replace = useWorkbench((s) => s.replace)
   const select = useWorkbench((s) => s.select)
   const selection = useWorkbench((s) => s.selection)
-  const [dialog, setDialog] = useState<DialogState>(null)
+  const [params, setParams] = useSearchParams()
+  const [dialog, setDialog] = useState<DialogState>(() => pendingImport(params.get('import') === 'pending', view.id))
+  const review = useWorkbench((s) => s.review)
+  const reviewer = useReview()
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all')
+  const [proposing, setProposing] = useState(false)
   const [focusSource, setFocusSource] = useState(0)
   const [busy, setBusy] = useState(false)
   const [tab, setTab] = useState('document')
@@ -111,6 +141,36 @@ export function Composer() {
   }, [drivingTable.data, store])
 
   const fail = (e: unknown) => toast.error(e instanceof ApiError || e instanceof OpError ? e.message : String(e))
+  // Design-first (OC-163): the whole mapping proposed from the connected source, then reviewed
+  // (OC-168). base keeps what's already bound and mapped (OC-170).
+  const proposeNow = async (base: boolean) => {
+    setProposing(true)
+    try {
+      const s = store.getState()
+      const p = await proposeMapping(s.view.projectId, s.view.id, { specOverride: s.history.present, base })
+      reviewer.start(p)
+      setReviewFilter('all')
+    } catch (e) {
+      fail(e)
+    } finally {
+      setProposing(false)
+    }
+  }
+  // Opened from "New mapping from a design" (OC-163, OC-170): ?propose=1 proposes once the
+  // composer is up; ?import=pending opened the import (the dialog's first state, below).
+  const proposeOnOpen = useRef(params.get('propose') === '1' ? { base: params.get('base') === '1' } : null)
+  useEffect(() => {
+    if (!params.has('propose') && !params.has('import')) return
+    const next = new URLSearchParams(params)
+    next.delete('propose')
+    next.delete('base')
+    next.delete('import')
+    setParams(next, { replace: true })
+    const once = proposeOnOpen.current
+    proposeOnOpen.current = null
+    if (once && spec.docSchema.root.children?.length) queueMicrotask(() => void proposeNow(once.base))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const run = (fn: (s: MappingSpec) => MappingSpec) => {
     try {
       apply(fn)
@@ -249,6 +309,7 @@ export function Composer() {
     >
       <div className="min-h-24 flex-1 overflow-y-auto">
         <DocumentTree
+          reviewFilter={review ? reviewFilter : 'all'}
           onBindTable={(nodeId, lookup) => setDialog({ kind: 'pick', nodeId, lookup: !!lookup })}
           onDropTable={(nodeId, table, lookup) => setDialog({ kind: 'bind', nodeId, table, lookup })}
           onDropColumn={dropColumn}
@@ -272,7 +333,12 @@ export function Composer() {
       </div>
     </div>
   )
-  const inspector = <ComposerInspector focusSource={focusSource} onBindTable={(nodeId, lookup) => setDialog({ kind: 'pick', nodeId, lookup: !!lookup })} embedTable={fkOf(selectedId)?.table.name} embedBlocked={embedBlocked(selectedId)} onEmbed={embed} />
+  const inspector = (
+    <>
+      <ProposalPanel fieldId={selectedId} onUseColumn={dropColumn} onImportItems={(nodeId) => setDialog({ kind: 'import', nodeId })} />
+      <ComposerInspector focusSource={focusSource} onBindTable={(nodeId, lookup) => setDialog({ kind: 'pick', nodeId, lookup: !!lookup })} embedTable={fkOf(selectedId)?.table.name} embedBlocked={embedBlocked(selectedId)} onEmbed={embed} />
+    </>
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="composer">
@@ -280,6 +346,14 @@ export function Composer() {
         <Button size="sm" variant="secondary" onClick={() => setDialog({ kind: 'import', nodeId: null })}>
           {t('composer.start.paste')}
         </Button>
+        {spec.docSchema.root.children?.length && !review ? (
+          <Can role="editor">
+            <Button size="sm" variant="ghost" disabled={proposing} onClick={() => void proposeNow(spec.relations.length > 0 || spec.fieldMappings.some((m) => m.state === 'active'))}>
+              <Sparkles aria-hidden />
+              {t('propose.propose')}
+            </Button>
+          </Can>
+        ) : null}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <Button size="sm" variant="ghost">
@@ -351,7 +425,8 @@ export function Composer() {
         unbound={unbound.arrays + unbound.objects}
         onSuggest={() => setDialog({ kind: 'suggest' })}
       />
-      {showBanner ? (
+      <ReviewBanner filter={reviewFilter} onFilter={setReviewFilter} />
+      {showBanner && !review ? (
         <div role="status" className="flex flex-wrap items-center gap-2 border-b border-border bg-primary-soft px-4 py-2 text-[13px] text-primary-soft-foreground">
           <span>{t('composer.suggest.banner', { list: bannerList })}</span>
           <Button size="sm" onClick={() => setDialog({ kind: 'suggest' })}>
@@ -437,7 +512,7 @@ export function Composer() {
           onOther={(nodeId, table) => setDialog(table ? { kind: 'bind', nodeId, table, lookup: false } : { kind: 'pick', nodeId, lookup: false })}
         />
       ) : null}
-      {dialog?.kind === 'import' ? <ImportDialog nodeId={dialog.nodeId} initial={dialog.initial} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'import' ? <ImportDialog nodeId={dialog.nodeId} initial={dialog.initial} proposeByDefault={dialog.propose} onClose={() => setDialog(null)} onPropose={(base) => void proposeNow(base)} /> : null}
       <ConfirmDialog
         open={dialog?.kind === 'start'}
         onOpenChange={(o) => !o && setDialog(null)}

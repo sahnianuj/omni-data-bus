@@ -53,6 +53,11 @@ type embedProg struct {
 	keyIdx   int  // keyed shape: the key column in the row
 	keyCol   schema.Column
 	sub      *Program
+	// orderIdx is the row's first order column (-1: none), for merging union arrays; failNoMatch
+	// fails a row of no variant instead of skipping it (OC-171).
+	orderIdx    int
+	orderDesc   bool
+	failNoMatch bool
 }
 
 // compileEmbed compiles one relation's sub-program against its row table: the fields of its
@@ -77,6 +82,10 @@ func compileEmbed(spec *mapping.Spec, e mapping.Relation, path string, opts Opti
 		many:     (e.Many() && adapter != docschema.AdapterFirst) || adapter == docschema.AdapterWrap,
 		first:    e.Many() && adapter == docschema.AdapterFirst,
 		overflow: e.Overflow, omitNull: sc.spec.NullHandling == mapping.NullOmit, omitNone: e.Empty == mapping.EmptyOmit, keyIdx: -1,
+		orderIdx: -1, failNoMatch: e.OnNoMatch == mapping.VariantNoMatchFail,
+	}
+	if len(e.OrderBy) > 0 {
+		ep.orderIdx, ep.orderDesc = columnIndex(t, e.OrderBy[0].Column), e.OrderBy[0].Desc
 	}
 	if f := spec.DocSchema.Find(e.TargetFieldID); f != nil {
 		ep.name = f.Name
@@ -113,6 +122,7 @@ func compileEmbed(spec *mapping.Spec, e mapping.Relation, path string, opts Opti
 	}
 	subOpts := opts
 	subOpts.embedded = true
+	subOpts.variants = variantRules(e, t)
 	subOpts.scope = &compileScope{spec: sc.spec, scopes: sc.scopes, id: e.ID, up: sc, table: t}
 	prog, found := Compile(&sub, t, subOpts)
 	// The sub-program's paths are relative to the relation: make them absolute.
@@ -218,10 +228,21 @@ func (p *Program) writeEmbed(dst []byte, e *embedProg) ([]byte, bool, *RowError)
 	return dst, true, nil
 }
 
-// writeObjects appends rows as an array of objects; item paths count from first.
+// writeObjects appends rows as an array of objects; item paths count from first. A row of no
+// variant (OC-171) is skipped and counted, or fails the document.
 func (p *Program) writeObjects(dst []byte, e *embedProg, rows []source.RelatedRow, first int) ([]byte, *RowError) {
 	dst = append(dst, '[')
-	for i, r := range rows {
+	skipped, n := 0, 0
+	for _, r := range rows {
+		if len(e.sub.variants) > 0 && !e.sub.ofAnyVariant(r.Values) {
+			if e.failNoMatch {
+				return dst, &RowError{FieldPath: e.path, Code: CodeVariantNoMatch, Message: "a row of " + e.table + " is of none of the variants"}
+			}
+			skipped++
+			continue
+		}
+		i := n
+		n++
 		if i > 0 {
 			dst = append(dst, ',')
 		}
@@ -232,6 +253,9 @@ func (p *Program) writeObjects(dst []byte, e *embedProg, rows []source.RelatedRo
 		if rerr != nil {
 			return dst, rerr
 		}
+	}
+	if skipped > 0 {
+		p.warnings = append(p.warnings, Warning{FieldPath: e.path, Code: CodeVariantNoMatch, Message: fmt.Sprintf("%d row(s) of %s are of none of the variants; skipped", skipped, e.table)})
 	}
 	return append(dst, ']'), nil
 }
@@ -343,6 +367,9 @@ func (p *Program) writePages(dst []byte, e *embedProg, rows []source.RelatedRow,
 func (p *Program) writeObject(dst []byte, row source.RelatedRow, prefix string) ([]byte, *RowError) {
 	p.resetRow(row.Values)
 	p.related = row.Sub
+	if len(p.variantOrder) > 0 {
+		p.curVariant = p.pickVariant(row.Values)
+	}
 	if len(row.Values) != len(p.cols) {
 		return dst, &RowError{FieldPath: strings.TrimSuffix(prefix, "."), Code: CodeTypeMismatch, Message: fmt.Sprintf("related row has %d values; the table has %d columns", len(row.Values), len(p.cols))}
 	}

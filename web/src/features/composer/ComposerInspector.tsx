@@ -3,18 +3,20 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Can } from '@/features/auth/Can'
 import { Input } from '@/components/ui/input'
-import { useSchema } from '@/features/discovery/api'
+import { useSchema, useSourceTable } from '@/features/discovery/api'
 import { runAutomapScope } from '@/features/mapping/api'
 import { srcKey } from '@/features/mapping/embeds'
 import { ComputedEditor } from '@/features/computed/ComputedEditor'
-import { ValueSourceControl } from '@/features/computed/ValueSourceControl'
-import { activeFor, connect, OpError, replaceSource, setConstant, setTransforms, unmap, valueSourceOf } from '@/features/mapping/mappingOps'
+import { NowSourceEditor } from '@/features/computed/NowSourceEditor'
+import { useValueMode, ValueSourceControl } from '@/features/computed/ValueSourceControl'
+import { activeFor, connect, OpError, replaceSource, setConstant, setNotPopulated, setTransforms, unmap, valueSourceOf } from '@/features/mapping/mappingOps'
 import { useWorkbench, useWorkbenchStore } from '@/features/mapping/store'
 import { parseLiteral, TransformPipelineEditor } from '@/features/mapping/TransformPipelineEditor'
-import type { CanvasColumn, FieldType, MappingSpec, SourceColumn } from '@/features/mapping/types'
+import type { CanvasColumn, DocField, FieldType, MappingSpec, SourceColumn } from '@/features/mapping/types'
 import { ApiError } from '@/lib/api/client'
-import { nodeOf, renameNode, setExpression, setNodeType, unbind } from './composerOps'
+import { nodeOf, renameNode, setExpression, setNodeType, setOnNoMatch, setVariantRule, unbind } from './composerOps'
 import { boundRelations, expressionNames, scope, type ScopeEntry } from './scope'
 
 const selectCls = 'h-8 w-full rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]'
@@ -98,6 +100,8 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
   const expr = mapping?.transforms.find((s) => s.op === 'expression')
   const sourceRef = useRef<HTMLSelectElement>(null)
   const [constant, setConstantText] = useState('')
+  const valueMode = useValueMode(nodeId)
+  const fixedValue = mapping?.transforms.find((s) => s.op === 'constant')?.args?.value
   // The expression being typed, per node; otherwise the node's saved expression.
   const [draft, setDraft] = useState<{ node: string; text: string } | null>(null)
   const saved = typeof expr?.args?.expr === 'string' ? expr.args.expr : ''
@@ -175,6 +179,26 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">{t('composer.inspector')}</h2>
         <span className="truncate font-mono text-[13px]">{path}</span>
       </header>
+      {spec.fieldMappings.some((m) => m.targetFieldId === nodeId && m.state === 'notPopulated') ? (
+        // Left empty on purpose, as the design says (OC-166): counted as done, nothing written.
+        <p role="note" className="flex flex-wrap items-center gap-2 rounded bg-surface-muted p-2 text-xs text-muted">
+          {t('propose.notPopulatedNote')}
+          <Can role="editor">
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => run((s) => setNotPopulated(s, nodeId, false))}>
+              {t('propose.mapInstead')}
+            </Button>
+          </Can>
+        </p>
+      ) : null}
+
+      {!isRoot && node.name !== '[]' && !rel && !mapping && !spec.fieldMappings.some((m) => m.targetFieldId === nodeId && m.state === 'notPopulated') && !(spec.aggregates ?? []).some((a) => a.targetFieldId === nodeId) ? (
+        // Nothing fills it: map it, or leave it empty on purpose so it counts as done (OC-178).
+        <Can role="editor">
+          <Button size="sm" variant="secondary" className="h-7 self-start text-xs" onClick={() => run((s) => setNotPopulated(s, nodeId, true))}>
+            {t('propose.markNotPopulated')}
+          </Button>
+        </Can>
+      ) : null}
 
       {!isRoot && node.name !== '[]' ? (
         <div className="grid grid-cols-2 gap-2">
@@ -242,6 +266,7 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
                   </>
                 ) : null}
               </dl>
+              {node.type === 'array' && node.items?.children?.some((c) => c.variant) ? <VariantRules spec={spec} relationId={rel.id} table={rel.table} items={node.items} onChange={run} /> : null}
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => onBindTable(nodeId)}>
                   {t('composer.rebind')}
@@ -280,11 +305,24 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
 
       {!isContainer ? (
         <div className="flex flex-col gap-2">
-          <ValueSourceControl fieldId={nodeId} />
+          <ValueSourceControl fieldId={nodeId} fixed={valueMode.fixed} onFixedChange={valueMode.onFixedChange} />
           {valueSourceOf(spec, nodeId) === 'template' ? <ComputedEditor key={nodeId} fieldId={nodeId} /> : null}
+          {valueSourceOf(spec, nodeId) === 'now' ? <NowSourceEditor key={nodeId} fieldId={nodeId} /> : null}
         </div>
       ) : null}
-      {(!isContainer || (node.type === 'array' && !rel)) && valueSourceOf(spec, nodeId) !== 'template' ? (
+      {(!isContainer && valueMode.mode === 'fixed') || (node.type === 'array' && !rel) ? (
+        // Fixed: the same value in every document (an unbound array can always take one).
+        <div className="flex items-end gap-2">
+          <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-muted">
+            {t('composer.constant')}
+            <Input value={constant} placeholder={fixedValue !== undefined ? JSON.stringify(fixedValue) : undefined} onChange={(e) => setConstantText(e.target.value)} className="h-8 font-mono text-xs" />
+          </label>
+          <Button size="sm" variant="secondary" disabled={!constant} onClick={() => run((s) => setConstant(s, nodeId, parseLiteral(constant)))}>
+            {t('composer.setConstant')}
+          </Button>
+        </div>
+      ) : null}
+      {(!isContainer || (node.type === 'array' && !rel)) && (isContainer || valueMode.mode === 'source') ? (
         <div className="flex flex-col gap-3">
           <label htmlFor={sourceId} className="flex flex-col gap-1 text-xs font-medium text-muted">
             {t('composer.source')}
@@ -301,15 +339,6 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
               ))}
             </select>
           </label>
-          <div className="flex items-end gap-2">
-            <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-muted">
-              {t('composer.constant')}
-              <Input value={constant} onChange={(e) => setConstantText(e.target.value)} className="h-8 font-mono text-xs" />
-            </label>
-            <Button size="sm" variant="secondary" disabled={!constant} onClick={() => run((s) => setConstant(s, nodeId, parseLiteral(constant)))}>
-              {t('composer.setConstant')}
-            </Button>
-          </div>
           <div className="flex flex-col gap-1">
             <label htmlFor={exprId} className="text-xs font-medium text-muted">
               {t('composer.expression')}
@@ -357,5 +386,63 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
         </div>
       ) : null}
     </section>
+  )
+}
+
+/**
+ * Which rows of the array's relation are each variant of its items (OC-171): a column of the
+ * rows that is set, or equal to a value; and what a row of none does.
+ */
+function VariantRules({ spec, relationId, table, items, onChange }: { spec: MappingSpec; relationId: string; table: { schema: string; name: string }; items: DocField; onChange: (fn: (s: MappingSpec) => MappingSpec) => void }) {
+  const { t } = useTranslation()
+  const view = useWorkbench((s) => s.view)
+  const cols = useSourceTable(`${view.projectId}::source`, table.schema, table.name)
+  const rel = spec.relations.find((r) => r.id === relationId)
+  const id = useId()
+  const columns = cols.data?.columns ?? []
+  return (
+    <fieldset className="flex flex-col gap-1.5 rounded border border-border p-2" aria-label={t('composer.variants.title')}>
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">{t('composer.variants.title')}</legend>
+      <p className="text-xs text-muted">{t('composer.variants.hint', { table: table.name })}</p>
+      {(items.children ?? [])
+        .filter((v) => v.variant)
+        .map((v) => {
+          const rule = rel?.variants?.find((x) => x.fieldId === v.id)
+          return (
+            <div key={v.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5 text-xs">
+              <span className="truncate font-medium">{v.name}</span>
+              <select
+                aria-label={`${v.name}: ${t('composer.variants.when')}`}
+                className="h-7 rounded border border-border-strong bg-surface px-1"
+                value={rule?.when ?? ''}
+                onChange={(e) => onChange((s) => setVariantRule(s, relationId, v.id, e.target.value ? { when: e.target.value, value: rule?.value } : null))}
+              >
+                <option value="">{t('composer.variants.none')}</option>
+                {columns.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                aria-label={`${v.name}: ${t('composer.variants.value')}`}
+                placeholder={t('composer.variants.value')}
+                className="h-7 rounded border border-border-strong bg-surface px-1"
+                defaultValue={rule?.value ?? ''}
+                key={`${v.id}:${rule?.value ?? ''}`}
+                disabled={!rule?.when}
+                onBlur={(e) => rule?.when && e.target.value !== (rule.value ?? '') && onChange((s) => setVariantRule(s, relationId, v.id, { when: rule.when, value: e.target.value }))}
+              />
+            </div>
+          )
+        })}
+      <label htmlFor={id} className="flex items-center gap-1.5 text-xs text-muted">
+        {t('composer.variants.noMatch')}
+        <select id={id} className="h-7 rounded border border-border-strong bg-surface px-1" value={rel?.onNoMatch ?? 'skip'} onChange={(e) => onChange((s) => setOnNoMatch(s, relationId, e.target.value as 'skip' | 'fail'))}>
+          <option value="skip">{t('composer.variants.skip')}</option>
+          <option value="fail">{t('composer.variants.fail')}</option>
+        </select>
+      </label>
+    </fieldset>
   )
 }

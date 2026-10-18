@@ -10,7 +10,7 @@ export default defineConfig({
   server: {
     port: 5173,
     // The Go API runs on :8080 during development.
-    proxy: { '/api': 'http://localhost:8080', '/healthz': 'http://localhost:8080', '/readyz': 'http://localhost:8080' },
+    proxy: { '/api': 'http://localhost:8080', '/healthz': 'http://localhost:8080', '/readyz': 'http://localhost:8080', '/licenses.txt': 'http://localhost:8080' },
   },
   build: { outDir: 'dist', sourcemap: true },
   test: {

@@ -64,6 +64,10 @@ const (
 	CodeStepUpRequired      = "STEP_UP_REQUIRED"
 	CodeReportUnknownBundle = "REPORT_UNKNOWN_BUNDLE"
 	CodeExportTooLarge      = "EXPORT_TOO_LARGE"
+	// A machine's odb couldn't be fetched for an export (OC-188): its download failed, or
+	// didn't match the release's checksum.
+	CodeOdbDownloadFailed  = "ODB_DOWNLOAD_FAILED"
+	CodeOdbDownloadInvalid = "ODB_DOWNLOAD_INVALID"
 )
 
 // ConnectorCodes are produced by connectors.ConnError (role × failure kind).
@@ -100,6 +104,7 @@ var All = []string{
 	CodeJobInvalidTransition, CodePreflightFailed, CodeNoReadyMappings, CodeRetryNotPossible,
 	CodePayloadTooLarge, CodeTooManyConcurrentOps,
 	CodeBundledTarget, CodePassphraseWeak, CodeStepUpRequired, CodeReportUnknownBundle, CodeExportTooLarge,
+	CodeOdbDownloadFailed, CodeOdbDownloadInvalid,
 }
 
 func init() { All = append(All, ConnectorCodes...) }

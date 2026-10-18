@@ -20,7 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
-      # shellcheck (preinstalled) checks migrate.sh here; the bats suites run in runner-bats-*.
+      # shellcheck (preinstalled) checks the 2.0 migrate.sh template here; the bats suites run in
+      # runner-compat-2.0.
       - run: make test-backend 2>&1 | tee backend-test.log
         shell: bash
       # The failures, on the run page: the full log buries them among ~60 packages.
@@ -30,8 +31,36 @@ jobs:
             grep -E -A20 -e '^(--- FAIL|panic:|FAIL)' -e 'build failed|DATA RACE|coverage gate' backend-test.log | head -300
             echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
-  # Runner E2E (OC-056 AC2): the migrate.sh bats suites (OC-053) on bash 5 and on macOS's bash 3.2.
-  runner-bats-linux:
+  # Apache-2.0 (OC-189): every shipped dependency is in THIRD_PARTY_NOTICES.md with an allowed
+  # licence (scripts/licence-policy.json), and LICENSE, NOTICE and the notices are copied where
+  # builds embed them.
+  notices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .tool-versions, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd backend && go mod download
+      - run: cd web && npm ci
+      - run: make notices-check
+
+  # No secret anywhere in the history before it goes public (OC-189 AC7). Reviewed test and
+  # development values are listed, with the reason, in .gitleaksignore.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: go run github.com/zricethezav/gitleaks/v8@v8.21.2 detect --source . --log-opts=--all --redact --no-banner
+
+  # 2.0 exports keep working (OC-181 AC2, OC-184 AC2): their migrate.sh, with the bats suites
+  # (OC-053), against this odb. Until 3.0, when the script and the suites are deleted.
+  runner-compat-2_0:
+    name: runner-compat-2.0
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,14 +69,64 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y bats
       - run: make test-scripts
 
-  runner-bats-macos:
-    runs-on: macos-latest
+  # One export folder, the odb commands alone, on every OS (OC-182 AC1, OC-184 AC1, OC-186 AC1):
+  # the runner's unit tests, then preflight, a run interrupted with the OS's interrupt (Ctrl+Break
+  # on Windows), status, resume and verify, against a PostgreSQL loaded with the dev stack's
+  # shop seed.
+  runner-e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
-      - run: brew install bats-core shellcheck
-      - run: ODB_TEST_BASH=/bin/bash make test-scripts
+      - name: PostgreSQL (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE shop_owner LOGIN SUPERUSER PASSWORD 'shop_owner'"
+          sudo -u postgres createdb -O shop_owner shop
+      - name: PostgreSQL (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install postgresql@16
+          bin="$(brew --prefix postgresql@16)/bin"
+          echo "$bin" >> "$GITHUB_PATH"
+          brew services start postgresql@16
+          for _ in $(seq 30); do "$bin/pg_isready" -h localhost && break; sleep 1; done
+          "$bin/psql" -h localhost -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE shop_owner LOGIN SUPERUSER PASSWORD 'shop_owner'"
+          "$bin/createdb" -h localhost -O shop_owner shop
+      - name: PostgreSQL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env: { PGPASSWORD: root }
+        run: |
+          $svc = Get-Service -Name 'postgresql*' | Select-Object -First 1
+          Set-Service -InputObject $svc -StartupType Manual
+          Start-Service -InputObject $svc
+          & "$env:PGBIN\psql" -U postgres -h localhost -v ON_ERROR_STOP=1 -c "CREATE ROLE shop_owner LOGIN SUPERUSER PASSWORD 'shop_owner'"
+          & "$env:PGBIN\createdb" -U postgres -h localhost -O shop_owner shop
+          "$env:PGBIN" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: The shop seed
+        shell: bash
+        env: { PGPASSWORD: shop_owner }
+        run: |
+          for f in deploy/compose/seed/source/*.sql; do
+            psql -h localhost -U shop_owner -d shop -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - name: Unit tests
+        shell: bash
+        working-directory: backend
+        env: { CGO_ENABLED: "0" }
+        run: go test -count=1 -skip 'TestScriptTemplate|TestMigrateScript_Bats' ./cmd/odb/ ./internal/headless/ ./internal/export/ ./internal/mapping/ ./internal/pathcodec/
+      - name: End to end with odb alone
+        shell: bash
+        working-directory: backend
+        env: { CGO_ENABLED: "0", OC_IT_PG_HOST: localhost, OC_IT_PG_PORT: "5432" }
+        run: go test -tags integration -count=1 -run 'TestRunner_' -v ./cmd/odb/
 
   backend-integration:
     runs-on: ubuntu-latest

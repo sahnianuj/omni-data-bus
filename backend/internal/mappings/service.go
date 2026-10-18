@@ -89,6 +89,7 @@ type View struct {
 	Explain      map[string]automap.Explanation `json:"explain"`
 	Version      int64                          `json:"version"`
 	CreatedAt    time.Time                      `json:"createdAt"`
+	CreatedBy    string                         `json:"createdBy,omitempty"`
 	UpdatedAt    time.Time                      `json:"updatedAt"`
 	// EmbedTables are the columns of each embedded table (by embed id), and EmbedCandidates
 	// the related tables that can be embedded (OC-021).
@@ -128,6 +129,10 @@ type Summary struct {
 	Errors     int         `json:"errors"`
 	Warnings   int         `json:"warnings"`
 	FirstError *IssueBrief `json:"firstError,omitempty"`
+	// KeyTemplate is the document key, and CreatedBy who created the mapping: what "this table
+	// is already mapped" shows before an import updates it (OC-170).
+	KeyTemplate string `json:"keyTemplate"`
+	CreatedBy   string `json:"createdBy,omitempty"`
 }
 
 // IssueBrief is one issue in a list row.
@@ -288,7 +293,7 @@ func (s *Service) view(m store.Mapping, p projectCtx, t *schema.Table, spec mapp
 		ID: m.ID, ProjectID: m.ProjectID, SourceSchema: m.SourceSchema, SourceTable: m.SourceTable,
 		Target: mapping.V1Target(m.Where()), Location: m.Where(), Spec: spec, Status: mapping.Status(found), Issues: found,
 		Explain: automap.Explain(&spec, automap.Columns(t), nil),
-		Version: m.Version, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt,
+		Version: m.Version, CreatedAt: m.CreatedAt, CreatedBy: m.CreatedBy, UpdatedAt: m.UpdatedAt,
 		EmbedTables: map[string]EmbedTable{}, EmbedCandidates: []mapping.EmbedCandidate{},
 	}
 	rel := p.related()
@@ -438,7 +443,7 @@ func summaryOf(v View) Summary {
 		Driving: mapping.DrivingTable(&v.Spec, mapping.TableRef{Schema: v.SourceSchema, Name: v.SourceTable}),
 		Target:  v.Target, Location: v.Location, Status: v.Status,
 		AutomapStats: v.AutomapStats, Stats: v.Stats, Version: v.Version, UpdatedAt: v.UpdatedAt,
-		Shape: shapeOf(&v.Spec),
+		Shape: shapeOf(&v.Spec), KeyTemplate: v.Spec.Key.Template, CreatedBy: v.CreatedBy,
 	}
 	for _, i := range v.Issues {
 		switch i.Severity {

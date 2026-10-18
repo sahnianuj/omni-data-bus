@@ -38,6 +38,25 @@ describe('MappingWorkbench', () => {
     expect(await screen.findByRole('combobox', { name: 'Source for age' })).toBeInTheDocument()
   })
 
+  it('a filter set from the score header shows in the toolbar, and Show all clears it', async () => {
+    mockMapping()
+    open()
+    expect(await screen.findByRole('application', { name: 'Mapping canvas' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Show them' }))
+    expect(await screen.findByText("Showing only what's not mapped")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Show all' }))
+    expect(screen.queryByText(/Showing only/)).toBeNull()
+    // The required chip filters too, and the same way back.
+    const required = screen.queryByRole('button', { name: /required fields? unmapped/ })
+    if (required) {
+      await userEvent.click(required)
+      expect(await screen.findByText('Showing only required fields')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Show all' }))
+      expect(screen.queryByText(/Showing only/)).toBeNull()
+    }
+  })
+
   it('autosaves edits with If-Match on the current version', async () => {
     const state = mockMapping()
     openTable()

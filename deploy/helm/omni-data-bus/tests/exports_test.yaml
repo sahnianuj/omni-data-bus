@@ -21,3 +21,33 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: { name: OC_EXPORT_DOWNLOAD_URL, value: "https://mirror.example.com/odb" }
+  - it: "OC-188: odb downloads are cached on their own volume"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_FETCH, value: "true" }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_CACHE_DIR, value: /var/cache/odb }
+      - contains:
+          path: spec.template.spec.volumes
+          content: { name: odb-cache, emptyDir: { sizeLimit: 256Mi } }
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_DIST_DIR, value: /opt/odb/dist }
+  - it: "OC-188 AC5: an air-gapped server mounts the release's odb files and doesn't download"
+    set:
+      exports: { fetch: false, distDir: { existingClaim: odb-release-2-5-0 } }
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_FETCH, value: "false" }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: OC_EXPORT_DIST_DIR, value: /opt/odb/dist }
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: { name: odb-dist, mountPath: /opt/odb/dist, readOnly: true }
+      - contains:
+          path: spec.template.spec.volumes
+          content: { name: odb-dist, persistentVolumeClaim: { claimName: odb-release-2-5-0, readOnly: true } }

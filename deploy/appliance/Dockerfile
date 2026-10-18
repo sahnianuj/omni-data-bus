@@ -27,6 +27,8 @@ LABEL org.opencontainers.image.title="Omni-Data-Bus (all-in-one)" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_TIME}" \
       org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.licenses="Apache-2.0 AND LicenseRef-Couchbase-CE" \
+      org.opencontainers.image.vendor="Couchbase, Inc." \
       io.omnidatabus.couchbase.edition="community" \
       io.omnidatabus.couchbase.version="${CB_VERSION}"
 # tini is PID 1: it reaps zombies and forwards signals to the supervisor.
@@ -36,7 +38,10 @@ RUN apt-get update \
 COPY --from=odb /usr/local/bin/odb /usr/local/bin/odb
 COPY deploy/compose/couchbase/init.sh /usr/local/lib/odb/cb-init.sh
 COPY deploy/appliance/odb-appliance.sh /usr/local/bin/odb-appliance
-COPY deploy/appliance/NOTICE /usr/share/doc/omni-data-bus/NOTICE
+# Omni-Data-Bus's LICENSE, NOTICE and third-party notices (OC-189), and this image's own notice:
+# the image as a whole is Apache-2.0 for our part and Couchbase CE under its own licence.
+COPY --from=odb /usr/share/doc/omni-data-bus/ /usr/share/doc/omni-data-bus/
+COPY deploy/appliance/NOTICE /usr/share/doc/omni-data-bus/NOTICE.all-in-one
 ENV ODB_CB_VERSION=${CB_VERSION} \
     OC_HTTP_ADDR=:8080
 EXPOSE 8080 8091

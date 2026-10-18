@@ -23,7 +23,9 @@ test('AC2: drop JSON sample, review suggestions, migrate', async ({ page }) => {
   await new SignIn(page).signIn(api.email)
   await page.goto(`/projects/${p.id}/mappings/${ids[0]}`)
   const score = page.getByRole('region', { name: 'Mapping score' })
-  await expect(score.getByRole('heading', { name: 'Omni-Data-Bus auto-mapped 15 of 15 columns' })).toBeVisible()
+  // OC-178: the headline counts the document's fields; the auto-map run is the detail under it.
+  await expect(score.getByRole('heading', { name: /target fields? done/ })).toBeVisible()
+  await expect(score.getByText('Source columns · auto-mapped 15 of 15 on the last run')).toBeVisible()
 
   // Design → Import → JSON sample → Replace.
   await page.getByRole('tab', { name: 'Design' }).click()

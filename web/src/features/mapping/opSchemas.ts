@@ -56,6 +56,10 @@ export const opSchemas = {
   formatDatetime: z
     .object({ format: z.enum(['iso8601', 'date', 'epoch_ms', 'epoch_s', 'custom']).optional(), pattern: z.string().optional(), timezone: tz })
     .refine((a) => a.format !== 'custom' || (!!a.pattern && validPattern(a.pattern)), { message: 'A custom format needs a valid pattern', path: ['pattern'] }),
+  // The current date and time (OC-179): when the run started or each document is written, formatted as formatDatetime.
+  now: z
+    .object({ at: z.enum(['run', 'write']).optional(), format: z.enum(['iso8601', 'date', 'epoch_ms', 'epoch_s', 'custom']).optional(), pattern: z.string().optional(), timezone: tz })
+    .refine((a) => a.format !== 'custom' || (!!a.pattern && validPattern(a.pattern)), { message: 'A custom format needs a valid pattern', path: ['pattern'] }),
   trim: z.object({}),
   lower: z.object({}),
   upper: z.object({}),
@@ -86,7 +90,7 @@ export type OpName = keyof typeof opSchemas
 export const opCategories: { id: string; ops: OpName[] }[] = [
   { id: 'convert', ops: ['toString', 'parseInteger', 'parseNumber', 'parseBoolean'] },
   { id: 'text', ops: ['trim', 'lower', 'upper', 'substring', 'replace', 'concat', 'split'] },
-  { id: 'datetime', ops: ['toDatetime', 'formatDatetime'] },
+  { id: 'datetime', ops: ['toDatetime', 'formatDatetime', 'now'] },
   { id: 'values', ops: ['default', 'nullIf', 'constant', 'lookup', 'round', 'jsonParse', 'array'] },
   { id: 'privacy', ops: ['mask', 'hash'] },
   { id: 'advanced', ops: ['expression'] },

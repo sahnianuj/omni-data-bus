@@ -6,3 +6,8 @@ version: 1.0.0
 appVersion: "1.0.0"
 kubeVersion: ">=1.25.0-0"
 keywords: [couchbase, postgresql, migration]
+# Apache-2.0 (OC-189); LICENSE ships in the chart package (copied by `make notices`).
+annotations:
+  artifacthub.io/license: Apache-2.0
+maintainers:
+  - name: Anuj Sahni

@@ -28,7 +28,8 @@ function buildDate(iso: string | undefined, locale: string): string | null {
   }).format(d)
 }
 
-function ChannelBadges({ v }: { v: VersionInfo }) {
+/** DEV / RC; with details (the popover), also dirty and mixed versions, which the footer leaves out. */
+function ChannelBadges({ v, details = false }: { v: VersionInfo; details?: boolean }) {
   const { t } = useTranslation()
   return (
     <>
@@ -38,17 +39,43 @@ function ChannelBadges({ v }: { v: VersionInfo }) {
           {t('build.rc')}
         </Badge>
       ) : null}
-      {v.dirty ? (
+      {details && v.dirty ? (
         <Badge tone="warning" className="h-4 px-1.5 text-[10px]">
           {t('build.dirty')}
         </Badge>
       ) : null}
-      {v.consistent === false ? (
+      {details && v.consistent === false ? (
         <Badge tone="warning" className="h-4 px-1.5 text-[10px]">
           {t('build.mixed')}
         </Badge>
       ) : null}
     </>
+  )
+}
+
+/** The build of the release: the server's build ("7f6cea2+418", OC-172), else the short commit. */
+const buildOf = (v: VersionInfo) => v.build || shortCommit(v.commit)
+
+/**
+ * While a page is maximized (the footer is hidden), the release stays in the bottom-right
+ * corner and opens the same details (OC-172 AC3).
+ */
+export function BuildInfoBadge() {
+  const { t } = useTranslation()
+  const v = useBuildInfo().data
+  if (!v?.version) return null
+  const label = t('build.badge', { version: v.version })
+  const cls = 'fixed bottom-1 right-2 z-40 rounded bg-surface/90 px-1.5 text-[11px] text-muted shadow-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary'
+  if (v.commit === undefined) return <span className={cls}>{label}</span>
+  return (
+    <Popover>
+      <PopoverTrigger className={cls} aria-label={t('build.title') + ': ' + label}>
+        {label}
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" aria-label={t('build.title')} className="w-[380px] text-[13px]">
+        <BuildDetails v={v} />
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -69,8 +96,8 @@ export function BuildInfoFooter({ className }: { className?: string }) {
   const full = v.commit !== undefined
   const date = buildDate(v.buildTime, i18n.language)
   const stale = staleVersion(v.version)
-  const summary = [t('build.summary', { name: t('app.name'), version: v.version })]
-  if (full && v.commit) summary.push(t('build.build', { commit: shortCommit(v.commit) }))
+  const summary = [t('build.summary', { version: v.version })]
+  if (full && buildOf(v)) summary.push(t('build.build', { commit: buildOf(v) }))
   if (date) summary.push(date)
   if (v.bundledStore) summary.push(t('build.bundled', { store: v.bundledStore }))
 
@@ -139,10 +166,11 @@ export function BuildDetails({ v }: { v: VersionInfo }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span className="font-medium">{t('build.title')}</span>
-        <ChannelBadges v={v} />
+        <ChannelBadges v={v} details />
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
         <Row label={t('build.fields.version')}>{v.version}</Row>
+        {v.build ? <Row label={t('build.fields.build')}>{v.build}</Row> : null}
         <Row label={t('build.fields.channel')}>{v.channel}</Row>
         <Row label={t('build.fields.commit')}>{v.commit}</Row>
         <Row label={t('build.fields.built')}>{v.buildTime || t('build.unknown')}</Row>

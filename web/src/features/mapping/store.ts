@@ -2,9 +2,11 @@ import { followDesign } from '@/features/computed/refs'
 import { createContext, useContext } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
 import { initHistory, push, redo, revert, squash, undo, type History } from '@/features/docschema/history'
+import { parentMap } from './buildEdges'
 import { computeStats } from './computeStats'
 import type { Filter } from './selectVisible'
 import type { MappingIssue, MappingSpec, MappingStats, MappingView, SourceColumn } from './types'
+import type { Review } from '@/features/composer/review'
 
 export type Selection = { kind: 'mapping'; id: string } | { kind: 'field'; id: string } | { kind: 'column'; name: string } | null
 export type WorkbenchMode = 'canvas' | 'table' | 'design' | 'composer'
@@ -20,7 +22,11 @@ export type WorkbenchState = {
   search: string
   mode: WorkbenchMode
   collapsed: ReadonlySet<string>
+  /** The field last asked to be shown in the Canvas (OC-176); seq tells repeated asks apart. */
+  reveal: { id: string; seq: number } | null
   conflict: boolean
+  /** A proposal under review in the composer (OC-168); null when none. */
+  review: Review | null
   /** Increments on every local edit (autosave watches it). */
   revision: number
   /** Saves pending edits before a server-side change (set by the workbench's autosave). */
@@ -39,11 +45,17 @@ export type WorkbenchState = {
   saved: (view: MappingView) => void
   replace: (view: MappingView) => void
   setConflict: (c: boolean) => void
+  setReview: (r: Review | null) => void
   select: (s: Selection) => void
   setFilter: (f: Filter) => void
   setSearch: (q: string) => void
   setMode: (m: WorkbenchMode) => void
   toggleCollapsed: (fieldId: string) => void
+  /**
+   * Shows a field in the Canvas target pane (OC-176): selects it (or the given mapping), opens
+   * its collapsed parents, clears a filter, and leaves the Table or Design tab for the Canvas.
+   */
+  revealField: (fieldId: string, selection?: Selection) => void
 }
 
 /** One store per open mapping (the workbench's single source of truth, with undo/redo). */
@@ -60,7 +72,9 @@ export function createWorkbenchStore(view: MappingView, columns: SourceColumn[])
     // A composed mapping opens in the composer (OC-048).
     mode: view.spec.mode === 'composed' ? 'composer' : 'canvas',
     collapsed: new Set(),
+    reveal: null,
     conflict: false,
+    review: null,
     revision: 0,
     flush: async () => {},
     spec: () => get().history.present,
@@ -81,6 +95,7 @@ export function createWorkbenchStore(view: MappingView, columns: SourceColumn[])
     // Server-side changes (auto-map, design replace, reload): the server's spec wins.
     replace: (v) => set((s) => ({ view: v, version: v.version, issues: v.issues, history: push(s.history, v.spec), conflict: false })),
     setConflict: (conflict) => set({ conflict }),
+    setReview: (review) => set({ review }),
     select: (selection) => set({ selection }),
     setFilter: (filter) => set({ filter }),
     setSearch: (search) => set({ search }),
@@ -91,6 +106,20 @@ export function createWorkbenchStore(view: MappingView, columns: SourceColumn[])
         if (next.has(id)) next.delete(id)
         else next.add(id)
         return { collapsed: next }
+      }),
+    revealField: (id, selection) =>
+      set((s) => {
+        const parents = parentMap(s.history.present)
+        const collapsed = new Set(s.collapsed)
+        for (let p = parents.get(id); p; p = parents.get(p)) collapsed.delete(p)
+        return {
+          selection: selection ?? { kind: 'field', id },
+          collapsed,
+          filter: 'all',
+          search: '',
+          mode: s.mode === 'table' || s.mode === 'design' ? 'canvas' : s.mode,
+          reveal: { id, seq: (s.reveal?.seq ?? 0) + 1 },
+        }
       }),
   }))
 }

@@ -312,6 +312,43 @@
     "dropNulls": true
    },
    "valid": true
+  },
+  {
+   "op": "now",
+   "args": {},
+   "valid": true
+  },
+  {
+   "op": "now",
+   "args": {
+    "at": "write",
+    "format": "epoch_ms"
+   },
+   "valid": true
+  },
+  {
+   "op": "now",
+   "args": {
+    "at": "run",
+    "format": "custom",
+    "pattern": "yyyy-MM-dd HH:mm",
+    "timezone": "America/New_York"
+   },
+   "valid": true
+  },
+  {
+   "op": "now",
+   "args": {
+    "at": "later"
+   },
+   "valid": false
+  },
+  {
+   "op": "now",
+   "args": {
+    "format": "custom"
+   },
+   "valid": false
   }
  ]
 }

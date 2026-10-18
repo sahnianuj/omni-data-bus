@@ -28,6 +28,19 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Health' }
+  /licenses.txt:
+    get:
+      tags: [system]
+      operationId: licenses
+      summary: Licences (OC-189)
+      description: LICENSE (Apache-2.0), NOTICE and THIRD_PARTY_NOTICES.md as one plain-text page, served from the binary. Public.
+      security: []
+      responses:
+        '200':
+          description: The licence texts
+          content:
+            text/plain:
+              schema: { type: string }
   /metrics:
     get:
       tags: [system]
@@ -1059,6 +1072,46 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/BindingSuggestions' }
         default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/{mid}/propose:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: mid, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: proposeMapping
+      summary: The whole mapping of the mapping's design, proposed against the project's connected source (OC-163; changes nothing)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProposeRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+        default: { $ref: '#/components/responses/Problem' }
+  /api/v1/projects/{id}/mappings/propose:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [mappings]
+      operationId: proposeDesign
+      summary: A mapping proposed for a design that has no mapping yet - New mapping from a design (OC-163; changes nothing)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProposeDesignRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+        default: { $ref: '#/components/responses/Problem' }
   /api/v1/doc-schemas/infer:
     post:
       tags: [mappings]
@@ -1236,9 +1289,9 @@ paths:
       operationId: createExport
       summary: >-
         Export the project as configured (its source, target, saved credentials and every ready mapping) as a zip of
-        one folder: the generic migrate.sh (OC-159), config.json with the connection details and base64-encoded
-        credentials (OC-155, OC-156), mappings.json with the mappings and no connection details (OC-158), README.md,
-        and odb when includeOdb is set (OC-160). Editors only; no passphrase or step-up
+        one folder that runs on any OS with the odb command (OC-182): config.json with the connection details and
+        base64-encoded credentials (OC-155, OC-156), mappings.json with the mappings and no connection details (OC-158),
+        README.md, and bin/odb (bin/odb.exe) for one machine when includeOdb is set. There is no script. Editors only; no passphrase or step-up
         (OC-154). 422 MAPPING_INVALID, NO_READY_MAPPINGS, BUNDLED_TARGET_NOT_EXPORTABLE; 429 after 10 exports an hour
       security: [{ cookieAuth: [] }]
       requestBody:
@@ -1567,7 +1620,8 @@ components:
       type: object
       description: Every field is optional because anonymous callers get a subset (OC-058).
       properties:
-        version: { type: string, example: 2.0.0 }
+        version: { type: string, description: 'The release, from the VERSION file; -dev for an untagged build (OC-172)', example: 2.5.0 }
+        build: { type: string, description: 'The build of that release: the short commit, plus the CI run number (OC-172)', example: 7f6cea2+418 }
         channel: { type: string, enum: [release, rc, dev] }
         commit: { type: string, example: 3f2a9c1 }
         buildTime: { type: string, description: 'UTC RFC 3339; empty for local builds', example: '2026-11-02T14:05:11Z' }
@@ -1895,6 +1949,10 @@ components:
         columns: { type: array, items: { $ref: '#/components/schemas/SourceColumn' } }
         primaryKey: { type: array, items: { type: string } }
         uniqueConstraints: { type: array, items: { type: array, items: { type: string } } }
+        checkConstraints:
+          type: array
+          items: { type: object, required: [name, definition], properties: { name: { type: string }, definition: { type: string } } }
+        exclusiveArcs: { type: array, description: 'Column sets of which exactly one is set in every row, from CHECK constraints (OC-171)', items: { type: array, items: { type: string } } }
         foreignKeys:
           type: array
           items:
@@ -2065,6 +2123,17 @@ components:
         example:
           description: A scalar value from an imported design (OC-059), shown next to the field; never written to documents
           oneOf: [{ type: string }, { type: number }, { type: boolean }]
+        enum:
+          type: array
+          description: The values the design allows (JSON Schema enum, OC-166); a null in the design's enum makes the field nullable instead
+          items: { oneOf: [{ type: string }, { type: number }, { type: boolean }] }
+        variant:
+          type: object
+          description: "This object is one shape of its parent's items (OC-171): its fields are written in the item itself, for the rows of this variant"
+          properties:
+            title: { type: string }
+            field: { type: string, description: The discriminator field }
+            value: { oneOf: [{ type: string }, { type: number }, { type: boolean }] }
     Binding:
       type: object
       description: >-
@@ -2112,6 +2181,7 @@ components:
               path: { type: string }
               type: { $ref: '#/components/schemas/FieldType' }
               required: { type: boolean }
+              enum: { type: array, items: { oneOf: [{ type: string }, { type: number }, { type: boolean }] } }
     ConstantHint:
       type: object
       required: [fieldId, value, reason]
@@ -2156,7 +2226,7 @@ components:
               embed: { type: string, deprecated: true, description: '1.0 name of relation; accepted on input, never returned' }
         transforms: { type: array, items: { $ref: '#/components/schemas/TransformStep' } }
         origin: { type: string, enum: [auto, suggested, manual] }
-        state: { type: string, enum: [active, pending, rejected] }
+        state: { type: string, enum: [active, pending, rejected, notPopulated], description: 'notPopulated — the design leaves the field empty on purpose (OC-166): nothing is written, and it counts as done' }
         confidence: { type: number }
         reason: { type: string }
         needsReview: { type: boolean }
@@ -2278,6 +2348,17 @@ components:
         group:
           type: boolean
           description: 'The group''s rows (OC-063): a one-to-many from the driving table to itself on root.groupBy, directly under the root; table, kind and join are filled from the root'
+        variants:
+          type: array
+          description: "Which variant of the array's items each row is (OC-171): the variant whose when column is set, or equals value"
+          items:
+            type: object
+            required: [fieldId, when]
+            properties:
+              fieldId: { type: string, description: The variant node }
+              when: { type: string }
+              value: { type: string }
+        onNoMatch: { type: string, enum: [skip, fail], description: 'A row of no variant: skipped and counted (default), or the document fails' }
     Aggregate:
       type: object
       required: [id, relationId, fn, targetFieldId]
@@ -2393,6 +2474,8 @@ components:
         join: { type: array, items: { $ref: '#/components/schemas/JoinPair' } }
         via: { $ref: '#/components/schemas/RelationVia' }
         virtual: { type: boolean }
+        cardinality: { type: string, enum: [one-to-one, many-to-one, one-to-many] }
+        direction: { type: string, enum: [references, referencedBy] }
         adapter: { type: string, enum: [first, wrap] }
         shape: { type: string, enum: [scalars] }
         valueColumn: { type: string }
@@ -2401,6 +2484,67 @@ components:
         orderBy: { type: array, items: { $ref: '#/components/schemas/EmbedOrder' } }
         score: { type: number }
         reasons: { type: array, items: { type: string } }
+    ProposeRequest:
+      type: object
+      properties:
+        specOverride: { $ref: '#/components/schemas/MappingSpec' }
+        drivingTable: { type: string, description: 'schema.table; empty chooses it' }
+        base: { type: boolean, description: Keep the mapping's bindings and mappings and propose only what's missing (OC-170) }
+        nodeId: { type: string, description: Propose only under this node (OC-168) }
+    ProposeDesignRequest:
+      type: object
+      required: [docSchema]
+      properties:
+        docSchema: { $ref: '#/components/schemas/DocSchema' }
+        drivingTable: { type: string }
+    Proposal:
+      type: object
+      required: [driving, spec, items, coverage]
+      properties:
+        driving:
+          type: array
+          description: Driving tables, best first; spec drives from the first
+          items:
+            type: object
+            required: [table, score, reasons]
+            properties:
+              table: { $ref: '#/components/schemas/TableRef' }
+              score: { type: number }
+              reasons: { type: array, items: { type: string } }
+        spec: { $ref: '#/components/schemas/MappingSpec' }
+        items: { type: array, items: { $ref: '#/components/schemas/ProposalItem' } }
+        coverage: { $ref: '#/components/schemas/ProposalCoverage' }
+    ProposalItem:
+      type: object
+      required: [fieldId, path, kind, status, score, summary, reasons]
+      properties:
+        fieldId: { type: string }
+        path: { type: string }
+        kind: { type: string, enum: [binding, field] }
+        status: { type: string, enum: [bound, fromParent, mapped, converted, lookup, constant, computed, aggregate, notPopulated, unresolved, alreadyMapped] }
+        band: { type: string, enum: [high, medium, low] }
+        score: { type: number }
+        summary: { type: string, example: '← cart_items.price × 100' }
+        reasons: { type: array, items: { type: string } }
+        required: { type: boolean }
+        code: { type: string, enum: [NO_COLUMN, NO_PATH, TYPE_MISMATCH, DEPTH_LIMIT, REFERENCE_TEMPLATE, UNTYPED_ITEMS], description: Why nothing (or something uncertain) fills it (OC-169) }
+        candidates: { type: array, items: { type: string }, description: 'The best columns or tables, as schema.table or table.column' }
+        alternatives: { type: array, items: { $ref: '#/components/schemas/BindingCandidate' } }
+        relationIds: { type: array, items: { type: string } }
+        mappingIds: { type: array, items: { type: string } }
+        aggregateIds: { type: array, items: { type: string } }
+        fix: { type: string, description: The expression a REFERENCE_TEMPLATE field can use }
+    ProposalCoverage:
+      type: object
+      required: [fields, proposed, needsReview, notPopulated, unresolved, containers, bound]
+      properties:
+        fields: { type: integer }
+        proposed: { type: integer }
+        needsReview: { type: integer }
+        notPopulated: { type: integer }
+        unresolved: { type: integer }
+        containers: { type: integer }
+        bound: { type: integer }
     RelationVia:
       type: object
       required: [table, parentJoin, childJoin]
@@ -2669,7 +2813,7 @@ components:
         createIfMissing: { type: boolean }
     MappingStats:
       type: object
-      required: [totalSourceColumns, autoMapped, suggested, manuallyMapped, unmappedSource, ignored, totalTargetLeaves, mappedTargetLeaves, requiredTargetUnmapped, autoMapRatio, coverageRatio, averageConfidence]
+      required: [totalSourceColumns, autoMapped, suggested, manuallyMapped, unmappedSource, ignored, totalTargetLeaves, mappedTargetLeaves, requiredTargetUnmapped, autoMapRatio, coverageRatio, averageConfidence, targetFields, targetFieldsDone, doneRatio, targetFieldsFilled, targetFieldsNotPopulated]
       properties:
         totalSourceColumns: { type: integer }
         autoMapped: { type: integer }
@@ -2683,6 +2827,11 @@ components:
         autoMapRatio: { type: number }
         coverageRatio: { type: number }
         averageConfidence: { type: number }
+        targetFields: { type: integer, description: "The document's fields (array items and variants included; containers counted through their fields), OC-178" }
+        targetFieldsDone: { type: integer, description: "Fields done: filled by a mapping, a total or a relation, or marked not populated" }
+        doneRatio: { type: number, description: "targetFieldsDone / targetFields; the score wheel (OC-178)" }
+        targetFieldsFilled: { type: integer, description: "Done fields filled with data: a mapping, a total or a relation fills them (OC-187)" }
+        targetFieldsNotPopulated: { type: integer, description: "Done fields left empty on purpose: marked not populated, or under a container that is; filled + notPopulated = done (OC-187)" }
         embedded:
           type: object
           description: Columns of embedded tables, counted separately
@@ -2721,7 +2870,7 @@ components:
           type: object
           required: [kind, label]
           properties:
-            kind: { type: string, enum: [mark-optional, accept-suggestions, add-transform, enable-create, repoint-source, combine-rows, add-to-design, restore-field, map-field] }
+            kind: { type: string, enum: [mark-optional, accept-suggestions, add-transform, enable-create, repoint-source, combine-rows, add-to-design, restore-field, map-field, remove-relation, replace-step] }
             label: { type: string }
             step: { $ref: '#/components/schemas/TransformStep' }
             relationId: { type: string, description: 'repoint-source: read the column from this relation (OC-065)' }
@@ -2773,6 +2922,7 @@ components:
         explain: { type: object, additionalProperties: { $ref: '#/components/schemas/Explanation' } }
         version: { type: integer, format: int64 }
         createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
         updatedAt: { type: string, format: date-time }
         embedTables: { type: object, additionalProperties: { $ref: '#/components/schemas/EmbedTable' } }
         embedCandidates: { type: array, items: { $ref: '#/components/schemas/EmbedCandidate' } }
@@ -2800,6 +2950,8 @@ components:
             arrays: { type: integer }
             objects: { type: integer }
             groupBy: { type: array, items: { type: string } }
+        keyTemplate: { type: string, description: The document key template (OC-170 shows it before an import updates the mapping) }
+        createdBy: { type: string }
         errors: { type: integer, description: 'Error issues in the live validation; any makes the status draft (OC-083)' }
         warnings: { type: integer }
         firstError:
@@ -3000,6 +3152,7 @@ components:
                   missing: { type: array, items: { type: string } }
                   extra: { type: array, items: { type: string } }
                   typeDiff: { type: array, items: { type: string } }
+                  enumValues: { type: array, items: { type: string }, description: "Paths holding a value the design's enum doesn't allow (REFERENCE_ENUM_VALUE, OC-166)" }
         worstCase:
           type: object
           required: [relationId, path, rows, estimatedBytes]
@@ -3034,6 +3187,16 @@ components:
         kind: { type: string, enum: [json-sample, json-schema] }
         content: { type: string }
         fileName: { type: string, maxLength: 255, description: The imported file's name, recorded in docSchema.imported }
+        files:
+          type: array
+          maxItems: 200
+          description: "A JSON Schema split across files (OC-171): the files content's $refs point to, and item designs of its untyped arrays (variants)"
+          items:
+            type: object
+            required: [name, content]
+            properties:
+              name: { type: string, description: 'Path as in the $refs, e.g. payments/scc.schema.json' }
+              content: { type: string }
     InferResult:
       type: object
       required: [docSchema, warnings]
@@ -3241,14 +3404,24 @@ components:
               failed: { type: integer, format: int64 }
     ExportOptions:
       type: object
-      required: [version, image, downloadUrl, downloadable, embeddable, maxPerHour]
+      required: [version, image, downloadUrl, downloadable, embeddable, signed, machines, maxPerHour]
       properties:
         version: { type: string }
         image: { type: string }
         downloadUrl: { type: string }
-        downloadable: { type: array, items: { type: string }, description: 'Platforms (os_arch) a script can download odb for (checksums known)' }
-        embeddable: { type: array, items: { type: string }, description: Platforms this server can embed odb for }
-        autoEmbed: { type: string, description: 'The platform (os_arch) every export includes odb for, because no platform can be downloaded; absent when downloads work' }
+        downloadable: { type: array, items: { type: string }, description: 'Platforms (os_arch) whose odb download the README links (checksums known)' }
+        embeddable: { type: array, items: { type: string }, description: 'Platforms this server can include odb for, as bin/odb: now, or downloaded on first use' }
+        machines:
+          type: array
+          description: Every platform, with whether this server can add its odb now, on first use (downloaded from the release and verified against the checksums built into the server), or not, and why (OC-188)
+          items:
+            type: object
+            required: [platform, state]
+            properties:
+              platform: { type: string }
+              state: { type: string, enum: [available, onDemand, unavailable] }
+              reason: { type: string, description: Why the machine is unavailable, and what an admin can do }
+        signed: { type: array, items: { type: string }, description: 'Platforms whose odb is signed for its OS (Apple notarization, Authenticode); macOS or Windows warns before running the others (development builds, OC-185)' }
         maxPerHour: { type: integer }
     ExportRequest:
       type: object
@@ -3259,11 +3432,11 @@ components:
       properties:
         includeOdb:
           type: [object, 'null']
-          description: Put odb for this platform beside migrate.sh, for a machine that can't download it (OC-160). Absent or null — the script finds or downloads odb itself.
+          description: Add odb for this platform as bin/odb (bin/odb.exe), for a machine without internet access (OC-182). Absent or null — no binary; the export runs with the odb installed on the machine.
           required: [os, arch]
           properties:
-            os: { type: string, enum: [linux, darwin] }
-            arch: { type: string, enum: [amd64, arm64] }
+            os: { type: string, enum: [linux, darwin, windows] }
+            arch: { type: string, enum: [amd64, arm64, universal], description: 'universal: one macOS binary for Intel and Apple silicon (OC-185)' }
         jobOptions: { $ref: '#/components/schemas/JobOptions' }
         runtime:
           type: string
@@ -3577,3 +3750,5 @@ components:
         - STEP_UP_REQUIRED
         - REPORT_UNKNOWN_BUNDLE
         - EXPORT_TOO_LARGE
+        - ODB_DOWNLOAD_FAILED
+        - ODB_DOWNLOAD_INVALID

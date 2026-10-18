@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -60,8 +61,14 @@ type Config struct {
 	Unlock                     Unlock
 	// RunConfig replaces the bundle's connection details and secrets (--config, OC-155);
 	// RunConfigPath names it in messages.
-	RunConfig        *export.RunConfig
-	RunConfigPath    string
+	RunConfig     *export.RunConfig
+	RunConfigPath string
+	// RunConfigMissing explains where odb looked for config.json when it found none (OC-180).
+	RunConfigMissing string
+	// TextProgress writes stdout events as lines for people, not JSON (a terminal, OC-181).
+	TextProgress bool
+	// MappingsPath is the mappings.json the run reads, named in the start event (OC-180).
+	MappingsPath     string
 	ProgressInterval time.Duration
 	Quiet            bool
 	Stdout           io.Writer
@@ -75,6 +82,17 @@ type Config struct {
 	Now     func() time.Time
 	// PersistEvery is the checkpoint cadence (default 1 s).
 	PersistEvery time.Duration
+}
+
+// absOrEmpty is p made absolute ("" stays "").
+func absOrEmpty(p string) string {
+	if p == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
 }
 
 func (c *Config) now() time.Time {
@@ -451,13 +469,17 @@ func Run(ctx context.Context, cfg *Config) (Report, int, error) {
 	defer errs.close()
 	e.st.jobs.errs = errs
 	sink := NewProgressSink(cfg.Stdout, state.RunID, cfg.ProgressInterval, cfg.Quiet, e.names, cfg.now)
+	sink.Text = cfg.TextProgress
 	e.st.jobs.sink = sink
 
 	names := make([]string, 0, len(e.ids))
 	for _, id := range e.ids {
 		names = append(names, e.names[id])
 	}
-	sink.Emit(Event{Event: EventStart, Version: cfg.Build.Version, Commit: cfg.Build.Commit, BundleSHA256: b.SHA256(), Mappings: names, Resumed: resumed})
+	sink.Emit(Event{
+		Event: EventStart, Version: cfg.Build.Version, Commit: cfg.Build.Commit, BundleSHA256: b.SHA256(), Mappings: names, Resumed: resumed,
+		MappingsFile: cfg.MappingsPath, ConfigFile: absOrEmpty(cfg.RunConfigPath),
+	})
 	for _, d := range e.drift {
 		sink.Emit(Event{Event: EventWarning, Message: "schema drift allowed: " + d.String()})
 	}

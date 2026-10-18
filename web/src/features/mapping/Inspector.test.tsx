@@ -129,4 +129,56 @@ describe('Inspector', () => {
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('title', 'Deepest level reached (1 of 1). An administrator can raise OC_MAX_RELATION_DEPTH up to 6.')
   })
+
+  it('OC-178 AC3: a field nothing fills can be marked not populated, and mapped again', async () => {
+    const { store } = renderWorkbench(<Inspector projectId="p1" />)
+    act(() => store.getState().select({ kind: 'field', id: 'f_age' }))
+    const before = store.getState().stats().targetFieldsDone
+    const inspector = screen.getByRole('complementary', { name: 'Inspector' })
+    await userEvent.click(within(inspector).getByRole('button', { name: 'Mark not populated' }))
+    expect(store.getState().stats().targetFieldsDone).toBe(before + 1)
+    expect(within(inspector).getByRole('heading', { level: 3 })).toHaveTextContent('Not populated→age')
+    expect(within(inspector).getByRole('note')).toHaveTextContent('leaves this field empty on purpose')
+    await userEvent.click(within(inspector).getByRole('button', { name: 'Map it instead' }))
+    expect(store.getState().stats().targetFieldsDone).toBe(before)
+    act(() => store.getState().select({ kind: 'field', id: 'f_id' }))
+    expect(within(inspector).queryByRole('button', { name: 'Mark not populated' })).toBeNull()
+  })
+
+  it('OC-179 AC1: Now fills a field with the current date and time, like the other dates', async () => {
+    const { store } = renderWorkbench(<Inspector projectId="p1" />)
+    act(() => store.getState().select({ kind: 'field', id: 'f_age' }))
+    const inspector = screen.getByRole('complementary', { name: 'Inspector' })
+    await userEvent.click(within(inspector).getByRole('radio', { name: 'Date' }))
+    // createdAt is written as epoch ms: age (an integer) takes the same.
+    const format = within(inspector).getByRole('combobox', { name: 'Format' })
+    expect(within(format).getByRole('option', { selected: true })).toHaveTextContent('Same as createdAt (epoch ms)')
+    expect(within(inspector).getByTestId('now-sample').textContent).toMatch(/^\d{13}$/)
+    expect(within(inspector).getByRole('heading', { level: 3 })).toHaveTextContent('Current date and time→age')
+    expect(store.getState().history.present.fieldMappings.find((m) => m.targetFieldId === 'f_age')).toMatchObject({ sources: [], transforms: [{ op: 'now', args: { at: 'run', format: 'epoch_ms' } }] })
+
+    // Each document's write time, as ISO 8601: text into an integer is flagged.
+    await userEvent.click(within(inspector).getByRole('radio', { name: 'When each document is written' }))
+    await userEvent.selectOptions(format, 'iso8601')
+    expect(within(inspector).getByRole('alert')).toHaveTextContent('age is integer: use an epoch format.')
+    expect(within(inspector).getByTestId('now-sample').textContent).toMatch(/^"\d{4}-\d{2}-\d{2}T/)
+    expect(store.getState().history.present.fieldMappings.find((m) => m.targetFieldId === 'f_age')!.transforms).toEqual([{ op: 'now', args: { at: 'write', format: 'iso8601' } }])
+  })
+
+  it('Source shows how to map a column; Fixed shows the value box', async () => {
+    const { store } = renderWorkbench(<Inspector projectId="p1" />)
+    act(() => store.getState().select({ kind: 'field', id: 'f_age' }))
+    const inspector = screen.getByRole('complementary', { name: 'Inspector' })
+    expect(within(inspector).getByText(/Drag a source column onto this field/)).toBeInTheDocument()
+    expect(within(inspector).queryByRole('textbox', { name: 'Constant value' })).toBeNull()
+    await userEvent.click(within(inspector).getByRole('radio', { name: 'Fixed' }))
+    expect(within(inspector).getByRole('radio', { name: 'Fixed' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(inspector).queryByText(/Drag a source column onto this field/)).toBeNull()
+    await userEvent.type(within(inspector).getByRole('textbox', { name: 'Constant value' }), '42')
+    await userEvent.click(within(inspector).getByRole('button', { name: 'Set constant' }))
+    expect(store.getState().history.present.fieldMappings.find((m) => m.targetFieldId === 'f_age')).toMatchObject({ sources: [], transforms: [{ op: 'constant', args: { value: 42 } }] })
+    // Back to Source: the value box goes.
+    await userEvent.click(within(inspector).getByRole('radio', { name: 'Source' }))
+    expect(within(inspector).queryByRole('textbox', { name: 'Constant value' })).toBeNull()
+  })
 })

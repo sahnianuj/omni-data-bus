@@ -72,9 +72,9 @@ func position(s string, offset int) (int, int) {
 	return line, col
 }
 
-// ParseTemplate splits a template into literal text and ${path} substitutions. Only member
+// parseTemplate splits a template into literal text and ${path} substitutions. Only member
 // paths rooted at doc, self, parent, row or index are allowed; `\${` is a literal "${".
-func ParseTemplate(expr string) ([]tmplPart, *ExprError) {
+func parseTemplate(expr string) ([]tmplPart, *ExprError) {
 	var parts []tmplPart
 	var lit strings.Builder
 	for i := 0; i < len(expr); {
@@ -97,8 +97,10 @@ func ParseTemplate(expr string) ([]tmplPart, *ExprError) {
 		body := expr[start : start+end]
 		ref, err := parseRef(strings.TrimSpace(body))
 		if err != "" {
-			return nil, &ExprError{Line: line, Column: col, Code: CodeComputedTemplateSyntax,
-				Message: fmt.Sprintf("${%s}: %s. A template only reads values, e.g. ${doc.firstName}; use JavaScript (a later release) for calls and operators", strings.TrimSpace(body), err)}
+			return nil, &ExprError{
+				Line: line, Column: col, Code: CodeComputedTemplateSyntax,
+				Message: fmt.Sprintf("${%s}: %s. A template only reads values, e.g. ${doc.firstName}; use JavaScript (a later release) for calls and operators", strings.TrimSpace(body), err),
+			}
 		}
 		ref.line, ref.column = position(expr, start+len(body)-len(strings.TrimLeft(body, " \t\n")))
 		if lit.Len() > 0 {
@@ -297,13 +299,13 @@ func compileComputed(spec *mapping.Spec, t *schema.Table, opts Options) ([]*comp
 		}
 		bad := len(m.Sources) > 0
 		for _, st := range m.Transforms {
-			bad = bad || st.Op == "constant" || st.Op == "expression"
+			bad = bad || st.Op == "constant" || st.Op == "expression" || st.Op == "now"
 		}
 		if bad {
 			issue(path, f.ID, m.ID, CodeComputedWithSources, "A computed field takes its value from its template: remove its source columns and constant or expression steps.", 0, 0)
 			continue
 		}
-		parts, perr := ParseTemplate(c.Expr)
+		parts, perr := parseTemplate(c.Expr)
 		if perr != nil {
 			issue(path, f.ID, m.ID, perr.Code, perr.Message, perr.Line, perr.Column)
 			continue

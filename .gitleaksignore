@@ -1,0 +1,16 @@
+# Reviewed gitleaks findings (OC-189 AC7, 2026-10-18): test fixtures and development-only values,
+# not secrets. One fingerprint per line (commit:file:rule:line); a new finding fails CI.
+# test fixture password: the export secret scanner must find it (OC-052)
+17333bfe8a87cdb8f622e0139c4bff3518474a17:backend/internal/export/fixture_test.go:generic-api-key:32
+# fixed e2e master key, base64("e2e-only-master-key-not-for-prod"); e2e data is thrown away
+72523cd33d0a6e90dc4d9460c6e2c9bbd0f021a8:deploy/compose/e2e.yml:generic-api-key:15
+# an invalid master key the test expects the server to reject
+ce21c17eab276e4e90b9eecd7124655dc632be42:backend/internal/app/app_test.go:generic-api-key:74
+# DevMasterKey, base64("dev-only-master-key-do-not-use!!"): used only with OC_DEV=true, refused for a non-local metadata store
+ce21c17eab276e4e90b9eecd7124655dc632be42:backend/internal/config/config.go:generic-api-key:19
+# a truncated "PRIVATE KEY" block the test expects CertFingerprint to reject
+ce21c17eab276e4e90b9eecd7124655dc632be42:backend/internal/crypto/crypto_test.go:private-key:214
+# fixed e2e master key, base64("e2e-only-master-key-not-for-prod"); e2e data is thrown away
+ce21c17eab276e4e90b9eecd7124655dc632be42:deploy/compose/e2e.yml:generic-api-key:17
+# helm-unittest values: base64("test-key-test-key-test-key-test-"), never deployed
+ce21c17eab276e4e90b9eecd7124655dc632be42:deploy/helm/omni-data-bus/tests/required-values.yaml:generic-api-key:5

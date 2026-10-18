@@ -144,7 +144,7 @@ func TestRunConfig_Errors(t *testing.T) {
 	for _, c := range []struct {
 		name, config, want string
 	}{
-		{"no config file", "", "pass it with --config"},
+		{"no config file", "", "use --config or ODB_CONFIG"},
 		{"no source section", `{}`, "the source section is missing"},
 		{"another kind", `{"source": {"type": "mysql"}}`, `source.type is "mysql", but this migration's source is postgres`},
 	} {
@@ -226,8 +226,10 @@ func withComputed(t *testing.T, cfg *Config, fields ...mapping.FieldMapping) {
 }
 
 func computedMapping(field, expr string) mapping.FieldMapping {
-	return mapping.FieldMapping{ID: "map_" + field, TargetFieldID: field, State: mapping.StateActive, Sources: []mapping.SourceRef{}, Transforms: []mapping.Step{},
-		Computed: &mapping.Computed{Lang: mapping.ComputedTemplate, Expr: expr}}
+	return mapping.FieldMapping{
+		ID: "map_" + field, TargetFieldID: field, State: mapping.StateActive, Sources: []mapping.SourceRef{}, Transforms: []mapping.Step{},
+		Computed: &mapping.Computed{Lang: mapping.ComputedTemplate, Expr: expr},
+	}
 }
 
 // OC-140 AC1: a bundle's computed fields are written by odb run as by the server (same

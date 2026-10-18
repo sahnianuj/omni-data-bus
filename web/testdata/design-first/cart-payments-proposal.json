@@ -1,0 +1,8164 @@
+{
+ "driving": [
+  {
+   "table": {
+    "schema": "pos",
+    "name": "carts"
+   },
+   "score": 0.83,
+   "reasons": [
+    "fields 16/22",
+    "reach 5/5 containers",
+    "key: cart::{uuid} ↔ carts.id",
+    "name: cart ~ carts (0.93)"
+   ]
+  },
+  {
+   "table": {
+    "schema": "pos",
+    "name": "cart_items"
+   },
+   "score": 0.39,
+   "reasons": [
+    "fields 2/22",
+    "reach 4/5 containers",
+    "key: a uuid primary key",
+    "name: cart ~ cart_items (0.73)"
+   ]
+  },
+  {
+   "table": {
+    "schema": "pos",
+    "name": "credit_cards"
+   },
+   "score": 0.32,
+   "reasons": [
+    "fields 2/22",
+    "reach 3/5 containers",
+    "key: a uuid primary key"
+   ]
+  }
+ ],
+ "spec": {
+  "specVersion": 2,
+  "mode": "composed",
+  "root": {
+   "table": {
+    "schema": "pos",
+    "name": "carts"
+   }
+  },
+  "docSchema": {
+   "root": {
+    "id": "fld_root",
+    "name": "$",
+    "type": "object",
+    "description": "A point-of-sale cart. Document ID: cart::{uuid}. Embedded payment variants: see payments/*.schema.json. Saved orders are folded onto status/savedAt/orderCollectionType below.",
+    "children": [
+     {
+      "id": "fld_d0a3e7f81a",
+      "name": "type",
+      "type": "string",
+      "required": true,
+      "example": "cart"
+     },
+     {
+      "id": "fld_87ea5dfc8b",
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "example": "cart::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"
+     },
+     {
+      "id": "fld_c692273deb",
+      "name": "version",
+      "type": "integer",
+      "required": true,
+      "example": 1
+     },
+     {
+      "id": "fld_48a3661d84",
+      "name": "status",
+      "type": "string",
+      "required": true,
+      "description": "'saved' is derived: the cart's status column stays 'open' while a saved_orders row exists for the cart.",
+      "example": "open",
+      "enum": [
+       "open",
+       "payment_pending",
+       "closed",
+       "abandoned",
+       "voided",
+       "queued",
+       "saved"
+      ]
+     },
+     {
+      "id": "fld_fbe7d7baac",
+      "name": "channel",
+      "type": "string",
+      "required": true,
+      "example": "cafe"
+     },
+     {
+      "id": "fld_849e5009f3",
+      "name": "skipFulfillment",
+      "type": "boolean",
+      "example": false
+     },
+     {
+      "id": "fld_cb3086079d",
+      "name": "submitAfterTipAbort",
+      "type": "boolean",
+      "example": false
+     },
+     {
+      "id": "fld_890c94d82f",
+      "name": "consumptionType",
+      "type": "string",
+      "required": true,
+      "example": "ConsumeInStore",
+      "enum": [
+       "ConsumeInStore",
+       "ConsumeOutOfStore"
+      ]
+     },
+     {
+      "id": "fld_ec9b0493d7",
+      "name": "storeNumber",
+      "type": "string",
+      "required": true,
+      "example": "11111"
+     },
+     {
+      "id": "fld_0abb4123cb",
+      "name": "partnerNumber",
+      "type": "string",
+      "required": true,
+      "example": "1000001"
+     },
+     {
+      "id": "fld_6af5b9adbc",
+      "name": "registerNumber",
+      "type": "integer",
+      "example": 41
+     },
+     {
+      "id": "fld_c87d1a18b6",
+      "name": "orderNotes",
+      "type": "string",
+      "example": "Extra hot, please"
+     },
+     {
+      "id": "fld_696b97b727",
+      "name": "customerNamePrompt",
+      "type": "boolean",
+      "description": "Not populated - no column.",
+      "example": false
+     },
+     {
+      "id": "fld_b39f008e31",
+      "name": "customer",
+      "type": "object",
+      "description": "The cart's customer: the first customers row of the cart.",
+      "children": [
+       {
+        "id": "fld_ec8b763913",
+        "name": "userID",
+        "type": "string",
+        "description": "Not populated."
+       },
+       {
+        "id": "fld_cc87c530c3",
+        "name": "firstName",
+        "type": "string",
+        "example": "John"
+       },
+       {
+        "id": "fld_65a30ab169",
+        "name": "lastName",
+        "type": "string",
+        "example": "Doe"
+       },
+       {
+        "id": "fld_3dba58f6ab",
+        "name": "starsEarned",
+        "type": "number",
+        "example": 25
+       },
+       {
+        "id": "fld_a8c804d222",
+        "name": "loyaltyID",
+        "type": "string",
+        "example": "loyalty-12"
+       },
+       {
+        "id": "fld_f38034b2ff",
+        "name": "alias",
+        "type": "string"
+       },
+       {
+        "id": "fld_10a2b4331d",
+        "name": "validPartner",
+        "type": "boolean",
+        "example": true
+       },
+       {
+        "id": "fld_37bbd7ef78",
+        "name": "partnerNumber",
+        "type": "string"
+       },
+       {
+        "id": "fld_bc4c5a2fd0",
+        "name": "partnerName",
+        "type": "string"
+       },
+       {
+        "id": "fld_c140dfe260",
+        "name": "partnerStatus",
+        "type": "string"
+       },
+       {
+        "id": "fld_908a56818b",
+        "name": "eligibleBenefits",
+        "type": "array",
+        "items": {
+         "id": "fld_0698976d6d",
+         "name": "[]",
+         "type": "string"
+        }
+       },
+       {
+        "id": "fld_e17f0ec363",
+        "name": "tierNumber",
+        "type": "integer"
+       }
+      ],
+      "binding": {
+       "relationId": "rel_26b4ff5fad",
+       "adapter": "first"
+      }
+     },
+     {
+      "id": "fld_3624db8830",
+      "name": "partner",
+      "type": "object",
+      "required": true,
+      "description": "A lightweight reference to the partner who rang up the cart.",
+      "children": [
+       {
+        "id": "fld_1755f270c2",
+        "name": "number",
+        "type": "string",
+        "example": "1000001"
+       },
+       {
+        "id": "fld_bc00ae5245",
+        "name": "name",
+        "type": "string",
+        "example": "Ana Lopez"
+       }
+      ],
+      "binding": {
+       "relationId": "rel_7d5a96fe6b"
+      }
+     },
+     {
+      "id": "fld_7316c8b2e7",
+      "name": "items",
+      "type": "array",
+      "required": true,
+      "items": {
+       "id": "fld_064ce51406",
+       "name": "[]",
+       "type": "object",
+       "children": [
+        {
+         "id": "fld_44a280b145",
+         "name": "id",
+         "type": "string",
+         "example": "2a6c0f4e-55aa-4c1b-8b3e-0e9a7d2c1b00"
+        },
+        {
+         "id": "fld_1732aaf596",
+         "name": "name",
+         "type": "string",
+         "example": "Latte"
+        },
+        {
+         "id": "fld_169dcb7497",
+         "name": "quantity",
+         "type": "integer",
+         "description": "Always 1 - cart_items has no quantity column, each unit is its own row.",
+         "example": 1
+        },
+        {
+         "id": "fld_332cafe88a",
+         "name": "sellableItemId",
+         "type": "integer",
+         "example": 5004
+        },
+        {
+         "id": "fld_54f0309c68",
+         "name": "menuProductId",
+         "type": "integer",
+         "example": 104
+        },
+        {
+         "id": "fld_6ffbe765d0",
+         "name": "formCode",
+         "type": "string",
+         "example": "HOT"
+        },
+        {
+         "id": "fld_10036f1afb",
+         "name": "sizeCode",
+         "type": "string",
+         "example": "GR"
+        },
+        {
+         "id": "fld_c8a672520f",
+         "name": "productTypeId",
+         "type": "integer",
+         "example": 1
+        },
+        {
+         "id": "fld_c4f5af5168",
+         "name": "servingSizeName",
+         "type": "string",
+         "example": "Grande"
+        },
+        {
+         "id": "fld_aa99a43191",
+         "name": "sequenceNumber",
+         "type": "integer",
+         "example": 1
+        },
+        {
+         "id": "fld_d41d5bef98",
+         "name": "displayIndex",
+         "type": "integer",
+         "example": 0
+        },
+        {
+         "id": "fld_c467c80b08",
+         "name": "basePrice",
+         "type": "integer",
+         "example": 495
+        },
+        {
+         "id": "fld_ddc527408b",
+         "name": "price",
+         "type": "integer",
+         "example": 495
+        },
+        {
+         "id": "fld_bb6aeac6e6",
+         "name": "priceOverride",
+         "type": "integer"
+        },
+        {
+         "id": "fld_9697bd4df4",
+         "name": "priceOverrideAuthorized",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_048f67ed7a",
+         "name": "priceOverrideAuthorizedBy",
+         "type": "string",
+         "description": "Not populated - only whether an override happened is tracked."
+        },
+        {
+         "id": "fld_c322d2bc9f",
+         "name": "priceOverrideReason",
+         "type": "string",
+         "description": "Not populated."
+        },
+        {
+         "id": "fld_b8e3a7e2c1",
+         "name": "redemptionTier",
+         "type": "string"
+        },
+        {
+         "id": "fld_688dd6e803",
+         "name": "isRefund",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_ce8928625e",
+         "name": "isAvailable",
+         "type": "boolean",
+         "example": true
+        },
+        {
+         "id": "fld_854371d446",
+         "name": "isImpulseItem",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_5d5af9c484",
+         "name": "isRefill",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_c0d0776c2f",
+         "name": "itemAvailabilityOverride",
+         "type": "boolean"
+        },
+        {
+         "id": "fld_829e2f5a64",
+         "name": "askMeInstructions",
+         "type": "string"
+        },
+        {
+         "id": "fld_66526cc8ea",
+         "name": "imageUrl",
+         "type": "string",
+         "example": "https://img.example/items/5004.png"
+        },
+        {
+         "id": "fld_bad5b9fe76",
+         "name": "voided",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_a6dd7f5ef7",
+         "name": "modifiers",
+         "type": "array",
+         "items": {
+          "id": "fld_4018216fcb",
+          "name": "[]",
+          "type": "object",
+          "description": "value/valueString mirror label - customizations has a single name column.",
+          "children": [
+           {
+            "id": "fld_6999dd648f",
+            "name": "id",
+            "type": "string",
+            "example": "6d1e2f3a-0000-4000-8000-000000000001"
+           },
+           {
+            "id": "fld_154685c33f",
+            "name": "label",
+            "type": "string",
+            "example": "Oat Milk"
+           },
+           {
+            "id": "fld_ea71d427fb",
+            "name": "value",
+            "type": "string",
+            "example": "Oat Milk"
+           },
+           {
+            "id": "fld_1db3b8b010",
+            "name": "valueString",
+            "type": "string",
+            "example": "Oat Milk"
+           },
+           {
+            "id": "fld_ed56200995",
+            "name": "menuProductId",
+            "type": "integer"
+           },
+           {
+            "id": "fld_68204482c8",
+            "name": "sellableItemId",
+            "type": "integer",
+            "example": 15001
+           },
+           {
+            "id": "fld_94b6b2237e",
+            "name": "formCode",
+            "type": "string",
+            "example": "ADD"
+           },
+           {
+            "id": "fld_203943b4b3",
+            "name": "sizeCode",
+            "type": "string",
+            "example": "STD"
+           },
+           {
+            "id": "fld_e43d41c88e",
+            "name": "quantity",
+            "type": "integer",
+            "example": 1
+           },
+           {
+            "id": "fld_09b324f680",
+            "name": "price",
+            "type": "integer",
+            "example": 70
+           },
+           {
+            "id": "fld_2622031777",
+            "name": "isAvailable",
+            "type": "boolean",
+            "example": true
+           },
+           {
+            "id": "fld_1453ce4718",
+            "name": "itemAvailabilityOverride",
+            "type": "boolean"
+           },
+           {
+            "id": "fld_c4868a825c",
+            "name": "voided",
+            "type": "boolean",
+            "example": false
+           }
+          ]
+         },
+         "binding": {
+          "relationId": "rel_61370d9900"
+         }
+        },
+        {
+         "id": "fld_f62bdc102c",
+         "name": "appliedRewards",
+         "type": "array",
+         "items": {
+          "id": "fld_7103f7d306",
+          "name": "[]",
+          "type": "object",
+          "description": "rewardType, accessibilityLabel and value are not populated - applied_rewards only tracks a code and description.",
+          "children": [
+           {
+            "id": "fld_5399aae54f",
+            "name": "id",
+            "type": "string",
+            "example": "9b8a7c6d-0000-4000-8000-000000000002"
+           },
+           {
+            "id": "fld_004fea09cc",
+            "name": "rewardCode",
+            "type": "string",
+            "example": "STARS-25"
+           },
+           {
+            "id": "fld_43bda393dc",
+            "name": "rewardType",
+            "type": "string",
+            "description": "Not populated.",
+            "example": "STAR_REDEMPTION"
+           },
+           {
+            "id": "fld_cd1f382b49",
+            "name": "description",
+            "type": "string",
+            "example": "25 Stars Reward"
+           },
+           {
+            "id": "fld_370008fb85",
+            "name": "accessibilityLabel",
+            "type": "string",
+            "description": "Not populated.",
+            "example": "25 stars applied"
+           },
+           {
+            "id": "fld_7d375334e8",
+            "name": "value",
+            "type": "integer",
+            "description": "Not populated.",
+            "example": -100
+           }
+          ]
+         },
+         "binding": {
+          "relationId": "rel_f21e3cc7a7",
+          "adapter": "wrap"
+         }
+        }
+       ]
+      },
+      "binding": {
+       "relationId": "rel_f47632f00a"
+      }
+     },
+     {
+      "id": "fld_00317b5e81",
+      "name": "pricing",
+      "type": "object",
+      "required": true,
+      "description": "tipInCents is the sum of payments[].tipInCents (collected_payments.tip_in_cents).",
+      "children": [
+       {
+        "id": "fld_41151cf207",
+        "name": "totalInCents",
+        "type": "integer",
+        "example": 395
+       },
+       {
+        "id": "fld_e1a68c7a43",
+        "name": "subTotalInCents",
+        "type": "integer",
+        "example": 495
+       },
+       {
+        "id": "fld_3480384e1e",
+        "name": "taxInCents",
+        "type": "integer",
+        "example": 0
+       },
+       {
+        "id": "fld_8d94c004c4",
+        "name": "discountInCents",
+        "type": "integer",
+        "example": 100
+       },
+       {
+        "id": "fld_507ec7e713",
+        "name": "tipInCents",
+        "type": "integer",
+        "description": "Sum of collected_payments.tip_in_cents.",
+        "example": 0
+       },
+       {
+        "id": "fld_f100cfa4f1",
+        "name": "totalToDisplay",
+        "type": "string",
+        "example": "3.95"
+       },
+       {
+        "id": "fld_d7c9d57089",
+        "name": "label",
+        "type": "string",
+        "description": "Not populated - no aggregation for item-level discount summaries.",
+        "example": "Total"
+       },
+       {
+        "id": "fld_8cd04847fe",
+        "name": "modifiers",
+        "type": "array",
+        "description": "Not populated.",
+        "items": {
+         "id": "fld_8935bb92c7",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "fld_c6b88c0ca1",
+           "name": "modifierName",
+           "type": "string",
+           "example": "Discount"
+          },
+          {
+           "id": "fld_8878bea23b",
+           "name": "label",
+           "type": "string",
+           "example": "Item Discounts"
+          },
+          {
+           "id": "fld_0d3ca043fc",
+           "name": "value",
+           "type": "string",
+           "example": "-$1.00"
+          }
+         ]
+        }
+       },
+       {
+        "id": "fld_0e50f5dd68",
+        "name": "taxLabels",
+        "type": "array",
+        "description": "Not populated - no itemized tax label aggregation.",
+        "items": {
+         "id": "fld_7e3fad31bb",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "fld_b3b63c721f",
+           "name": "name",
+           "type": "string",
+           "example": "Sales Tax"
+          },
+          {
+           "id": "fld_3a0b2faaf4",
+           "name": "value",
+           "type": "integer",
+           "example": 0
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "fld_6add1d2283",
+      "name": "taxDataID",
+      "type": "string",
+      "description": "References the separate tax data document; nil if the cart has never been priced.",
+      "example": "tax_data::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"
+     },
+     {
+      "id": "fld_4a4631061e",
+      "name": "selectedPaymentID",
+      "type": "string",
+      "description": "Not populated - not tracked at the cart level."
+     },
+     {
+      "id": "fld_40c4770202",
+      "name": "payments",
+      "type": "array",
+      "description": "Payment entries - see payments/*.schema.json for the field set of each paymentType.",
+      "items": {
+       "id": "fld_ec21da83ad",
+       "name": "[]",
+       "type": "object",
+       "children": [
+        {
+         "id": "fld_6f2501fcf9",
+         "name": "CASH",
+         "type": "object",
+         "description": "Cash.",
+         "children": [
+          {
+           "id": "fld_5f3e972899",
+           "name": "paymentType",
+           "type": "string",
+           "required": true,
+           "example": "CASH"
+          },
+          {
+           "id": "fld_bf89df9346",
+           "name": "id",
+           "type": "string",
+           "required": true,
+           "example": "9c1d2e3f-0000-4000-8000-000000000003"
+          },
+          {
+           "id": "fld_ac0d77cd5b",
+           "name": "amountTenderedInCents",
+           "type": "integer",
+           "example": 2000
+          },
+          {
+           "id": "fld_6221dabc0c",
+           "name": "changeInCents",
+           "type": "integer",
+           "example": 0
+          },
+          {
+           "id": "fld_df02cddc92",
+           "name": "currency",
+           "type": "string",
+           "example": "USD"
+          },
+          {
+           "id": "fld_c8adf3843b",
+           "name": "amountChargedInCents",
+           "type": "integer",
+           "required": true,
+           "example": 795
+          },
+          {
+           "id": "fld_0ae5566608",
+           "name": "tipInCents",
+           "type": "integer",
+           "required": true,
+           "example": 0
+          },
+          {
+           "id": "fld_b273b30da6",
+           "name": "transactionID",
+           "type": "string",
+           "example": "5e6f7a8b-0000-4000-8000-000000000004"
+          },
+          {
+           "id": "fld_87655b83a1",
+           "name": "status",
+           "type": "string",
+           "required": true,
+           "example": "completed"
+          },
+          {
+           "id": "fld_0ec725016a",
+           "name": "voided",
+           "type": "boolean",
+           "description": "Not populated.",
+           "example": false
+          },
+          {
+           "id": "fld_59f9067964",
+           "name": "voidedAt",
+           "type": "datetime",
+           "format": "iso8601"
+          },
+          {
+           "id": "fld_b4f22bfd27",
+           "name": "createdAt",
+           "type": "datetime",
+           "format": "iso8601",
+           "example": "2026-07-19T10:29:58Z"
+          }
+         ],
+         "variant": {
+          "title": "PaymentDocument (CASH)",
+          "field": "paymentType",
+          "value": "CASH"
+         }
+        },
+        {
+         "id": "fld_3b6c7765e4",
+         "name": "CREDIT_CARD",
+         "type": "object",
+         "description": "A credit or debit card.",
+         "children": [
+          {
+           "id": "fld_cdf3840766",
+           "name": "paymentType",
+           "type": "string",
+           "required": true,
+           "example": "CREDIT_CARD"
+          },
+          {
+           "id": "fld_bf2f793574",
+           "name": "id",
+           "type": "string",
+           "required": true,
+           "example": "9c1d2e3f-0000-4000-8000-000000000003"
+          },
+          {
+           "id": "fld_7ade2e8e49",
+           "name": "cardBrand",
+           "type": "string",
+           "example": "VISA"
+          },
+          {
+           "id": "fld_bfa8dca957",
+           "name": "merchantID",
+           "type": "string",
+           "example": "m-001"
+          },
+          {
+           "id": "fld_296ca121bc",
+           "name": "authCode",
+           "type": "string",
+           "example": "A2"
+          },
+          {
+           "id": "fld_15a41420b7",
+           "name": "presentationMethod",
+           "type": "string",
+           "example": "Contactless"
+          },
+          {
+           "id": "fld_055f6d01bf",
+           "name": "processorTransactionID",
+           "type": "string",
+           "example": "ptx-2"
+          },
+          {
+           "id": "fld_75f190bf44",
+           "name": "maskedAccountNumber",
+           "type": "string",
+           "example": "************4002"
+          },
+          {
+           "id": "fld_9220e9c1c5",
+           "name": "last4Digits",
+           "type": "string",
+           "example": "4002"
+          },
+          {
+           "id": "fld_ab1d225d38",
+           "name": "cardHolderName",
+           "type": "string",
+           "example": "Card Holder 2"
+          },
+          {
+           "id": "fld_8c43491bcf",
+           "name": "amountChargedInCents",
+           "type": "integer",
+           "required": true,
+           "example": 795
+          },
+          {
+           "id": "fld_8d1d65e494",
+           "name": "tipInCents",
+           "type": "integer",
+           "required": true,
+           "example": 0
+          },
+          {
+           "id": "fld_4c651b2fb0",
+           "name": "transactionID",
+           "type": "string",
+           "example": "5e6f7a8b-0000-4000-8000-000000000004"
+          },
+          {
+           "id": "fld_03a69fffdb",
+           "name": "status",
+           "type": "string",
+           "required": true,
+           "example": "completed"
+          },
+          {
+           "id": "fld_0b43cebe42",
+           "name": "voided",
+           "type": "boolean",
+           "description": "Not populated.",
+           "example": false
+          },
+          {
+           "id": "fld_471012e3dd",
+           "name": "voidedAt",
+           "type": "datetime",
+           "format": "iso8601"
+          },
+          {
+           "id": "fld_759b8ab757",
+           "name": "createdAt",
+           "type": "datetime",
+           "format": "iso8601",
+           "example": "2026-07-19T10:29:58Z"
+          }
+         ],
+         "variant": {
+          "title": "PaymentDocument (CREDIT_CARD)",
+          "field": "paymentType",
+          "value": "CREDIT_CARD"
+         }
+        },
+        {
+         "id": "fld_d3f91d80c2",
+         "name": "SCAN_AND_PAY",
+         "type": "object",
+         "description": "A scan-and-pay QR code from the mobile app.",
+         "children": [
+          {
+           "id": "fld_c9f0610096",
+           "name": "paymentType",
+           "type": "string",
+           "required": true,
+           "example": "SCAN_AND_PAY"
+          },
+          {
+           "id": "fld_ade791bcfb",
+           "name": "id",
+           "type": "string",
+           "required": true,
+           "example": "9c1d2e3f-0000-4000-8000-000000000003"
+          },
+          {
+           "id": "fld_38c61ba108",
+           "name": "qrCode",
+           "type": "string",
+           "example": "qr-4"
+          },
+          {
+           "id": "fld_37a263793a",
+           "name": "accountID",
+           "type": "string",
+           "example": "7a8b9c0d-0000-4000-8000-000000000006"
+          },
+          {
+           "id": "fld_9ba48305b9",
+           "name": "encryptionKeyID",
+           "type": "string",
+           "example": "2b3c4d5e-0000-4000-8000-000000000005"
+          },
+          {
+           "id": "fld_662f8ea790",
+           "name": "amountChargedInCents",
+           "type": "integer",
+           "required": true,
+           "example": 795
+          },
+          {
+           "id": "fld_e34fb06855",
+           "name": "tipInCents",
+           "type": "integer",
+           "required": true,
+           "example": 0
+          },
+          {
+           "id": "fld_3d6cb1c17b",
+           "name": "transactionID",
+           "type": "string",
+           "example": "5e6f7a8b-0000-4000-8000-000000000004"
+          },
+          {
+           "id": "fld_3b87c59079",
+           "name": "status",
+           "type": "string",
+           "required": true,
+           "example": "completed"
+          },
+          {
+           "id": "fld_746c63333a",
+           "name": "voided",
+           "type": "boolean",
+           "description": "Not populated.",
+           "example": false
+          },
+          {
+           "id": "fld_f18e81763a",
+           "name": "voidedAt",
+           "type": "datetime",
+           "format": "iso8601"
+          },
+          {
+           "id": "fld_38f03cb429",
+           "name": "createdAt",
+           "type": "datetime",
+           "format": "iso8601",
+           "example": "2026-07-19T10:29:58Z"
+          }
+         ],
+         "variant": {
+          "title": "PaymentDocument (SCAN_AND_PAY)",
+          "field": "paymentType",
+          "value": "SCAN_AND_PAY"
+         }
+        },
+        {
+         "id": "fld_f82f79e826",
+         "name": "SCC",
+         "type": "object",
+         "description": "A store-issued co-branded card carrying a balance.",
+         "children": [
+          {
+           "id": "fld_170fd0226f",
+           "name": "paymentType",
+           "type": "string",
+           "required": true,
+           "example": "SCC"
+          },
+          {
+           "id": "fld_28fdb4f309",
+           "name": "id",
+           "type": "string",
+           "required": true,
+           "example": "9c1d2e3f-0000-4000-8000-000000000003"
+          },
+          {
+           "id": "fld_5b3ac695b0",
+           "name": "encryptedNumber",
+           "type": "string",
+           "example": "enc-scc-5"
+          },
+          {
+           "id": "fld_38198cee77",
+           "name": "encryptionKeyID",
+           "type": "string",
+           "example": "2b3c4d5e-0000-4000-8000-000000000005"
+          },
+          {
+           "id": "fld_4c7490fa88",
+           "name": "cardHash",
+           "type": "string",
+           "example": "sha256-scc-5"
+          },
+          {
+           "id": "fld_657d342319",
+           "name": "cardImage",
+           "type": "string",
+           "example": "https://img.example/cards/scc-1.png"
+          },
+          {
+           "id": "fld_82667bb398",
+           "name": "entryMethod",
+           "type": "string",
+           "example": "scanned"
+          },
+          {
+           "id": "fld_3c6f3a5a60",
+           "name": "balanceInCents",
+           "type": "integer",
+           "description": "Not populated."
+          },
+          {
+           "id": "fld_239b47c089",
+           "name": "amountChargedInCents",
+           "type": "integer",
+           "required": true,
+           "example": 795
+          },
+          {
+           "id": "fld_c0edca1cb9",
+           "name": "tipInCents",
+           "type": "integer",
+           "required": true,
+           "example": 0
+          },
+          {
+           "id": "fld_cac75e5fbc",
+           "name": "transactionID",
+           "type": "string",
+           "example": "5e6f7a8b-0000-4000-8000-000000000004"
+          },
+          {
+           "id": "fld_447ad2a73f",
+           "name": "status",
+           "type": "string",
+           "required": true,
+           "example": "completed"
+          },
+          {
+           "id": "fld_f354213295",
+           "name": "voided",
+           "type": "boolean",
+           "description": "Not populated.",
+           "example": false
+          },
+          {
+           "id": "fld_2b2aeb65e8",
+           "name": "voidedAt",
+           "type": "datetime",
+           "format": "iso8601"
+          },
+          {
+           "id": "fld_bebb72225a",
+           "name": "createdAt",
+           "type": "datetime",
+           "format": "iso8601",
+           "example": "2026-07-19T10:29:58Z"
+          }
+         ],
+         "variant": {
+          "title": "PaymentDocument (SCC)",
+          "field": "paymentType",
+          "value": "SCC"
+         }
+        },
+        {
+         "id": "fld_68f3cf83de",
+         "name": "SVC",
+         "type": "object",
+         "description": "A stored-value (gift) card.",
+         "children": [
+          {
+           "id": "fld_9239f1996f",
+           "name": "paymentType",
+           "type": "string",
+           "required": true,
+           "example": "SVC"
+          },
+          {
+           "id": "fld_44477b3962",
+           "name": "id",
+           "type": "string",
+           "required": true,
+           "example": "9c1d2e3f-0000-4000-8000-000000000003"
+          },
+          {
+           "id": "fld_c95e254d2f",
+           "name": "encryptedNumber",
+           "type": "string",
+           "example": "enc-svc-1"
+          },
+          {
+           "id": "fld_fd7ddc5716",
+           "name": "encryptionKeyID",
+           "type": "string",
+           "example": "2b3c4d5e-0000-4000-8000-000000000005"
+          },
+          {
+           "id": "fld_95ef3b745f",
+           "name": "cardHash",
+           "type": "string",
+           "example": "sha256-svc-1"
+          },
+          {
+           "id": "fld_127c6d9032",
+           "name": "last4Digits",
+           "type": "string",
+           "example": "1001"
+          },
+          {
+           "id": "fld_f6edfe984b",
+           "name": "cardImage",
+           "type": "string",
+           "example": "https://img.example/cards/svc-1.png"
+          },
+          {
+           "id": "fld_c5eda1a376",
+           "name": "isDefault",
+           "type": "boolean",
+           "example": false
+          },
+          {
+           "id": "fld_d2994baad7",
+           "name": "accountID",
+           "type": "string",
+           "example": "7a8b9c0d-0000-4000-8000-000000000006"
+          },
+          {
+           "id": "fld_8d70c81a5e",
+           "name": "balanceInCents",
+           "type": "integer",
+           "example": 2501
+          },
+          {
+           "id": "fld_1f17fb1156",
+           "name": "authorizationCode",
+           "type": "string",
+           "example": "AUTH1"
+          },
+          {
+           "id": "fld_cd14342897",
+           "name": "entryMethod",
+           "type": "string",
+           "example": "swipe"
+          },
+          {
+           "id": "fld_b62b37ed48",
+           "name": "amountChargedInCents",
+           "type": "integer",
+           "required": true,
+           "example": 795
+          },
+          {
+           "id": "fld_7ecc6b0a1a",
+           "name": "tipInCents",
+           "type": "integer",
+           "required": true,
+           "example": 0
+          },
+          {
+           "id": "fld_e0684b2455",
+           "name": "transactionID",
+           "type": "string",
+           "example": "5e6f7a8b-0000-4000-8000-000000000004"
+          },
+          {
+           "id": "fld_30ecac7246",
+           "name": "status",
+           "type": "string",
+           "required": true,
+           "example": "completed"
+          },
+          {
+           "id": "fld_72e24d0b7d",
+           "name": "voided",
+           "type": "boolean",
+           "description": "Not populated.",
+           "example": false
+          },
+          {
+           "id": "fld_43d80cb2d1",
+           "name": "voidedAt",
+           "type": "datetime",
+           "format": "iso8601"
+          },
+          {
+           "id": "fld_9f22116ff7",
+           "name": "createdAt",
+           "type": "datetime",
+           "format": "iso8601",
+           "example": "2026-07-19T10:29:58Z"
+          }
+         ],
+         "variant": {
+          "title": "PaymentDocument (SVC)",
+          "field": "paymentType",
+          "value": "SVC"
+         }
+        }
+       ]
+      },
+      "binding": {
+       "relationId": "rel_0d4ff9aec8"
+      }
+     },
+     {
+      "id": "fld_58a3847947",
+      "name": "associatedScan",
+      "type": "object",
+      "description": "Not populated - superseded by payments[].",
+      "children": [
+       {
+        "id": "fld_ace7353a54",
+        "name": "type",
+        "type": "string",
+        "example": "SVC"
+       },
+       {
+        "id": "fld_d67c212e91",
+        "name": "paymentID",
+        "type": "string",
+        "example": "9c1d2e3f-0000-4000-8000-000000000003"
+       }
+      ]
+     },
+     {
+      "id": "fld_14e60ace3d",
+      "name": "receipt",
+      "type": "object",
+      "description": "Not populated - receipts are generated per request, never stored.",
+      "children": [
+       {
+        "id": "fld_692b40f6b1",
+        "name": "id",
+        "type": "string",
+        "example": "receipt-1"
+       },
+       {
+        "id": "fld_94a91a143a",
+        "name": "data",
+        "type": "string",
+        "example": "base64-receipt"
+       },
+       {
+        "id": "fld_7604622ca5",
+        "name": "generationDate",
+        "type": "datetime",
+        "format": "iso8601",
+        "example": "2026-07-19T10:30:00Z"
+       },
+       {
+        "id": "fld_62b38fcea3",
+        "name": "messageType",
+        "type": "string",
+        "example": "RECEIPT"
+       }
+      ]
+     },
+     {
+      "id": "fld_0156631f50",
+      "name": "loyaltyTransactionID",
+      "type": "string"
+     },
+     {
+      "id": "fld_d7f892f37f",
+      "name": "savedAt",
+      "type": "datetime",
+      "description": "Set only when status is 'saved' - sourced from saved_orders.saved_at.",
+      "format": "iso8601"
+     },
+     {
+      "id": "fld_98c93a6982",
+      "name": "orderCollectionType",
+      "type": "string",
+      "description": "Set only when status is 'saved' - sourced from saved_orders.order_collection_type.",
+      "enum": [
+       "IN_STORE",
+       "DRIVE_THRU",
+       "CURBSIDE",
+       "OUTDOOR"
+      ]
+     },
+     {
+      "id": "fld_93a3c92732",
+      "name": "createdAt",
+      "type": "datetime",
+      "required": true,
+      "format": "iso8601",
+      "example": "2026-07-19T10:00:00Z"
+     },
+     {
+      "id": "fld_ecdd260189",
+      "name": "updatedAt",
+      "type": "datetime",
+      "required": true,
+      "format": "iso8601",
+      "example": "2026-07-19T10:30:00Z"
+     },
+     {
+      "id": "fld_4b2d38c421",
+      "name": "closedAt",
+      "type": "datetime",
+      "format": "iso8601"
+     },
+     {
+      "id": "fld_e282fba32c",
+      "name": "voidedAt",
+      "type": "datetime",
+      "format": "iso8601"
+     }
+    ]
+   },
+   "source": "json-schema",
+   "imported": {
+    "at": "2026-10-17T08:00:00Z",
+    "fileName": "cart.schema.json",
+    "format": "json-schema",
+    "samples": 0,
+    "fieldCount": 190,
+    "fields": [
+     {
+      "path": "type",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "id",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "version",
+      "type": "integer",
+      "required": true
+     },
+     {
+      "path": "status",
+      "type": "string",
+      "required": true,
+      "enum": [
+       "open",
+       "payment_pending",
+       "closed",
+       "abandoned",
+       "voided",
+       "queued",
+       "saved"
+      ]
+     },
+     {
+      "path": "channel",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "skipFulfillment",
+      "type": "boolean"
+     },
+     {
+      "path": "submitAfterTipAbort",
+      "type": "boolean"
+     },
+     {
+      "path": "consumptionType",
+      "type": "string",
+      "required": true,
+      "enum": [
+       "ConsumeInStore",
+       "ConsumeOutOfStore"
+      ]
+     },
+     {
+      "path": "storeNumber",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "partnerNumber",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "registerNumber",
+      "type": "integer"
+     },
+     {
+      "path": "orderNotes",
+      "type": "string"
+     },
+     {
+      "path": "customerNamePrompt",
+      "type": "boolean"
+     },
+     {
+      "path": "customer",
+      "type": "object"
+     },
+     {
+      "path": "customer.userID",
+      "type": "string"
+     },
+     {
+      "path": "customer.firstName",
+      "type": "string"
+     },
+     {
+      "path": "customer.lastName",
+      "type": "string"
+     },
+     {
+      "path": "customer.starsEarned",
+      "type": "number"
+     },
+     {
+      "path": "customer.loyaltyID",
+      "type": "string"
+     },
+     {
+      "path": "customer.alias",
+      "type": "string"
+     },
+     {
+      "path": "customer.validPartner",
+      "type": "boolean"
+     },
+     {
+      "path": "customer.partnerNumber",
+      "type": "string"
+     },
+     {
+      "path": "customer.partnerName",
+      "type": "string"
+     },
+     {
+      "path": "customer.partnerStatus",
+      "type": "string"
+     },
+     {
+      "path": "customer.eligibleBenefits",
+      "type": "array"
+     },
+     {
+      "path": "customer.eligibleBenefits[]",
+      "type": "string"
+     },
+     {
+      "path": "customer.tierNumber",
+      "type": "integer"
+     },
+     {
+      "path": "partner",
+      "type": "object",
+      "required": true
+     },
+     {
+      "path": "partner.number",
+      "type": "string"
+     },
+     {
+      "path": "partner.name",
+      "type": "string"
+     },
+     {
+      "path": "items",
+      "type": "array",
+      "required": true
+     },
+     {
+      "path": "items[]",
+      "type": "object"
+     },
+     {
+      "path": "items[].id",
+      "type": "string"
+     },
+     {
+      "path": "items[].name",
+      "type": "string"
+     },
+     {
+      "path": "items[].quantity",
+      "type": "integer"
+     },
+     {
+      "path": "items[].sellableItemId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].menuProductId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].formCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].sizeCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].productTypeId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].servingSizeName",
+      "type": "string"
+     },
+     {
+      "path": "items[].sequenceNumber",
+      "type": "integer"
+     },
+     {
+      "path": "items[].displayIndex",
+      "type": "integer"
+     },
+     {
+      "path": "items[].basePrice",
+      "type": "integer"
+     },
+     {
+      "path": "items[].price",
+      "type": "integer"
+     },
+     {
+      "path": "items[].priceOverride",
+      "type": "integer"
+     },
+     {
+      "path": "items[].priceOverrideAuthorized",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].priceOverrideAuthorizedBy",
+      "type": "string"
+     },
+     {
+      "path": "items[].priceOverrideReason",
+      "type": "string"
+     },
+     {
+      "path": "items[].redemptionTier",
+      "type": "string"
+     },
+     {
+      "path": "items[].isRefund",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].isAvailable",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].isImpulseItem",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].isRefill",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].itemAvailabilityOverride",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].askMeInstructions",
+      "type": "string"
+     },
+     {
+      "path": "items[].imageUrl",
+      "type": "string"
+     },
+     {
+      "path": "items[].voided",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].modifiers",
+      "type": "array"
+     },
+     {
+      "path": "items[].modifiers[]",
+      "type": "object"
+     },
+     {
+      "path": "items[].modifiers[].id",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].label",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].value",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].valueString",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].menuProductId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].sellableItemId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].formCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].sizeCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].quantity",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].price",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].isAvailable",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].modifiers[].itemAvailabilityOverride",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].modifiers[].voided",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].appliedRewards",
+      "type": "array"
+     },
+     {
+      "path": "items[].appliedRewards[]",
+      "type": "object"
+     },
+     {
+      "path": "items[].appliedRewards[].id",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].rewardCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].rewardType",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].description",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].accessibilityLabel",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].value",
+      "type": "integer"
+     },
+     {
+      "path": "pricing",
+      "type": "object",
+      "required": true
+     },
+     {
+      "path": "pricing.totalInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.subTotalInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.taxInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.discountInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.tipInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.totalToDisplay",
+      "type": "string"
+     },
+     {
+      "path": "pricing.label",
+      "type": "string"
+     },
+     {
+      "path": "pricing.modifiers",
+      "type": "array"
+     },
+     {
+      "path": "pricing.modifiers[]",
+      "type": "object"
+     },
+     {
+      "path": "pricing.modifiers[].modifierName",
+      "type": "string"
+     },
+     {
+      "path": "pricing.modifiers[].label",
+      "type": "string"
+     },
+     {
+      "path": "pricing.modifiers[].value",
+      "type": "string"
+     },
+     {
+      "path": "pricing.taxLabels",
+      "type": "array"
+     },
+     {
+      "path": "pricing.taxLabels[]",
+      "type": "object"
+     },
+     {
+      "path": "pricing.taxLabels[].name",
+      "type": "string"
+     },
+     {
+      "path": "pricing.taxLabels[].value",
+      "type": "integer"
+     },
+     {
+      "path": "taxDataID",
+      "type": "string"
+     },
+     {
+      "path": "selectedPaymentID",
+      "type": "string"
+     },
+     {
+      "path": "payments",
+      "type": "array"
+     },
+     {
+      "path": "payments[]",
+      "type": "object"
+     },
+     {
+      "path": "payments[].paymentType",
+      "type": "string"
+     },
+     {
+      "path": "payments[].id",
+      "type": "string"
+     },
+     {
+      "path": "payments[].amountTenderedInCents",
+      "type": "integer"
+     },
+     {
+      "path": "payments[].changeInCents",
+      "type": "integer"
+     },
+     {
+      "path": "payments[].currency",
+      "type": "string"
+     },
+     {
+      "path": "payments[].amountChargedInCents",
+      "type": "integer"
+     },
+     {
+      "path": "payments[].tipInCents",
+      "type": "integer"
+     },
+     {
+      "path": "payments[].transactionID",
+      "type": "string"
+     },
+     {
+      "path": "payments[].status",
+      "type": "string"
+     },
+     {
+      "path": "payments[].voided",
+      "type": "boolean"
+     },
+     {
+      "path": "payments[].voidedAt",
+      "type": "datetime"
+     },
+     {
+      "path": "payments[].createdAt",
+      "type": "datetime"
+     },
+     {
+      "path": "payments[].cardBrand",
+      "type": "string"
+     },
+     {
+      "path": "payments[].merchantID",
+      "type": "string"
+     },
+     {
+      "path": "payments[].authCode",
+      "type": "string"
+     },
+     {
+      "path": "payments[].presentationMethod",
+      "type": "string"
+     },
+     {
+      "path": "payments[].processorTransactionID",
+      "type": "string"
+     },
+     {
+      "path": "payments[].maskedAccountNumber",
+      "type": "string"
+     },
+     {
+      "path": "payments[].last4Digits",
+      "type": "string"
+     },
+     {
+      "path": "payments[].cardHolderName",
+      "type": "string"
+     },
+     {
+      "path": "payments[].qrCode",
+      "type": "string"
+     },
+     {
+      "path": "payments[].accountID",
+      "type": "string"
+     },
+     {
+      "path": "payments[].encryptionKeyID",
+      "type": "string"
+     },
+     {
+      "path": "payments[].encryptedNumber",
+      "type": "string"
+     },
+     {
+      "path": "payments[].cardHash",
+      "type": "string"
+     },
+     {
+      "path": "payments[].cardImage",
+      "type": "string"
+     },
+     {
+      "path": "payments[].entryMethod",
+      "type": "string"
+     },
+     {
+      "path": "payments[].balanceInCents",
+      "type": "integer"
+     },
+     {
+      "path": "payments[].isDefault",
+      "type": "boolean"
+     },
+     {
+      "path": "payments[].authorizationCode",
+      "type": "string"
+     },
+     {
+      "path": "associatedScan",
+      "type": "object"
+     },
+     {
+      "path": "associatedScan.type",
+      "type": "string"
+     },
+     {
+      "path": "associatedScan.paymentID",
+      "type": "string"
+     },
+     {
+      "path": "receipt",
+      "type": "object"
+     },
+     {
+      "path": "receipt.id",
+      "type": "string"
+     },
+     {
+      "path": "receipt.data",
+      "type": "string"
+     },
+     {
+      "path": "receipt.generationDate",
+      "type": "datetime"
+     },
+     {
+      "path": "receipt.messageType",
+      "type": "string"
+     },
+     {
+      "path": "loyaltyTransactionID",
+      "type": "string"
+     },
+     {
+      "path": "savedAt",
+      "type": "datetime"
+     },
+     {
+      "path": "orderCollectionType",
+      "type": "string",
+      "enum": [
+       "IN_STORE",
+       "DRIVE_THRU",
+       "CURBSIDE",
+       "OUTDOOR"
+      ]
+     },
+     {
+      "path": "createdAt",
+      "type": "datetime",
+      "required": true
+     },
+     {
+      "path": "updatedAt",
+      "type": "datetime",
+      "required": true
+     },
+     {
+      "path": "closedAt",
+      "type": "datetime"
+     },
+     {
+      "path": "voidedAt",
+      "type": "datetime"
+     }
+    ]
+   },
+   "constantHints": [
+    {
+     "fieldId": "fld_d0a3e7f81a",
+     "value": "cart",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_c692273deb",
+     "value": 1,
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_5f3e972899",
+     "value": "CASH",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_87655b83a1",
+     "value": "completed",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_cdf3840766",
+     "value": "CREDIT_CARD",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_03a69fffdb",
+     "value": "completed",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_c9f0610096",
+     "value": "SCAN_AND_PAY",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_3b87c59079",
+     "value": "completed",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_170fd0226f",
+     "value": "SCC",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_447ad2a73f",
+     "value": "completed",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_9239f1996f",
+     "value": "SVC",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_30ecac7246",
+     "value": "completed",
+     "reason": "schema-const"
+    }
+   ]
+  },
+  "key": {
+   "template": "cart::{id}"
+  },
+  "typeField": {
+   "enabled": false,
+   "name": "",
+   "value": ""
+  },
+  "nullHandling": "include",
+  "fieldMappings": [
+   {
+    "id": "map_2534a8d267",
+    "targetFieldId": "fld_d0a3e7f81a",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "cart"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_2d40ae1513",
+    "targetFieldId": "fld_87ea5dfc8b",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "concat('cart::', row.id)"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_252ca7be0b",
+    "targetFieldId": "fld_c692273deb",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": 1
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_5bbbdbf528",
+    "targetFieldId": "fld_696b97b727",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_025f2f3a79",
+    "targetFieldId": "fld_6add1d2283",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "concat('tax_data::', row.id)"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_cbeba3b812",
+    "targetFieldId": "fld_4a4631061e",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_e43ccd4dd0",
+    "targetFieldId": "fld_48a3661d84",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "saved_orders.cart_id != nil ? 'saved' : row.status"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_34ee3cd4e0",
+    "targetFieldId": "fld_fbe7d7baac",
+    "sources": [
+     {
+      "column": "channel"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7aa5455047",
+    "targetFieldId": "fld_849e5009f3",
+    "sources": [
+     {
+      "column": "skip_fulfillment"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b798bf1d11",
+    "targetFieldId": "fld_cb3086079d",
+    "sources": [
+     {
+      "column": "submit_after_tip_abort"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b0a11c904d",
+    "targetFieldId": "fld_890c94d82f",
+    "sources": [
+     {
+      "column": "consumption_type"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4695f59d17",
+    "targetFieldId": "fld_ec9b0493d7",
+    "sources": [
+     {
+      "column": "store_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f5d8215c68",
+    "targetFieldId": "fld_0abb4123cb",
+    "sources": [
+     {
+      "column": "partner_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_83d557eae8",
+    "targetFieldId": "fld_6af5b9adbc",
+    "sources": [
+     {
+      "column": "register_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_9ca7278108",
+    "targetFieldId": "fld_c87d1a18b6",
+    "sources": [
+     {
+      "column": "order_notes"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_45c7257b65",
+    "targetFieldId": "fld_0156631f50",
+    "sources": [
+     {
+      "column": "loyalty_transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f808ab1635",
+    "targetFieldId": "fld_d7f892f37f",
+    "sources": [
+     {
+      "relation": "rel_lk_3cff795cd6",
+      "column": "saved_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_bdee8f3d16",
+    "targetFieldId": "fld_98c93a6982",
+    "sources": [
+     {
+      "relation": "rel_lk_3cff795cd6",
+      "column": "order_collection_type"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1fa057f82b",
+    "targetFieldId": "fld_93a3c92732",
+    "sources": [
+     {
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a0dce3e4f5",
+    "targetFieldId": "fld_4b2d38c421",
+    "sources": [
+     {
+      "column": "closed_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7d38888aac",
+    "targetFieldId": "fld_e282fba32c",
+    "sources": [
+     {
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_e19e198087",
+    "targetFieldId": "fld_ec8b763913",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_478a6f1773",
+    "targetFieldId": "fld_cc87c530c3",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "first_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_9fb3c77446",
+    "targetFieldId": "fld_65a30ab169",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "last_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d1a23b322c",
+    "targetFieldId": "fld_3dba58f6ab",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "stars_earned"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_630491ba2b",
+    "targetFieldId": "fld_a8c804d222",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "loyalty_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_6dbde95b19",
+    "targetFieldId": "fld_f38034b2ff",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "alias"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7c40365356",
+    "targetFieldId": "fld_10a2b4331d",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "valid_partner"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4739a898fe",
+    "targetFieldId": "fld_37bbd7ef78",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "partner_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c92e7dad65",
+    "targetFieldId": "fld_bc4c5a2fd0",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "partner_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_3e8874fe6f",
+    "targetFieldId": "fld_c140dfe260",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "partner_status"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_42e601e755",
+    "targetFieldId": "fld_908a56818b",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "eligible_benefits"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8b6f7cedb7",
+    "targetFieldId": "fld_e17f0ec363",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "tier_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_ca206d21f5",
+    "targetFieldId": "fld_1755f270c2",
+    "sources": [
+     {
+      "relation": "rel_7d5a96fe6b",
+      "column": "number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8216668db6",
+    "targetFieldId": "fld_bc00ae5245",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "concat(row.first_name, ' ', row.last_name)"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_6207c7816a",
+    "targetFieldId": "fld_169dcb7497",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": 1
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.75,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_ae0830f2e6",
+    "targetFieldId": "fld_048f67ed7a",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_8c0ddcc48c",
+    "targetFieldId": "fld_c322d2bc9f",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_ca4019f721",
+    "targetFieldId": "fld_44a280b145",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_10dbcad1ff",
+    "targetFieldId": "fld_1732aaf596",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8e265654fa",
+    "targetFieldId": "fld_332cafe88a",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "sellable_item_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_790b8f0bd6",
+    "targetFieldId": "fld_54f0309c68",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "menu_product_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b37fde0ce4",
+    "targetFieldId": "fld_6ffbe765d0",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "form_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a9da566424",
+    "targetFieldId": "fld_10036f1afb",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "size_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_cc170dea43",
+    "targetFieldId": "fld_c8a672520f",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "product_type_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_0b66b12568",
+    "targetFieldId": "fld_c4f5af5168",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "serving_size_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d18b20f8f1",
+    "targetFieldId": "fld_aa99a43191",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "sequence_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_fd1fe6bf1d",
+    "targetFieldId": "fld_d41d5bef98",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "display_index"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_5281fe54f2",
+    "targetFieldId": "fld_c467c80b08",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "base_price"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9409,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1ee2e782af",
+    "targetFieldId": "fld_ddc527408b",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "price"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b5a8619960",
+    "targetFieldId": "fld_bb6aeac6e6",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "price_override"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9409,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a6bdb6abc6",
+    "targetFieldId": "fld_9697bd4df4",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "price_override_authorized"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_426daa9907",
+    "targetFieldId": "fld_b8e3a7e2c1",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "redemption_tier"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a64c631a5d",
+    "targetFieldId": "fld_688dd6e803",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_refund"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_84e28130e5",
+    "targetFieldId": "fld_ce8928625e",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_available"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_75f500c9c7",
+    "targetFieldId": "fld_854371d446",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_impulse_item"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_2fdc724af7",
+    "targetFieldId": "fld_5d5af9c484",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_refill"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b61d00dfe7",
+    "targetFieldId": "fld_c0d0776c2f",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "item_availability_override"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4f88c8c7f5",
+    "targetFieldId": "fld_829e2f5a64",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "ask_me_instructions"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_49be8d9b3a",
+    "targetFieldId": "fld_66526cc8ea",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "image_url"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1317b5d0e9",
+    "targetFieldId": "fld_bad5b9fe76",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "voided"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_0f6e815903",
+    "targetFieldId": "fld_6999dd648f",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_cf85c9f769",
+    "targetFieldId": "fld_154685c33f",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_bb8165b663",
+    "targetFieldId": "fld_ea71d427fb",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_727a57137c",
+    "targetFieldId": "fld_1db3b8b010",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_66840f4bbf",
+    "targetFieldId": "fld_ed56200995",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "menu_product_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_6f0dea489f",
+    "targetFieldId": "fld_68204482c8",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "sellable_item_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_20b9146b61",
+    "targetFieldId": "fld_94b6b2237e",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "form_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f28f7f77d7",
+    "targetFieldId": "fld_203943b4b3",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "size_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1048b72d33",
+    "targetFieldId": "fld_e43d41c88e",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "quantity"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_75d9d9ed57",
+    "targetFieldId": "fld_09b324f680",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "price"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d5e180c45a",
+    "targetFieldId": "fld_2622031777",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "is_available"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_ee545ea3af",
+    "targetFieldId": "fld_1453ce4718",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "item_availability_override"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_9098b97da7",
+    "targetFieldId": "fld_c4868a825c",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "voided"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_92d8a2f6fd",
+    "targetFieldId": "fld_43bda393dc",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_84beadd0a6",
+    "targetFieldId": "fld_370008fb85",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_a1fb12ad35",
+    "targetFieldId": "fld_7d375334e8",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_f43f1cddfc",
+    "targetFieldId": "fld_5399aae54f",
+    "sources": [
+     {
+      "relation": "rel_f21e3cc7a7",
+      "column": "id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_135eb4f152",
+    "targetFieldId": "fld_004fea09cc",
+    "sources": [
+     {
+      "relation": "rel_f21e3cc7a7",
+      "column": "reward_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a67f0273b4",
+    "targetFieldId": "fld_cd1f382b49",
+    "sources": [
+     {
+      "relation": "rel_f21e3cc7a7",
+      "column": "description"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_953b2be324",
+    "targetFieldId": "fld_d7c9d57089",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_c2573f36e2",
+    "targetFieldId": "fld_41151cf207",
+    "sources": [
+     {
+      "column": "total_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1050f29e2d",
+    "targetFieldId": "fld_e1a68c7a43",
+    "sources": [
+     {
+      "column": "subtotal_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.85,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_712c6bc455",
+    "targetFieldId": "fld_3480384e1e",
+    "sources": [
+     {
+      "column": "tax_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c5b35e0ee5",
+    "targetFieldId": "fld_8d94c004c4",
+    "sources": [
+     {
+      "column": "discount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_60af79e785",
+    "targetFieldId": "fld_f100cfa4f1",
+    "sources": [
+     {
+      "column": "total_to_display"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "toString"
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9409,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8d6b4f90e5",
+    "targetFieldId": "fld_c6b88c0ca1",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_e069c8cf7a",
+    "targetFieldId": "fld_8878bea23b",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_725cd5de8d",
+    "targetFieldId": "fld_0d3ca043fc",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_121acc4a8b",
+    "targetFieldId": "fld_b3b63c721f",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_4ce89050a4",
+    "targetFieldId": "fld_3a0b2faaf4",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_5985c7315c",
+    "targetFieldId": "fld_5f3e972899",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "CASH"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_527a9dc3e5",
+    "targetFieldId": "fld_87655b83a1",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "completed"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d6bf45e5b5",
+    "targetFieldId": "fld_0ec725016a",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_db37f8fa44",
+    "targetFieldId": "fld_bf89df9346",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "cash_tender_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7833,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_6e2f92fbfe",
+    "targetFieldId": "fld_ac0d77cd5b",
+    "sources": [
+     {
+      "relation": "rel_lk_6e3c640530",
+      "column": "amount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7475,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_3da4d84035",
+    "targetFieldId": "fld_6221dabc0c",
+    "sources": [
+     {
+      "relation": "rel_lk_6e3c640530",
+      "column": "change_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_0fbe9aba4e",
+    "targetFieldId": "fld_df02cddc92",
+    "sources": [
+     {
+      "relation": "rel_lk_6e3c640530",
+      "column": "currency_iso"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.667,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_a7bb5448d0",
+    "targetFieldId": "fld_c8adf3843b",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "charged_amount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d4c8738d35",
+    "targetFieldId": "fld_0ae5566608",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "tip_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_940dccc51e",
+    "targetFieldId": "fld_b273b30da6",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4b7ffdccd5",
+    "targetFieldId": "fld_59f9067964",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_69be2aa5a1",
+    "targetFieldId": "fld_b4f22bfd27",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_2a4e5e74ec",
+    "targetFieldId": "fld_cdf3840766",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "CREDIT_CARD"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_45e65d2d0a",
+    "targetFieldId": "fld_03a69fffdb",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "completed"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_e8992807ba",
+    "targetFieldId": "fld_0b43cebe42",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_e7b8ecaefe",
+    "targetFieldId": "fld_bf2f793574",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "credit_card_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_23074aed0a",
+    "targetFieldId": "fld_7ade2e8e49",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "card_brand"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_394335a5c9",
+    "targetFieldId": "fld_bfa8dca957",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "merchant_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d3e1582bb3",
+    "targetFieldId": "fld_296ca121bc",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "auth_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_708181b6c9",
+    "targetFieldId": "fld_15a41420b7",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "presentation_method"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d8820a84ee",
+    "targetFieldId": "fld_055f6d01bf",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "processor_transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8b5c90ea70",
+    "targetFieldId": "fld_75f190bf44",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "masked_account_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1f59cadc75",
+    "targetFieldId": "fld_ab1d225d38",
+    "sources": [
+     {
+      "relation": "rel_lk_04a262e84c",
+      "column": "card_holder_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_3614807297",
+    "targetFieldId": "fld_8c43491bcf",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "charged_amount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c7e5b6d5db",
+    "targetFieldId": "fld_8d1d65e494",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "tip_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c0f52a4d00",
+    "targetFieldId": "fld_4c651b2fb0",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_2e7d2dbdba",
+    "targetFieldId": "fld_471012e3dd",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7f1d1762c2",
+    "targetFieldId": "fld_759b8ab757",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_6929d3b681",
+    "targetFieldId": "fld_c9f0610096",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "SCAN_AND_PAY"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_581548b6f5",
+    "targetFieldId": "fld_3b87c59079",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "completed"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_140949d4ea",
+    "targetFieldId": "fld_746c63333a",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_1c0d530a44",
+    "targetFieldId": "fld_ade791bcfb",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "scan_and_pay_qr_code_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7833,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_ce83f52091",
+    "targetFieldId": "fld_38c61ba108",
+    "sources": [
+     {
+      "relation": "rel_lk_8500b9d5dd",
+      "column": "qr_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c844f0255d",
+    "targetFieldId": "fld_37a263793a",
+    "sources": [
+     {
+      "relation": "rel_lk_8500b9d5dd",
+      "column": "account_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7045d0bf57",
+    "targetFieldId": "fld_9ba48305b9",
+    "sources": [
+     {
+      "relation": "rel_lk_8500b9d5dd",
+      "column": "encryption_key_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_82203511cb",
+    "targetFieldId": "fld_662f8ea790",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "charged_amount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_e05a1f17cf",
+    "targetFieldId": "fld_e34fb06855",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "tip_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_05a2cd1729",
+    "targetFieldId": "fld_3d6cb1c17b",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_76350ec242",
+    "targetFieldId": "fld_f18e81763a",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_ab486b3358",
+    "targetFieldId": "fld_38f03cb429",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1683e25ffc",
+    "targetFieldId": "fld_170fd0226f",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "SCC"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_eeabb8881c",
+    "targetFieldId": "fld_3c6f3a5a60",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_106b4f5d17",
+    "targetFieldId": "fld_447ad2a73f",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "completed"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_3503436f60",
+    "targetFieldId": "fld_f354213295",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_8f766e9f41",
+    "targetFieldId": "fld_28fdb4f309",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "scc_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_af7cf94921",
+    "targetFieldId": "fld_5b3ac695b0",
+    "sources": [
+     {
+      "relation": "rel_lk_2c905be606",
+      "column": "encrypted_scc_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.828,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_298c72aff4",
+    "targetFieldId": "fld_38198cee77",
+    "sources": [
+     {
+      "relation": "rel_lk_2c905be606",
+      "column": "encryption_key_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b88ec31109",
+    "targetFieldId": "fld_4c7490fa88",
+    "sources": [
+     {
+      "relation": "rel_lk_2c905be606",
+      "column": "scc_hash"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7207,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_402d9fbf23",
+    "targetFieldId": "fld_657d342319",
+    "sources": [
+     {
+      "relation": "rel_lk_2c905be606",
+      "column": "card_image"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_3b8f0c3221",
+    "targetFieldId": "fld_82667bb398",
+    "sources": [
+     {
+      "relation": "rel_lk_2c905be606",
+      "column": "entry_method"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_845f5c7724",
+    "targetFieldId": "fld_239b47c089",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "charged_amount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f0c78c70c4",
+    "targetFieldId": "fld_c0edca1cb9",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "tip_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7fd5d76d4e",
+    "targetFieldId": "fld_cac75e5fbc",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_28db21bcf2",
+    "targetFieldId": "fld_2b2aeb65e8",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d54defc914",
+    "targetFieldId": "fld_bebb72225a",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_99ba412d38",
+    "targetFieldId": "fld_9239f1996f",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "SVC"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_45b6b9e309",
+    "targetFieldId": "fld_30ecac7246",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "completed"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_e731b2eee4",
+    "targetFieldId": "fld_72e24d0b7d",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_21223d088f",
+    "targetFieldId": "fld_44477b3962",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "svc_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_33c4d1c05e",
+    "targetFieldId": "fld_c95e254d2f",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "encrypted_svc_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.828,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_f7c93233b1",
+    "targetFieldId": "fld_fd7ddc5716",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "encryption_key_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_11afaa6905",
+    "targetFieldId": "fld_95ef3b745f",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "svc_number_hash"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.667,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_02d5b02c18",
+    "targetFieldId": "fld_127c6d9032",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "last_four_digits"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7182,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_d456e022c3",
+    "targetFieldId": "fld_f6edfe984b",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "card_image"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f908ae9165",
+    "targetFieldId": "fld_c5eda1a376",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "is_default"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_6d68875441",
+    "targetFieldId": "fld_d2994baad7",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "account_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_49b62a8563",
+    "targetFieldId": "fld_8d70c81a5e",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "balance_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_eeb8074fef",
+    "targetFieldId": "fld_1f17fb1156",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "authorization_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_ee86879e58",
+    "targetFieldId": "fld_cd14342897",
+    "sources": [
+     {
+      "relation": "rel_lk_b0395ebf4b",
+      "column": "entry_method"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8924,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b446be921f",
+    "targetFieldId": "fld_b62b37ed48",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "charged_amount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_100ea689b8",
+    "targetFieldId": "fld_7ecc6b0a1a",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "tip_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_0b1d6af844",
+    "targetFieldId": "fld_e0684b2455",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8c39d2e075",
+    "targetFieldId": "fld_43d80cb2d1",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_419f2dc45c",
+    "targetFieldId": "fld_9f22116ff7",
+    "sources": [
+     {
+      "relation": "rel_0d4ff9aec8",
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_e936de42d3",
+    "targetFieldId": "fld_ace7353a54",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_f61501a30b",
+    "targetFieldId": "fld_d67c212e91",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_c2974f8876",
+    "targetFieldId": "fld_692b40f6b1",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_c354f938c1",
+    "targetFieldId": "fld_94a91a143a",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_995c8edef3",
+    "targetFieldId": "fld_7604622ca5",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_3f9ddb330a",
+    "targetFieldId": "fld_62b38fcea3",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   }
+  ],
+  "relations": [
+   {
+    "id": "rel_lk_3cff795cd6",
+    "parentId": null,
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "saved_orders"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "lookupOnly": true
+   },
+   {
+    "id": "rel_26b4ff5fad",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "customers"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "targetFieldId": "fld_b39f008e31",
+    "orderBy": [
+     {
+      "column": "id"
+     }
+    ]
+   },
+   {
+    "id": "rel_7d5a96fe6b",
+    "parentId": null,
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "partners"
+    },
+    "join": [
+     {
+      "parent": "partner_number",
+      "child": "number"
+     }
+    ],
+    "targetFieldId": "fld_3624db8830"
+   },
+   {
+    "id": "rel_f47632f00a",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "cart_items"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "targetFieldId": "fld_7316c8b2e7",
+    "limit": 1000
+   },
+   {
+    "id": "rel_61370d9900",
+    "parentId": "rel_f47632f00a",
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "customizations"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_item_id"
+     }
+    ],
+    "targetFieldId": "fld_a6dd7f5ef7",
+    "limit": 1000
+   },
+   {
+    "id": "rel_f21e3cc7a7",
+    "parentId": "rel_f47632f00a",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "applied_rewards"
+    },
+    "join": [
+     {
+      "parent": "applied_reward_id",
+      "child": "id"
+     }
+    ],
+    "targetFieldId": "fld_f62bdc102c"
+   },
+   {
+    "id": "rel_ag_aa476df37d",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "collected_payments"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ]
+   },
+   {
+    "id": "rel_0d4ff9aec8",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "collected_payments"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "targetFieldId": "fld_40c4770202",
+    "limit": 1000,
+    "variants": [
+     {
+      "fieldId": "fld_6f2501fcf9",
+      "when": "cash_tender_id"
+     },
+     {
+      "fieldId": "fld_3b6c7765e4",
+      "when": "credit_card_id"
+     },
+     {
+      "fieldId": "fld_d3f91d80c2",
+      "when": "scan_and_pay_qr_code_id"
+     },
+     {
+      "fieldId": "fld_f82f79e826",
+      "when": "scc_id"
+     },
+     {
+      "fieldId": "fld_68f3cf83de",
+      "when": "svc_id"
+     }
+    ]
+   },
+   {
+    "id": "rel_lk_6e3c640530",
+    "parentId": "rel_0d4ff9aec8",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "cash_tenders"
+    },
+    "join": [
+     {
+      "parent": "cash_tender_id",
+      "child": "id"
+     }
+    ],
+    "lookupOnly": true
+   },
+   {
+    "id": "rel_lk_04a262e84c",
+    "parentId": "rel_0d4ff9aec8",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "credit_cards"
+    },
+    "join": [
+     {
+      "parent": "credit_card_id",
+      "child": "id"
+     }
+    ],
+    "lookupOnly": true
+   },
+   {
+    "id": "rel_lk_8500b9d5dd",
+    "parentId": "rel_0d4ff9aec8",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "scan_and_pay_qrs"
+    },
+    "join": [
+     {
+      "parent": "scan_and_pay_qr_code_id",
+      "child": "id"
+     }
+    ],
+    "lookupOnly": true
+   },
+   {
+    "id": "rel_lk_2c905be606",
+    "parentId": "rel_0d4ff9aec8",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "sccs"
+    },
+    "join": [
+     {
+      "parent": "scc_id",
+      "child": "id"
+     }
+    ],
+    "lookupOnly": true
+   },
+   {
+    "id": "rel_lk_b0395ebf4b",
+    "parentId": "rel_0d4ff9aec8",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "svcs"
+    },
+    "join": [
+     {
+      "parent": "svc_id",
+      "child": "id"
+     }
+    ],
+    "lookupOnly": true
+   }
+  ],
+  "aggregates": [
+   {
+    "id": "agg_3afb2f7574",
+    "relationId": "rel_ag_aa476df37d",
+    "fn": "sum",
+    "column": "tip_in_cents",
+    "targetFieldId": "fld_507ec7e713"
+   }
+  ],
+  "ignoredColumns": []
+ },
+ "items": [
+  {
+   "fieldId": "fld_d0a3e7f81a",
+   "path": "type",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"cart\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_2534a8d267"
+   ]
+  },
+  {
+   "fieldId": "fld_87ea5dfc8b",
+   "path": "id",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "= concat('cart::', row.id)",
+   "reasons": [
+    "the example is this document's key (cart::…)"
+   ],
+   "required": true,
+   "code": "REFERENCE_TEMPLATE",
+   "mappingIds": [
+    "map_2d40ae1513"
+   ],
+   "fix": "concat('cart::', row.id)"
+  },
+  {
+   "fieldId": "fld_c692273deb",
+   "path": "version",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= 1",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_252ca7be0b"
+   ]
+  },
+  {
+   "fieldId": "fld_48a3661d84",
+   "path": "status",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.7,
+   "summary": " = saved_orders.cart_id != nil ? 'saved' : row.status",
+   "reasons": [
+    "the design allows 'saved', which carts.status can't hold",
+    "'saved' when a saved_orders row exists"
+   ],
+   "required": true,
+   "relationIds": [
+    "rel_lk_3cff795cd6"
+   ],
+   "mappingIds": [
+    "map_e43ccd4dd0"
+   ]
+  },
+  {
+   "fieldId": "fld_fbe7d7baac",
+   "path": "channel",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← carts.channel",
+   "reasons": [
+    "channel ~ carts.channel (100%): exact"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_34ee3cd4e0"
+   ]
+  },
+  {
+   "fieldId": "fld_849e5009f3",
+   "path": "skipFulfillment",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.skip_fulfillment",
+   "reasons": [
+    "skipFulfillment ~ carts.skip_fulfillment (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7aa5455047"
+   ]
+  },
+  {
+   "fieldId": "fld_cb3086079d",
+   "path": "submitAfterTipAbort",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.submit_after_tip_abort",
+   "reasons": [
+    "submitAfterTipAbort ~ carts.submit_after_tip_abort (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_b798bf1d11"
+   ]
+  },
+  {
+   "fieldId": "fld_890c94d82f",
+   "path": "consumptionType",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.consumption_type",
+   "reasons": [
+    "consumptionType ~ carts.consumption_type (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_b0a11c904d"
+   ]
+  },
+  {
+   "fieldId": "fld_ec9b0493d7",
+   "path": "storeNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.store_number",
+   "reasons": [
+    "storeNumber ~ carts.store_number (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_4695f59d17"
+   ]
+  },
+  {
+   "fieldId": "fld_0abb4123cb",
+   "path": "partnerNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.partner_number",
+   "reasons": [
+    "partnerNumber ~ carts.partner_number (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_f5d8215c68"
+   ]
+  },
+  {
+   "fieldId": "fld_6af5b9adbc",
+   "path": "registerNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.register_number",
+   "reasons": [
+    "registerNumber ~ carts.register_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_83d557eae8"
+   ]
+  },
+  {
+   "fieldId": "fld_c87d1a18b6",
+   "path": "orderNotes",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.order_notes",
+   "reasons": [
+    "orderNotes ~ carts.order_notes (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_9ca7278108"
+   ]
+  },
+  {
+   "fieldId": "fld_696b97b727",
+   "path": "customerNamePrompt",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_5bbbdbf528"
+   ]
+  },
+  {
+   "fieldId": "fld_b39f008e31",
+   "path": "customer",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.89,
+   "summary": "↙ customers 1:N · first",
+   "reasons": [
+    "name: customer ~ customers (0.93)",
+    "fields 11/11",
+    "object ← one-to-many: first row",
+    "first by id"
+   ],
+   "alternatives": [
+    {
+     "fromParent": true,
+     "score": 0.54,
+     "reasons": [
+      "fields 5/11 from carts",
+      "groups the parent's columns"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "stores"
+     },
+     "join": [
+      {
+       "parent": "store_number",
+       "child": "number"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "score": 0.41,
+     "reasons": [
+      "name: customer ~ stores (0.00)",
+      "fields 7/11",
+      "many-to-one ✓"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_26b4ff5fad"
+   ]
+  },
+  {
+   "fieldId": "fld_ec8b763913",
+   "path": "customer.userID",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e19e198087"
+   ]
+  },
+  {
+   "fieldId": "fld_cc87c530c3",
+   "path": "customer.firstName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.first_name",
+   "reasons": [
+    "firstName ~ customers.first_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_478a6f1773"
+   ]
+  },
+  {
+   "fieldId": "fld_65a30ab169",
+   "path": "customer.lastName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.last_name",
+   "reasons": [
+    "lastName ~ customers.last_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_9fb3c77446"
+   ]
+  },
+  {
+   "fieldId": "fld_3dba58f6ab",
+   "path": "customer.starsEarned",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.stars_earned",
+   "reasons": [
+    "starsEarned ~ customers.stars_earned (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d1a23b322c"
+   ]
+  },
+  {
+   "fieldId": "fld_a8c804d222",
+   "path": "customer.loyaltyID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.loyalty_id",
+   "reasons": [
+    "loyaltyID ~ customers.loyalty_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_630491ba2b"
+   ]
+  },
+  {
+   "fieldId": "fld_f38034b2ff",
+   "path": "customer.alias",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customers.alias",
+   "reasons": [
+    "alias ~ customers.alias (100%): exact"
+   ],
+   "mappingIds": [
+    "map_6dbde95b19"
+   ]
+  },
+  {
+   "fieldId": "fld_10a2b4331d",
+   "path": "customer.validPartner",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.valid_partner",
+   "reasons": [
+    "validPartner ~ customers.valid_partner (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7c40365356"
+   ]
+  },
+  {
+   "fieldId": "fld_37bbd7ef78",
+   "path": "customer.partnerNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.partner_number",
+   "reasons": [
+    "partnerNumber ~ customers.partner_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_4739a898fe"
+   ]
+  },
+  {
+   "fieldId": "fld_bc4c5a2fd0",
+   "path": "customer.partnerName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.partner_name",
+   "reasons": [
+    "partnerName ~ customers.partner_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c92e7dad65"
+   ]
+  },
+  {
+   "fieldId": "fld_c140dfe260",
+   "path": "customer.partnerStatus",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.partner_status",
+   "reasons": [
+    "partnerStatus ~ customers.partner_status (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_3e8874fe6f"
+   ]
+  },
+  {
+   "fieldId": "fld_908a56818b",
+   "path": "customer.eligibleBenefits[]",
+   "kind": "binding",
+   "status": "unresolved",
+   "band": "low",
+   "score": 0.39,
+   "summary": "no related table fits",
+   "reasons": [
+    "no relationship from customers reaches a table that fits"
+   ],
+   "code": "NO_PATH",
+   "candidates": [
+    "pos.carts"
+   ],
+   "alternatives": [
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     },
+     "join": [
+      {
+       "parent": "cart_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "shape": "scalars",
+     "valueColumn": "partner_number",
+     "score": 0.39,
+     "reasons": [
+      "name: eligibleBenefits ~ carts (0.00)",
+      "values from partner_number",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    }
+   ]
+  },
+  {
+   "fieldId": "fld_e17f0ec363",
+   "path": "customer.tierNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.tier_number",
+   "reasons": [
+    "tierNumber ~ customers.tier_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_8b6f7cedb7"
+   ]
+  },
+  {
+   "fieldId": "fld_3624db8830",
+   "path": "partner",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.91,
+   "summary": "↗ partners N:1",
+   "reasons": [
+    "name: partner ~ partners (0.93)",
+    "fields 2/2",
+    "many-to-one ✓"
+   ],
+   "alternatives": [
+    {
+     "fromParent": true,
+     "score": 0.77,
+     "reasons": [
+      "fields 2/2 from carts",
+      "groups the parent's columns"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "stores"
+     },
+     "join": [
+      {
+       "parent": "store_number",
+       "child": "number"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "score": 0.65,
+     "reasons": [
+      "name: partner ~ stores (0.00)",
+      "fields 2/2",
+      "many-to-one ✓"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_7d5a96fe6b"
+   ]
+  },
+  {
+   "fieldId": "fld_1755f270c2",
+   "path": "partner.number",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← partners.number",
+   "reasons": [
+    "number ~ partners.number (100%): exact"
+   ],
+   "mappingIds": [
+    "map_ca206d21f5"
+   ]
+  },
+  {
+   "fieldId": "fld_bc00ae5245",
+   "path": "partner.name",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.7,
+   "summary": " = concat(row.first_name, ' ', row.last_name)",
+   "reasons": [
+    "no name column: first_name and last_name combined"
+   ],
+   "mappingIds": [
+    "map_8216668db6"
+   ]
+  },
+  {
+   "fieldId": "fld_7316c8b2e7",
+   "path": "items[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.95,
+   "summary": "↙ cart_items 1:N",
+   "reasons": [
+    "name: items ~ cart_items (0.95)",
+    "fields 25/26",
+    "one-to-many ✓"
+   ],
+   "alternatives": [
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "collected_payments"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "score": 0.23,
+     "reasons": [
+      "name: items ~ collected_payments (0.00)",
+      "fields 2/26",
+      "one-to-many ✓"
+     ]
+    },
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "customers"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "score": 0.23,
+     "reasons": [
+      "name: items ~ customers (0.00)",
+      "fields 2/26",
+      "one-to-many ✓"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_f47632f00a"
+   ]
+  },
+  {
+   "fieldId": "fld_44a280b145",
+   "path": "items[].id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← cart_items.id",
+   "reasons": [
+    "id ~ cart_items.id (100%): exact"
+   ],
+   "mappingIds": [
+    "map_ca4019f721"
+   ]
+  },
+  {
+   "fieldId": "fld_1732aaf596",
+   "path": "items[].name",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← cart_items.name",
+   "reasons": [
+    "name ~ cart_items.name (100%): exact"
+   ],
+   "mappingIds": [
+    "map_10dbcad1ff"
+   ]
+  },
+  {
+   "fieldId": "fld_169dcb7497",
+   "path": "items[].quantity",
+   "kind": "field",
+   "status": "constant",
+   "band": "medium",
+   "score": 0.75,
+   "summary": "= 1",
+   "reasons": [
+    "the design says it's always 1"
+   ],
+   "mappingIds": [
+    "map_6207c7816a"
+   ]
+  },
+  {
+   "fieldId": "fld_332cafe88a",
+   "path": "items[].sellableItemId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.sellable_item_id",
+   "reasons": [
+    "sellableItemId ~ cart_items.sellable_item_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_8e265654fa"
+   ]
+  },
+  {
+   "fieldId": "fld_54f0309c68",
+   "path": "items[].menuProductId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.menu_product_id",
+   "reasons": [
+    "menuProductId ~ cart_items.menu_product_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_790b8f0bd6"
+   ]
+  },
+  {
+   "fieldId": "fld_6ffbe765d0",
+   "path": "items[].formCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.form_code",
+   "reasons": [
+    "formCode ~ cart_items.form_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_b37fde0ce4"
+   ]
+  },
+  {
+   "fieldId": "fld_10036f1afb",
+   "path": "items[].sizeCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.size_code",
+   "reasons": [
+    "sizeCode ~ cart_items.size_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a9da566424"
+   ]
+  },
+  {
+   "fieldId": "fld_c8a672520f",
+   "path": "items[].productTypeId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.product_type_id",
+   "reasons": [
+    "productTypeId ~ cart_items.product_type_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_cc170dea43"
+   ]
+  },
+  {
+   "fieldId": "fld_c4f5af5168",
+   "path": "items[].servingSizeName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.serving_size_name",
+   "reasons": [
+    "servingSizeName ~ cart_items.serving_size_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_0b66b12568"
+   ]
+  },
+  {
+   "fieldId": "fld_aa99a43191",
+   "path": "items[].sequenceNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.sequence_number",
+   "reasons": [
+    "sequenceNumber ~ cart_items.sequence_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d18b20f8f1"
+   ]
+  },
+  {
+   "fieldId": "fld_d41d5bef98",
+   "path": "items[].displayIndex",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.display_index",
+   "reasons": [
+    "displayIndex ~ cart_items.display_index (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_fd1fe6bf1d"
+   ]
+  },
+  {
+   "fieldId": "fld_c467c80b08",
+   "path": "items[].basePrice",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.9409,
+   "summary": "← cart_items.base_price × 100",
+   "reasons": [
+    "basePrice ~ cart_items.base_price (94%): normalized equal",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_5281fe54f2"
+   ]
+  },
+  {
+   "fieldId": "fld_ddc527408b",
+   "path": "items[].price",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.price × 100",
+   "reasons": [
+    "price ~ cart_items.price (97%): exact",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_1ee2e782af"
+   ]
+  },
+  {
+   "fieldId": "fld_bb6aeac6e6",
+   "path": "items[].priceOverride",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.9409,
+   "summary": "← cart_items.price_override × 100",
+   "reasons": [
+    "priceOverride ~ cart_items.price_override (94%): normalized equal",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_b5a8619960"
+   ]
+  },
+  {
+   "fieldId": "fld_9697bd4df4",
+   "path": "items[].priceOverrideAuthorized",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.price_override_authorized",
+   "reasons": [
+    "priceOverrideAuthorized ~ cart_items.price_override_authorized (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a6bdb6abc6"
+   ]
+  },
+  {
+   "fieldId": "fld_048f67ed7a",
+   "path": "items[].priceOverrideAuthorizedBy",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_ae0830f2e6"
+   ]
+  },
+  {
+   "fieldId": "fld_c322d2bc9f",
+   "path": "items[].priceOverrideReason",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_8c0ddcc48c"
+   ]
+  },
+  {
+   "fieldId": "fld_b8e3a7e2c1",
+   "path": "items[].redemptionTier",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.redemption_tier",
+   "reasons": [
+    "redemptionTier ~ cart_items.redemption_tier (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_426daa9907"
+   ]
+  },
+  {
+   "fieldId": "fld_688dd6e803",
+   "path": "items[].isRefund",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_refund",
+   "reasons": [
+    "isRefund ~ cart_items.is_refund (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a64c631a5d"
+   ]
+  },
+  {
+   "fieldId": "fld_ce8928625e",
+   "path": "items[].isAvailable",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_available",
+   "reasons": [
+    "isAvailable ~ cart_items.is_available (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_84e28130e5"
+   ]
+  },
+  {
+   "fieldId": "fld_854371d446",
+   "path": "items[].isImpulseItem",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_impulse_item",
+   "reasons": [
+    "isImpulseItem ~ cart_items.is_impulse_item (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_75f500c9c7"
+   ]
+  },
+  {
+   "fieldId": "fld_5d5af9c484",
+   "path": "items[].isRefill",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_refill",
+   "reasons": [
+    "isRefill ~ cart_items.is_refill (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_2fdc724af7"
+   ]
+  },
+  {
+   "fieldId": "fld_c0d0776c2f",
+   "path": "items[].itemAvailabilityOverride",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.item_availability_override",
+   "reasons": [
+    "itemAvailabilityOverride ~ cart_items.item_availability_override (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_b61d00dfe7"
+   ]
+  },
+  {
+   "fieldId": "fld_829e2f5a64",
+   "path": "items[].askMeInstructions",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.ask_me_instructions",
+   "reasons": [
+    "askMeInstructions ~ cart_items.ask_me_instructions (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_4f88c8c7f5"
+   ]
+  },
+  {
+   "fieldId": "fld_66526cc8ea",
+   "path": "items[].imageUrl",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.image_url",
+   "reasons": [
+    "imageUrl ~ cart_items.image_url (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_49be8d9b3a"
+   ]
+  },
+  {
+   "fieldId": "fld_bad5b9fe76",
+   "path": "items[].voided",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← cart_items.voided",
+   "reasons": [
+    "voided ~ cart_items.voided (100%): exact"
+   ],
+   "mappingIds": [
+    "map_1317b5d0e9"
+   ]
+  },
+  {
+   "fieldId": "fld_a6dd7f5ef7",
+   "path": "items[].modifiers[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "medium",
+   "score": 0.54,
+   "summary": "↙ customizations 1:N",
+   "reasons": [
+    "name: modifiers ~ customizations (0.00)",
+    "fields 10/13",
+    "one-to-many ✓"
+   ],
+   "alternatives": [
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     },
+     "join": [
+      {
+       "parent": "cart_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "score": 0.18,
+     "reasons": [
+      "name: modifiers ~ carts (0.00)",
+      "fields 2/13",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "applied_rewards"
+     },
+     "join": [
+      {
+       "parent": "applied_reward_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "score": 0.15,
+     "reasons": [
+      "name: modifiers ~ applied_rewards (0.00)",
+      "fields 1/13",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_61370d9900"
+   ]
+  },
+  {
+   "fieldId": "fld_6999dd648f",
+   "path": "items[].modifiers[].id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customizations.id",
+   "reasons": [
+    "id ~ customizations.id (100%): exact"
+   ],
+   "mappingIds": [
+    "map_0f6e815903"
+   ]
+  },
+  {
+   "fieldId": "fld_154685c33f",
+   "path": "items[].modifiers[].label",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.name",
+   "reasons": [
+    "label ~ customizations.name (97%)",
+    "the design names customizations.name"
+   ],
+   "mappingIds": [
+    "map_cf85c9f769"
+   ]
+  },
+  {
+   "fieldId": "fld_ea71d427fb",
+   "path": "items[].modifiers[].value",
+   "kind": "field",
+   "status": "mapped",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "← customizations.name",
+   "reasons": [
+    "the design says value mirrors label",
+    "same column as label"
+   ],
+   "mappingIds": [
+    "map_bb8165b663"
+   ]
+  },
+  {
+   "fieldId": "fld_1db3b8b010",
+   "path": "items[].modifiers[].valueString",
+   "kind": "field",
+   "status": "mapped",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "← customizations.name",
+   "reasons": [
+    "the design says valueString mirrors label",
+    "same column as label"
+   ],
+   "mappingIds": [
+    "map_727a57137c"
+   ]
+  },
+  {
+   "fieldId": "fld_ed56200995",
+   "path": "items[].modifiers[].menuProductId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.menu_product_id",
+   "reasons": [
+    "menuProductId ~ customizations.menu_product_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_66840f4bbf"
+   ]
+  },
+  {
+   "fieldId": "fld_68204482c8",
+   "path": "items[].modifiers[].sellableItemId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.sellable_item_id",
+   "reasons": [
+    "sellableItemId ~ customizations.sellable_item_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_6f0dea489f"
+   ]
+  },
+  {
+   "fieldId": "fld_94b6b2237e",
+   "path": "items[].modifiers[].formCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.form_code",
+   "reasons": [
+    "formCode ~ customizations.form_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_20b9146b61"
+   ]
+  },
+  {
+   "fieldId": "fld_203943b4b3",
+   "path": "items[].modifiers[].sizeCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.size_code",
+   "reasons": [
+    "sizeCode ~ customizations.size_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_f28f7f77d7"
+   ]
+  },
+  {
+   "fieldId": "fld_e43d41c88e",
+   "path": "items[].modifiers[].quantity",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customizations.quantity",
+   "reasons": [
+    "quantity ~ customizations.quantity (100%): exact"
+   ],
+   "mappingIds": [
+    "map_1048b72d33"
+   ]
+  },
+  {
+   "fieldId": "fld_09b324f680",
+   "path": "items[].modifiers[].price",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.price × 100",
+   "reasons": [
+    "price ~ customizations.price (97%): exact",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_75d9d9ed57"
+   ]
+  },
+  {
+   "fieldId": "fld_2622031777",
+   "path": "items[].modifiers[].isAvailable",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.is_available",
+   "reasons": [
+    "isAvailable ~ customizations.is_available (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d5e180c45a"
+   ]
+  },
+  {
+   "fieldId": "fld_1453ce4718",
+   "path": "items[].modifiers[].itemAvailabilityOverride",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.item_availability_override",
+   "reasons": [
+    "itemAvailabilityOverride ~ customizations.item_availability_override (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_ee545ea3af"
+   ]
+  },
+  {
+   "fieldId": "fld_c4868a825c",
+   "path": "items[].modifiers[].voided",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customizations.voided",
+   "reasons": [
+    "voided ~ customizations.voided (100%): exact"
+   ],
+   "mappingIds": [
+    "map_9098b97da7"
+   ]
+  },
+  {
+   "fieldId": "fld_f62bdc102c",
+   "path": "items[].appliedRewards[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "medium",
+   "score": 0.68,
+   "summary": "↗ applied_rewards N:1 · wrap",
+   "reasons": [
+    "name: appliedRewards ~ applied_rewards (0.97)",
+    "fields 3/6",
+    "array ← many-to-one: 0 or 1 item"
+   ],
+   "alternatives": [
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "customizations"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_item_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "score": 0.28,
+     "reasons": [
+      "name: appliedRewards ~ customizations (0.00)",
+      "fields 1/6",
+      "one-to-many ✓"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     },
+     "join": [
+      {
+       "parent": "cart_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "score": 0.2,
+     "reasons": [
+      "name: appliedRewards ~ carts (0.00)",
+      "fields 1/6",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_f21e3cc7a7"
+   ]
+  },
+  {
+   "fieldId": "fld_5399aae54f",
+   "path": "items[].appliedRewards[].id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← applied_rewards.id",
+   "reasons": [
+    "id ~ applied_rewards.id (100%): exact"
+   ],
+   "mappingIds": [
+    "map_f43f1cddfc"
+   ]
+  },
+  {
+   "fieldId": "fld_004fea09cc",
+   "path": "items[].appliedRewards[].rewardCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← applied_rewards.reward_code",
+   "reasons": [
+    "rewardCode ~ applied_rewards.reward_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_135eb4f152"
+   ]
+  },
+  {
+   "fieldId": "fld_43bda393dc",
+   "path": "items[].appliedRewards[].rewardType",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_92d8a2f6fd"
+   ]
+  },
+  {
+   "fieldId": "fld_cd1f382b49",
+   "path": "items[].appliedRewards[].description",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← applied_rewards.description",
+   "reasons": [
+    "description ~ applied_rewards.description (100%): exact"
+   ],
+   "mappingIds": [
+    "map_a67f0273b4"
+   ]
+  },
+  {
+   "fieldId": "fld_370008fb85",
+   "path": "items[].appliedRewards[].accessibilityLabel",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_84beadd0a6"
+   ]
+  },
+  {
+   "fieldId": "fld_7d375334e8",
+   "path": "items[].appliedRewards[].value",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_a1fb12ad35"
+   ]
+  },
+  {
+   "fieldId": "fld_00317b5e81",
+   "path": "pricing",
+   "kind": "binding",
+   "status": "fromParent",
+   "band": "medium",
+   "score": 0.73,
+   "summary": "fields of carts",
+   "reasons": [
+    "fields 6/7 from carts",
+    "groups the parent's columns"
+   ],
+   "alternatives": [
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "collected_payments"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "adapter": "first",
+     "score": 0.34,
+     "reasons": [
+      "name: pricing ~ collected_payments (0.00)",
+      "fields 4/7",
+      "object ← one-to-many: first row"
+     ]
+    },
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "cash_tenders"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "adapter": "first",
+     "score": 0.33,
+     "reasons": [
+      "name: pricing ~ cash_tenders (0.00)",
+      "fields 4/7",
+      "object ← one-to-many: first row"
+     ]
+    }
+   ]
+  },
+  {
+   "fieldId": "fld_41151cf207",
+   "path": "pricing.totalInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.total_in_cents",
+   "reasons": [
+    "totalInCents ~ carts.total_in_cents (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c2573f36e2"
+   ]
+  },
+  {
+   "fieldId": "fld_e1a68c7a43",
+   "path": "pricing.subTotalInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.85,
+   "summary": "← carts.subtotal_in_cents",
+   "reasons": [
+    "subTotalInCents ~ carts.subtotal_in_cents (85%): fuzzy"
+   ],
+   "mappingIds": [
+    "map_1050f29e2d"
+   ]
+  },
+  {
+   "fieldId": "fld_3480384e1e",
+   "path": "pricing.taxInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.tax_in_cents",
+   "reasons": [
+    "taxInCents ~ carts.tax_in_cents (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_712c6bc455"
+   ]
+  },
+  {
+   "fieldId": "fld_8d94c004c4",
+   "path": "pricing.discountInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.discount_in_cents",
+   "reasons": [
+    "discountInCents ~ carts.discount_in_cents (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c5b35e0ee5"
+   ]
+  },
+  {
+   "fieldId": "fld_507ec7e713",
+   "path": "pricing.tipInCents",
+   "kind": "field",
+   "status": "aggregate",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "= sum(collected_payments.tip_in_cents)",
+   "reasons": [
+    "the design says it's the sum of collected_payments.tip_in_cents"
+   ],
+   "relationIds": [
+    "rel_ag_aa476df37d"
+   ],
+   "aggregateIds": [
+    "agg_3afb2f7574"
+   ]
+  },
+  {
+   "fieldId": "fld_f100cfa4f1",
+   "path": "pricing.totalToDisplay",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.9409,
+   "summary": "← carts.total_to_display toString",
+   "reasons": [
+    "totalToDisplay ~ carts.total_to_display (94%): normalized equal",
+    "numeric → text (\"3.95\")"
+   ],
+   "mappingIds": [
+    "map_60af79e785"
+   ]
+  },
+  {
+   "fieldId": "fld_d7c9d57089",
+   "path": "pricing.label",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_953b2be324"
+   ]
+  },
+  {
+   "fieldId": "fld_8cd04847fe",
+   "path": "pricing.modifiers[]",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_c6b88c0ca1",
+   "path": "pricing.modifiers[].modifierName",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_8d6b4f90e5"
+   ]
+  },
+  {
+   "fieldId": "fld_8878bea23b",
+   "path": "pricing.modifiers[].label",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e069c8cf7a"
+   ]
+  },
+  {
+   "fieldId": "fld_0d3ca043fc",
+   "path": "pricing.modifiers[].value",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_725cd5de8d"
+   ]
+  },
+  {
+   "fieldId": "fld_0e50f5dd68",
+   "path": "pricing.taxLabels[]",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_b3b63c721f",
+   "path": "pricing.taxLabels[].name",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_121acc4a8b"
+   ]
+  },
+  {
+   "fieldId": "fld_3a0b2faaf4",
+   "path": "pricing.taxLabels[].value",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_4ce89050a4"
+   ]
+  },
+  {
+   "fieldId": "fld_6add1d2283",
+   "path": "taxDataID",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.7,
+   "summary": "= concat('tax_data::', row.id)",
+   "reasons": [
+    "the example looks like a tax_data document key"
+   ],
+   "code": "REFERENCE_TEMPLATE",
+   "mappingIds": [
+    "map_025f2f3a79"
+   ],
+   "fix": "concat('tax_data::', row.id)"
+  },
+  {
+   "fieldId": "fld_4a4631061e",
+   "path": "selectedPaymentID",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_cbeba3b812"
+   ]
+  },
+  {
+   "fieldId": "fld_40c4770202",
+   "path": "payments[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.84,
+   "summary": "↙ collected_payments 1:N · 5 variants",
+   "reasons": [
+    "each collected_payments row sets one of cash_tender_id, credit_card_id, scan_and_pay_qr_code_id, svc_id, scc_id"
+   ],
+   "relationIds": [
+    "rel_0d4ff9aec8"
+   ]
+  },
+  {
+   "fieldId": "fld_6f2501fcf9",
+   "path": "payments[]\u003cCASH\u003e",
+   "kind": "binding",
+   "status": "bound",
+   "band": "medium",
+   "score": 0.74,
+   "summary": "CASH ← cash_tender_id · cash_tenders",
+   "reasons": [
+    "its fields from cash_tenders"
+   ],
+   "relationIds": [
+    "rel_0d4ff9aec8"
+   ]
+  },
+  {
+   "fieldId": "fld_5f3e972899",
+   "path": "payments[].CASH.paymentType",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"CASH\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_5985c7315c"
+   ]
+  },
+  {
+   "fieldId": "fld_bf89df9346",
+   "path": "payments[].CASH.id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "medium",
+   "score": 0.7833,
+   "summary": "← collected_payments.cash_tender_id",
+   "reasons": [
+    "id ~ collected_payments.cash_tender_id (78%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_db37f8fa44"
+   ]
+  },
+  {
+   "fieldId": "fld_ac0d77cd5b",
+   "path": "payments[].CASH.amountTenderedInCents",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.7475,
+   "summary": "← cash_tenders.amount_in_cents",
+   "reasons": [
+    "amountTenderedInCents ~ cash_tenders.amount_in_cents (75%): token overlap",
+    "looked up in cash_tenders (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_6e3c640530"
+   ],
+   "mappingIds": [
+    "map_6e2f92fbfe"
+   ]
+  },
+  {
+   "fieldId": "fld_6221dabc0c",
+   "path": "payments[].CASH.changeInCents",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← cash_tenders.change_in_cents",
+   "reasons": [
+    "changeInCents ~ cash_tenders.change_in_cents (89%): normalized equal",
+    "looked up in cash_tenders (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_6e3c640530"
+   ],
+   "mappingIds": [
+    "map_3da4d84035"
+   ]
+  },
+  {
+   "fieldId": "fld_df02cddc92",
+   "path": "payments[].CASH.currency",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.667,
+   "summary": "← cash_tenders.currency_iso",
+   "reasons": [
+    "currency ~ cash_tenders.currency_iso (67%): token overlap",
+    "looked up in cash_tenders (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_6e3c640530"
+   ],
+   "mappingIds": [
+    "map_0fbe9aba4e"
+   ]
+  },
+  {
+   "fieldId": "fld_c8adf3843b",
+   "path": "payments[].CASH.amountChargedInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.9,
+   "summary": "← collected_payments.charged_amount_in_cents",
+   "reasons": [
+    "amountChargedInCents ~ collected_payments.charged_amount_in_cents (90%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_a7bb5448d0"
+   ]
+  },
+  {
+   "fieldId": "fld_0ae5566608",
+   "path": "payments[].CASH.tipInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.tip_in_cents",
+   "reasons": [
+    "tipInCents ~ collected_payments.tip_in_cents (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_d4c8738d35"
+   ]
+  },
+  {
+   "fieldId": "fld_b273b30da6",
+   "path": "payments[].CASH.transactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.transaction_id",
+   "reasons": [
+    "transactionID ~ collected_payments.transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_940dccc51e"
+   ]
+  },
+  {
+   "fieldId": "fld_87655b83a1",
+   "path": "payments[].CASH.status",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"completed\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_527a9dc3e5"
+   ]
+  },
+  {
+   "fieldId": "fld_0ec725016a",
+   "path": "payments[].CASH.voided",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_d6bf45e5b5"
+   ]
+  },
+  {
+   "fieldId": "fld_59f9067964",
+   "path": "payments[].CASH.voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.voided_at",
+   "reasons": [
+    "voidedAt ~ collected_payments.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_4b7ffdccd5"
+   ]
+  },
+  {
+   "fieldId": "fld_b4f22bfd27",
+   "path": "payments[].CASH.createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.created_at",
+   "reasons": [
+    "createdAt ~ collected_payments.created_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_69be2aa5a1"
+   ]
+  },
+  {
+   "fieldId": "fld_3b6c7765e4",
+   "path": "payments[]\u003cCREDIT_CARD\u003e",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.9,
+   "summary": "CREDIT_CARD ← credit_card_id · credit_cards",
+   "reasons": [
+    "its fields from credit_cards"
+   ],
+   "relationIds": [
+    "rel_0d4ff9aec8"
+   ]
+  },
+  {
+   "fieldId": "fld_cdf3840766",
+   "path": "payments[].CREDIT_CARD.paymentType",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"CREDIT_CARD\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_2a4e5e74ec"
+   ]
+  },
+  {
+   "fieldId": "fld_bf2f793574",
+   "path": "payments[].CREDIT_CARD.id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.credit_card_id",
+   "reasons": [
+    "id ~ collected_payments.credit_card_id (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_e7b8ecaefe"
+   ]
+  },
+  {
+   "fieldId": "fld_7ade2e8e49",
+   "path": "payments[].CREDIT_CARD.cardBrand",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.card_brand",
+   "reasons": [
+    "cardBrand ~ credit_cards.card_brand (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_23074aed0a"
+   ]
+  },
+  {
+   "fieldId": "fld_bfa8dca957",
+   "path": "payments[].CREDIT_CARD.merchantID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.merchant_id",
+   "reasons": [
+    "merchantID ~ credit_cards.merchant_id (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_394335a5c9"
+   ]
+  },
+  {
+   "fieldId": "fld_296ca121bc",
+   "path": "payments[].CREDIT_CARD.authCode",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.auth_code",
+   "reasons": [
+    "authCode ~ credit_cards.auth_code (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_d3e1582bb3"
+   ]
+  },
+  {
+   "fieldId": "fld_15a41420b7",
+   "path": "payments[].CREDIT_CARD.presentationMethod",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.presentation_method",
+   "reasons": [
+    "presentationMethod ~ credit_cards.presentation_method (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_708181b6c9"
+   ]
+  },
+  {
+   "fieldId": "fld_055f6d01bf",
+   "path": "payments[].CREDIT_CARD.processorTransactionID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.processor_transaction_id",
+   "reasons": [
+    "processorTransactionID ~ credit_cards.processor_transaction_id (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_d8820a84ee"
+   ]
+  },
+  {
+   "fieldId": "fld_75f190bf44",
+   "path": "payments[].CREDIT_CARD.maskedAccountNumber",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.masked_account_number",
+   "reasons": [
+    "maskedAccountNumber ~ credit_cards.masked_account_number (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_8b5c90ea70"
+   ]
+  },
+  {
+   "fieldId": "fld_9220e9c1c5",
+   "path": "payments[].CREDIT_CARD.last4Digits",
+   "kind": "field",
+   "status": "unresolved",
+   "band": "low",
+   "score": 0,
+   "summary": "unresolved",
+   "reasons": [
+    "no column in collected_payments or the tables next to it fits last4Digits"
+   ],
+   "code": "NO_COLUMN",
+   "candidates": [
+    "collected_payments.cart_id",
+    "collected_payments.cash_tender_id",
+    "collected_payments.svc_id"
+   ]
+  },
+  {
+   "fieldId": "fld_ab1d225d38",
+   "path": "payments[].CREDIT_CARD.cardHolderName",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← credit_cards.card_holder_name",
+   "reasons": [
+    "cardHolderName ~ credit_cards.card_holder_name (89%): normalized equal",
+    "looked up in credit_cards (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_04a262e84c"
+   ],
+   "mappingIds": [
+    "map_1f59cadc75"
+   ]
+  },
+  {
+   "fieldId": "fld_8c43491bcf",
+   "path": "payments[].CREDIT_CARD.amountChargedInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.9,
+   "summary": "← collected_payments.charged_amount_in_cents",
+   "reasons": [
+    "amountChargedInCents ~ collected_payments.charged_amount_in_cents (90%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_3614807297"
+   ]
+  },
+  {
+   "fieldId": "fld_8d1d65e494",
+   "path": "payments[].CREDIT_CARD.tipInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.tip_in_cents",
+   "reasons": [
+    "tipInCents ~ collected_payments.tip_in_cents (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_c7e5b6d5db"
+   ]
+  },
+  {
+   "fieldId": "fld_4c651b2fb0",
+   "path": "payments[].CREDIT_CARD.transactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.transaction_id",
+   "reasons": [
+    "transactionID ~ collected_payments.transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c0f52a4d00"
+   ]
+  },
+  {
+   "fieldId": "fld_03a69fffdb",
+   "path": "payments[].CREDIT_CARD.status",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"completed\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_45e65d2d0a"
+   ]
+  },
+  {
+   "fieldId": "fld_0b43cebe42",
+   "path": "payments[].CREDIT_CARD.voided",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e8992807ba"
+   ]
+  },
+  {
+   "fieldId": "fld_471012e3dd",
+   "path": "payments[].CREDIT_CARD.voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.voided_at",
+   "reasons": [
+    "voidedAt ~ collected_payments.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_2e7d2dbdba"
+   ]
+  },
+  {
+   "fieldId": "fld_759b8ab757",
+   "path": "payments[].CREDIT_CARD.createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.created_at",
+   "reasons": [
+    "createdAt ~ collected_payments.created_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7f1d1762c2"
+   ]
+  },
+  {
+   "fieldId": "fld_d3f91d80c2",
+   "path": "payments[]\u003cSCAN_AND_PAY\u003e",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.8,
+   "summary": "SCAN_AND_PAY ← scan_and_pay_qr_code_id · scan_and_pay_qrs",
+   "reasons": [
+    "its fields from scan_and_pay_qrs"
+   ],
+   "relationIds": [
+    "rel_0d4ff9aec8"
+   ]
+  },
+  {
+   "fieldId": "fld_c9f0610096",
+   "path": "payments[].SCAN_AND_PAY.paymentType",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"SCAN_AND_PAY\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_6929d3b681"
+   ]
+  },
+  {
+   "fieldId": "fld_ade791bcfb",
+   "path": "payments[].SCAN_AND_PAY.id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "medium",
+   "score": 0.7833,
+   "summary": "← collected_payments.scan_and_pay_qr_code_id",
+   "reasons": [
+    "id ~ collected_payments.scan_and_pay_qr_code_id (78%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_1c0d530a44"
+   ]
+  },
+  {
+   "fieldId": "fld_38c61ba108",
+   "path": "payments[].SCAN_AND_PAY.qrCode",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← scan_and_pay_qrs.qr_code",
+   "reasons": [
+    "qrCode ~ scan_and_pay_qrs.qr_code (89%): normalized equal",
+    "looked up in scan_and_pay_qrs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_8500b9d5dd"
+   ],
+   "mappingIds": [
+    "map_ce83f52091"
+   ]
+  },
+  {
+   "fieldId": "fld_37a263793a",
+   "path": "payments[].SCAN_AND_PAY.accountID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← scan_and_pay_qrs.account_id",
+   "reasons": [
+    "accountID ~ scan_and_pay_qrs.account_id (89%): normalized equal",
+    "looked up in scan_and_pay_qrs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_8500b9d5dd"
+   ],
+   "mappingIds": [
+    "map_c844f0255d"
+   ]
+  },
+  {
+   "fieldId": "fld_9ba48305b9",
+   "path": "payments[].SCAN_AND_PAY.encryptionKeyID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← scan_and_pay_qrs.encryption_key_id",
+   "reasons": [
+    "encryptionKeyID ~ scan_and_pay_qrs.encryption_key_id (89%): normalized equal",
+    "looked up in scan_and_pay_qrs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_8500b9d5dd"
+   ],
+   "mappingIds": [
+    "map_7045d0bf57"
+   ]
+  },
+  {
+   "fieldId": "fld_662f8ea790",
+   "path": "payments[].SCAN_AND_PAY.amountChargedInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.9,
+   "summary": "← collected_payments.charged_amount_in_cents",
+   "reasons": [
+    "amountChargedInCents ~ collected_payments.charged_amount_in_cents (90%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_82203511cb"
+   ]
+  },
+  {
+   "fieldId": "fld_e34fb06855",
+   "path": "payments[].SCAN_AND_PAY.tipInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.tip_in_cents",
+   "reasons": [
+    "tipInCents ~ collected_payments.tip_in_cents (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_e05a1f17cf"
+   ]
+  },
+  {
+   "fieldId": "fld_3d6cb1c17b",
+   "path": "payments[].SCAN_AND_PAY.transactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.transaction_id",
+   "reasons": [
+    "transactionID ~ collected_payments.transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_05a2cd1729"
+   ]
+  },
+  {
+   "fieldId": "fld_3b87c59079",
+   "path": "payments[].SCAN_AND_PAY.status",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"completed\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_581548b6f5"
+   ]
+  },
+  {
+   "fieldId": "fld_746c63333a",
+   "path": "payments[].SCAN_AND_PAY.voided",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_140949d4ea"
+   ]
+  },
+  {
+   "fieldId": "fld_f18e81763a",
+   "path": "payments[].SCAN_AND_PAY.voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.voided_at",
+   "reasons": [
+    "voidedAt ~ collected_payments.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_76350ec242"
+   ]
+  },
+  {
+   "fieldId": "fld_38f03cb429",
+   "path": "payments[].SCAN_AND_PAY.createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.created_at",
+   "reasons": [
+    "createdAt ~ collected_payments.created_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_ab486b3358"
+   ]
+  },
+  {
+   "fieldId": "fld_f82f79e826",
+   "path": "payments[]\u003cSCC\u003e",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.88,
+   "summary": "SCC ← scc_id · sccs",
+   "reasons": [
+    "its fields from sccs"
+   ],
+   "relationIds": [
+    "rel_0d4ff9aec8"
+   ]
+  },
+  {
+   "fieldId": "fld_170fd0226f",
+   "path": "payments[].SCC.paymentType",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"SCC\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_1683e25ffc"
+   ]
+  },
+  {
+   "fieldId": "fld_28fdb4f309",
+   "path": "payments[].SCC.id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.scc_id",
+   "reasons": [
+    "id ~ collected_payments.scc_id (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_8f766e9f41"
+   ]
+  },
+  {
+   "fieldId": "fld_5b3ac695b0",
+   "path": "payments[].SCC.encryptedNumber",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.828,
+   "summary": "← sccs.encrypted_scc_number",
+   "reasons": [
+    "encryptedNumber ~ sccs.encrypted_scc_number (83%): token overlap",
+    "looked up in sccs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_2c905be606"
+   ],
+   "mappingIds": [
+    "map_af7cf94921"
+   ]
+  },
+  {
+   "fieldId": "fld_38198cee77",
+   "path": "payments[].SCC.encryptionKeyID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← sccs.encryption_key_id",
+   "reasons": [
+    "encryptionKeyID ~ sccs.encryption_key_id (89%): normalized equal",
+    "looked up in sccs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_2c905be606"
+   ],
+   "mappingIds": [
+    "map_298c72aff4"
+   ]
+  },
+  {
+   "fieldId": "fld_4c7490fa88",
+   "path": "payments[].SCC.cardHash",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.7207,
+   "summary": "← sccs.scc_hash",
+   "reasons": [
+    "cardHash ~ sccs.scc_hash (72%): token overlap",
+    "looked up in sccs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_2c905be606"
+   ],
+   "mappingIds": [
+    "map_b88ec31109"
+   ]
+  },
+  {
+   "fieldId": "fld_657d342319",
+   "path": "payments[].SCC.cardImage",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← sccs.card_image",
+   "reasons": [
+    "cardImage ~ sccs.card_image (89%): normalized equal",
+    "looked up in sccs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_2c905be606"
+   ],
+   "mappingIds": [
+    "map_402d9fbf23"
+   ]
+  },
+  {
+   "fieldId": "fld_82667bb398",
+   "path": "payments[].SCC.entryMethod",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← sccs.entry_method",
+   "reasons": [
+    "entryMethod ~ sccs.entry_method (89%): normalized equal",
+    "looked up in sccs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_2c905be606"
+   ],
+   "mappingIds": [
+    "map_3b8f0c3221"
+   ]
+  },
+  {
+   "fieldId": "fld_3c6f3a5a60",
+   "path": "payments[].SCC.balanceInCents",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_eeabb8881c"
+   ]
+  },
+  {
+   "fieldId": "fld_239b47c089",
+   "path": "payments[].SCC.amountChargedInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.9,
+   "summary": "← collected_payments.charged_amount_in_cents",
+   "reasons": [
+    "amountChargedInCents ~ collected_payments.charged_amount_in_cents (90%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_845f5c7724"
+   ]
+  },
+  {
+   "fieldId": "fld_c0edca1cb9",
+   "path": "payments[].SCC.tipInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.tip_in_cents",
+   "reasons": [
+    "tipInCents ~ collected_payments.tip_in_cents (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_f0c78c70c4"
+   ]
+  },
+  {
+   "fieldId": "fld_cac75e5fbc",
+   "path": "payments[].SCC.transactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.transaction_id",
+   "reasons": [
+    "transactionID ~ collected_payments.transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7fd5d76d4e"
+   ]
+  },
+  {
+   "fieldId": "fld_447ad2a73f",
+   "path": "payments[].SCC.status",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"completed\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_106b4f5d17"
+   ]
+  },
+  {
+   "fieldId": "fld_f354213295",
+   "path": "payments[].SCC.voided",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_3503436f60"
+   ]
+  },
+  {
+   "fieldId": "fld_2b2aeb65e8",
+   "path": "payments[].SCC.voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.voided_at",
+   "reasons": [
+    "voidedAt ~ collected_payments.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_28db21bcf2"
+   ]
+  },
+  {
+   "fieldId": "fld_bebb72225a",
+   "path": "payments[].SCC.createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.created_at",
+   "reasons": [
+    "createdAt ~ collected_payments.created_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d54defc914"
+   ]
+  },
+  {
+   "fieldId": "fld_68f3cf83de",
+   "path": "payments[]\u003cSVC\u003e",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.9,
+   "summary": "SVC ← svc_id · svcs",
+   "reasons": [
+    "its fields from svcs"
+   ],
+   "relationIds": [
+    "rel_0d4ff9aec8"
+   ]
+  },
+  {
+   "fieldId": "fld_9239f1996f",
+   "path": "payments[].SVC.paymentType",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"SVC\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_99ba412d38"
+   ]
+  },
+  {
+   "fieldId": "fld_44477b3962",
+   "path": "payments[].SVC.id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.svc_id",
+   "reasons": [
+    "id ~ collected_payments.svc_id (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_21223d088f"
+   ]
+  },
+  {
+   "fieldId": "fld_c95e254d2f",
+   "path": "payments[].SVC.encryptedNumber",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.828,
+   "summary": "← svcs.encrypted_svc_number",
+   "reasons": [
+    "encryptedNumber ~ svcs.encrypted_svc_number (83%): token overlap",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_33c4d1c05e"
+   ]
+  },
+  {
+   "fieldId": "fld_fd7ddc5716",
+   "path": "payments[].SVC.encryptionKeyID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.encryption_key_id",
+   "reasons": [
+    "encryptionKeyID ~ svcs.encryption_key_id (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_f7c93233b1"
+   ]
+  },
+  {
+   "fieldId": "fld_95ef3b745f",
+   "path": "payments[].SVC.cardHash",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.667,
+   "summary": "← svcs.svc_number_hash",
+   "reasons": [
+    "cardHash ~ svcs.svc_number_hash (67%): token overlap",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_11afaa6905"
+   ]
+  },
+  {
+   "fieldId": "fld_127c6d9032",
+   "path": "payments[].SVC.last4Digits",
+   "kind": "field",
+   "status": "lookup",
+   "band": "medium",
+   "score": 0.7182,
+   "summary": "← svcs.last_four_digits",
+   "reasons": [
+    "last4Digits ~ svcs.last_four_digits (72%): fuzzy",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_02d5b02c18"
+   ]
+  },
+  {
+   "fieldId": "fld_f6edfe984b",
+   "path": "payments[].SVC.cardImage",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.card_image",
+   "reasons": [
+    "cardImage ~ svcs.card_image (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_d456e022c3"
+   ]
+  },
+  {
+   "fieldId": "fld_c5eda1a376",
+   "path": "payments[].SVC.isDefault",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.is_default",
+   "reasons": [
+    "isDefault ~ svcs.is_default (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_f908ae9165"
+   ]
+  },
+  {
+   "fieldId": "fld_d2994baad7",
+   "path": "payments[].SVC.accountID",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.account_id",
+   "reasons": [
+    "accountID ~ svcs.account_id (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_6d68875441"
+   ]
+  },
+  {
+   "fieldId": "fld_8d70c81a5e",
+   "path": "payments[].SVC.balanceInCents",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.balance_in_cents",
+   "reasons": [
+    "balanceInCents ~ svcs.balance_in_cents (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_49b62a8563"
+   ]
+  },
+  {
+   "fieldId": "fld_1f17fb1156",
+   "path": "payments[].SVC.authorizationCode",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.authorization_code",
+   "reasons": [
+    "authorizationCode ~ svcs.authorization_code (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_eeb8074fef"
+   ]
+  },
+  {
+   "fieldId": "fld_cd14342897",
+   "path": "payments[].SVC.entryMethod",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.8924,
+   "summary": "← svcs.entry_method",
+   "reasons": [
+    "entryMethod ~ svcs.entry_method (89%): normalized equal",
+    "looked up in svcs (N:1)"
+   ],
+   "relationIds": [
+    "rel_lk_b0395ebf4b"
+   ],
+   "mappingIds": [
+    "map_ee86879e58"
+   ]
+  },
+  {
+   "fieldId": "fld_b62b37ed48",
+   "path": "payments[].SVC.amountChargedInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.9,
+   "summary": "← collected_payments.charged_amount_in_cents",
+   "reasons": [
+    "amountChargedInCents ~ collected_payments.charged_amount_in_cents (90%): token overlap"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_b446be921f"
+   ]
+  },
+  {
+   "fieldId": "fld_7ecc6b0a1a",
+   "path": "payments[].SVC.tipInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.tip_in_cents",
+   "reasons": [
+    "tipInCents ~ collected_payments.tip_in_cents (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_100ea689b8"
+   ]
+  },
+  {
+   "fieldId": "fld_e0684b2455",
+   "path": "payments[].SVC.transactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.transaction_id",
+   "reasons": [
+    "transactionID ~ collected_payments.transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_0b1d6af844"
+   ]
+  },
+  {
+   "fieldId": "fld_30ecac7246",
+   "path": "payments[].SVC.status",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"completed\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_45b6b9e309"
+   ]
+  },
+  {
+   "fieldId": "fld_72e24d0b7d",
+   "path": "payments[].SVC.voided",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e731b2eee4"
+   ]
+  },
+  {
+   "fieldId": "fld_43d80cb2d1",
+   "path": "payments[].SVC.voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.voided_at",
+   "reasons": [
+    "voidedAt ~ collected_payments.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_8c39d2e075"
+   ]
+  },
+  {
+   "fieldId": "fld_9f22116ff7",
+   "path": "payments[].SVC.createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← collected_payments.created_at",
+   "reasons": [
+    "createdAt ~ collected_payments.created_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_419f2dc45c"
+   ]
+  },
+  {
+   "fieldId": "fld_58a3847947",
+   "path": "associatedScan",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_ace7353a54",
+   "path": "associatedScan.type",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e936de42d3"
+   ]
+  },
+  {
+   "fieldId": "fld_d67c212e91",
+   "path": "associatedScan.paymentID",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_f61501a30b"
+   ]
+  },
+  {
+   "fieldId": "fld_14e60ace3d",
+   "path": "receipt",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_692b40f6b1",
+   "path": "receipt.id",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_c2974f8876"
+   ]
+  },
+  {
+   "fieldId": "fld_94a91a143a",
+   "path": "receipt.data",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_c354f938c1"
+   ]
+  },
+  {
+   "fieldId": "fld_7604622ca5",
+   "path": "receipt.generationDate",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_995c8edef3"
+   ]
+  },
+  {
+   "fieldId": "fld_62b38fcea3",
+   "path": "receipt.messageType",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_3f9ddb330a"
+   ]
+  },
+  {
+   "fieldId": "fld_0156631f50",
+   "path": "loyaltyTransactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.loyalty_transaction_id",
+   "reasons": [
+    "loyaltyTransactionID ~ carts.loyalty_transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_45c7257b65"
+   ]
+  },
+  {
+   "fieldId": "fld_d7f892f37f",
+   "path": "savedAt",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.95,
+   "summary": "← saved_orders.saved_at",
+   "reasons": [
+    "savedAt ~ saved_orders.saved_at (95%): normalized equal",
+    "the design names saved_orders.saved_at",
+    "looked up in saved_orders (1:1)"
+   ],
+   "relationIds": [
+    "rel_lk_3cff795cd6"
+   ],
+   "mappingIds": [
+    "map_f808ab1635"
+   ]
+  },
+  {
+   "fieldId": "fld_98c93a6982",
+   "path": "orderCollectionType",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.95,
+   "summary": "← saved_orders.order_collection_type",
+   "reasons": [
+    "orderCollectionType ~ saved_orders.order_collection_type (95%): normalized equal",
+    "the design names saved_orders.order_collection_type",
+    "looked up in saved_orders (1:1)"
+   ],
+   "relationIds": [
+    "rel_lk_3cff795cd6"
+   ],
+   "mappingIds": [
+    "map_bdee8f3d16"
+   ]
+  },
+  {
+   "fieldId": "fld_93a3c92732",
+   "path": "createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.created_at",
+   "reasons": [
+    "createdAt ~ carts.created_at (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_1fa057f82b"
+   ]
+  },
+  {
+   "fieldId": "fld_ecdd260189",
+   "path": "updatedAt",
+   "kind": "field",
+   "status": "unresolved",
+   "band": "low",
+   "score": 0,
+   "summary": "unresolved",
+   "reasons": [
+    "no column in carts or the tables next to it fits updatedAt"
+   ],
+   "required": true,
+   "code": "NO_COLUMN",
+   "candidates": [
+    "carts.last_priced_at"
+   ]
+  },
+  {
+   "fieldId": "fld_4b2d38c421",
+   "path": "closedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.closed_at",
+   "reasons": [
+    "closedAt ~ carts.closed_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a0dce3e4f5"
+   ]
+  },
+  {
+   "fieldId": "fld_e282fba32c",
+   "path": "voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.voided_at",
+   "reasons": [
+    "voidedAt ~ carts.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7d38888aac"
+   ]
+  }
+ ],
+ "coverage": {
+  "fields": 173,
+  "proposed": 145,
+  "needsReview": 17,
+  "notPopulated": 26,
+  "unresolved": 2,
+  "containers": 17,
+  "bound": 12
+ }
+}

@@ -79,7 +79,7 @@ func linksOf(snap *schema.Snapshot) Links {
 	return func(from mapping.TableRef) []Link {
 		var out []Link
 		for _, h := range g.Hops(from) {
-			out = append(out, Link{Kind: h.Kind, Table: h.To, Join: h.Join, Virtual: h.Virtual})
+			out = append(out, Link{Kind: h.Kind, Table: h.To, Join: h.Join, Virtual: h.Virtual, Cardinality: h.Cardinality, Direction: h.Direction})
 		}
 		for _, j := range relations.Junctions(snap, from) {
 			out = append(out, Link{Kind: mapping.RelationManyToMany, Table: j.Table, Via: &mapping.Via{Table: j.Via, ParentJoin: j.ParentJoin, ChildJoin: j.ChildJoin, Columns: j.PayloadColumns}})

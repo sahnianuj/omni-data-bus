@@ -15,10 +15,19 @@ type Conformance struct {
 	Missing  []string `json:"missing"`
 	Extra    []string `json:"extra"`
 	TypeDiff []string `json:"typeDiff"`
+	// EnumValues are the paths holding a value the design's enum doesn't allow
+	// (REFERENCE_ENUM_VALUE, OC-166).
+	EnumValues []string `json:"enumValues,omitempty"`
 }
 
+// CodeReferenceEnumValue names a value outside the design's enum (OC-166): a warning, an
+// error in strict mode.
+const CodeReferenceEnumValue = "REFERENCE_ENUM_VALUE"
+
 // Empty reports a conforming document.
-func (c Conformance) Empty() bool { return len(c.Missing)+len(c.Extra)+len(c.TypeDiff) == 0 }
+func (c Conformance) Empty() bool {
+	return len(c.Missing)+len(c.Extra)+len(c.TypeDiff)+len(c.EnumValues) == 0
+}
 
 // Conform compares a document with an imported design's fields.
 func Conform(fields []ContractField, doc json.RawMessage) Conformance {
@@ -31,9 +40,24 @@ func Conform(fields []ContractField, doc json.RawMessage) Conformance {
 	}
 	seen := map[string]map[string]bool{} // path → JSON kinds seen (null excluded)
 	objects := map[string]bool{"": true} // paths seen as objects ("" = the root)
+	allowed := map[string]map[string]bool{}
+	for _, f := range fields {
+		if len(f.Enum) > 0 {
+			allowed[f.Path] = map[string]bool{}
+			for _, e := range f.Enum {
+				allowed[f.Path][compactJSON(e)] = true
+			}
+		}
+	}
+	badEnum := map[string]bool{}
 	var walk func(v any, path string)
 	walk = func(v any, path string) {
 		k := kindOf(v)
+		if set := allowed[path]; set != nil && v != nil && k != "object" && k != "array" {
+			if raw, err := json.Marshal(v); err == nil && !set[compactJSON(raw)] {
+				badEnum[path] = true
+			}
+		}
 		if path != "" {
 			if seen[path] == nil {
 				seen[path] = map[string]bool{}
@@ -82,7 +106,19 @@ func Conform(fields []ContractField, doc json.RawMessage) Conformance {
 		}
 	}
 	sort.Strings(out.Extra)
+	for p := range badEnum {
+		out.EnumValues = append(out.EnumValues, p)
+	}
+	sort.Strings(out.EnumValues)
 	return out
+}
+
+func compactJSON(raw []byte) string {
+	var b bytes.Buffer
+	if json.Compact(&b, raw) != nil {
+		return string(raw)
+	}
+	return b.String()
 }
 
 // parentPath: "a.b" → "a", "a[].b" → "a[]", "b" → "".

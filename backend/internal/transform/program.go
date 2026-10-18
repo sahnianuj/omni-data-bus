@@ -33,6 +33,8 @@ type Options struct {
 
 	embedded bool          // compiling a relation's sub-program: no key or type field
 	scope    *compileScope // where the program's fields are (nil = the root)
+	// variants match the rows of the relation being compiled to its items' variants (OC-171).
+	variants map[string]variantRule
 }
 
 // compileScope is the relation whose rows a (sub-)program writes, with its ancestors: a field
@@ -161,6 +163,10 @@ type node struct {
 	// null marks a designed field with no active mapping, written as null unless the spec
 	// omits unmapped fields.
 	null bool
+	// variant writes its children in the enclosing object when the row is of that variant;
+	// union writes an array of the rows of several variant relations (OC-171).
+	variant *variantNode
+	union   *unionProg
 	// embed fills the field from a relation's rows (OC-021); agg from an aggregate (OC-045).
 	embed *embedProg
 	agg   *aggProg
@@ -198,9 +204,13 @@ type Program struct {
 	helpers  map[string]any
 	envCache map[string]any // the current row's scoped environment
 	envBuilt bool
-	computed []*compProg // the root program's computed fields, in evaluation order (OC-136)
-	arena    jvArena     // the computed pass's document copy, reused per row
-	compBuf  []byte      // the computed pass's output buffer, swapped with the row's buffer
+	computed []*compProg            // the root program's computed fields, in evaluation order (OC-136)
+	variants map[string]variantRule // a variant relation's rows → its items' variants (OC-171)
+	// variantOrder are the variant nodes in design order; curVariant the current row's.
+	variantOrder []*variantNode
+	curVariant   *variantNode
+	arena        jvArena // the computed pass's document copy, reused per row
+	compBuf      []byte  // the computed pass's output buffer, swapped with the row's buffer
 }
 
 // Compile resolves a spec against the source table. Issues (bad args, bad regex, unknown
@@ -214,7 +224,8 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		opts.scope = &compileScope{spec: spec, scopes: mapping.FieldScopes(spec), table: t}
 	}
 	sc := opts.scope
-	p := &Program{cols: t.Columns, opts: opts}
+	p := &Program{cols: t.Columns, opts: opts, variants: opts.variants}
+	opts.variants = nil // nested relations have their own
 	for _, c := range t.Columns {
 		p.colNames = append(p.colNames, c.Name)
 	}
@@ -342,7 +353,7 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 				errorf(path, f.ID, m.ID, mapping.CodeTransformInvalid, "Unknown transform '"+st.Op+"'.", si, st.Op)
 				continue
 			}
-			if st.Op == "concat" || st.Op == "expression" || st.Op == "constant" || st.Op == "array" {
+			if st.Op == "concat" || st.Op == "expression" || st.Op == "constant" || st.Op == "array" || st.Op == "now" {
 				hasConcatOrExpr = true // even when its args are wrong: that's the one issue to report
 			}
 			fn, err := spec.compile(st.Args, env)
@@ -377,7 +388,8 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		case len(fp.srcIdx) == 0 && !hasConcatOrExpr:
 			errorf(path, f.ID, m.ID, mapping.CodeTransformInvalid, "A mapping without sources needs a constant (or an expression).", -1, "")
 		}
-		if class, _ := mapping.Compat(string(inType), f.Type); class == mapping.ClassIncompatible {
+		// A now step's format is checked against the field by validation (NOW_FORMAT_TYPE, OC-179).
+		if class, _ := mapping.Compat(string(inType), f.Type); class == mapping.ClassIncompatible && !endsWithNow(m.Transforms) {
 			errorf(path, f.ID, m.ID, CodeTypeMismatch, fmt.Sprintf("The pipeline produces %s, but %s is %s.", inType, path, f.Type), len(m.Transforms)-1, "")
 		}
 		fp.direct = fp.ext == nil && len(fp.srcIdx) == 1 && len(fp.steps) == 0 && directSafe(t.Columns[fp.srcIdx[0]], f.Type)
@@ -395,7 +407,12 @@ func Compile(spec *mapping.Spec, t *schema.Table, opts Options) (*Program, []map
 		issues = append(issues, cissues...)
 		p.computed = cps
 	}
-	p.root = buildNodes(spec.DocSchema.Root.Children, byField, byEmbed, byAgg, computedIDs(sc.spec), !spec.OmitUnmapped)
+	p.root = buildNodes(spec.DocSchema.Root.Children, byField, byEmbed, byAgg, computedIDs(sc.spec), !spec.OmitUnmapped, notPopulatedIDs(sc.spec), p.variants)
+	for _, n := range p.root {
+		if n.variant != nil {
+			p.variantOrder = append(p.variantOrder, n.variant)
+		}
+	}
 	mapping.SortIssues(issues)
 	for _, i := range issues {
 		if i.Severity == mapping.SeverityError {
@@ -419,10 +436,29 @@ func directSafe(c schema.Column, target docschema.FieldType) bool {
 // buildNodes lays out the document in design order. Leaf fields without an active mapping
 // become null nodes when includeUnmapped (the spec's "Include unmapped fields"), else they're
 // left out. Null handling only decides what a mapped field whose value is null becomes.
-func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEmbed map[string]*embedProg, byAgg map[string]*aggProg, computed map[string]bool, includeUnmapped bool) []*node {
+//
+// A field the design leaves empty (not populated, OC-166) is written like an unmapped one, and
+// an object whose every field is so is written as null itself, not as an object of nulls.
+func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEmbed map[string]*embedProg, byAgg map[string]*aggProg, computed map[string]bool, includeUnmapped bool, notPopulated map[string]bool, variants map[string]variantRule) []*node {
 	var out []*node
 	for i := range fields {
 		f := &fields[i]
+		if f.Variant != nil {
+			// A variant of the items (OC-171): written only for its rows, in the item itself.
+			if rule, ok := variants[f.ID]; ok {
+				kids := buildNodes(f.Children, byField, byEmbed, byAgg, computed, includeUnmapped, notPopulated, nil)
+				out = append(out, &node{name: f.Name, variant: &variantNode{id: f.ID, rule: rule, kids: kids}})
+			}
+			continue
+		}
+		if f.Type == docschema.Array && f.Items != nil && f.Items.HasVariants() {
+			// Variants with rows of their own (OC-171): the array is their union.
+			if u := unionOf(f.Items, byEmbed); u != nil {
+				u.path = f.Name
+				out = append(out, &node{name: f.Name, union: u})
+				continue
+			}
+		}
 		if computed[f.ID] {
 			out = append(out, &node{name: f.Name, null: true})
 			continue
@@ -440,8 +476,12 @@ func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEm
 			continue
 		}
 		switch {
+		case f.Type == docschema.Object && len(f.Children) > 0 && allNotPopulated(f, notPopulated):
+			if includeUnmapped {
+				out = append(out, &node{name: f.Name, null: true})
+			}
 		case f.Type == docschema.Object && len(f.Children) > 0:
-			if kids := buildNodes(f.Children, byField, byEmbed, byAgg, computed, includeUnmapped); len(kids) > 0 {
+			if kids := buildNodes(f.Children, byField, byEmbed, byAgg, computed, includeUnmapped, notPopulated, variants); len(kids) > 0 {
 				out = append(out, &node{name: f.Name, children: kids})
 			}
 		case f.Type != docschema.Object && includeUnmapped:
@@ -449,6 +489,33 @@ func buildNodes(fields []docschema.DocField, byField map[string]*fieldProg, byEm
 		}
 	}
 	return out
+}
+
+// notPopulatedIDs are the fields the design leaves empty on purpose (OC-166).
+func notPopulatedIDs(spec *mapping.Spec) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range spec.FieldMappings {
+		if m.State == mapping.StateNotPopulated {
+			out[m.TargetFieldID] = true
+		}
+	}
+	return out
+}
+
+// allNotPopulated reports whether every field under an object is left empty on purpose.
+func allNotPopulated(f *docschema.DocField, np map[string]bool) bool {
+	if np[f.ID] {
+		return true
+	}
+	if len(np) == 0 || f.Type != docschema.Object || len(f.Children) == 0 {
+		return false
+	}
+	for i := range f.Children {
+		if !allNotPopulated(&f.Children[i], np) {
+			return false
+		}
+	}
+	return true
 }
 
 // value returns the encoded value of column i for the current row (encoded once per row).
@@ -626,6 +693,20 @@ func (p *Program) apply(row []any, related source.Related, buf []byte, trace map
 func (p *Program) writeNodes(dst []byte, nodes []*node, row []any, first bool, trace map[string][]TraceStep) ([]byte, bool, *RowError) {
 	wrote := false
 	for _, n := range nodes {
+		if n.variant != nil {
+			if !p.isVariant(n.variant, row) {
+				continue
+			}
+			var w bool
+			var rerr *RowError
+			if dst, w, rerr = p.writeNodes(dst, n.variant.kids, row, first, trace); rerr != nil {
+				return dst, false, rerr
+			}
+			if w {
+				first, wrote = false, true
+			}
+			continue
+		}
 		mark := len(dst)
 		if !first {
 			dst = append(dst, ',')
@@ -645,6 +726,11 @@ func (p *Program) writeNodes(dst []byte, nodes []*node, row []any, first bool, t
 			if !ok {
 				dst = dst[:mark]
 				continue
+			}
+		case n.union != nil:
+			var rerr *RowError
+			if dst, rerr = p.writeUnion(dst, n.union); rerr != nil {
+				return dst, false, rerr
 			}
 		case n.agg != nil:
 			var ok bool
@@ -992,3 +1078,5 @@ func appendString(dst []byte, s string) []byte {
 	dst = append(dst, s[start:]...)
 	return append(dst, '"')
 }
+
+func endsWithNow(steps []mapping.Step) bool { return len(steps) > 0 && steps[len(steps)-1].Op == "now" }

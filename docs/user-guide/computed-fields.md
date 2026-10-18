@@ -4,15 +4,25 @@ A computed field takes its value from the document's **other fields** instead of
 
 ## Setting a field's value
 
-Select a field in the Canvas, the Composer or the Table view. The Inspector's **Value source** has three choices:
+Select a field in the Canvas, the Composer or the Table view. The Inspector's **Value source** has these choices:
 
 | Choice | The field gets |
 |---|---|
 | **Source** | Mapped source columns, through the field's transforms (as before) |
 | **Fixed** | The same value in every document (a string, number, boolean, null, or JSON) |
 | **Template** | A value built from other fields, like `${doc.firstName} ${doc.lastName}` |
+| **Date** | The current date and time, for a text, number or date field (see below) |
 
 Switching a mapped field away from **Source** asks first; **Undo** brings the mapping back. **ƒx** next to **Add field** adds a new field that is already a template. Computed fields show **ƒx** in the trees.
+
+## The current date and time
+
+**Date** fills a field that no column holds, such as `updatedAt` or `migratedAt`. Choose:
+
+- **When the run started** (the default): every document of a run gets the same time. **When each document is written**: each document gets its own, which suits incremental runs.
+- **Format**: **Same as** another date of the document (for example *Same as createdAt (epoch ms)*, so the dates match), or epoch milliseconds, epoch seconds, ISO 8601, a date, or a custom pattern (`yyyy-MM-dd HH:mm`). A written-out format takes a **time zone** (UTC by default).
+
+It starts with the document's other date format when one suits the field; otherwise epoch milliseconds for a number field and ISO 8601 for text. The Inspector shows a sample of what's written. A number field needs an epoch and a text field a written-out date: otherwise the mapping has an error, `NOW_FORMAT_TYPE`, whose fix switches the format. The field shows **now · epoch ms** in the Canvas and **now (epoch ms)** in the Composer.
 
 ## Writing a template
 

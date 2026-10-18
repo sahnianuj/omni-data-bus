@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DocSchema, MappingSpec } from '@/features/mapping/types'
 import { composedSpec } from '@/test/composer'
 import { foreignKeyOf, scopeDepth } from './bindPrefill'
-import { acceptSuggestion, addLookup, addNode, applyConstantHint, bind, bindGroupRows, blank, collapseToId, combineRows, pluralName, rebaseSources, deleteNode, expandForeignKey, dismissConstantHint, groupKey, importDesign, moveNode, nodeOf, OpError, setDrivingTable, setExpression, setGroupBy, setNodeType, singularName, unbind } from './composerOps'
+import { acceptSuggestion, addLookup, addNode, applyConstantHint, bind, bindGroupRows, blank, collapseToId, combineRows, pluralName, rebaseSources, deleteNode, expandForeignKey, dismissConstantHint, groupKey, importDesign, moveNode, nodeOf, OpError, setDrivingTable, setExpression, setGroupBy, setNodeType, singularName, repeatsTable, unbind } from './composerOps'
 
 const itemsTable = { schema: 'public', name: 'order_items' }
 
@@ -337,5 +337,15 @@ describe('composerOps', () => {
     expect(out.fieldMappings.find((m) => m.id === 'm_line')!.sources).toEqual([{ column: 'line_no', relation: self.relationId }])
     expect(out.fieldMappings.find((m) => m.id === 'm_oid')!.sources).toEqual([{ column: 'order_id' }])
     expect(out.key.template).toBe('order_details::{order_id}')
+  })
+
+  it('OC-177 AC3: a values-only lookup that repeats a table the node reads is flagged', () => {
+    const s = composedSpec()
+    const customers = { schema: 'public', name: 'customers' }
+    const products = { schema: 'public', name: 'products' }
+    expect(repeatsTable(s, 'f_cust', customers, [{ parent: 'customer_id', child: 'customer_id' }])).toBe('bound')
+    expect(repeatsTable(s, 'f_items', products, [{ parent: 'product_id', child: 'product_id' }])).toBe('lookup')
+    expect(repeatsTable(s, 'f_items', products, [{ parent: 'sku', child: 'sku' }])).toBeNull()
+    expect(repeatsTable(s, 'f_items', customers, [{ parent: 'order_id', child: 'customer_id' }])).toBeNull()
   })
 })

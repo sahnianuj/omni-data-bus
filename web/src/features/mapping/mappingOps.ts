@@ -196,13 +196,21 @@ export function setConstant(spec: MappingSpec, fieldId: string, value: unknown):
   }
 }
 
-/** Where a field's value comes from (OC-138): source columns, a fixed value or a template. */
-export type ValueSource = 'source' | 'fixed' | 'template'
+/** Marks a field as left empty on purpose (OC-166), replacing what filled it; off clears the mark. */
+export function setNotPopulated(spec: MappingSpec, fieldId: string, on: boolean): MappingSpec {
+  const others = spec.fieldMappings.filter((m) => !(m.targetFieldId === fieldId && m.state !== 'rejected'))
+  if (!on) return { ...spec, fieldMappings: spec.fieldMappings.filter((m) => !(m.targetFieldId === fieldId && m.state === 'notPopulated')) }
+  return { ...spec, fieldMappings: [...others, { id: newMappingId(), targetFieldId: fieldId, sources: [], transforms: [], origin: 'manual', state: 'notPopulated' }] }
+}
+
+/** Where a field's value comes from (OC-138): source columns, a fixed value, a template or the current date and time (OC-179). */
+export type ValueSource = 'source' | 'fixed' | 'template' | 'now'
 
 export function valueSourceOf(spec: MappingSpec, fieldId: string): ValueSource {
   const m = spec.fieldMappings.find((x) => x.targetFieldId === fieldId && x.state === 'active')
   if (m?.computed) return 'template'
   if (m && m.sources.length === 0 && m.transforms.some((t) => t.op === 'constant')) return 'fixed'
+  if (m && m.sources.length === 0 && m.transforms.some((t) => t.op === 'now')) return 'now'
   return 'source'
 }
 

@@ -56,14 +56,18 @@ type Table struct {
 	SizeBytes     int64  `json:"sizeBytes"`
 	Comment       string `json:"comment,omitempty"`
 	// Readable is false when the connection's user can't SELECT from it.
-	Readable          bool         `json:"readable"`
-	Partitions        []string     `json:"partitions,omitempty"`
-	Columns           []Column     `json:"columns"`
-	PrimaryKey        []string     `json:"primaryKey"`
-	UniqueConstraints [][]string   `json:"uniqueConstraints"`
-	ForeignKeys       []ForeignKey `json:"foreignKeys"`
-	ReferencedBy      []Reference  `json:"referencedBy"`
-	Indexes           []Index      `json:"indexes"`
+	Readable          bool       `json:"readable"`
+	Partitions        []string   `json:"partitions,omitempty"`
+	Columns           []Column   `json:"columns"`
+	PrimaryKey        []string   `json:"primaryKey"`
+	UniqueConstraints [][]string `json:"uniqueConstraints"`
+	// CheckConstraints are the table's CHECK constraints; ExclusiveArcs the column sets of which
+	// exactly one is set in every row, recognised from them (OC-171).
+	CheckConstraints []Check      `json:"checkConstraints,omitempty"`
+	ExclusiveArcs    [][]string   `json:"exclusiveArcs,omitempty"`
+	ForeignKeys      []ForeignKey `json:"foreignKeys"`
+	ReferencedBy     []Reference  `json:"referencedBy"`
+	Indexes          []Index      `json:"indexes"`
 }
 
 // Column is one table column.

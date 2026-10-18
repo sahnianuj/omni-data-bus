@@ -164,7 +164,8 @@ func (s *Service) Create(ctx context.Context, ws store.WorkspaceID, userID, proj
 
 func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, projectID string, opts Options, ids []string, pre PreflightResult) (View, PreflightResult, error) {
 	opts.MappingIDs = ids
-	var needs []string // why the job needs a 2.0 worker
+	var needs []string   // why the job needs a 2.0 worker
+	var needs25 []string // why it needs a 2.5 worker (OC-171)
 	// Freeze each mapping's spec: a resumed run uses exactly what the job started with.
 	opts.Specs, opts.MappingVersions, opts.TargetEmpty = map[string]json.RawMessage{}, map[string]int64{}, map[string]bool{}
 	for _, pm := range pre.Mappings {
@@ -181,6 +182,7 @@ func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, proj
 		var spec mapping.Spec
 		if json.Unmarshal(m.Spec, &spec) == nil {
 			needs = append(needs, mapping.RequiresV2(&spec)...)
+			needs25 = append(needs25, mapping.RequiresV25(&spec)...)
 		}
 		if m.Where().Kind == store.KindDirectory {
 			needs = append(needs, "directory target")
@@ -200,6 +202,11 @@ func (s *Service) create(ctx context.Context, ws store.WorkspaceID, userID, proj
 		// 1.0.1 workers skip it while both releases run during an upgrade (OC-057).
 		job.MinWorkerVersion = mapping.MinWorker20
 		job.MinWorkerLevel, _ = store.VersionLevel(mapping.MinWorker20)
+	}
+	if len(needs25) > 0 {
+		// 2.0 workers would write variant items without their fields (OC-171).
+		job.MinWorkerVersion = mapping.MinWorker25
+		job.MinWorkerLevel, _ = store.VersionLevel(mapping.MinWorker25)
 	}
 	j, err := s.store.Jobs().Create(ctx, ws, job)
 	var conflict *store.ConflictError

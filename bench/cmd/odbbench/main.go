@@ -7,12 +7,13 @@
 //	cd bench && go run ./cmd/odbbench --dataset smoke --gate integrity
 //	cd bench && go run ./cmd/odbbench --dataset standard --gate release   # release checklist (AC10)
 //
-// 2.0 (OC-056) adds the directory, nested and skewed datasets, `coldstart` (times an exported
-// migrate.sh preflight) and `gate`, which judges the committed results against gates-2.0.0.json:
+// 2.0 (OC-056) adds the directory, nested and skewed datasets, `coldstart` (times `odb preflight`
+// in an export folder; 2.5, OC-184) and `gate`, which judges the committed results against
+// gates-<release>.json:
 //
 //	cd bench && go run ./cmd/odbbench --dataset directory --directory /data/odb-out/bench --gate integrity --out results/2.0.0
-//	cd bench && go run ./cmd/odbbench coldstart --script ./export/migrate.sh --out results/2.0.0
-//	cd bench && go run ./cmd/odbbench gate --gates gates-2.0.0.json --results results/2.0.0
+//	cd bench && go run ./cmd/odbbench coldstart --dir ./export --odb ./export/bin/odb --out results/2.5.0
+//	cd bench && go run ./cmd/odbbench gate --gates gates-2.5.0.json --results results/2.5.0
 package main
 
 import (

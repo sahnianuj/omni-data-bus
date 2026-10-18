@@ -3,9 +3,9 @@ package export
 import (
 	"archive/tar"
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -13,10 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
 
+	"omnidatabus/internal/legal"
 	"omnidatabus/internal/store"
 )
 
@@ -40,8 +42,50 @@ type Platform struct {
 // String is "os_arch", as in Platforms.
 func (p Platform) String() string { return p.OS + "_" + p.Arch }
 
-// Platforms odb is released for.
-var Platforms = []string{"linux_amd64", "linux_arm64", "darwin_amd64", "darwin_arm64"}
+// Platforms odb is released for. darwin_universal is one signed, notarized binary for Intel and
+// Apple silicon Macs (OC-185); the per-architecture darwin builds stay for older requests and
+// servers whose dist has no universal binary. Windows gets odb.exe in a .zip (OC-186).
+var Platforms = []string{"linux_amd64", "linux_arm64", "darwin_universal", "darwin_amd64", "darwin_arm64", "windows_amd64", "windows_arm64"}
+
+// SignedFile lists, one archive name per line, the release archives whose odb is signed for its
+// OS (Apple notarization, OC-185; Authenticode, OC-186). The release workflow writes it next to
+// SHA256SUMS; a dist without it (make dist, a self-built server) is unsigned.
+const SignedFile = "SIGNED"
+
+// platformLabels name each platform for people: in the README and the export dialog.
+var platformLabels = map[string]string{
+	"linux_amd64": "Linux x86-64", "linux_arm64": "Linux ARM64",
+	"darwin_amd64": "macOS (Intel)", "darwin_arm64": "macOS (Apple silicon)",
+	"darwin_universal": "macOS (Intel or Apple silicon)", "windows_amd64": "Windows x86-64", "windows_arm64": "Windows ARM64",
+}
+
+// PlatformLabel is a platform's name for people ("Linux x86-64"); the platform itself if unknown.
+func PlatformLabel(p string) string {
+	if l, ok := platformLabels[p]; ok {
+		return l
+	}
+	return p
+}
+
+// isWindows reports whether a platform is Windows (odb.exe, a .zip download).
+func isWindows(p string) bool { return strings.HasPrefix(p, "windows_") }
+
+// OdbPath is where an export holds the included odb for a platform (OC-182): bin/odb, or
+// bin/odb.exe for Windows.
+func OdbPath(p string) string {
+	if isWindows(p) {
+		return "bin/odb.exe"
+	}
+	return "bin/odb"
+}
+
+// Archive is the release download of odb for a platform: a .tar.gz, or a .zip for Windows.
+func Archive(version, p string) string {
+	if isWindows(p) {
+		return "odb_" + version + "_" + p + ".zip"
+	}
+	return "odb_" + version + "_" + p + ".tar.gz"
+}
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
@@ -67,46 +111,81 @@ func doubleQuoteSafe(s string) string {
 type Dist struct {
 	Dir     string
 	Version string
+	// Fetch downloads, verifies and caches what Dir doesn't have (OC-188); nil = never download.
+	Fetch *Fetcher
 	// Self is the running binary's path (os.Executable by default).
 	Self func() (string, error)
 }
 
-// Checksums reads SHA256SUMS: platform → sha256 of the tarball. Missing → none.
+// Checksums reads SHA256SUMS: platform → sha256 of its release archive. It comes from the dist
+// folder, else from the one built into the image (OC-188). Missing → none.
 func (d Dist) Checksums() map[string]string {
 	out := map[string]string{}
-	if d.Dir == "" {
-		return out
-	}
-	f, err := os.Open(filepath.Join(d.Dir, "SHA256SUMS"))
-	if err != nil {
-		return out
-	}
-	defer func() { _ = f.Close() }()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		sum, name, ok := strings.Cut(strings.TrimSpace(sc.Text()), "  ")
-		if !ok {
-			continue
-		}
-		for _, p := range Platforms {
-			if name == "odb_"+d.Version+"_"+p+".tar.gz" {
-				out[p] = sum
-			}
+	byName := readSums(d.sumsDir())
+	for _, p := range Platforms {
+		if sum := byName[Archive(d.Version, p)]; sum != "" {
+			out[p] = sum
 		}
 	}
 	return out
 }
 
-// Binary returns the odb binary for a platform: from the dist tarball, or the running binary
-// when it is that platform.
-func (d Dist) Binary(platform string) ([]byte, error) {
+// selfPlatform is the platform this server runs on.
+func selfPlatform() string { return runtime.GOOS + "_" + runtime.GOARCH }
+
+// Signed lists the platforms whose release archive is signed for its OS (SignedFile).
+func (d Dist) Signed() []string {
+	var out []string
+	if d.Dir == "" {
+		return out
+	}
+	raw, err := os.ReadFile(filepath.Join(d.sumsDir(), SignedFile)) //nolint:gosec // G304: the configured dist or image folder
+	if err != nil {
+		return out
+	}
+	names := map[string]bool{}
+	for _, l := range strings.Split(string(raw), "\n") {
+		names[strings.TrimSpace(l)] = true
+	}
+	for _, p := range Platforms {
+		if names[Archive(d.Version, p)] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// Preferred is the platform to include for a request: an older request for one Mac architecture
+// gets the universal binary when the dist has it (OC-185).
+func (d Dist) Preferred(p string) string {
+	if strings.HasPrefix(p, "darwin_") && p != "darwin_universal" && slices.Contains(d.Available(), "darwin_universal") {
+		return "darwin_universal"
+	}
+	return p
+}
+
+// Binary returns the odb binary for a platform: from the dist folder, else from the release
+// (cached, or downloaded and verified on first use, OC-188), else the running binary when it is
+// that platform.
+func (d Dist) Binary(ctx context.Context, platform string) ([]byte, error) {
 	var raw []byte
 	if d.Dir != "" {
-		if b, err := binaryFromTarball(filepath.Join(d.Dir, "odb_"+d.Version+"_"+platform+".tar.gz")); err == nil {
+		if b, err := binaryFromArchive(filepath.Join(d.Dir, Archive(d.Version, platform))); err == nil {
 			raw = b
 		}
 	}
-	if raw == nil && platform == runtime.GOOS+"_"+runtime.GOARCH {
+	if raw == nil && platform != selfPlatform() {
+		p, ok, err := d.fromRelease(ctx, platform)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			if raw, err = binaryFromArchive(p); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if raw == nil && platform == selfPlatform() {
 		self := d.Self
 		if self == nil {
 			self = os.Executable
@@ -125,21 +204,30 @@ func (d Dist) Binary(platform string) ([]byte, error) {
 	return raw, nil
 }
 
-// Available lists the platforms an embedded binary is available for.
-func (d Dist) Available() []string {
-	var out []string
-	for _, p := range Platforms {
-		if d.Dir != "" {
-			if _, err := os.Stat(filepath.Join(d.Dir, "odb_"+d.Version+"_"+p+".tar.gz")); err == nil {
-				out = append(out, p)
-				continue
+// Available lists the platforms an export can add odb for: now, or downloaded on first use.
+func (d Dist) Available() []string { return availableOrOnDemand(d.Machines()) }
+
+// binaryFromArchive reads odb from a release .tar.gz, or odb.exe from a Windows .zip.
+func binaryFromArchive(path string) ([]byte, error) {
+	if strings.HasSuffix(path, ".zip") {
+		zr, err := zip.OpenReader(path)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = zr.Close() }()
+		for _, f := range zr.File {
+			if f.Name == "odb.exe" {
+				rc, err := f.Open()
+				if err != nil {
+					return nil, err
+				}
+				defer func() { _ = rc.Close() }()
+				return io.ReadAll(io.LimitReader(rc, 200<<20))
 			}
 		}
-		if p == runtime.GOOS+"_"+runtime.GOARCH {
-			out = append(out, p)
-		}
+		return nil, fmt.Errorf("%s has no odb.exe", path)
 	}
-	return out
+	return binaryFromTarball(path)
 }
 
 func binaryFromTarball(path string) ([]byte, error) {
@@ -170,32 +258,9 @@ type ScriptConfig struct {
 	DownloadURL    string // where odb_<ver>_<os>_<arch>.tar.gz are downloaded from
 	CosignIdentity string // the release workflow identity cosign verifies (regexp)
 	Dist           Dist
-	// EmbedWhenNoDownload includes odb in every export when no platform can be downloaded (no
-	// release checksums, e.g. a self-built server), so the script still runs as is.
-	EmbedWhenNoDownload bool
-}
-
-// fallbackPlatform is the platform an export includes odb for when nothing can be downloaded:
-// this server's own if it has that binary, else the first it has. Empty: none.
-func (c ScriptConfig) fallbackPlatform(checksums map[string]string) string {
-	if !c.EmbedWhenNoDownload {
-		return ""
-	}
-	for _, sum := range checksums {
-		if sum != "" {
-			return ""
-		}
-	}
-	avail := c.Dist.Available()
-	for _, p := range avail {
-		if p == runtime.GOOS+"_"+runtime.GOARCH {
-			return p
-		}
-	}
-	if len(avail) > 0 {
-		return avail[0]
-	}
-	return ""
+	// Build is the build of this odb release ("7f6cea2+418"), named in the script and README
+	// headers so an export says exactly what produced it (OC-172); "" = the release only.
+	Build string
 }
 
 type scriptMapping struct{ Name, Source, Target string }
@@ -203,22 +268,35 @@ type scriptMapping struct{ Name, Source, Target string }
 // scriptData is all migrate.sh holds: the odb release it runs (OC-159). Nothing about the
 // export, so every export from one release has the same script.
 type scriptData struct {
-	Version, Image, DownloadURL, CosignIdentity string
-	Checksums                                   map[string]string
+	Version, Build, Image, DownloadURL, CosignIdentity string
+	Checksums                                          map[string]string
 }
 
 // readmeData describes one export in its README.md.
 type readmeData struct {
-	Project, ExportedAt, ExportedBy, Version, BundleSHA256 string
-	Mappings                                               []scriptMapping
-	SourceSummary, TargetSummary, TargetKind, TargetPath   string
-	TargetHasCredentials                                   bool
-	Image, DownloadURL                                     string
-	// OdbPlatform is the platform of the odb included beside the script ("" = none).
-	OdbPlatform string
+	Project, ExportedAt, ExportedBy, Version, Build, BundleSHA256 string
+	Mappings                                                      []scriptMapping
+	SourceSummary, TargetSummary, TargetKind, TargetPath          string
+	TargetHasCredentials                                          bool
+	Image, DownloadURL                                            string
+	// OdbPlatform is the platform of the included odb ("" = none, OC-182); OdbBin is its path
+	// in the folder and OdbPlatformLabel its name for people.
+	OdbPlatform, OdbBin, OdbBinWindows, OdbPlatformLabel string
+	OdbIsWindows                                         bool
+	// OdbUnsigned: the included odb isn't signed for its OS (a development build), so macOS
+	// Gatekeeper or Windows SmartScreen will stop it the first time (OC-185, OC-186).
+	OdbUnsignedMac, OdbUnsignedWindows bool
+	// Needs is the odb releases that run this export, in words.
+	Needs string
+	// Downloads are the release archives the README links to, one per platform with a checksum.
+	Downloads  []download
+	HasWindows bool
 	// Folder is the zip's top-level directory: everything unzips (and runs) inside it.
 	Folder string
 }
+
+// download is one row of the README's Install odb table.
+type download struct{ Label, File, URL, SHA256 string }
 
 // Artifact is a generated download.
 type Artifact struct {
@@ -235,34 +313,33 @@ const MaxArtifactBytes = 80 << 20
 // MappingsFile is the export's mappings: the bundle, without connection details (OC-158).
 const MappingsFile = "mappings.json"
 
-// RenderScript builds the export (OC-160): one folder, named like the zip, with migrate.sh
-// (0755), README.md, config.json (0600), mappings.json and, when include names a platform, odb
-// (0755) for it. With no platform, odb is still included when nothing can be downloaded.
-func RenderScript(b Bundle, mappingsJSON, runConfig []byte, include string, cfg ScriptConfig, version string) (Artifact, error) {
-	if include == "" {
-		include = cfg.fallbackPlatform(cfg.Dist.Checksums())
-	}
-	script, err := GenericScript(cfg, version)
-	if err != nil {
-		return Artifact{}, err
-	}
+// RenderScript builds the export (OC-160, OC-182): one folder, named like the zip, with
+// README.md, config.json (0600) and mappings.json, run by the odb installed on any OS. When
+// include names a platform, odb for it is added as bin/odb (bin/odb.exe), 0755, for a machine
+// without internet access. There is no script: odb finds the files itself (OC-180).
+func RenderScript(ctx context.Context, b Bundle, mappingsJSON, runConfig []byte, include string, cfg ScriptConfig, version string) (Artifact, error) {
 	readme, err := RenderReadme(b, runConfig, include, cfg, version)
 	if err != nil {
 		return Artifact{}, err
 	}
 	folder := exportFolder(b)
 	dir := folder + "/"
-	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "migrate.sh", 0o755, script}, {dir + "README.md", 0o644, readme}}
+	files := []zipFile{{dir, os.ModeDir | 0o755, nil}, {dir + "README.md", 0o644, readme}}
 	if runConfig != nil {
 		files = append(files, zipFile{dir + RunConfigFile, 0o600, runConfig})
 	}
 	files = append(files, zipFile{dir + MappingsFile, 0o644, mappingsJSON})
 	if include != "" {
-		bin, err := cfg.Dist.Binary(include)
+		bin, err := cfg.Dist.Binary(ctx, include)
 		if err != nil {
 			return Artifact{}, err
 		}
-		files = append(files, zipFile{dir + "odb", 0o755, bin})
+		files = append(files, zipFile{dir + "bin/", os.ModeDir | 0o755, nil}, zipFile{dir + OdbPath(include), 0o755, bin})
+		// A binary handed on carries its licence and its dependencies' notices (OC-189).
+		files = append(files, zipFile{dir + "bin/LICENSES/", os.ModeDir | 0o755, nil})
+		for _, f := range legal.Files() {
+			files = append(files, zipFile{dir + "bin/LICENSES/" + f.Name, 0o644, f.Data})
+		}
 	}
 	art, err := zipArtifact(folder, files, b.CreatedAt)
 	art.IncludedOdb = include
@@ -285,10 +362,11 @@ func exportFolder(b Bundle) string {
 	return "odb-export-" + slug(b.Project.Name) + "-" + b.CreatedAt.Format("20060102")
 }
 
-// GenericScript is migrate.sh for this odb release: the same for every export (OC-159).
+// GenericScript is migrate.sh for this odb release (OC-159). Exports no longer include it
+// (OC-182); it stays until 3.0 for the test that runs a 2.0 script against this odb.
 func GenericScript(cfg ScriptConfig, version string) ([]byte, error) {
 	d := scriptData{
-		Version: version, Image: cfg.Image, DownloadURL: strings.TrimRight(cfg.DownloadURL, "/"), CosignIdentity: cfg.CosignIdentity,
+		Version: version, Build: cfg.Build, Image: cfg.Image, DownloadURL: strings.TrimRight(cfg.DownloadURL, "/"), CosignIdentity: cfg.CosignIdentity,
 		Checksums: cfg.Dist.Checksums(),
 	}
 	for _, p := range Platforms {
@@ -320,11 +398,19 @@ func RenderReadme(b Bundle, runConfig []byte, include string, cfg ScriptConfig, 
 		}
 	}
 	d := readmeData{
-		Project: b.Project.Name, ExportedAt: b.CreatedAt.UTC().Format(time.RFC3339), ExportedBy: b.CreatedBy, Version: version,
+		Project: b.Project.Name, ExportedAt: b.CreatedAt.UTC().Format(time.RFC3339), ExportedBy: b.CreatedBy, Version: version, Build: cfg.Build,
 		BundleSHA256: b.SHA256(), SourceSummary: connSummary(src), TargetSummary: connSummary(tgt), TargetKind: b.Target.Type,
 		TargetHasCredentials: b.Target.Credentials != nil, Image: cfg.Image, DownloadURL: strings.TrimRight(cfg.DownloadURL, "/"),
-		OdbPlatform: include, Folder: exportFolder(b),
+		OdbPlatform: include, Folder: exportFolder(b), Needs: needs(version),
 	}
+	if include != "" {
+		d.OdbBin, d.OdbPlatformLabel, d.OdbIsWindows = OdbPath(include), PlatformLabel(include), isWindows(include)
+		d.OdbBinWindows = strings.ReplaceAll(d.OdbBin, "/", `\`)
+		unsigned := !slices.Contains(cfg.Dist.Signed(), include)
+		d.OdbUnsignedMac = unsigned && strings.HasPrefix(include, "darwin_")
+		d.OdbUnsignedWindows = unsigned && d.OdbIsWindows
+	}
+	d.Downloads, d.HasWindows = downloads(cfg, version)
 	for _, m := range b.Mappings {
 		d.Mappings = append(d.Mappings, scriptMapping{Name: m.Name, Source: m.Source.String(), Target: m.Location.String()})
 	}
@@ -340,6 +426,38 @@ func RenderReadme(b Bundle, runConfig []byte, include string, cfg ScriptConfig, 
 		return nil, err
 	}
 	return out.Bytes(), nil
+}
+
+// needs says which odb releases run an export of version, as its odbVersion range does.
+func needs(version string) string {
+	v, ok := parseSemver(version)
+	if !ok {
+		return "odb " + version
+	}
+	return fmt.Sprintf("odb %d.%d.0 or a later %d.x release", v[0], v[1], v[0])
+}
+
+// downloads are the release archives with a known checksum, in Platforms order. Without a
+// download URL there are none: the README then says to ask for odb or include it.
+func downloads(cfg ScriptConfig, version string) ([]download, bool) {
+	base := strings.TrimRight(cfg.DownloadURL, "/")
+	if base == "" {
+		return nil, false
+	}
+	sums := cfg.Dist.Checksums()
+	var out []download
+	win := false
+	universal := sums["darwin_universal"] != ""
+	for _, p := range Platforms {
+		sum, ok := sums[p]
+		if !ok || sum == "" || universal && strings.HasPrefix(p, "darwin_") && p != "darwin_universal" {
+			continue // one download for every Mac when there's a universal one (OC-185)
+		}
+		f := Archive(version, p)
+		out = append(out, download{Label: PlatformLabel(p), File: f, URL: base + "/" + f, SHA256: sum})
+		win = win || isWindows(p)
+	}
+	return out, win
 }
 
 func connSummary(c Connection) string {

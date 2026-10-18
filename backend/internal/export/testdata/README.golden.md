@@ -3,11 +3,13 @@
 Exported 2026-10-01T10:00:00Z by user@example.com with Omni-Data-Bus 2.0.0.
 mappings.json sha256: `<sha256>`
 
-This folder runs the migration on any Linux or macOS machine that can reach the source database, without the Omni-Data-Bus tool:
+This folder runs the migration without the Omni-Data-Bus tool, on macOS, Windows or Linux, from
+any machine that can reach the source database.
+Nothing in it is specific to one operating system: test it on your laptop, then copy the same
+folder to the server.
 
 | File | What it is |
 |---|---|
-| `migrate.sh` | The runner. The same script for every export of odb 2.0.0: it reads the two files below and runs `odb`, the tool's engine |
 | `config.json` | **Where:** the source and target connection details. Edit it for another environment |
 | `mappings.json` | **What:** the tables, the documents they become, and how. Each mapping has an `outline` listing what fills each field |
 | `README.md` | This file |
@@ -26,43 +28,69 @@ This folder runs the migration on any Linux or macOS machine that can reach the 
 - **Source:** PostgreSQL `migrator@db.internal:5432/shop`
 - **Target:** JSON files in `/data/out` (layout flat)
 
-`./migrate.sh inspect` prints each mapping's outline: every document field and what fills it.
+`odb inspect` prints each mapping's outline: every document field and what fills it.
 
 ## Run it
 
-Unzip the export and work inside its folder. Everything the script writes (checkpoint, errors,
-report, a downloaded `odb`) stays in that folder, wherever you run it from.
+Unzip the export and run `odb` inside its folder: the same commands in Terminal, PowerShell,
+cmd or a Linux shell. ([Install odb](#install-odb) first if `odb version` doesn't print 2.0.0.)
 
-```bash
-unzip odb-export-shop-docs-20261001.zip
+```
 cd odb-export-shop-docs-20261001
-./migrate.sh run         # checks everything first, then migrates; progress is printed as JSON lines
+odb preflight      # checks the source, credentials, schema and target; writes nothing
+odb run            # checks everything again, then migrates
+odb status         # summarizes the run
 ```
 
 The JSON files go to `/data/out` (`target.path` in `config.json`; a relative path is
-relative to this folder). `ODB_TARGET_PATH` writes elsewhere for one run.
+relative to this folder). `--target-path DIR` or `ODB_TARGET_PATH` writes elsewhere for one run.
 
-- If the run stops (Ctrl+C, a reboot, a failure), `./migrate.sh resume` continues from the last
-  checkpoint in `$ODB_STATE_DIR` (default `odb-state` in this folder).
-- `./migrate.sh run` also continues from that checkpoint, so after a completed run it writes
-  nothing, even if you deleted the migrated files. To migrate everything
-  again, run `./migrate.sh run --restart`: it moves the old checkpoint, errors and report to
-  `archive/<time>/` in the state directory and starts over.
-- `./migrate.sh preflight` runs only the checks, writing nothing.
-- `./migrate.sh status` summarizes the run; `./migrate.sh verify` counts the documents in the target.
-- Pass `odb run` options after `--`, for example `./migrate.sh run -- --throttle 5000`.
-- Without the script: `odb run --mappings mappings.json --config config.json`.
+- If the run stops (Ctrl+C, a reboot, a failure), `odb resume` continues from the last
+  checkpoint in `odb-state` in this folder.
+- `odb run` also continues from that checkpoint, so after a completed run it writes nothing, even
+  if you deleted the migrated files. To migrate everything again, run
+  `odb run --restart`: it moves the old checkpoint, errors and report to `archive/<time>/` in the
+  state directory and starts over.
+- `odb verify` counts the documents in the target; `odb run help` lists the run options
+  (`--throttle`, `--writers`, `--mapping`, …).
+- On a terminal, progress is printed as lines; piped or in a container, as JSON lines
+  (`--log-format json|text` to choose).
+
+## Install odb
+
+odb is one file with nothing else to install. This export needs odb 2.0.0 or a later 2.x release.
+
+| Machine | Download | SHA-256 |
+|---|---|---|
+| Linux x86-64 | [odb_2.0.0_linux_amd64.tar.gz](https://example.com/releases/v2.0.0/odb_2.0.0_linux_amd64.tar.gz) | `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` |
+| macOS (Apple silicon) | [odb_2.0.0_darwin_arm64.tar.gz](https://example.com/releases/v2.0.0/odb_2.0.0_darwin_arm64.tar.gz) | `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb` |
+
+**macOS and Linux:**
+
+```bash
+tar -xzf odb_2.0.0_<machine>.tar.gz odb
+sudo mv odb /usr/local/bin/     # or any folder on your PATH
+odb version
+```
+
+**With Docker instead** (the same commands, nothing to install):
+
+```bash
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD" ghcr.io/example/omni-data-bus@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc preflight
+```
+
+In PowerShell: `docker run --rm -it -v "${PWD}:/work" -w /work ghcr.io/example/omni-data-bus@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc preflight`.
+Replace `preflight` with `run`, `resume`, `status` or `verify`. If the database runs on this
+machine, use `--network host` (Linux) or `host.docker.internal` instead of `localhost` in
+`config.json`.
 
 ## Run it elsewhere, or run other migrations
 
-`migrate.sh` holds nothing about this migration, so the same script runs any export of odb
-2.0.0:
-
 - **Another environment, same mappings:** edit `config.json`, or keep one file per environment
-  and pick it with `ODB_CONFIG=/path/to/prod.json ./migrate.sh run`. Use another
-  `ODB_STATE_DIR` for each environment: a checkpoint follows the migration, not the connection.
-- **Other mappings:** put another export's `mappings.json` (and its `config.json`) beside the
-  script, or point `ODB_MAPPINGS` at it.
+  and pick it with `odb run --config prod.json` (or `ODB_CONFIG`). Use another state directory
+  for each environment (`--state-dir` or `ODB_STATE_DIR`): a checkpoint follows the migration,
+  not the connection.
+- **Other mappings:** run odb in another export's folder, or pass `--mappings` (or `ODB_MAPPINGS`).
 - In `config.json`, each section (`source`, `target`) lists the connection's `type`, its
   settings (host, port, database, user…) and its `password`. The `type` can't change.
   Passwords are kept as `"base64:…"`: to change one, replace the whole value, prefix included,
@@ -72,20 +100,18 @@ relative to this folder). `ODB_TARGET_PATH` writes elsewhere for one run.
 
 ### Settings
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `ODB_CONFIG` | `config.json` in this folder | Where: source and target connection details |
-| `ODB_MAPPINGS` | `mappings.json` in this folder | What: the mappings |
-| `ODB_STATE_DIR` | `odb-state` in this folder | Checkpoint, `errors.jsonl` and `report.json` |
-| `ODB_TARGET_PATH` | `target.path` in `config.json` | Folder the JSON files are written to |
-| `ODB_RUNTIME` | `auto` | `auto`, `binary` (never Docker) or `docker` |
-| `ODB_BIN` | | An `odb` 2.0.0 binary to use |
-| `ODB_DOCKER_ARGS` | | Extra `docker run` arguments, e.g. `--network host` |
-| `ODB_CACHE_DIR` | `odb-cache` in this folder | Where a downloaded `odb` is kept |
+Each has a flag and an environment variable; the flag wins.
 
-The script uses `ODB_BIN`, then `odb` beside it, then `odb` 2.0.0 on the `PATH`, then
-Docker (`ghcr.io/example/omni-data-bus@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc`, with this folder mounted at the same path), and finally downloads `odb`
-from `https://example.com/releases/v2.0.0`, checking it against the checksum written in the script.
+| Flag | Variable | Default | Meaning |
+|---|---|---|---|
+| `--config` | `ODB_CONFIG` | `config.json` here | Where: source and target connection details |
+| `--mappings` | `ODB_MAPPINGS` | `mappings.json` here | What: the mappings |
+| `--state-dir` | `ODB_STATE_DIR` | `odb-state` here | Checkpoint, `errors.jsonl` and `report.json` |
+| `--target-path` | `ODB_TARGET_PATH` | `target.path` in `config.json` | Folder the JSON files are written to |
+
+"Here" is the current directory, or the folder odb is in when you run it from elsewhere. To set a
+variable for one shell: `export ODB_STATE_DIR=/data/state` (macOS, Linux),
+`$env:ODB_STATE_DIR = "D:\state"` (PowerShell) or `set ODB_STATE_DIR=D:\state` (cmd).
 
 ## Exit codes
 
@@ -94,8 +120,8 @@ from `https://example.com/releases/v2.0.0`, checking it against the checksum wri
 | 0 | Completed |
 | 2 | Completed with errors, below the error threshold: see `errors.jsonl` |
 | 3 | Failed: error threshold exceeded or a fatal error; see `report.json` |
-| 4 | Not started: preflight or configuration problem (`config.json` or `mappings.json`, schema drift, wrong credentials, target not writable) |
-| 5 | Cancelled after saving the checkpoint: run `./migrate.sh resume` |
+| 4 | Not started: preflight or configuration problem (`config.json` or `mappings.json`, schema drift, wrong credentials, target not writable, or an odb from another release) |
+| 5 | Cancelled after saving the checkpoint: run `odb resume` |
 
 After the run, import `report.json` from the state directory into the Omni-Data-Bus project
 (Review → Export… → Import report) to see the production results next to your test runs.

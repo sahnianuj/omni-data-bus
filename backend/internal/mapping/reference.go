@@ -47,7 +47,8 @@ func validateReference(s *Spec, ctx Context) []Issue {
 		loose = SeverityError
 	}
 	design := map[string]*docschema.DocField{}
-	s.DocSchema.Walk(func(f *docschema.DocField, p string, _ *docschema.DocField) { design[p] = f })
+	// At the paths documents have: a variant's fields are its parent's (OC-171).
+	s.DocSchema.WalkDocument(func(f *docschema.DocField, p string) { design[p] = f })
 	mustMap := RequiredToMap(s)
 	contract := map[string]docschema.ContractField{}
 	for _, c := range imp.Fields {
@@ -61,6 +62,11 @@ func validateReference(s *Spec, ctx Context) []Issue {
 		}
 	}
 	other := map[string]bool{}
+	for _, m := range s.FieldMappings {
+		if m.State == StateNotPopulated {
+			other[m.TargetFieldID] = true // the design leaves it empty on purpose (OC-166)
+		}
+	}
 	for _, a := range s.Aggregates {
 		other[a.TargetFieldID] = true
 	}

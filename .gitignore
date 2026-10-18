@@ -89,3 +89,14 @@ odb-backup-*.tar.gz
 
 # Claude Code personal overrides (project hooks live in .claude/settings.json)
 .claude/settings.local.json
+/.verify-odb
+
+# The release's SHA256SUMS and SIGNED, copied in by the release workflow for the image build (OC-188).
+/deploy/docker/odb-sums/*
+!/deploy/docker/odb-sums/.gitkeep
+
+# The dev server's background odb build log (scripts/dev-dist.sh, OC-188).
+/dist-build.log
+
+# Python bytecode (scripts/*.py tests)
+__pycache__/

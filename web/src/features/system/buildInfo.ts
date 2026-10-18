@@ -34,8 +34,9 @@ export function buildInfoText(v: VersionInfo, userAgent = navigator.userAgent): 
   const name = `Omni-Data-Bus ${v.version ?? 'unknown'}${v.dirty ? ' (dirty)' : ''} (${v.channel ?? 'dev'})`
   const lines = [name]
   if (v.commit !== undefined) {
+    const build = v.build && v.build !== shortCommit(v.commit) ? `Build: ${v.build}  ` : ''
     lines.push(
-      `Commit: ${shortCommit(v.commit)}  Built: ${v.buildTime || 'unknown'}  Go: ${v.goVersion ?? 'unknown'}  Platform: ${v.platform ?? 'unknown'}`,
+      `${build}Commit: ${shortCommit(v.commit)}  Built: ${v.buildTime || 'unknown'}  Go: ${v.goVersion ?? 'unknown'}  Platform: ${v.platform ?? 'unknown'}`,
     )
   }
   const nodes = nodeSummary(v)

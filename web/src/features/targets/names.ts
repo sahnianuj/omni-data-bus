@@ -8,11 +8,13 @@ const scopeRe = /^[A-Za-z0-9_%-]{1,251}$/
 export const MAX_EXPIRY_SEC = 2147483647
 
 // Directory folders (OC-036/OC-038), mirrored from backend/internal/mapping/location.go: up to three
-// "/"-separated segments of [A-Za-z0-9._-], each at most 64 bytes, none "." or "..".
+// "/"-separated segments of [A-Za-z0-9._-], each at most 64 bytes, none "." or "..", none a name
+// Windows reserves (con, aux.json…) or ending in "." (OC-186: the same folders on every OS).
 const folderSegRe = /^[A-Za-z0-9._-]{1,64}$/
+const windowsReservedRe = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i
 export const validFolderName = (f: string) => {
   const segs = f.replace(/\/$/, '').split('/')
-  return segs.length <= 3 && segs.every((s) => folderSegRe.test(s) && s !== '.' && s !== '..')
+  return segs.length <= 3 && segs.every((s) => folderSegRe.test(s) && s !== '.' && s !== '..' && !windowsReservedRe.test(s) && !s.endsWith('.'))
 }
 
 export const validBucketName = (n: string) => bucketRe.test(n) && !n.startsWith('.')

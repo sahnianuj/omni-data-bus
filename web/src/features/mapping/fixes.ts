@@ -1,7 +1,7 @@
 import { addField, findField, pathsById, remove, setRequired } from '@/features/docschema/docschemaOps'
 import { removeEmbed } from './embeds'
 import { acceptAll, activeFor, newMappingId } from './mappingOps'
-import type { DocField, MappingIssue, MappingSpec, TransformStep } from './types'
+import type { DocField, FieldMapping, MappingIssue, MappingSpec, TransformStep } from './types'
 import type { Selection } from './store'
 
 /**
@@ -40,6 +40,17 @@ export function applyFix(spec: MappingSpec, issue: MappingIssue): MappingSpec {
       return restoreField(spec, issue)
     case 'map-field':
       return issue.fieldId ? mapFrom(spec, issue.fieldId, issue.fix.relationId, issue.fix.columns?.[0]) : spec
+    case 'replace-step': {
+      // The mapping's step of that op, replaced (a now step's format, OC-179).
+      const step = issue.fix.step as TransformStep | undefined
+      if (!step || !issue.fieldMappingId) return spec
+      return {
+        ...spec,
+        fieldMappings: spec.fieldMappings.map((m) => (m.id === issue.fieldMappingId ? { ...m, transforms: m.transforms.map((x) => (x.op === step.op ? step : x)) } : m)),
+      }
+    }
+    case 'remove-relation': // an unused lookup (OC-177)
+      return issue.fix.relationId ? removeEmbed(spec, issue.fix.relationId) : spec
     default:
       return spec
   }
@@ -151,4 +162,34 @@ export function restoreField(spec: MappingSpec, issue: MappingIssue): MappingSpe
   })
   const added = addField(spec.docSchema, parentId, name, want.type, index)
   return mapFrom({ ...spec, docSchema: added.schema }, added.id, issue.fix?.relationId, issue.fix?.columns?.[0])
+}
+
+/**
+ * What fills a field, in words (the server's DescribeMapping): "from carts.total", "the
+ * constant "web"", "a computed value", "not populated". driving is the driving table's name.
+ */
+export function describeMapping(spec: MappingSpec, driving: string, m: FieldMapping): string {
+  if (m.state === 'notPopulated') return 'not populated'
+  if (m.computed) return 'a computed value'
+  if (m.sources.length) {
+    const cols = m.sources.map((src) => {
+      const r = src.relation ? spec.relations.find((x) => x.id === src.relation) : undefined
+      const table = !src.relation ? driving : !r ? src.relation : src.from === 'via' && r.via ? r.via.table.name : r.table.name
+      return table ? `${table}.${src.column}` : src.column
+    })
+    return `from ${cols.join(' + ')}`
+  }
+  const step = m.transforms.find((x) => x.op === 'constant' || x.op === 'expression')
+  if (step?.op === 'constant') return `the constant ${JSON.stringify(step.args?.value)}`
+  if (step?.op === 'expression') return 'an expression'
+  return `mapping ${m.id}`
+}
+
+/** The mappings that fill a field (a DUPLICATE_TARGET's candidates): active or not populated. */
+export const fillersOf = (spec: MappingSpec, fieldId: string) => spec.fieldMappings.filter((m) => m.targetFieldId === fieldId && (m.state === 'active' || m.state === 'notPopulated'))
+
+/** Keeps one of a field's mappings and drops the others that fill it. */
+export function keepOnly(spec: MappingSpec, fieldId: string, keep: string): MappingSpec {
+  const drop = new Set(fillersOf(spec, fieldId).filter((m) => m.id !== keep).map((m) => m.id))
+  return drop.size ? { ...spec, fieldMappings: spec.fieldMappings.filter((m) => !drop.has(m.id)) } : spec
 }

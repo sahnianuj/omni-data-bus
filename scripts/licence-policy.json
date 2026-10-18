@@ -1,0 +1,19 @@
+{
+  "_comment": "SPDX ids a shipped dependency of Omni-Data-Bus (Apache-2.0) may use (OC-189, as capellactl's CAP-044). Copyleft licences such as GPL, LGPL and AGPL, SSPL, BUSL, and unknown licences, are not allowed. 'only' limits a licence to packages whose name starts with one of the prefixes. Changing this file needs the code owner's approval.",
+  "allowed": [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BlueOak-1.0.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unlicense"
+  ],
+  "only": {
+    "OFL-1.1": ["@fontsource/"]
+  }
+}

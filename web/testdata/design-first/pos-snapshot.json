@@ -1,0 +1,3530 @@
+{
+ "database": "shop",
+ "serverVersion": "",
+ "schemas": [
+  {
+   "name": "pos",
+   "tables": [
+    {
+     "name": "applied_rewards",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "reward_code",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "description",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "applied_rewards_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "cart_items",
+       "name": "cart_items_applied_reward_id_fkey",
+       "columns": [
+        "applied_reward_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "applied_rewards_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "associated_scans",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 24576,
+     "readable": true,
+     "columns": [
+      {
+       "name": "cart_id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "svc_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "scan_and_pay_qr_code_id",
+       "ordinal": 3,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "cart_id"
+     ],
+     "uniqueConstraints": [],
+     "checkConstraints": [
+      {
+       "name": "associated_scans_check",
+       "definition": "CHECK ((num_nonnulls(svc_id, scan_and_pay_qr_code_id) = 1))"
+      }
+     ],
+     "exclusiveArcs": [
+      [
+       "svc_id",
+       "scan_and_pay_qr_code_id"
+      ]
+     ],
+     "foreignKeys": [
+      {
+       "name": "associated_scans_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "associated_scans_scan_and_pay_qr_code_id_fkey",
+       "columns": [
+        "scan_and_pay_qr_code_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "scan_and_pay_qrs",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "associated_scans_svc_id_fkey",
+       "columns": [
+        "svc_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "svcs",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [],
+     "indexes": [
+      {
+       "name": "associated_scans_pkey",
+       "columns": [
+        "cart_id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "cart_items",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 196608,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "ask_me_instructions",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "base_price",
+       "ordinal": 4,
+       "dataType": "numeric(8,2)",
+       "udtName": "numeric",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 8,
+       "numericScale": 2,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "display_index",
+       "ordinal": 5,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "sequence_number",
+       "ordinal": 6,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "1",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "is_refund",
+       "ordinal": 7,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "is_available",
+       "ordinal": 8,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "is_impulse_item",
+       "ordinal": 9,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "is_refill",
+       "ordinal": 10,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "image_url",
+       "ordinal": 11,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "item_availability_override",
+       "ordinal": 12,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "name",
+       "ordinal": 13,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "price",
+       "ordinal": 14,
+       "dataType": "numeric(8,2)",
+       "udtName": "numeric",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 8,
+       "numericScale": 2,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "price_override",
+       "ordinal": 15,
+       "dataType": "numeric(8,2)",
+       "udtName": "numeric",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 8,
+       "numericScale": 2,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "redemption_tier",
+       "ordinal": 16,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "sellable_item_id",
+       "ordinal": 17,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "serving_size_name",
+       "ordinal": 18,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "applied_reward_id",
+       "ordinal": 19,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "menu_product_id",
+       "ordinal": 20,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "form_code",
+       "ordinal": 21,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": "''::text",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "size_code",
+       "ordinal": 22,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "product_type_id",
+       "ordinal": 23,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "voided",
+       "ordinal": 24,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "price_override_authorized",
+       "ordinal": 25,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "discount_details",
+       "ordinal": 26,
+       "dataType": "jsonb",
+       "udtName": "jsonb",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "any"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "cart_items_applied_reward_id_fkey",
+       "columns": [
+        "applied_reward_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "applied_rewards",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "cart_items_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "customizations",
+       "name": "customizations_cart_item_id_fkey",
+       "columns": [
+        "cart_item_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "cart_items_cart_id_idx",
+       "columns": [
+        "cart_id"
+       ],
+       "unique": false
+      },
+      {
+       "name": "cart_items_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "carts",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 147456,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "partner_number",
+       "ordinal": 2,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "store_number",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "total_in_cents",
+       "ordinal": 4,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "total_to_display",
+       "ordinal": 5,
+       "dataType": "numeric(8,2)",
+       "udtName": "numeric",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 8,
+       "numericScale": 2,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "consumption_type",
+       "ordinal": 6,
+       "dataType": "pos.consumption_type",
+       "udtName": "consumption_type",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": [
+        "ConsumeInStore",
+        "ConsumeOutOfStore"
+       ],
+       "jsonType": "string"
+      },
+      {
+       "name": "order_notes",
+       "ordinal": 7,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "created_at",
+       "ordinal": 8,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": false,
+       "default": "now()",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      },
+      {
+       "name": "register_number",
+       "ordinal": 9,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "receipt_number",
+       "ordinal": 10,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "discount_in_cents",
+       "ordinal": 11,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "0",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "subtotal_in_cents",
+       "ordinal": 12,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "0",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "tax_in_cents",
+       "ordinal": 13,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "0",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "last_priced_at",
+       "ordinal": 14,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      },
+      {
+       "name": "status",
+       "ordinal": 15,
+       "dataType": "pos.cart_status",
+       "udtName": "cart_status",
+       "nullable": false,
+       "default": "'open'::pos.cart_status",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": [
+        "open",
+        "payment_pending",
+        "closed",
+        "abandoned",
+        "voided",
+        "queued"
+       ],
+       "jsonType": "string"
+      },
+      {
+       "name": "closed_at",
+       "ordinal": 16,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      },
+      {
+       "name": "voided_at",
+       "ordinal": 17,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      },
+      {
+       "name": "tax_data",
+       "ordinal": 18,
+       "dataType": "jsonb",
+       "udtName": "jsonb",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "any"
+      },
+      {
+       "name": "channel",
+       "ordinal": 19,
+       "dataType": "character varying(20)",
+       "udtName": "varchar",
+       "nullable": false,
+       "default": "'cafe'::character varying",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": 20,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "skip_fulfillment",
+       "ordinal": 20,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "loyalty_transaction_id",
+       "ordinal": 21,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "submit_after_tip_abort",
+       "ordinal": 22,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "checkConstraints": [
+      {
+       "name": "check_closed_cart_timestamps",
+       "definition": "CHECK ((((status = 'closed'::pos.cart_status) AND (closed_at IS NOT NULL) AND (voided_at IS NULL)) OR (status \u003c\u003e 'closed'::pos.cart_status)))"
+      },
+      {
+       "name": "check_open_cart_timestamps",
+       "definition": "CHECK ((((status = 'open'::pos.cart_status) AND (closed_at IS NULL) AND (voided_at IS NULL)) OR (status \u003c\u003e 'open'::pos.cart_status)))"
+      },
+      {
+       "name": "check_voided_cart_timestamps",
+       "definition": "CHECK ((((status = 'voided'::pos.cart_status) AND (closed_at IS NOT NULL) AND (voided_at IS NOT NULL)) OR (status \u003c\u003e 'voided'::pos.cart_status)))"
+      },
+      {
+       "name": "chk_skip_fulfillment_drive_thru_only",
+       "definition": "CHECK (((skip_fulfillment = false) OR ((channel)::text = 'drive_thru'::text)))"
+      }
+     ],
+     "foreignKeys": [
+      {
+       "name": "carts_partner_number_fkey",
+       "columns": [
+        "partner_number"
+       ],
+       "refSchema": "pos",
+       "refTable": "partners",
+       "refColumns": [
+        "number"
+       ]
+      },
+      {
+       "name": "carts_store_number_fkey",
+       "columns": [
+        "store_number"
+       ],
+       "refSchema": "pos",
+       "refTable": "stores",
+       "refColumns": [
+        "number"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "applied_rewards",
+       "name": "applied_rewards_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "associated_scans",
+       "name": "associated_scans_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "cart_items",
+       "name": "cart_items_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "cash_tenders",
+       "name": "cash_tenders_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "collected_payments",
+       "name": "collected_payments_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "credit_cards",
+       "name": "credit_cards_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "customers",
+       "name": "customers_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "saved_orders",
+       "name": "saved_orders_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "scan_and_pay_qrs",
+       "name": "scan_and_pay_qrs_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "sccs",
+       "name": "sccs_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "svcs",
+       "name": "svcs_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "carts_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "cash_tenders",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "amount_in_cents",
+       "ordinal": 3,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "change_in_cents",
+       "ordinal": 4,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "0",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "currency_iso",
+       "ordinal": 5,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": "'USD'::text",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "cash_tenders_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "collected_payments",
+       "name": "collected_payments_cash_tender_id_fkey",
+       "columns": [
+        "cash_tender_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "cash_tenders_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "collected_payments",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 57344,
+     "readable": true,
+     "columns": [
+      {
+       "name": "cart_id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cash_tender_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "credit_card_id",
+       "ordinal": 3,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "svc_id",
+       "ordinal": 4,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "scan_and_pay_qr_code_id",
+       "ordinal": 5,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "scc_id",
+       "ordinal": 6,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "charged_amount_in_cents",
+       "ordinal": 7,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "tip_in_cents",
+       "ordinal": 8,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "transaction_id",
+       "ordinal": 9,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "voided_at",
+       "ordinal": 10,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      },
+      {
+       "name": "created_at",
+       "ordinal": 11,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      }
+     ],
+     "primaryKey": [],
+     "uniqueConstraints": [],
+     "checkConstraints": [
+      {
+       "name": "collected_payments_check",
+       "definition": "CHECK ((((((\nCASE\n    WHEN (cash_tender_id IS NOT NULL) THEN 1\n    ELSE 0\nEND +\nCASE\n    WHEN (credit_card_id IS NOT NULL) THEN 1\n    ELSE 0\nEND) +\nCASE\n    WHEN (scan_and_pay_qr_code_id IS NOT NULL) THEN 1\n    ELSE 0\nEND) +\nCASE\n    WHEN (svc_id IS NOT NULL) THEN 1\n    ELSE 0\nEND) +\nCASE\n    WHEN (scc_id IS NOT NULL) THEN 1\n    ELSE 0\nEND) = 1))"
+      }
+     ],
+     "exclusiveArcs": [
+      [
+       "cash_tender_id",
+       "credit_card_id",
+       "scan_and_pay_qr_code_id",
+       "svc_id",
+       "scc_id"
+      ]
+     ],
+     "foreignKeys": [
+      {
+       "name": "collected_payments_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "collected_payments_cash_tender_id_fkey",
+       "columns": [
+        "cash_tender_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "cash_tenders",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "collected_payments_credit_card_id_fkey",
+       "columns": [
+        "credit_card_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "credit_cards",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "collected_payments_scan_and_pay_qr_code_id_fkey",
+       "columns": [
+        "scan_and_pay_qr_code_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "scan_and_pay_qrs",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "collected_payments_scc_id_fkey",
+       "columns": [
+        "scc_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "sccs",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "collected_payments_svc_id_fkey",
+       "columns": [
+        "svc_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "svcs",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [],
+     "indexes": [
+      {
+       "name": "collected_payments_cart_id_idx",
+       "columns": [
+        "cart_id"
+       ],
+       "unique": false
+      }
+     ]
+    },
+    {
+     "name": "credit_cards",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "card_brand",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "merchant_id",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "auth_code",
+       "ordinal": 5,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "presentation_method",
+       "ordinal": 6,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "processor_transaction_id",
+       "ordinal": 7,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "masked_account_number",
+       "ordinal": 8,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "account_last_four_digits",
+       "ordinal": 9,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "card_holder_name",
+       "ordinal": 10,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "credit_cards_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "collected_payments",
+       "name": "collected_payments_credit_card_id_fkey",
+       "columns": [
+        "credit_card_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "credit_cards_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "customers",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 90112,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "first_name",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "last_name",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "stars_earned",
+       "ordinal": 5,
+       "dataType": "double precision",
+       "udtName": "float8",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 53,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "loyalty_id",
+       "ordinal": 6,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "alias",
+       "ordinal": 7,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "valid_partner",
+       "ordinal": 8,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "partner_number",
+       "ordinal": 9,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "partner_name",
+       "ordinal": 10,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "partner_status",
+       "ordinal": 11,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "eligible_benefits",
+       "ordinal": 12,
+       "dataType": "text[]",
+       "udtName": "_text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": true,
+       "elementType": "string",
+       "enumValues": null,
+       "jsonType": "array"
+      },
+      {
+       "name": "tier_number",
+       "ordinal": 13,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "customers_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [],
+     "indexes": [
+      {
+       "name": "customers_cart_id_idx",
+       "columns": [
+        "cart_id"
+       ],
+       "unique": false
+      },
+      {
+       "name": "customers_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "customizations",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 172032,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": "gen_random_uuid()",
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_item_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "sequence_number",
+       "ordinal": 3,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "1",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "item_availability_override",
+       "ordinal": 4,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "name",
+       "ordinal": 5,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "price",
+       "ordinal": 6,
+       "dataType": "numeric(8,2)",
+       "udtName": "numeric",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 8,
+       "numericScale": 2,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "price_override",
+       "ordinal": 7,
+       "dataType": "numeric(8,2)",
+       "udtName": "numeric",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 8,
+       "numericScale": 2,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "number"
+      },
+      {
+       "name": "quantity",
+       "ordinal": 8,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "redemption_tier",
+       "ordinal": 9,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "sellable_item_id",
+       "ordinal": 10,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "menu_product_id",
+       "ordinal": 11,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "form_code",
+       "ordinal": 12,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": "''::text",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "size_code",
+       "ordinal": 13,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": "''::text",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "is_available",
+       "ordinal": 14,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "voided",
+       "ordinal": 15,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "customizations_cart_item_id_fkey",
+       "columns": [
+        "cart_item_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "cart_items",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [],
+     "indexes": [
+      {
+       "name": "customizations_cart_item_id_idx",
+       "columns": [
+        "cart_item_id"
+       ],
+       "unique": false
+      },
+      {
+       "name": "customizations_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "encryption_keys",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 24576,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "created_at",
+       "ordinal": 2,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": false,
+       "default": "now()",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "scan_and_pay_qrs",
+       "name": "scan_and_pay_qrs_encryption_key_id_fkey",
+       "columns": [
+        "encryption_key_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "sccs",
+       "name": "sccs_encryption_key_id_fkey",
+       "columns": [
+        "encryption_key_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "svcs",
+       "name": "svcs_encryption_key_id_fkey",
+       "columns": [
+        "encryption_key_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "encryption_keys_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "partners",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "number",
+       "ordinal": 1,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "partner_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "store_number",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "first_name",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "last_name",
+       "ordinal": 5,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "collection_type",
+       "ordinal": 6,
+       "dataType": "pos.collection_type",
+       "udtName": "collection_type",
+       "nullable": false,
+       "default": "'IN_STORE'::pos.collection_type",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": [
+        "IN_STORE",
+        "DRIVE_THRU",
+        "CURBSIDE",
+        "OUTDOOR"
+       ],
+       "jsonType": "string"
+      },
+      {
+       "name": "register_number",
+       "ordinal": 7,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "is_deleted",
+       "ordinal": 8,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": true,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      }
+     ],
+     "primaryKey": [
+      "number"
+     ],
+     "uniqueConstraints": [],
+     "checkConstraints": [
+      {
+       "name": "partners_number_check",
+       "definition": "CHECK ((length(number) \u003e= 6))"
+      }
+     ],
+     "foreignKeys": [
+      {
+       "name": "partners_store_number_fkey",
+       "columns": [
+        "store_number"
+       ],
+       "refSchema": "pos",
+       "refTable": "stores",
+       "refColumns": [
+        "number"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "carts",
+       "name": "carts_partner_number_fkey",
+       "columns": [
+        "partner_number"
+       ],
+       "refColumns": [
+        "number"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "partners_pkey",
+       "columns": [
+        "number"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "saved_orders",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 24576,
+     "readable": true,
+     "columns": [
+      {
+       "name": "cart_id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "order_collection_type",
+       "ordinal": 2,
+       "dataType": "pos.collection_type",
+       "udtName": "collection_type",
+       "nullable": false,
+       "default": "'IN_STORE'::pos.collection_type",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": [
+        "IN_STORE",
+        "DRIVE_THRU",
+        "CURBSIDE",
+        "OUTDOOR"
+       ],
+       "jsonType": "string"
+      },
+      {
+       "name": "saved_at",
+       "ordinal": 3,
+       "dataType": "timestamp with time zone",
+       "udtName": "timestamptz",
+       "nullable": false,
+       "default": "now()",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "datetime"
+      }
+     ],
+     "primaryKey": [
+      "cart_id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "saved_orders_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [],
+     "indexes": [
+      {
+       "name": "saved_orders_pkey",
+       "columns": [
+        "cart_id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "scan_and_pay_qrs",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "encryption_key_id",
+       "ordinal": 3,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "qr_code",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "account_id",
+       "ordinal": 5,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "scan_and_pay_qrs_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "scan_and_pay_qrs_encryption_key_id_fkey",
+       "columns": [
+        "encryption_key_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "encryption_keys",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "associated_scans",
+       "name": "associated_scans_scan_and_pay_qr_code_id_fkey",
+       "columns": [
+        "scan_and_pay_qr_code_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "collected_payments",
+       "name": "collected_payments_scan_and_pay_qr_code_id_fkey",
+       "columns": [
+        "scan_and_pay_qr_code_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "scan_and_pay_qrs_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "sccs",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "encryption_key_id",
+       "ordinal": 3,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "encrypted_scc_number",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "scc_hash",
+       "ordinal": 5,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "card_image",
+       "ordinal": 6,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "entry_method",
+       "ordinal": 7,
+       "dataType": "pos.entry_method",
+       "udtName": "entry_method",
+       "nullable": false,
+       "default": "'manualEntry'::pos.entry_method",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": [
+        "msrSwipe",
+        "manualEntry",
+        "swipe",
+        "scanned"
+       ],
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [
+      {
+       "name": "sccs_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "sccs_encryption_key_id_fkey",
+       "columns": [
+        "encryption_key_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "encryption_keys",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "collected_payments",
+       "name": "collected_payments_scc_id_fkey",
+       "columns": [
+        "scc_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "sccs_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "stores",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 32768,
+     "readable": true,
+     "columns": [
+      {
+       "name": "number",
+       "ordinal": 1,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "name",
+       "ordinal": 2,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "region",
+       "ordinal": 3,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "number"
+     ],
+     "uniqueConstraints": [],
+     "foreignKeys": [],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "carts",
+       "name": "carts_store_number_fkey",
+       "columns": [
+        "store_number"
+       ],
+       "refColumns": [
+        "number"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "partners",
+       "name": "partners_store_number_fkey",
+       "columns": [
+        "store_number"
+       ],
+       "refColumns": [
+        "number"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "stores_pkey",
+       "columns": [
+        "number"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    },
+    {
+     "name": "svcs",
+     "kind": "table",
+     "rowEstimate": null,
+     "rowCountExact": true,
+     "sizeBytes": 65536,
+     "readable": true,
+     "columns": [
+      {
+       "name": "id",
+       "ordinal": 1,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": true,
+       "isUnique": true,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "cart_id",
+       "ordinal": 2,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "encryption_key_id",
+       "ordinal": 3,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "encrypted_svc_number",
+       "ordinal": 4,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "svc_number_hash",
+       "ordinal": 5,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "is_default",
+       "ordinal": 6,
+       "dataType": "boolean",
+       "udtName": "bool",
+       "nullable": false,
+       "default": "false",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "boolean"
+      },
+      {
+       "name": "account_id",
+       "ordinal": 7,
+       "dataType": "uuid",
+       "udtName": "uuid",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "last_four_digits",
+       "ordinal": 8,
+       "dataType": "character varying(4)",
+       "udtName": "varchar",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": 4,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "card_image",
+       "ordinal": 9,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": false,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "entry_method",
+       "ordinal": 10,
+       "dataType": "pos.entry_method",
+       "udtName": "entry_method",
+       "nullable": false,
+       "default": "'manualEntry'::pos.entry_method",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": [
+        "msrSwipe",
+        "manualEntry",
+        "swipe",
+        "scanned"
+       ],
+       "jsonType": "string"
+      },
+      {
+       "name": "balance_in_cents",
+       "ordinal": 11,
+       "dataType": "integer",
+       "udtName": "int4",
+       "nullable": false,
+       "default": "0",
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": 32,
+       "numericScale": 0,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "integer"
+      },
+      {
+       "name": "authorization_code",
+       "ordinal": 12,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      },
+      {
+       "name": "loyalty_id",
+       "ordinal": 13,
+       "dataType": "text",
+       "udtName": "text",
+       "nullable": true,
+       "default": null,
+       "isPrimaryKey": false,
+       "isUnique": false,
+       "maxLength": null,
+       "numericPrecision": null,
+       "numericScale": null,
+       "isArray": false,
+       "enumValues": null,
+       "jsonType": "string"
+      }
+     ],
+     "primaryKey": [
+      "id"
+     ],
+     "uniqueConstraints": [],
+     "checkConstraints": [
+      {
+       "name": "svcs_last_four_digits_check",
+       "definition": "CHECK ((char_length((last_four_digits)::text) = 4))"
+      }
+     ],
+     "foreignKeys": [
+      {
+       "name": "svcs_cart_id_fkey",
+       "columns": [
+        "cart_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "carts",
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "name": "svcs_encryption_key_id_fkey",
+       "columns": [
+        "encryption_key_id"
+       ],
+       "refSchema": "pos",
+       "refTable": "encryption_keys",
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "referencedBy": [
+      {
+       "schema": "pos",
+       "table": "associated_scans",
+       "name": "associated_scans_svc_id_fkey",
+       "columns": [
+        "svc_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      },
+      {
+       "schema": "pos",
+       "table": "collected_payments",
+       "name": "collected_payments_svc_id_fkey",
+       "columns": [
+        "svc_id"
+       ],
+       "refColumns": [
+        "id"
+       ]
+      }
+     ],
+     "indexes": [
+      {
+       "name": "svcs_pkey",
+       "columns": [
+        "id"
+       ],
+       "unique": true,
+       "primary": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

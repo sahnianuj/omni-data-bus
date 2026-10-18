@@ -14,7 +14,7 @@ type Lock struct{ path string }
 // Acquire takes the lock or returns STATE_LOCKED.
 func (s StateDir) Acquire() (*Lock, error) {
 	p := s.file(LockFile)
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // G304: the state directory's lock file
 	if errors.Is(err, os.ErrExist) {
 		return nil, &ConfigError{Code: CodeStateLocked, Message: "Another odb run is using " + s.Path + " (delete " + p + " if none is)."}
 	}

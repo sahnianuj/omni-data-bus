@@ -11,6 +11,32 @@ import (
 	"omnidatabus/bench/internal/gate"
 )
 
+// OC-184 AC3: coldstart times `odb preflight` in an export folder (--dir); --script still times a
+// 2.0 export's migrate.sh.
+func TestGate_OC184_AC3_ColdStartDir(t *testing.T) {
+	dir := t.TempDir()
+	odb := filepath.Join(dir, "odb")
+	// A stand-in odb that passes preflight only when run in the export folder.
+	if err := os.WriteFile(odb, []byte("#!/bin/sh\n[ \"$1\" = preflight ] && [ -f mappings.json ] || exit 4\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	export := filepath.Join(dir, "export")
+	_ = os.MkdirAll(export, 0o755)
+	_ = os.WriteFile(filepath.Join(export, "mappings.json"), []byte("{}"), 0o644)
+	results := filepath.Join(dir, "results")
+	var out, errb bytes.Buffer
+	if code := coldStartCmd([]string{"--dir", export, "--odb", odb, "--runs", "2", "--out", results}, &out, &errb); code != 0 {
+		t.Fatalf("coldstart = %d: %s", code, errb.String())
+	}
+	latest, _ := gate.Latest(results)
+	if latest["coldstart"].ColdStartSeconds <= 0 || latest["coldstart"].Description != "odb preflight in the export folder" {
+		t.Fatalf("%+v", latest["coldstart"])
+	}
+	if code := coldStartCmd([]string{"--dir", export, "--script", odb}, &out, &errb); code != 2 {
+		t.Fatal("--dir and --script are exclusive")
+	}
+}
+
 func TestColdStartAndGate_OC056(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "migrate.sh")

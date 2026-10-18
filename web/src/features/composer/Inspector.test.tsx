@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { composedView, mockComposer, ordersColumns } from '@/test/composer'
@@ -55,5 +55,35 @@ describe('ComposerInspector', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Use expression' }))
     const m = store.getState().history.present.fieldMappings.find((x) => x.targetFieldId === 'f_line' && x.state === 'active')!
     expect(m.transforms).toEqual([{ op: 'expression', args: { expr: '$root.order_no' } }])
+  })
+
+  it('OC-178 AC3: a field nothing fills can be marked not populated', async () => {
+    const { store } = renderWorkbench(<ComposerInspector focusSource={0} onBindTable={() => {}} />, composedView(), ordersColumns())
+    store.getState().apply((s) => ({ ...s, fieldMappings: s.fieldMappings.filter((m) => m.targetFieldId !== 'f_line') }))
+    store.getState().select({ kind: 'field', id: 'f_line' })
+    // Editors only: enabled once the session is known.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mark not populated' })).toBeEnabled())
+    await userEvent.click(screen.getByRole('button', { name: 'Mark not populated' }))
+    expect(store.getState().history.present.fieldMappings.filter((m) => m.targetFieldId === 'f_line').map((m) => m.state)).toEqual(['notPopulated'])
+    expect(screen.getByRole('note')).toHaveTextContent('leaves this field empty on purpose')
+    expect(screen.queryByRole('button', { name: 'Mark not populated' })).toBeNull()
+    store.getState().undo()
+    expect(await screen.findByRole('button', { name: 'Mark not populated' })).toBeInTheDocument()
+    // A mapped field doesn't offer it.
+    store.getState().select({ kind: 'field', id: 'f_sku' })
+    await screen.findByRole('combobox', { name: 'Source for sku' })
+    expect(screen.queryByRole('button', { name: 'Mark not populated' })).toBeNull()
+  })
+
+  it('OC-179 AC1: Now in the Composer, with the format from the field\'s type', async () => {
+    const { store } = renderWorkbench(<ComposerInspector focusSource={0} onBindTable={() => {}} />, composedView(), ordersColumns())
+    store.getState().select({ kind: 'field', id: 'f_line' })
+    await userEvent.click(await screen.findByRole('radio', { name: 'Date' }))
+    // It's mapped from line_no: leaving the source asks first.
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove the mapping' }))
+    // lineNo is an integer and the document has no other dates: epoch ms.
+    expect(within(screen.getByRole('combobox', { name: 'Format' })).getByRole('option', { selected: true })).toHaveTextContent('Epoch milliseconds')
+    expect(screen.getByTestId('now-sample').textContent).toMatch(/^\d{13}$/)
+    expect(screen.queryByRole('combobox', { name: 'Source for lineNo' })).toBeNull()
   })
 })

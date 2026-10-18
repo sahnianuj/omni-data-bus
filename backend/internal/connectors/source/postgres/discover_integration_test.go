@@ -41,8 +41,9 @@ func TestDiscover_AC1_SeedSchema(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = sess.Close() }()
 
-	// big_events only exists on the dev stack (02-big-events.sql); exclude it so both match.
-	opts := source.DiscoverOptions{ExcludePatterns: []string{"big_events"}}
+	// The dev stack has more seeds than the test container (big_events, order_detail, and the
+	// design-first fixtures of OC-162/OC-171): exclude them so both match the golden.
+	opts := source.DiscoverOptions{ExcludePatterns: []string{"big_events", "sales.order_detail", "pos.*", "crm.*", "support.*"}}
 	n, err := sess.EstimateRelations(ctx, opts)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, n, 10)

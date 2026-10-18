@@ -35,6 +35,8 @@ const (
 	SheetAggregate = "aggregate"
 	SheetSuggested = "suggested"
 	SheetUnmapped  = "unmapped"
+	// SheetNotPopulated: left empty on purpose, as the design says (OC-166).
+	SheetNotPopulated = "not populated"
 )
 
 var sheetHeader = []string{"path", "type", "required", "example", "source", "transform", "constant", "status", "issues"}
@@ -43,6 +45,7 @@ var sheetHeader = []string{"path", "type", "required", "example", "source", "tra
 // with its source, transforms and status, and the codes of the issues on it.
 func Sheet(s *Spec, driving TableRef, issues []Issue) []SheetRow {
 	active, pending := map[string]*FieldMapping{}, map[string]*FieldMapping{}
+	notPopulated := map[string]bool{}
 	for i := range s.FieldMappings {
 		m := &s.FieldMappings[i]
 		switch m.State {
@@ -50,6 +53,8 @@ func Sheet(s *Spec, driving TableRef, issues []Issue) []SheetRow {
 			active[m.TargetFieldID] = m
 		case StatePending:
 			pending[m.TargetFieldID] = m
+		case StateNotPopulated:
+			notPopulated[m.TargetFieldID] = true
 		}
 	}
 	bound := map[string]*Relation{}
@@ -117,6 +122,8 @@ func Sheet(s *Spec, driving TableRef, issues []Issue) []SheetRow {
 			if r.ValueColumn != "" {
 				row.Source += ", values " + r.ValueColumn
 			}
+		case notPopulated[f.ID]:
+			row.Status = SheetNotPopulated
 		case aggs[f.ID] != nil:
 			a := aggs[f.ID]
 			row.Status = SheetAggregate
@@ -149,6 +156,8 @@ func Sheet(s *Spec, driving TableRef, issues []Issue) []SheetRow {
 					row.Constant = string(b)
 				case "expression":
 					steps = append(steps, "expression: "+fmt.Sprint(st.Args["expr"]))
+				case "now": // OC-179: the clock is its source
+					srcs = append(srcs, DescribeNow(st.Args))
 				default:
 					steps = append(steps, st.Op)
 				}

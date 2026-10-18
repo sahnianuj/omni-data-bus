@@ -72,15 +72,27 @@ describe('MappingsStep', () => {
     expect(screen.queryByRole('link', { name: 'Fix the mapping for customers' })).not.toBeInTheDocument()
   })
 
-  it('the ring shows live coverage; auto-mapped is the detail', async () => {
-    // Every column mapped, one by hand: complete, not 67%, and not the last auto-map's 0%.
+  it('OC-178 AC2: the ring shows the fields done, not how they were mapped', async () => {
+    // 38 of 40 fields done, whatever the auto-map or column coverage say.
     server.use(
       http.get('*/api/v1/projects/:pid/mappings', () =>
-        HttpResponse.json({ items: [summary({ automapStats: stats({ autoMapRatio: 0, coverageRatio: 1 / 3 }), stats: stats({ autoMapRatio: 2 / 3, coverageRatio: 1 }) })] }),
+        HttpResponse.json({ items: [summary({ automapStats: stats({ autoMapRatio: 0, coverageRatio: 1 / 3 }), stats: stats({ autoMapRatio: 2 / 3, coverageRatio: 1, targetFields: 40, targetFieldsDone: 38, doneRatio: 0.95, targetFieldsFilled: 38, targetFieldsNotPopulated: 0 }) })] }),
       ),
     )
     renderRoutes(routes, '/projects/p1/mappings')
-    expect(await screen.findByRole('img', { name: '100% of columns covered' })).toBeInTheDocument()
-    expect(screen.getByText(/67% auto-mapped/)).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: "95% of the document's fields done" })).toBeInTheDocument()
+    expect(screen.getByText(/38 of 40 fields done/)).toBeInTheDocument()
+    expect(screen.queryByText(/auto-mapped/)).toBeNull()
+  })
+
+  it('OC-187: the ring and the row say how much was left empty on purpose', async () => {
+    server.use(
+      http.get('*/api/v1/projects/:pid/mappings', () =>
+        HttpResponse.json({ items: [summary({ stats: stats({ targetFields: 40, targetFieldsDone: 38, doneRatio: 0.95, targetFieldsFilled: 20, targetFieldsNotPopulated: 18 }) })] }),
+      ),
+    )
+    renderRoutes(routes, '/projects/p1/mappings')
+    expect(await screen.findByRole('img', { name: "95% of the document's fields done: 50% filled with data, 45% not populated" })).toBeInTheDocument()
+    expect(screen.getByText('(18 not populated)')).toBeInTheDocument()
   })
 })

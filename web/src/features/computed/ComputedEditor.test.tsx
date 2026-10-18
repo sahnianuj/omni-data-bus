@@ -103,7 +103,8 @@ describe('Accessibility', () => {
     const { store } = renderWorkbench(<Inspector projectId="p1" />, view)
     act(() => store.getState().select({ kind: 'field', id: 'f_age' }))
     const inspector = screen.getByRole('complementary', { name: 'Inspector' })
-    expect(within(inspector).getAllByRole('radio')).toHaveLength(3)
+    // Source, Fixed, Template, and Now (OC-179) on a field that can hold a date.
+    expect(within(inspector).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Source', 'Fixed', 'Template', 'Date'])
     const res = await axe.run(inspector, { rules: { 'color-contrast': { enabled: false } } })
     expect(res.violations).toEqual([])
   })

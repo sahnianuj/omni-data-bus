@@ -116,9 +116,9 @@ func TestCompile_AC3_ComputedCycle(t *testing.T) {
 func TestCompile_AC4_ComputedIssues(t *testing.T) {
 	for _, c := range []struct {
 		name, field, expr, code string
-		line, col           int
-		lang                string
-		sources             bool
+		line, col               int
+		lang                    string
+		sources                 bool
 	}{
 		{"unknown field", "f_x", "${doc.fistName}", CodeComputedUnknownField, 1, 3, "", false},
 		{"unknown on line 2", "f_x", "a\nb ${ doc.nope }", CodeComputedUnknownField, 2, 6, "", false},

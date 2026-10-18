@@ -31,6 +31,11 @@ const (
 
 var folderSegment = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
+// windowsReserved are device names Windows won't create as a file or folder, with or without an
+// extension (con, Con.json). They're refused on every OS, so an export tested on one machine
+// writes the same folders on another (OC-186).
+var windowsReserved = regexp.MustCompile(`(?i)^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$`)
+
 // ValidateLocation checks a location for a target of kind (the project's target type); ""
 // skips the kind match. Problems are LOCATION_INVALID with the offending field.
 func ValidateLocation(l Location, kind string) error {
@@ -85,6 +90,10 @@ func ValidateFolder(folder string) error {
 			return bad(fmt.Sprintf("has a segment longer than %d bytes", maxFolderSegment))
 		case !folderSegment.MatchString(s):
 			return bad("may only use letters, digits, \".\", \"_\" and \"-\"")
+		case windowsReserved.MatchString(s):
+			return bad("uses " + s + ", a name Windows reserves")
+		case strings.HasSuffix(s, "."):
+			return bad("has a segment ending in \".\", which Windows drops")
 		}
 	}
 	return nil

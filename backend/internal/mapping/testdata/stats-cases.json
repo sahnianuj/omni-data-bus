@@ -386,7 +386,12 @@
     "requiredTargetUnmapped": 2,
     "autoMapRatio": 0.45454545454545453,
     "coverageRatio": 0.5,
-    "averageConfidence": 0.9200000000000002
+    "averageConfidence": 0.9200000000000002,
+    "targetFields": 22,
+    "targetFieldsDone": 11,
+    "targetFieldsFilled": 11,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 0.5
    }
   },
   {
@@ -450,7 +455,12 @@
     "requiredTargetUnmapped": 0,
     "autoMapRatio": 0,
     "coverageRatio": 1,
-    "averageConfidence": 0
+    "averageConfidence": 0,
+    "targetFields": 1,
+    "targetFieldsDone": 1,
+    "targetFieldsFilled": 1,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 1.0
    }
   },
   {
@@ -491,7 +501,12 @@
     "requiredTargetUnmapped": 0,
     "autoMapRatio": 0,
     "coverageRatio": 0,
-    "averageConfidence": 0
+    "averageConfidence": 0,
+    "targetFields": 0,
+    "targetFieldsDone": 0,
+    "targetFieldsFilled": 0,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 0.0
    }
   },
   {
@@ -652,7 +667,12 @@
       "mapped": 1,
       "total": 2
      }
-    ]
+    ],
+    "targetFields": 3,
+    "targetFieldsDone": 2,
+    "targetFieldsFilled": 2,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 0.6666666666666666
    }
   },
   {
@@ -836,7 +856,12 @@
       "mapped": 2,
       "total": 3
      }
-    ]
+    ],
+    "targetFields": 6,
+    "targetFieldsDone": 4,
+    "targetFieldsFilled": 4,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 0.6666666666666666
    }
   },
   {
@@ -1172,7 +1197,12 @@
       "mapped": 0,
       "total": 1
      }
-    ]
+    ],
+    "targetFields": 6,
+    "targetFieldsDone": 4,
+    "targetFieldsFilled": 4,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 0.6666666666666666
    }
   },
   {
@@ -1412,7 +1442,12 @@
       "mapped": 1,
       "total": 1
      }
-    ]
+    ],
+    "targetFields": 4,
+    "targetFieldsDone": 4,
+    "targetFieldsFilled": 4,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 1.0
    }
   },
   {
@@ -1581,6 +1616,367 @@
       "path": "partner",
       "mapped": 2,
       "total": 3
+     }
+    ],
+    "targetFields": 5,
+    "targetFieldsDone": 3,
+    "targetFieldsFilled": 3,
+    "targetFieldsNotPopulated": 0,
+    "doneRatio": 0.6
+   }
+  },
+  {
+   "name": "OC-166: a field the design leaves empty counts as mapped, and needs nothing",
+   "columns": [
+    "c1",
+    "c2"
+   ],
+   "spec": {
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f1",
+        "name": "t1",
+        "type": "string"
+       },
+       {
+        "id": "f2",
+        "name": "t2",
+        "type": "string",
+        "required": true
+       },
+       {
+        "id": "f3",
+        "name": "t3",
+        "type": "string"
+       }
+      ]
+     },
+     "source": "manual"
+    },
+    "key": {
+     "template": "t::{c1}"
+    },
+    "typeField": {
+     "enabled": false,
+     "name": "",
+     "value": ""
+    },
+    "nullHandling": "include",
+    "fieldMappings": [
+     {
+      "id": "m1",
+      "targetFieldId": "f1",
+      "sources": [
+       {
+        "column": "c1"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 0.9
+     },
+     {
+      "id": "m2",
+      "targetFieldId": "f2",
+      "sources": [],
+      "transforms": [],
+      "origin": "auto",
+      "state": "notPopulated"
+     }
+    ],
+    "embeds": [],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 2,
+    "autoMapped": 1,
+    "suggested": 0,
+    "manuallyMapped": 0,
+    "unmappedSource": 1,
+    "ignored": 0,
+    "totalTargetLeaves": 3,
+    "mappedTargetLeaves": 2,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0.5,
+    "coverageRatio": 0.5,
+    "averageConfidence": 0.9,
+    "targetFields": 3,
+    "targetFieldsDone": 2,
+    "targetFieldsFilled": 1,
+    "targetFieldsNotPopulated": 1,
+    "doneRatio": 0.6666666666666666
+   }
+  },
+  {
+   "name": "OC-178: fields done: array items, a variant, a total, a relation-filled array, a not-populated object; a pending suggestion and an empty object aren't",
+   "columns": [
+    "id",
+    "channel"
+   ],
+   "spec": {
+    "specVersion": 2,
+    "mode": "composed",
+    "root": {
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     }
+    },
+    "docSchema": {
+     "root": {
+      "id": "fld_root",
+      "name": "$",
+      "type": "object",
+      "children": [
+       {
+        "id": "f_id",
+        "name": "id",
+        "type": "string"
+       },
+       {
+        "id": "f_pending",
+        "name": "channel",
+        "type": "string"
+       },
+       {
+        "id": "f_items",
+        "name": "items",
+        "type": "array",
+        "items": {
+         "id": "f_item",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "f_price",
+           "name": "price",
+           "type": "integer"
+          },
+          {
+           "id": "f_qty",
+           "name": "qty",
+           "type": "integer"
+          },
+          {
+           "id": "v_card",
+           "name": "card",
+           "type": "object",
+           "variant": {
+            "field": "kind",
+            "value": "card"
+           },
+           "children": [
+            {
+             "id": "f_brand",
+             "name": "brand",
+             "type": "string"
+            }
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "id": "f_total",
+        "name": "total",
+        "type": "integer"
+       },
+       {
+        "id": "f_tags",
+        "name": "tags",
+        "type": "array",
+        "items": {
+         "id": "f_tag",
+         "name": "[]",
+         "type": "string"
+        }
+       },
+       {
+        "id": "f_meta",
+        "name": "meta",
+        "type": "object",
+        "children": [
+         {
+          "id": "f_a",
+          "name": "a",
+          "type": "string"
+         },
+         {
+          "id": "f_b",
+          "name": "b",
+          "type": "string"
+         }
+        ]
+       },
+       {
+        "id": "f_empty",
+        "name": "extra",
+        "type": "object",
+        "children": []
+       }
+      ]
+     }
+    },
+    "key": {
+     "template": "cart::{id}"
+    },
+    "nullHandling": "omit",
+    "relations": [
+     {
+      "id": "rel_items",
+      "parentId": null,
+      "kind": "one-to-many",
+      "table": {
+       "schema": "pos",
+       "name": "cart_items"
+      },
+      "join": [
+       {
+        "parent": "id",
+        "child": "cart_id"
+       }
+      ],
+      "targetFieldId": "f_items"
+     },
+     {
+      "id": "rel_tags",
+      "parentId": null,
+      "kind": "one-to-many",
+      "table": {
+       "schema": "pos",
+       "name": "cart_tags"
+      },
+      "join": [
+       {
+        "parent": "id",
+        "child": "cart_id"
+       }
+      ],
+      "targetFieldId": "f_tags",
+      "shape": "scalars",
+      "valueColumn": "tag"
+     }
+    ],
+    "aggregates": [
+     {
+      "id": "ag_total",
+      "targetFieldId": "f_total",
+      "relationId": "rel_items",
+      "fn": "sum",
+      "column": "price"
+     }
+    ],
+    "fieldMappings": [
+     {
+      "id": "m_id",
+      "targetFieldId": "f_id",
+      "sources": [
+       {
+        "column": "id"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m_ch",
+      "targetFieldId": "f_pending",
+      "sources": [
+       {
+        "column": "channel"
+       }
+      ],
+      "transforms": [],
+      "origin": "suggested",
+      "state": "pending",
+      "confidence": 0.7
+     },
+     {
+      "id": "m_price",
+      "targetFieldId": "f_price",
+      "sources": [
+       {
+        "relation": "rel_items",
+        "column": "price"
+       }
+      ],
+      "transforms": [],
+      "origin": "auto",
+      "state": "active",
+      "confidence": 1
+     },
+     {
+      "id": "m_brand",
+      "targetFieldId": "f_brand",
+      "sources": [],
+      "transforms": [
+       {
+        "op": "constant",
+        "args": {
+         "value": "VISA"
+        }
+       }
+      ],
+      "origin": "manual",
+      "state": "active"
+     },
+     {
+      "id": "m_meta",
+      "targetFieldId": "f_meta",
+      "sources": [],
+      "transforms": [],
+      "origin": "manual",
+      "state": "notPopulated"
+     }
+    ],
+    "ignoredColumns": []
+   },
+   "expected": {
+    "totalSourceColumns": 2,
+    "autoMapped": 1,
+    "suggested": 1,
+    "manuallyMapped": 0,
+    "unmappedSource": 0,
+    "ignored": 0,
+    "totalTargetLeaves": 7,
+    "mappedTargetLeaves": 1,
+    "requiredTargetUnmapped": 0,
+    "autoMapRatio": 0.5,
+    "coverageRatio": 0.5,
+    "averageConfidence": 1,
+    "targetFields": 10,
+    "targetFieldsDone": 7,
+    "targetFieldsFilled": 5,
+    "targetFieldsNotPopulated": 2,
+    "doneRatio": 0.7,
+    "byNode": [
+     {
+      "nodeId": "fld_root",
+      "path": "root",
+      "mapped": 2,
+      "total": 5
+     },
+     {
+      "nodeId": "f_items",
+      "relationId": "rel_items",
+      "path": "items",
+      "mapped": 2,
+      "total": 3
+     },
+     {
+      "nodeId": "f_tags",
+      "relationId": "rel_tags",
+      "path": "tags",
+      "mapped": 0,
+      "total": 0
      }
     ]
    }

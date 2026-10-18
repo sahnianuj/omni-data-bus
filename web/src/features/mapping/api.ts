@@ -172,8 +172,22 @@ export function suggestBindings(projectId: string, id: string, body: { nodeId?: 
   return call(api.POST('/api/v1/projects/{id}/mappings/{mid}/suggest-bindings', { params: { path: { id: projectId, mid: id } }, body }))
 }
 
-export function inferDocSchema(kind: 'json-sample' | 'json-schema', content: string, fileName?: string): Promise<InferResult> {
-  return call(api.POST('/api/v1/doc-schemas/infer', { body: { kind, content, ...(fileName ? { fileName } : {}) } }))
+export type Proposal = components['schemas']['Proposal']
+export type ProposalItem = components['schemas']['ProposalItem']
+
+/** The whole mapping of the design, proposed against the connected source (OC-163); changes nothing. */
+export function proposeMapping(projectId: string, id: string, body: { specOverride?: MappingSpec; drivingTable?: string; base?: boolean; nodeId?: string }): Promise<Proposal> {
+  return call(api.POST('/api/v1/projects/{id}/mappings/{mid}/propose', { params: { path: { id: projectId, mid: id } }, body }))
+}
+
+/** A mapping proposed for a design that has no mapping yet: New mapping from a design (OC-163). */
+export function proposeDesign(projectId: string, docSchema: DocSchema, drivingTable?: string): Promise<Proposal> {
+  return call(api.POST('/api/v1/projects/{id}/mappings/propose', { params: { path: { id: projectId } }, body: { docSchema, ...(drivingTable ? { drivingTable } : {}) } }))
+}
+
+/** files: a JSON Schema's other files, for designs split across files (OC-171). */
+export function inferDocSchema(kind: 'json-sample' | 'json-schema', content: string, fileName?: string, files?: { name: string; content: string }[]): Promise<InferResult> {
+  return call(api.POST('/api/v1/doc-schemas/infer', { body: { kind, content, ...(fileName ? { fileName } : {}), ...(files?.length ? { files } : {}) } }))
 }
 
 export function inferFromCollection(connId: string, target: MappingTarget): Promise<InferResult> {

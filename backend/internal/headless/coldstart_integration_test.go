@@ -13,10 +13,10 @@ import (
 	"omnidatabus/internal/export"
 )
 
-// TestColdStartFixture writes a sealed export of the golden orders project (the generic
-// migrate.sh, mappings.json and an empty config.json: the sealed bundle keeps its connections;
-// the dev PostgreSQL as source, a directory target) to $ODB_COLDSTART_OUT, for the runner
-// cold-start benchmark (OC-056; bench/README.md). Skipped unless that's set.
+// TestColdStartFixture writes a sealed export folder of the golden orders project (mappings.json
+// and an empty config.json: the sealed bundle keeps its connections; the dev PostgreSQL as
+// source, a directory target) to $ODB_COLDSTART_OUT, for the runner cold-start benchmark
+// (OC-056, OC-184: odbbench coldstart --dir; bench/README.md). Skipped unless that's set.
 func TestColdStartFixture(t *testing.T) {
 	out := os.Getenv("ODB_COLDSTART_OUT")
 	if out == "" {
@@ -27,10 +27,7 @@ func TestColdStartFixture(t *testing.T) {
 	b := tl.export(t, filepath.Join(out, "out"), export.Request{})
 	raw, err := export.Encode(b)
 	require.NoError(t, err)
-	script, err := export.GenericScript(export.ScriptConfig{}, buildinfo.Get().Version)
-	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(out, export.MappingsFile), raw, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(out, export.RunConfigFile), []byte("{}\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(out, "migrate.sh"), script, 0o755)) //nolint:gosec // an executable script
 	t.Logf("wrote %s (odb %s); passphrase %q", out, buildinfo.Get().Version, passphrase)
 }

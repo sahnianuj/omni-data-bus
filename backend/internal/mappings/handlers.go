@@ -27,6 +27,9 @@ func (h Handlers) Routes(r chi.Router) {
 		r.Post("/projects/{id}/mappings/{mid}/validate", h.validate)
 		r.Post("/projects/{id}/mappings/{mid}/preview", h.preview)
 		r.Post("/projects/{id}/mappings/{mid}/suggest-bindings", h.suggestBindings)
+		// Read-only: design-first proposals (OC-163), like suggest-bindings.
+		r.Post("/projects/{id}/mappings/{mid}/propose", h.propose)
+		r.Post("/projects/{id}/mappings/propose", h.proposeDesign)
 		r.Post("/doc-schemas/infer", h.infer)
 		r.Post("/doc-schemas/export", h.export)
 		r.Post("/doc-schemas/reconcile", h.reconcile)
@@ -268,6 +271,8 @@ type inferRequest struct {
 	Kind     string `json:"kind" validate:"required,oneof=json-sample json-schema"`
 	Content  string `json:"content" validate:"required"`
 	FileName string `json:"fileName,omitempty" validate:"max=255"`
+	// Files are the design's other files, for a JSON Schema split across files (OC-171).
+	Files []docschema.File `json:"files,omitempty" validate:"max=200"`
 }
 
 // infer imports a customer design (OC-015, OC-059): the result carries the reference
@@ -278,7 +283,14 @@ func (h Handlers) infer(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, r, err)
 		return
 	}
-	s, warnings, err := docschema.Import(in.Kind, in.Content, in.FileName)
+	var s docschema.Schema
+	var warnings []string
+	var err error
+	if in.Kind == docschema.KindJSONSchema && len(in.Files) > 0 {
+		s, warnings, err = docschema.ImportFiles(append([]docschema.File{{Name: in.FileName, Content: in.Content}}, in.Files...))
+	} else {
+		s, warnings, err = docschema.Import(in.Kind, in.Content, in.FileName)
+	}
 	if err != nil {
 		problem.Write(w, r, err)
 		return

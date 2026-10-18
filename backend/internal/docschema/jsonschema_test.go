@@ -109,3 +109,49 @@ func TestToJSONSchema_AC3_RoundTrip(t *testing.T) {
 		require.Equal(t, clean(s.Root), clean(back.Root))
 	}
 }
+
+// OC-171 AC1: a oneOf of objects is a variant set, with its discriminator; [null, T] stays a
+// nullable T; the export writes the same oneOf back.
+func TestJSONSchema_OC171_AC1_Variants(t *testing.T) {
+	src := `{"type":"object","properties":{
+	  "nick":{"oneOf":[{"type":"null"},{"type":"string"}]},
+	  "contactMethods":{"type":"array","items":{"oneOf":[
+	    {"title":"Email","type":"object","properties":{"kind":{"const":"email"},"address":{"type":"string"}}},
+	    {"title":"Phone","type":"object","properties":{"kind":{"const":"phone"},"number":{"type":"string"},"ext":{"type":"integer"}}},
+	    {"title":"Postal","type":"object","properties":{"kind":{"const":"postal"},"city":{"type":"string"}}}]}}}}`
+	s, warnings, err := FromJSONSchema([]byte(src))
+	require.NoError(t, err)
+	require.Empty(t, warnings)
+	by := map[string]*DocField{}
+	s.Walk(func(f *DocField, p string, _ *DocField) { by[p] = f })
+	require.Equal(t, String, by["nick"].Type, "[null, string] is a nullable string")
+	items := by["contactMethods[]"]
+	require.True(t, items.HasVariants())
+	var names []string
+	for _, v := range items.Children {
+		names = append(names, v.Name)
+		require.Equal(t, "kind", v.Variant.Field)
+	}
+	require.Equal(t, []string{"email", "phone", "postal"}, names)
+	require.JSONEq(t, `"phone"`, string(items.Children[1].Variant.Value))
+	require.Equal(t, "Phone", items.Children[1].Variant.Title)
+	// Conformance paths are the document's.
+	var paths []string
+	for _, c := range Contract(&s) {
+		paths = append(paths, c.Path)
+	}
+	require.Contains(t, paths, "contactMethods[].number")
+	require.NotContains(t, paths, "contactMethods[].phone.number")
+
+	out, err := ToJSONSchema(&s)
+	require.NoError(t, err)
+	again, _, err := FromJSONSchema(out)
+	require.NoError(t, err)
+	var back []string
+	again.Walk(func(f *DocField, _ string, _ *DocField) {
+		if f.Variant != nil {
+			back = append(back, f.Name+"="+string(f.Variant.Value))
+		}
+	})
+	require.Equal(t, []string{`email="email"`, `phone="phone"`, `postal="postal"`}, back)
+}

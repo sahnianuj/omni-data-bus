@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2329 # on_signal runs from trap
-# Omni-Data-Bus migration runner, odb {{.Version}}.
+# Omni-Data-Bus migration runner, odb {{.Version}}{{if .Build}} (build {{.Build}}){{end}}.
 #
 # The same script for every migration: it reads two files from its own folder and runs odb.
 #   config.json    where: the source and target connection details (edit it per environment)

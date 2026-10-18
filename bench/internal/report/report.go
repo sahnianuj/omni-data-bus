@@ -42,9 +42,13 @@ type Result struct {
 	GateFailures      []string         `json:"gateFailures,omitempty"`
 	Regression        *Regression      `json:"regression,omitempty"`
 	Profiles          []string         `json:"profiles,omitempty"`
-	// ColdStartSeconds is the median time of `migrate.sh preflight` (the coldstart scenario).
+	// ColdStartSeconds is the median time of `odb preflight` in an export folder (the coldstart
+	// scenario; `migrate.sh preflight` for 2.0 results).
 	ColdStartSeconds float64          `json:"coldStartSeconds,omitempty"`
 	Samples          []analyze.Sample `json:"samples"`
+	// Quality are named quality scores of a run that measures correctness, not speed: the
+	// design-first proposal's agreement with its expected mapping (OC-173), by category.
+	Quality map[string]float64 `json:"quality,omitempty"`
 }
 
 // Regression is the comparison with earlier runs of the same dataset.
@@ -122,7 +126,7 @@ func Markdown(r Result) string {
 		fmt.Fprintf(&b, "| %s | %s |\n", k, r.Environment[k])
 	}
 	if r.ColdStartSeconds > 0 {
-		fmt.Fprintf(&b, "\n## Results\n\n| Metric | Value |\n|---|---|\n| `migrate.sh preflight` (median) | %.2f s |\n", r.ColdStartSeconds)
+		fmt.Fprintf(&b, "\n## Results\n\n| Metric | Value |\n|---|---|\n| Preflight (median: %s) | %.2f s |\n", r.Description, r.ColdStartSeconds)
 		return b.String()
 	}
 	if r.Target != "" {

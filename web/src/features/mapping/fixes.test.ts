@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { findField } from '@/features/docschema/docschemaOps'
 import { embedView, sampleSpec } from '@/test/mapping'
 import { addToDesign, applyFix, groupIssues, issueTarget, removeBranch, selectionForPath } from './fixes'
-import type { MappingIssue } from './types'
+import { unusedLookups } from './reads'
+import type { FieldMapping, MappingIssue } from './types'
 
 const issue = (over: Partial<MappingIssue>): MappingIssue => ({ severity: 'error', code: 'X', path: 'p', message: 'm', ...over })
 
@@ -90,5 +91,22 @@ describe('navigation', () => {
 
     const mapped = applyFix(spec, { ...issue, fieldId: 'f_date', fix: { kind: 'map-field', label: 'Map from order_date', relationId: 'emb_o', columns: ['order_date'] } })
     expect(mapped.fieldMappings.filter((m) => m.targetFieldId === 'f_date').map((m) => m.sources)).toEqual([[{ relation: 'emb_o', column: 'order_date' }]])
+  })
+
+  it('OC-177 AC1: remove-relation removes an unused lookup; unusedLookups finds it', () => {
+    const spec = embedView().spec
+    spec.relations.push({ id: 'rel_lk', parentId: null, kind: 'many-to-one', lookupOnly: true, table: { schema: 'shop', name: 'partners' }, join: [{ parent: 'customer_id', child: 'id' }] })
+    expect([...unusedLookups(spec)]).toEqual(['rel_lk'])
+    const read = { ...spec, fieldMappings: [...spec.fieldMappings, { id: 'm_x', targetFieldId: 'f_age', sources: [], transforms: [{ op: 'expression', args: { expr: 'len(partners.name)' } }], origin: 'manual', state: 'active' } satisfies FieldMapping] }
+    expect(unusedLookups(read).size).toBe(0)
+    const next = applyFix(spec, issue({ code: 'LOOKUP_UNUSED', severity: 'info', fix: { kind: 'remove-relation', label: 'Remove lookup', relationId: 'rel_lk' } }))
+    expect(next.relations.map((r) => r.id)).toEqual(['emb_o'])
+  })
+
+  it('OC-179 AC3: replace-step switches a now step\'s format', () => {
+    const spec = sampleSpec()
+    spec.fieldMappings.push({ id: 'm_now', targetFieldId: 'f_age', sources: [], transforms: [{ op: 'now', args: { at: 'write', format: 'iso8601' } }], origin: 'manual', state: 'active' })
+    const next = applyFix(spec, issue({ code: 'NOW_FORMAT_TYPE', fieldMappingId: 'm_now', fix: { kind: 'replace-step', label: 'Use epoch milliseconds', step: { op: 'now', args: { at: 'write', format: 'epoch_ms' } } } }))
+    expect(next.fieldMappings.find((m) => m.id === 'm_now')!.transforms).toEqual([{ op: 'now', args: { at: 'write', format: 'epoch_ms' } }])
   })
 })

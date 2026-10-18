@@ -1,6 +1,8 @@
 {
   "name": "omni-data-bus-web",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Anuj Sahni (Couchbase, Inc.)",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

@@ -148,7 +148,10 @@
     "description": "Your profile and workspace.",
     "about": {
       "title": "About",
-      "description": "The release and build this installation runs. Quote it when you report a problem."
+      "description": "The release and build this installation runs. Quote it when you report a problem.",
+      "licence": "Licensed under the Apache License 2.0 · Copyright 2026 Couchbase, Inc.",
+      "author": "Author: Anuj Sahni, Principal Cloud & Solutions Architect",
+      "licences": "Open-source licences"
     }
   },
   "secret": {
@@ -584,6 +587,12 @@
     "emptyBody": "Pick the tables to migrate and Omni-Data-Bus will auto-map their columns.",
     "pickTables": "Pick tables",
     "autoScore": "{{pct}}% auto-mapped",
+    "donePercent": "{{pct}}% of the document's fields done",
+    "doneSplit": "{{pct}}% of the document's fields done: {{filled}}% filled with data, {{empty}}% not populated",
+    "notPopulatedShort": "{{count}} not populated",
+    "fieldsDone_one": "{{done}} of {{count}} field done",
+    "fieldsDone_other": "{{done}} of {{count}} fields done",
+    "noFields": "No fields designed yet",
     "coverage": "{{pct}}% of columns covered",
     "toFix_one": "{{count}} to fix",
     "toFix_other": "{{count}} to fix",
@@ -618,10 +627,30 @@
   "mapping": {
     "score": "Mapping score",
     "autoPercent": "{{pct}}% auto-mapped",
+    "donePercent": "{{pct}}% of the document's fields done",
+    "doneSplit": "{{pct}}% of the document's fields done: {{filled}}% filled with data, {{empty}}% not populated",
+    "filledCount_one": "{{count}} filled with data",
+    "filledCount_other": "{{count}} filled with data",
+    "notPopulatedCount_one": "{{count}} not populated",
+    "notPopulatedCount_other": "{{count}} not populated",
+    "toGoCount_one": "{{count}} to go",
+    "toGoCount_other": "{{count}} to go",
+    "toGoRequired": "{{count}} to go ({{required}} required)",
+    "toGoHint": "Map the fields left, or mark them not populated.",
+    "sourceUsed": "Source columns used: {{used}} of {{total}}",
+    "sourceUsedSplit": "Source columns used: {{used}} of {{total}} ({{own}} of {{ownTotal}} from the table, {{emb}} of {{embTotal}} embedded)",
+    "fieldsDone_one": "{{done}} of {{count}} target field done",
+    "fieldsDone_other": "{{done}} of {{count}} target fields done",
+    "allDone_one": "The target field is done",
+    "allDone_other": "All {{count}} target fields done",
+    "noFields": "The document has no fields yet",
+    "showThem_one": "Show it",
+    "showThem_other": "Show them",
+    "sourceColumns_one": "Source column · auto-mapped {{auto}} of {{count}} on the last run",
+    "sourceColumns_other": "Source columns · auto-mapped {{auto}} of {{count}} on the last run",
     "noColumns": "This table has no columns to map.",
     "headline_one": "Omni-Data-Bus auto-mapped {{auto}} of {{count}} column",
     "headline_other": "Omni-Data-Bus auto-mapped {{auto}} of {{count}} columns",
-    "coverage": "{{pct}}% coverage ({{covered}} of {{total}} columns)",
     "avgConfidence": "Average confidence {{pct}}%",
     "requiredUnmapped_one": "{{count}} required field unmapped",
     "requiredUnmapped_other": "{{count}} required fields unmapped",
@@ -639,8 +668,8 @@
       "suggested_other": "{{count}} suggested",
       "manual_one": "{{count}} manual",
       "manual_other": "{{count}} manual",
-      "unmapped_one": "{{count}} unmapped",
-      "unmapped_other": "{{count}} unmapped",
+      "unmapped_one": "{{count}} not used",
+      "unmapped_other": "{{count}} not used",
       "ignored_one": "{{count}} ignored",
       "ignored_other": "{{count}} ignored"
     },
@@ -677,6 +706,14 @@
     "createFieldFor": "Create a field for {{column}}",
     "ignoreColumn": "Ignore {{column}}",
     "canvas": "Mapping canvas",
+    "notMapped": "Not mapped",
+    "sourceOrder": "Order",
+    "sourceOrderDocument": "Document",
+    "sourceOrderTable": "Table",
+    "sourceOrderHint": "Document: in the order of the fields they fill. Table: as the tables list them.",
+    "revealCycle": "{{field}} · {{i}} of {{n}}",
+    "revealHidden": "{{name}} is hidden by the filter.",
+    "revealShow": "Show it",
     "sourcePanel_one": "Source: {{count}} column",
     "sourcePanel_other": "Source: {{count}} columns",
     "targetPanel": "Target document",
@@ -718,9 +755,10 @@
     "unignore": "Include column",
     "createField": "Create field",
     "constant": "Constant",
+    "notPopulated": "Not populated",
     "unmapped": "Unmapped",
     "transforms": "Transforms",
-    "dragHint": "Drag a source column onto this field, or set a constant value.",
+    "dragHint": "Drag a source column onto this field. For the same value in every document, choose Fixed.",
     "constantLabel": "Constant value",
     "setConstant": "Set constant",
     "markOptional": "Mark optional",
@@ -746,6 +784,7 @@
       "parseBoolean": "Parse boolean",
       "toDatetime": "To datetime",
       "formatDatetime": "Format datetime",
+      "now": "Current date and time",
       "trim": "Trim",
       "lower": "Lowercase",
       "upper": "Uppercase",
@@ -768,6 +807,7 @@
       "strict": "Strict (error instead of null)",
       "inputFormat": "Input format",
       "timezone": "Time zone",
+      "at": "Time",
       "format": "Format",
       "pattern": "Pattern",
       "start": "Start",
@@ -916,6 +956,8 @@
     "at": "(line {{line}}, column {{column}})",
     "none": "No issues. This mapping is ready.",
     "ready": "Mapping is ready",
+    "keepOne": "Keep {{what}}",
+    "showInTarget": "Show {{path}} in the target pane",
     "goTo": "Go to",
     "error_one": "{{count}} error",
     "error_other": "{{count}} errors",
@@ -961,6 +1003,16 @@
     "composerHint": "This document has nested arrays or objects — the Composer is made for that.",
     "openComposer": "Open Composer",
     "backToCanvas": "Back to Canvas",
+    "filtered": "Showing {{what}}",
+    "showAll": "Show all",
+    "filterName": {
+      "unmapped": "only what's not mapped",
+      "suggested": "only suggestions",
+      "auto": "only auto-mapped",
+      "manual": "only manual mappings",
+      "errors": "only fields with errors",
+      "required": "only required fields"
+    },
     "dontShowAgain": "Don't show again",
     "search": "Search columns and fields",
     "side": "Mapping panels",
@@ -1059,6 +1111,82 @@
     "summary": "≈ {{rows}} rows · {{mode}}",
     "export": "Export…",
     "exportHint": "Export the mappings as a script that runs the migration on another machine, without this tool"
+  },
+  "propose": {
+    "title": "Proposed mapping",
+    "propose": "Propose mapping",
+    "summary": "{{proposed}} of {{fields}} fields · {{review}} need review · {{notPopulated}} not populated · {{unresolved}} unresolved",
+    "driving": "from {{table}}",
+    "sheet": "Coverage sheet",
+    "again": "Propose again",
+    "discard": "Discard",
+    "applyHigh": "Apply high only",
+    "apply": "Apply",
+    "filter": "Show",
+    "filters": {
+      "all": "All",
+      "review": "Needs review",
+      "unresolved": "Unresolved",
+      "notPopulated": "Not populated",
+      "edited": "Edited"
+    },
+    "keys": "n / p: next or previous to review",
+    "notPopulatedDesign": "not populated (design)",
+    "unresolved": "unresolved",
+    "chip": {
+      "high": "high confidence",
+      "medium": "medium confidence",
+      "low": "low confidence",
+      "notPopulated": "not populated",
+      "unresolved": "unresolved",
+      "edited": "edited"
+    },
+    "chipShort": {
+      "high": "high",
+      "medium": "med",
+      "low": "low",
+      "notPopulated": "n/p",
+      "unresolved": "none",
+      "edited": "edited"
+    },
+    "panel": "Proposal",
+    "code": {
+      "NO_COLUMN": "No column fits this field",
+      "NO_PATH": "No relationship reaches a table that fits",
+      "TYPE_MISMATCH": "The best column can't convert to this type",
+      "DEPTH_LIMIT": "Deepest level reached",
+      "REFERENCE_TEMPLATE": "Another document's key",
+      "UNTYPED_ITEMS": "The items have no fields in the design"
+    },
+    "use": "Use {{what}}",
+    "useTable": "Use {{table}}",
+    "useExpression": "Use the key expression",
+    "addVirtual": "Add virtual relationship…",
+    "importItems": "Import item designs…",
+    "markNotPopulated": "Mark not populated",
+    "takeBack": "Take back",
+    "notPopulatedNote": "Not populated: the design leaves this field empty on purpose. Nothing is written, and it counts as done.",
+    "mapInstead": "Map it instead"
+  },
+  "now": {
+    "title": "Current date and time",
+    "when": "Which time",
+    "at": { "run": "When the run started", "write": "When each document is written" },
+    "atHint": {
+      "run": "Every document of a run gets the same time: the run's start",
+      "write": "Each document gets the time it's written: useful for incremental runs"
+    },
+    "format": "Format",
+    "sameAsGroup": "Like the document's other dates",
+    "sameAs": "Same as {{field}} ({{format}})",
+    "formatsGroup": "Formats",
+    "formats": { "epoch_ms": "Epoch milliseconds", "epoch_s": "Epoch seconds", "iso8601": "ISO 8601", "date": "Date (yyyy-MM-dd)", "custom": "Custom pattern…" },
+    "pattern": "Pattern",
+    "timezone": "Time zone",
+    "sample": "Writes, for example:",
+    "wantEpoch": "{{field}} is {{type}}: use an epoch format.",
+    "wantText": "{{field}} is {{type}}: use a written-out format (ISO 8601, date or a pattern).",
+    "badge": "now · {{format}}"
   },
   "monitor": {
     "title": "Migration",
@@ -1201,7 +1329,6 @@
     "groupMany": "{{table}} → {{field}}[] (array)",
     "remove": "Remove the {{table}} embed",
     "badge": "embed",
-    "scoreEmbedded": "{{mapped}} of {{total}} embedded columns mapped",
     "kindManyMany": "Array through a junction table (many-to-many)",
     "titleJunction": "Embed {{table}} via {{via}}",
     "under": "They go inside the {{parent}} field.",
@@ -1272,6 +1399,10 @@
     "collapseHop": "Hide tables related to {{table}}",
     "groupManyMany": "{{table}} → {{field}}[] (via {{via}})",
     "groupLookup": "{{table}} (values only)",
+    "notUsed": "· not used",
+    "notUsedHint": "No field reads this lookup. Map a field from it, or remove it.",
+    "showColumns": "Show {{table}}'s columns",
+    "hideColumns": "Hide {{table}}'s columns",
     "groupNested": "{{table}} → {{field}} (in {{parent}})",
     "confidence": {
       "high": "Junction table (its key is both foreign keys)",
@@ -1343,8 +1474,9 @@
   },
   "build": {
     "label": "Build information",
-    "summary": "{{name}} {{version}}",
+    "summary": "v{{version}}",
     "build": "build {{commit}}",
+    "badge": "v{{version}}",
     "bundled": "{{store}} (bundled)",
     "dev": "DEV",
     "rc": "RC",
@@ -1365,7 +1497,8 @@
       "bundled": "Bundled store",
       "nodes": "Nodes",
       "api": "API",
-      "worker": "Worker"
+      "worker": "Worker",
+      "build": "Build"
     },
     "unknown": "unknown",
     "releaseNotes": "Release notes",
@@ -1662,7 +1795,13 @@
         "warnings": "Warnings"
       },
       "done_one": "Imported {{count}} field.",
-      "done_other": "Imported {{count}} fields."
+      "done_other": "Imported {{count}} fields.",
+      "propose": "Propose the mapping from the source",
+      "proposeHint": "Pick the driving table, the related tables and the columns for the whole design, from the connected source. You review it before anything is kept.",
+      "chooseFolder": "Choose a folder…",
+      "folderLabel": "A folder of design files",
+      "withFiles_one": "with {{count}} more file: {{names}}",
+      "withFiles_other": "with {{count}} more files: {{names}}"
     },
     "example": "Example",
     "combine": {
@@ -1781,6 +1920,8 @@
       "noPath": "No relationship connects {{from}} to {{table}}.",
       "define": "Define relationship…",
       "confirm": "Bind",
+      "repeatBound": "{{node}} already reads {{table}}: its fields can use {{table}}'s columns without a lookup.",
+      "repeatLookup": "A lookup of {{table}} on the same join is already here; another one would add nothing.",
       "addLookup": "Add lookup"
     },
     "sources": {
@@ -1848,28 +1989,45 @@
       "lookup": "Look up {{table}} in {{into}}",
       "lookupShort": "Look up",
       "lookupTag": "lookup"
+    },
+    "variant": "variant",
+    "variants": {
+      "title": "Variants",
+      "hint": "Which rows of {{table}} are each variant: a column that is set, or equal to a value.",
+      "when": "Column",
+      "value": "Value (empty: the column is set)",
+      "none": "—",
+      "noMatch": "A row of no variant",
+      "skip": "is skipped (counted)",
+      "fail": "fails the document"
     }
   },
   "export": {
     "pageTitle": "Export",
-    "pageIntro": "Export the migration to run it without this tool: a folder with migrate.sh, config.json (where: the connections) and mappings.json (what: the mappings). Import the run's report.json afterwards to see the production results next to your test runs.",
+    "pageIntro": "Export the migration to run it without this tool: a folder with config.json (where: the connections) and mappings.json (what: the mappings) that the odb command runs the same way on macOS, Windows and Linux. Import the run's report.json afterwards to see the production results next to your test runs.",
     "new": "New export",
     "noReady": "No mapping is ready to export yet.",
     "import": "Import report",
     "importHint": "Import the report.json that odb run wrote in its state directory",
     "imported": "Run report imported",
     "title": "Export migration",
-    "intro": "It exports the project as configured: a folder with migrate.sh, config.json (where) and mappings.json (what).",
+    "intro": "It exports the project as configured: a folder with config.json (where) and mappings.json (what). Run it with odb preflight and odb run on any machine with odb installed.",
     "steps": "Export steps",
     "step": {
       "project": "Project",
       "options": "Options"
     },
     "run": {
-      "includeOdb": "Include odb for a machine without internet access",
-      "includeOdbHint": "Puts odb beside migrate.sh. Otherwise the script uses an installed odb or Docker, or downloads odb when it runs.",
+      "includeOdb": "Add odb for a machine without internet access",
+      "includeOdbHint": "The folder runs with the odb installed on each machine (its README links the downloads). Check this to also add odb for one machine as bin/odb; the rest of the folder stays the same, so it still runs elsewhere.",
+      "includeOdbNone": "This server has no odb binaries to add. Install odb on the machine that runs the export (see the README), or use Docker.",
       "platform": "Machine",
-      "autoEmbed": "This server can't offer odb downloads, so the export includes odb for {{platform}}. For another machine, include odb for it.",
+      "onDemandShort": "downloaded on first export",
+      "onDemand": "This server gets odb for {{machine}} from the release the first time (about 12 MB), checks it against the release's checksum, and keeps it for later exports.",
+      "unavailable": "Not available on this server: {{machines}}. {{reason}}",
+      "fetching": "Getting odb for {{machine}}…",
+      "unsignedMac": "This development build's odb isn't signed, so macOS will block it. Use a release build, or run xattr -d com.apple.quarantine bin/odb once (the README says so too).",
+      "unsignedWindows": "This development build's odb isn't signed, so Windows SmartScreen may stop it: choose More info → Run anyway, or use a release build.",
       "options": "Run options",
       "readers": "Readers",
       "writers": "Writers",
@@ -1901,6 +2059,7 @@
         "sha": "Bundle sha256",
         "compare": "Compared with now"
       },
+      "folder": "Export folder",
       "current": "Current",
       "changed": "Changed since export",
       "changedHint": "Changed: {{list}}. Compare with odb bundle diff (this export's bundle is {{sha}}…)."
@@ -1911,39 +2070,50 @@
     "part": {
       "source": "Source",
       "target": "Target",
-      "targetPath": "The script writes here unless ODB_TARGET_PATH points elsewhere on the machine that runs it.",
+      "targetPath": "odb writes here unless --target-path or ODB_TARGET_PATH points elsewhere on the machine that runs it.",
       "credentials": "Credentials",
-      "credentialsBody": "The saved source and target connection details and credentials, in config.json beside the script",
+      "credentialsBody": "The saved source and target connection details and credentials, in config.json in the export folder",
       "mappings": "Mappings: {{ready}} of {{count}} ready"
     },
     "notIncluded": "Not ready — not exported",
     "configNote": "config.json holds the database credentials, base64-encoded (not encrypted): keep it like a password. A password typed in plain text is encoded on the next run.",
     "files": {
-      "script": "the runner: the same script for every export, so you can reuse it",
       "config": "where: the source and target connection details, to edit per environment",
       "mappings": "what: the mappings, with an outline of what fills each field",
-      "odb": "odb for {{platform}}",
-      "readme": "how to run it"
+      "odb": "odb for {{platform}}, for a machine without internet access",
+      "readme": "how to run it: odb preflight, odb run, and where to get odb"
     },
-    "filesLabel": "Files in the export"
+    "filesLabel": "Files in the export",
+    "platforms": {
+      "linux_amd64": "Linux x86-64",
+      "linux_arm64": "Linux ARM64",
+      "darwin_amd64": "macOS (Intel)",
+      "darwin_arm64": "macOS (Apple silicon)",
+      "darwin_universal": "macOS (Intel or Apple silicon)",
+      "windows_amd64": "Windows x86-64"
+    }
   },
   "help": {
     "directoryTarget": "Guide: directory targets",
     "embed": "Guide: relationship mapping",
     "composer": "Guide: document composer",
     "export": "Guide: running migrations outside the tool",
-    "computed": "Guide: computed fields"
+    "computed": "Guide: computed fields",
+    "designFirst": "Help: starting from the customer's design",
+    "variants": "Help: variant shapes"
   },
   "computed": {
     "valueSource": "Value source",
     "source": {
       "source": "Source",
       "fixed": "Fixed",
-      "template": "Template"
+      "template": "Template",
+      "now": "Date"
     },
     "sourceHint": {
       "source": "Mapped from source columns, through its transforms",
       "fixed": "The same value in every document",
+      "now": "The current date and time, when the run started or when each document is written",
       "template": "Built from the document's other fields, e.g. ${doc.firstName} ${doc.lastName}"
     },
     "template": "Template",
@@ -1961,5 +2131,31 @@
     "fx": "ƒx",
     "uses": "Uses:",
     "usedBy": "Used by:"
+  },
+  "newFromDesign": {
+    "open": "New mapping from a design…",
+    "title": "New mapping from a design",
+    "body": "Paste or choose the customer's JSON design (a JSON Schema or sample documents). The tool picks the table its documents come from, from the connected source, and proposes the rest.",
+    "label": "The JSON design",
+    "read": "Find the table",
+    "noTable": "No table of the source fits this design.",
+    "driving": "Documents come from",
+    "create": "Create and propose",
+    "mappedTitle": "{{table}} is already mapped",
+    "mappedBody": "Update that mapping with this design — you see what changes and keep what is mapped — or cancel.",
+    "existing": "Mapping of {{table}}",
+    "composed": "composed",
+    "canvas": "canvas",
+    "where": "Writes to",
+    "key": "Key",
+    "mappedFields": "Mapped",
+    "fields": "{{mapped}} of {{total}} fields",
+    "edited": "Last edited",
+    "editedOn": "{{when}} · created by {{who}}",
+    "update": "Update this mapping",
+    "viewerCantUpdate": "Only an editor can update this mapping.",
+    "oneMappingPerTable": "A project maps each table once: {{table}} already has its mapping, so update it.",
+    "overlap": "Both mappings write {{key}} keys into {{where}}: the last job to run wins. Choose another collection or key.",
+    "createAnyway": "Create a new mapping"
   }
 }

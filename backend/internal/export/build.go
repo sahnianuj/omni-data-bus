@@ -36,7 +36,7 @@ type Request struct {
 	// Refs name where the runner finds each secret (external mode), per role:
 	// {"source": {"password": "env:PG_PASSWORD"}}.
 	Refs map[string]map[string]string `json:"refs,omitempty"`
-	// Runtime is "bundle" (the .odb.json alone) or "script" (a zip with migrate.sh, OC-053).
+	// Runtime is "bundle" or "script": both give the export folder now (OC-160, OC-182).
 	Runtime string `json:"runtime"`
 	Script  Script `json:"script"`
 }

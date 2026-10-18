@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CartDocument",
+  "description": "A point-of-sale cart. Document ID: cart::{uuid}. Embedded payment variants: see payments/*.schema.json. Saved orders are folded onto status/savedAt/orderCollectionType below.",
+  "type": "object",
+  "required": ["type", "id", "version", "status", "channel", "consumptionType", "storeNumber", "partnerNumber", "partner", "items", "pricing", "createdAt", "updatedAt"],
+  "properties": {
+    "type":    { "type": "string", "const": "cart" },
+    "id":      { "type": "string", "examples": ["cart::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"] },
+    "version": { "type": "integer", "const": 1 },
+
+    "status":              { "type": "string", "enum": ["open", "payment_pending", "closed", "abandoned", "voided", "queued", "saved"], "description": "'saved' is derived: the cart's status column stays 'open' while a saved_orders row exists for the cart.", "examples": ["open"] },
+    "channel":             { "type": "string", "examples": ["cafe"] },
+    "skipFulfillment":     { "type": "boolean", "examples": [false] },
+    "submitAfterTipAbort": { "type": "boolean", "examples": [false] },
+    "consumptionType":     { "type": "string", "enum": ["ConsumeInStore", "ConsumeOutOfStore"], "examples": ["ConsumeInStore"] },
+
+    "storeNumber":    { "type": "string", "examples": ["11111"] },
+    "partnerNumber":  { "type": "string", "examples": ["1000001"] },
+    "registerNumber": { "type": ["integer", "null"], "examples": [41] },
+
+    "orderNotes":         { "type": "string", "examples": ["Extra hot, please"] },
+    "customerNamePrompt": { "type": "boolean", "description": "Not populated - no column.", "examples": [false] },
+    "customer": {
+      "type": ["object", "null"],
+      "description": "The cart's customer: the first customers row of the cart.",
+      "properties": {
+        "userID":           { "type": ["string", "null"], "description": "Not populated.", "examples": [null] },
+        "firstName":        { "type": ["string", "null"], "examples": ["John"] },
+        "lastName":         { "type": ["string", "null"], "examples": ["Doe"] },
+        "starsEarned":      { "type": ["number", "null"], "examples": [25] },
+        "loyaltyID":        { "type": ["string", "null"], "examples": ["loyalty-12"] },
+        "alias":            { "type": ["string", "null"], "examples": [null] },
+        "validPartner":     { "type": "boolean", "examples": [true] },
+        "partnerNumber":    { "type": ["string", "null"], "examples": [null] },
+        "partnerName":      { "type": ["string", "null"], "examples": [null] },
+        "partnerStatus":    { "type": ["string", "null"], "examples": [null] },
+        "eligibleBenefits": { "type": ["array", "null"], "items": { "type": "string" }, "examples": [[]] },
+        "tierNumber":       { "type": ["integer", "null"], "examples": [null] }
+      }
+    },
+
+    "partner": {
+      "type": "object",
+      "description": "A lightweight reference to the partner who rang up the cart.",
+      "properties": {
+        "number": { "type": "string", "examples": ["1000001"] },
+        "name":   { "type": "string", "examples": ["Ana Lopez"] }
+      }
+    },
+
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id":              { "type": "string", "examples": ["2a6c0f4e-55aa-4c1b-8b3e-0e9a7d2c1b00"] },
+          "name":            { "type": "string", "examples": ["Latte"] },
+          "quantity":        { "type": "integer", "description": "Always 1 - cart_items has no quantity column, each unit is its own row.", "examples": [1] },
+          "sellableItemId":  { "type": "integer", "examples": [5004] },
+          "menuProductId":   { "type": ["integer", "null"], "examples": [104] },
+          "formCode":        { "type": "string", "examples": ["HOT"] },
+          "sizeCode":        { "type": ["string", "null"], "examples": ["GR"] },
+          "productTypeId":   { "type": "integer", "examples": [1] },
+          "servingSizeName": { "type": "string", "examples": ["Grande"] },
+          "sequenceNumber":  { "type": "integer", "examples": [1] },
+          "displayIndex":    { "type": "integer", "examples": [0] },
+
+          "basePrice":                 { "type": "integer", "examples": [495] },
+          "price":                     { "type": "integer", "examples": [495] },
+          "priceOverride":             { "type": ["integer", "null"], "examples": [null] },
+          "priceOverrideAuthorized":   { "type": "boolean", "examples": [false] },
+          "priceOverrideAuthorizedBy": { "type": ["string", "null"], "description": "Not populated - only whether an override happened is tracked.", "examples": [null] },
+          "priceOverrideReason":       { "type": ["string", "null"], "description": "Not populated.", "examples": [null] },
+          "redemptionTier":            { "type": ["string", "null"], "examples": [null] },
+
+          "isRefund":                 { "type": "boolean", "examples": [false] },
+          "isAvailable":              { "type": "boolean", "examples": [true] },
+          "isImpulseItem":            { "type": "boolean", "examples": [false] },
+          "isRefill":                 { "type": "boolean", "examples": [false] },
+          "itemAvailabilityOverride": { "type": ["boolean", "null"], "examples": [null] },
+          "askMeInstructions":        { "type": ["string", "null"], "examples": [null] },
+          "imageUrl":                 { "type": ["string", "null"], "examples": ["https://img.example/items/5004.png"] },
+          "voided":                   { "type": "boolean", "examples": [false] },
+
+          "modifiers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "object",
+              "description": "value/valueString mirror label - customizations has a single name column.",
+              "properties": {
+                "id":                       { "type": "string", "examples": ["6d1e2f3a-0000-4000-8000-000000000001"] },
+                "label":                    { "type": "string", "examples": ["Oat Milk"] },
+                "value":                    { "type": ["string", "null"], "examples": ["Oat Milk"] },
+                "valueString":              { "type": ["string", "null"], "examples": ["Oat Milk"] },
+                "menuProductId":            { "type": ["integer", "null"], "examples": [null] },
+                "sellableItemId":           { "type": "integer", "examples": [15001] },
+                "formCode":                 { "type": "string", "examples": ["ADD"] },
+                "sizeCode":                 { "type": "string", "examples": ["STD"] },
+                "quantity":                 { "type": "integer", "examples": [1] },
+                "price":                    { "type": "integer", "examples": [70] },
+                "isAvailable":              { "type": "boolean", "examples": [true] },
+                "itemAvailabilityOverride": { "type": ["boolean", "null"], "examples": [null] },
+                "voided":                   { "type": "boolean", "examples": [false] }
+              }
+            }
+          },
+
+          "appliedRewards": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "object",
+              "description": "rewardType, accessibilityLabel and value are not populated - applied_rewards only tracks a code and description.",
+              "properties": {
+                "id":                 { "type": "string", "examples": ["9b8a7c6d-0000-4000-8000-000000000002"] },
+                "rewardCode":         { "type": "string", "examples": ["STARS-25"] },
+                "rewardType":         { "type": ["string", "null"], "description": "Not populated.", "examples": ["STAR_REDEMPTION"] },
+                "description":        { "type": ["string", "null"], "examples": ["25 Stars Reward"] },
+                "accessibilityLabel": { "type": ["string", "null"], "description": "Not populated.", "examples": ["25 stars applied"] },
+                "value":              { "type": ["integer", "null"], "description": "Not populated.", "examples": [-100] }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "pricing": {
+      "type": "object",
+      "description": "tipInCents is the sum of payments[].tipInCents (collected_payments.tip_in_cents).",
+      "properties": {
+        "totalInCents":    { "type": "integer", "examples": [395] },
+        "subTotalInCents": { "type": "integer", "examples": [495] },
+        "taxInCents":      { "type": "integer", "examples": [0] },
+        "discountInCents": { "type": "integer", "examples": [100] },
+        "tipInCents":      { "type": "integer", "description": "Sum of collected_payments.tip_in_cents.", "examples": [0] },
+        "totalToDisplay":  { "type": "string", "examples": ["3.95"] },
+        "label":           { "type": "string", "description": "Not populated - no aggregation for item-level discount summaries.", "examples": ["Total"] },
+        "modifiers": {
+          "type": ["array", "null"],
+          "description": "Not populated.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "modifierName": { "type": "string", "examples": ["Discount"] },
+              "label":        { "type": "string", "examples": ["Item Discounts"] },
+              "value":        { "type": "string", "examples": ["-$1.00"] }
+            }
+          }
+        },
+        "taxLabels": {
+          "type": ["array", "null"],
+          "description": "Not populated - no itemized tax label aggregation.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name":  { "type": "string", "examples": ["Sales Tax"] },
+              "value": { "type": "integer", "examples": [0] }
+            }
+          }
+        }
+      }
+    },
+
+    "taxDataID":         { "type": ["string", "null"], "description": "References the separate tax data document; nil if the cart has never been priced.", "examples": ["tax_data::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"] },
+    "selectedPaymentID": { "type": ["string", "null"], "description": "Not populated - not tracked at the cart level.", "examples": [null] },
+
+    "payments": {
+      "type": ["array", "null"],
+      "description": "Payment entries - see payments/*.schema.json for the field set of each paymentType.",
+      "items": { "type": "object" }
+    },
+
+    "associatedScan": {
+      "type": ["object", "null"],
+      "description": "Not populated - superseded by payments[].",
+      "properties": {
+        "type":      { "type": "string", "examples": ["SVC"] },
+        "paymentID": { "type": "string", "examples": ["9c1d2e3f-0000-4000-8000-000000000003"] }
+      }
+    },
+
+    "receipt": {
+      "type": ["object", "null"],
+      "description": "Not populated - receipts are generated per request, never stored.",
+      "properties": {
+        "id":             { "type": "string", "examples": ["receipt-1"] },
+        "data":           { "type": "string", "examples": ["base64-receipt"] },
+        "generationDate": { "type": "string", "format": "date-time", "examples": ["2026-07-19T10:30:00Z"] },
+        "messageType":    { "type": "string", "examples": ["RECEIPT"] }
+      }
+    },
+
+    "loyaltyTransactionID": { "type": ["string", "null"], "examples": [null] },
+
+    "savedAt":             { "type": ["string", "null"], "format": "date-time", "description": "Set only when status is 'saved' - sourced from saved_orders.saved_at.", "examples": [null] },
+    "orderCollectionType": { "type": ["string", "null"], "enum": ["IN_STORE", "DRIVE_THRU", "CURBSIDE", "OUTDOOR", null], "description": "Set only when status is 'saved' - sourced from saved_orders.order_collection_type.", "examples": [null] },
+
+    "createdAt": { "type": "string", "format": "date-time", "examples": ["2026-07-19T10:00:00Z"] },
+    "updatedAt": { "type": "string", "format": "date-time", "examples": ["2026-07-19T10:30:00Z"] },
+    "closedAt":  { "type": ["string", "null"], "format": "date-time", "examples": [null] },
+    "voidedAt":  { "type": ["string", "null"], "format": "date-time", "examples": [null] }
+  }
+}

@@ -396,6 +396,27 @@ export function acceptSuggestion(spec: MappingSpec, nodeId: string, c: Partial<S
   return bind(spec, nodeId, input).spec
 }
 
+/**
+ * Sets which rows of a relation are one variant of its items (OC-171): when column set (an
+ * exclusive arc) or equal to value (a type column); null takes the variant's rule away.
+ */
+export function setVariantRule(spec: MappingSpec, relationId: string, fieldId: string, rule: { when: string; value?: string } | null): MappingSpec {
+  return {
+    ...spec,
+    relations: spec.relations.map((r) => {
+      if (r.id !== relationId) return r
+      const others = (r.variants ?? []).filter((v) => v.fieldId !== fieldId)
+      const variants = rule && rule.when ? [...others, { fieldId, when: rule.when, ...(rule.value ? { value: rule.value } : {}) }] : others
+      return { ...r, variants }
+    }),
+  }
+}
+
+/** What a row of no variant does: skip it (counted) or fail the document (OC-171). */
+export function setOnNoMatch(spec: MappingSpec, relationId: string, onNoMatch: 'skip' | 'fail'): MappingSpec {
+  return { ...spec, relations: spec.relations.map((r) => (r.id === relationId ? { ...r, onNoMatch } : r)) }
+}
+
 /** Objects and arrays below the root that aren't bound (OC-060's "N unbound"). */
 export function unboundContainers(spec: MappingSpec): { arrays: number; objects: number } {
   const bound = new Set(spec.relations.filter((r) => !r.lookupOnly && r.targetFieldId).map((r) => r.targetFieldId))
@@ -499,18 +520,33 @@ export function setAdapter(spec: MappingSpec, nodeId: string, adapter: Adapter |
   return { ...spec, docSchema: updateNode(spec.docSchema, nodeId, (f) => ({ ...f, binding: { relationId: r.id, ...(adapter ? { adapter } : {}) } })) }
 }
 
-/** Adds a lookup-only relation in a node's scope: its columns can fill any field there ("values only"). */
 /** The relation a lookup at nodeId hangs under: a bound node's own relation (its fields' scope), else the node's scope; '' = the root. */
 export function lookupScope(spec: MappingSpec, nodeId: string): string {
   const bound = nodeOf(spec, nodeId) ? boundRelations(spec).get(nodeId) : undefined
   return bound ? bound.id : scopeOf(spec, nodeId)
 }
 
+/** Adds a lookup-only relation in a node's scope: its columns can fill any field there ("values only"). */
 export function addLookup(spec: MappingSpec, nodeId: string, input: Pick<Relation, 'table' | 'join'>): { spec: MappingSpec; relationId: string } {
   const id = newRelationId()
   const scope = lookupScope(spec, nodeId)
   const rel: Relation = { id, parentId: scope || null, kind: 'many-to-one', lookupOnly: true, table: input.table, join: input.join }
   return { spec: { ...spec, relations: [...spec.relations, rel] }, relationId: id }
+}
+
+/**
+ * Whether a "values only" lookup of table at nodeId would repeat what's there (OC-177): 'bound'
+ * when the node's scope already reads the table (its fields use its columns as they are),
+ * 'lookup' when a lookup of it on the same join is already in the scope; null otherwise.
+ */
+export function repeatsTable(spec: MappingSpec, nodeId: string, table: TableRef, join: Relation['join']): 'bound' | 'lookup' | null {
+  const scope = lookupScope(spec, nodeId)
+  const same = (t: TableRef) => t.name === table.name && (t.schema ?? '') === (table.schema ?? '')
+  const own = spec.relations.find((r) => r.id === scope)
+  if (own && same(own.table)) return 'bound'
+  const key = (j: Relation['join']) => (j ?? []).map((p) => `${p.parent}=${p.child}`).join(',')
+  if (spec.relations.some((r) => r.lookupOnly && (r.parentId ?? '') === scope && same(r.table) && key(r.join) === key(join))) return 'lookup'
+  return null
 }
 
 /** Drives a composed mapping from another table or view (OC-047): bindings stay; broken ones are flagged. */

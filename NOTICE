@@ -1,0 +1,14 @@
+Omni-Data-Bus
+Copyright 2026 Couchbase, Inc.
+Author: Anuj Sahni, Principal Cloud & Solutions Architect
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product depends on third-party open-source packages, which are distributed
+under their own licences. They are listed, with their licence texts, in
+THIRD_PARTY_NOTICES.md. The web app bundles the Geist Sans and Geist Mono fonts,
+(C) 2023 Vercel, made in collaboration with basement.studio, licensed under the
+SIL Open Font License 1.1.
+
+Couchbase is a trademark of Couchbase, Inc. The Apache License grants no rights to
+use it (section 6).

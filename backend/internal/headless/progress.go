@@ -2,7 +2,10 @@ package headless
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +40,8 @@ type Event struct {
 	BundleSHA256 string   `json:"bundleSha256,omitempty"`
 	Mappings     []string `json:"mappings,omitempty"`
 	Resumed      bool     `json:"resumed,omitempty"`
+	MappingsFile string   `json:"mappingsFile,omitempty"`
+	ConfigFile   string   `json:"configFile,omitempty"`
 	// warning
 	Message string `json:"message,omitempty"`
 	// done
@@ -55,6 +60,8 @@ type ProgressSink struct {
 	last     time.Time
 	done     map[string]bool // mappings already reported done
 	names    map[string]string
+	// Text writes each event as a line for people instead of JSON (a terminal, OC-181).
+	Text bool
 }
 
 // NewProgressSink returns a sink for one run; names maps mapping IDs to bundle names.
@@ -73,6 +80,10 @@ func (p *ProgressSink) Emit(e Event) {
 		e.TS = p.now()
 	}
 	e.JobID = p.jobID
+	if p.Text {
+		_, _ = io.WriteString(p.w, e.Text()+"\n")
+		return
+	}
 	raw, err := json.Marshal(e)
 	if err != nil {
 		return
@@ -115,4 +126,69 @@ func (p *ProgressSink) MappingsDone(s progress.Snapshot) {
 // Totals is an event with the snapshot's run totals.
 func Totals(kind string, s progress.Snapshot) Event {
 	return Event{Event: kind, Read: s.Processed, Written: s.Written, Skipped: s.Skipped, Failed: s.Failed, DocsPerSec: s.Throughput, EtaSec: s.EtaSeconds}
+}
+
+// Text is the event as one line for a terminal (OC-181): the same facts as the JSON, in words.
+func (e Event) Text() string {
+	counts := func() string {
+		parts := []string{num(e.Read) + " read", num(e.Written) + " written"}
+		if e.Skipped > 0 {
+			parts = append(parts, num(e.Skipped)+" skipped")
+		}
+		return strings.Join(append(parts, num(e.Failed)+" failed"), " · ")
+	}
+	switch e.Event {
+	case EventStart:
+		line := "start     odb " + e.Version
+		if e.Resumed {
+			line += ", resuming from the checkpoint"
+		}
+		line += fmt.Sprintf(": %d mapping(s): %s", len(e.Mappings), strings.Join(e.Mappings, ", "))
+		if e.MappingsFile != "" {
+			line += "\n          mappings: " + e.MappingsFile
+		}
+		if e.ConfigFile != "" {
+			line += "\n          config:   " + e.ConfigFile
+		}
+		return line
+	case EventProgress:
+		line := "progress  " + counts() + " · " + num(int64(e.DocsPerSec)) + " docs/s"
+		if e.EtaSec != nil {
+			line += " · about " + (time.Duration(*e.EtaSec) * time.Second).String() + " left"
+		}
+		return line
+	case EventMappingDone:
+		return "mapping   " + e.Mapping + " done: " + counts()
+	case EventWarning:
+		return "warning   " + e.Message
+	case EventDone:
+		line := "done      " + strings.ReplaceAll(e.Status, "_", " ")
+		if e.ExitCode != nil {
+			line += " (exit " + strconv.Itoa(*e.ExitCode) + ")"
+		}
+		line += ": " + counts()
+		if e.Message != "" {
+			line += " — " + e.Message
+		}
+		return line
+	}
+	return e.Event + " " + e.Message
+}
+
+// num is n with thousands separators: 12,345.
+func num(n int64) string {
+	s := strconv.FormatInt(n, 10)
+	neg := strings.HasPrefix(s, "-")
+	s = strings.TrimPrefix(s, "-")
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	if neg {
+		return "-" + b.String()
+	}
+	return b.String()
 }

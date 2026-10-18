@@ -87,6 +87,7 @@ func init() {
 		"parseBoolean":   {compile: parser(parseBoolean), typeOut: fixed(docschema.Boolean)},
 		"toDatetime":     {compile: compileToDatetime, typeOut: fixed(docschema.Datetime)},
 		"formatDatetime": {compile: compileFormatDatetime, typeOut: formatDatetimeType},
+		"now":            {compile: compileNow, typeOut: formatDatetimeType},
 		"trim":           {compile: noArgs(stringOp(strings.TrimSpace)), typeOut: same, str: strOnly(strings.TrimSpace)},
 		"lower":          {compile: noArgs(stringOp(strings.ToLower)), typeOut: same, str: strOnly(strings.ToLower)},
 		"upper":          {compile: noArgs(stringOp(strings.ToUpper)), typeOut: same, str: strOnly(strings.ToUpper)},

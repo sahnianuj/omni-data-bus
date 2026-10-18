@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { bucketSpecSchema, maxExpirySchema, validBucketName, validScopeName } from './names'
+import { bucketSpecSchema, maxExpirySchema, validBucketName, validFolderName, validScopeName } from './names'
 
 type Case = { name: string; valid: boolean }
 type Fixture = {
@@ -28,5 +28,12 @@ describe('keyspace names', () => {
       if (!r.success && c.field) expect(r.error.issues[0]?.path[0]).toBe(c.field)
     }
     for (const c of fixture.maxExpirySec) expect(maxExpirySchema.safeParse(c.value).success, `ttl ${c.value}`).toBe(c.valid)
+  })
+})
+
+describe('validFolderName (OC-186)', () => {
+  it('refuses folders Windows reserves or that end in a dot, on every OS', () => {
+    for (const bad of ['con', 'CON', 'orders/Nul', 'aux.json', 'com1', 'lpt9/x', 'orders.', 'a/b.']) expect(validFolderName(bad)).toBe(false)
+    for (const ok of ['orders', 'console', 'com10', 'contacts.v2', 'a/b.c', 'lpt']) expect(validFolderName(ok)).toBe(true)
   })
 })

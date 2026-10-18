@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// RunConfigFile is the name of the run's config file next to migrate.sh (OC-155).
+// RunConfigFile is the name of the run's config file in the export folder (OC-155).
 const RunConfigFile = "config.json"
 
 // SecretPrefix marks a base64-encoded secret in the run config (OC-156). A value without it is

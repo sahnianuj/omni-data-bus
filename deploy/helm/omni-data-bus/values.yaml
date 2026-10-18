@@ -103,12 +103,22 @@ directoryTarget:
     size: 50Gi
     accessMode: ReadWriteOnce
 
-# Exported migrations (OC-050 – OC-055). migrate.sh's docker runtime runs `image` (default: the
-# image this chart deploys; pin it by digest, e.g. ghcr.io/org/omni-data-bus@sha256:…) and its
-# binary runtime downloads odb from `downloadUrl` (default: this version's GitHub release).
+# Exported migrations (OC-050 – OC-055, OC-182). An export's README names `image` for running it
+# with Docker (default: the image this chart deploys; pin it by digest, e.g.
+# ghcr.io/org/omni-data-bus@sha256:…) and links each machine's odb download under `downloadUrl`
+# (default: this version's GitHub release).
 exports:
   image: ""
   downloadUrl: ""
+  # Adding a machine's odb to an export (OC-188): the server downloads it from `downloadUrl` the
+  # first time, verifies it against the checksums built into the image and caches it. Set
+  # `fetch: false` on a server without internet access, and mount the release's odb files with
+  # `distDir` instead.
+  fetch: true
+  cacheSize: 256Mi        # the cache volume (emptyDir); the archives are about 12 MB each
+  distDir:
+    existingClaim: ""     # a PVC holding a release's odb_*.tar.gz, *.zip, SHA256SUMS and SIGNED
+    mountPath: /opt/odb/dist
 
 service:
   type: ClusterIP

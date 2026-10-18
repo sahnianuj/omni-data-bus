@@ -26,4 +26,10 @@ describe('help links (OC-057)', () => {
     expect(headingAnchor('Embedding a related table')).toBe('embedding-a-related-table')
     expect(headingAnchor('Running the script')).toBe('running-the-script')
   })
+
+  it('OC-173 AC3: the design-first chapter is linked from the import and the guide', () => {
+    expect(helpUrl('designFirst')).toMatch(/design-first\.md#importing-the-design$/)
+    expect(readFileSync(resolve(guide, 'README.md'), 'utf8')).toContain('(design-first.md)')
+  })
 })
+

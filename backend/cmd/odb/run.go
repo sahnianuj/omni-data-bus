@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,29 +22,40 @@ import (
 	"omnidatabus/internal/observability"
 )
 
-const runUsage = `usage: odb run --mappings FILE --config FILE [options]   migrate without the tool
-       odb run preflight --mappings FILE --config FILE  connect, check drift and the target; no documents written
-       odb run status --state-dir DIR                   summarize a run's checkpoint or report
-       odb run verify --mappings FILE --config FILE     count each mapping's documents in the target
-       odb run target-path --config FILE                print a directory target's folder (nothing for other targets)
+const runUsage = `usage: odb run [options]              migrate without the tool
+       odb run preflight [options]    connect, check drift and the target; no documents written
+       odb run status [options]       summarize a run's checkpoint or report
+       odb run verify [options]       count each mapping's documents in the target
+       odb run target-path [options]  print a directory target's folder (nothing for other targets)
+
+Run in an export folder, odb finds config.json and mappings.json itself: in the current
+directory, else beside odb (or the folder above a bin/ that holds odb).
 
 options:
-  --mappings FILE          what to migrate (mappings.json; --bundle FILE is the same, for older exports)
-  --state-dir DIR          checkpoint, errors.jsonl and report.json (default ./odb-state)
+  --mappings FILE          what to migrate (else $ODB_MAPPINGS, else mappings.json as above;
+                           --bundle FILE is the same, for older exports)
+  --state-dir DIR          checkpoint, errors.jsonl and report.json (else $ODB_STATE_DIR, else
+                           odb-state beside the mappings.json found, else ./odb-state)
   --mapping NAME           run only this mapping (repeatable)
   --target-path DIR        write a directory target here instead of config.json's path
+                           (else $ODB_TARGET_PATH)
   --readers N --writers N  read partitions per table (1-8) and concurrent writes
   --throttle DOCS_PER_S    limit the write rate
   --resume | --restart     require a checkpoint to resume | archive the state and start over
   --allow-drift            continue when the source changed compatibly since the export
-  --config FILE            source and target connection details (config.json), used instead of
-                           the bundle's; plain-text passwords in it are saved back base64-encoded
+  --config FILE            source and target connection details (else $ODB_CONFIG, else
+                           config.json as above); plain-text passwords in it are saved back
+                           base64-encoded
   --passphrase-file FILE   sealed credentials' passphrase (else $ODB_BUNDLE_PASSPHRASE, else a prompt)
-  --log-format json|text   stderr logs (default json)
+  --log-format json|text   stderr logs; text also prints progress as lines on a terminal
+                           (default text when stderr is a terminal, else json)
   --progress-interval 5s   stdout progress events (0 = none); --quiet prints only the done event
 
+The same commands without "run": odb preflight, odb resume (= odb run --resume), odb status,
+odb verify. See odb help.
+
 exit codes: 0 completed, 2 completed with errors, 3 failed, 4 preflight or configuration error,
-            5 cancelled (resume by running again with the same --state-dir)`
+            5 cancelled (odb resume continues; or run again with the same --state-dir)`
 
 type stringList []string
 
@@ -71,7 +83,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	var bundlePath string
 	fs.StringVar(&bundlePath, "mappings", "", "mappings.json")
 	fs.StringVar(&bundlePath, "bundle", "", "the same as --mappings (older exports)")
-	stateDir := fs.String("state-dir", "./odb-state", "state directory")
+	stateDirFlag := fs.String("state-dir", "", "state directory")
 	var maps stringList
 	fs.Var(&maps, "mapping", "mapping name or ID (repeatable)")
 	targetPath := fs.String("target-path", "", "directory target path")
@@ -83,7 +95,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	allowDrift := fs.Bool("allow-drift", false, "continue on compatible schema drift")
 	configPath := fs.String("config", "", "run config file (config.json)")
 	passFile := fs.String("passphrase-file", "", "file holding the passphrase")
-	logFormat := fs.String("log-format", "json", "json | text")
+	logFormat := fs.String("log-format", "", "json | text (default: text on a terminal, else json)")
 	interval := fs.Duration("progress-interval", 5*time.Second, "progress event interval")
 	quiet := fs.Bool("quiet", false, "only the done event")
 	asJSON := fs.Bool("json", false, "preflight, verify: print JSON")
@@ -98,16 +110,35 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "--readers must be 1-8, --writers 1-512, --throttle at least 1")
 		return exitUsage
 	}
+	// People at a terminal get text; pipelines and container logs keep JSON (OC-181).
+	if *logFormat == "" {
+		*logFormat = "json"
+		if isTerminal(stderr) {
+			*logFormat = "text"
+		}
+	}
+	textOut := *logFormat == "text" && isTerminal(stdout)
 	logger := observability.NewLogger(stderr, *logFormat, "info")
-	dir := headless.StateDir{Path: *stateDir}
+	// The files: flag, else ODB_*, else the export folder (OC-180).
+	flagMappings, flagConfig := bundlePath, *configPath
+	bundlePath, haveMappings := mappingsFile.resolve(flagMappings)
+	*configPath, _ = configFile.resolve(flagConfig)
+	if *targetPath == "" {
+		*targetPath = os.Getenv("ODB_TARGET_PATH")
+	}
+	dir := headless.StateDir{Path: stateDir(*stateDirFlag, mappingsFile.exportDir(flagMappings, bundlePath))}
 	if sub == "status" {
 		return headless.Status(dir, stdout)
 	}
 	if sub == "target-path" {
+		if *configPath == "" {
+			fmt.Fprintln(stderr, configFile.missing())
+			return exitUsage
+		}
 		return printTargetPath(*configPath, stdout, stderr)
 	}
-	if bundlePath == "" {
-		fmt.Fprintln(stderr, "--mappings is required\n\n"+runUsage)
+	if !haveMappings {
+		fmt.Fprintln(stderr, mappingsFile.missing())
 		return exitUsage
 	}
 	b, err := loadBundle(bundlePath)
@@ -121,6 +152,13 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 			return exitPreflight
 		}
 	}
+
+	// In a container, a directory target outside the mounted folder would vanish with it (OC-183).
+	if msg := unmountedTarget(*configPath, *targetPath); msg != "" && (sub == "" || sub == "preflight" || sub == "verify") {
+		printConfigError(stderr, &headless.ConfigError{Code: export.CodeRunConfigInvalid, Message: msg})
+		return exitPreflight
+	}
+	hint := localhostHint(runConfig)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -152,6 +190,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		Resume: *resume, Restart: *restart, AllowDrift: *allowDrift, ProgressInterval: *interval, Quiet: *quiet,
 		Stdout: stdout, Log: logger, Build: buildinfo.Get(), Drain: drain, Abort: abort,
 		Unlock: headless.Unlock{PassphraseFile: *passFile, Prompt: prompt(stderr)}, RunConfig: runConfig, RunConfigPath: *configPath,
+		MappingsPath: absPath(bundlePath), RunConfigMissing: configFile.missing(), TextProgress: textOut,
 	}
 	switch sub {
 	case "preflight":
@@ -159,6 +198,9 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		printPreflight(stdout, rep, *asJSON)
 		if rep.Error != nil {
 			printConfigError(stderr, rep.Error)
+		}
+		if code != exitOK && hint != "" {
+			fmt.Fprintln(stderr, "hint: "+hint)
 		}
 		return code
 	case "verify":
@@ -189,11 +231,69 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		ce := asConfig(err)
 		printConfigError(stderr, ce)
 		c := code
-		_ = json.NewEncoder(stdout).Encode(headless.Event{
-			TS: time.Now().UTC(), Event: headless.EventDone, Status: "failed", ExitCode: &c, Message: ce.Code + ": " + ce.Message,
-		})
+		done := headless.Event{TS: time.Now().UTC(), Event: headless.EventDone, Status: "failed", ExitCode: &c, Message: ce.Code + ": " + ce.Message}
+		if textOut {
+			fmt.Fprintln(stdout, done.Text())
+		} else {
+			_ = json.NewEncoder(stdout).Encode(done)
+		}
+	}
+	if code == exitPreflight && hint != "" {
+		fmt.Fprintln(stderr, "hint: "+hint)
+	}
+	if isTerminal(stderr) {
+		fmt.Fprintln(stderr, "odb: "+exitSummary(code, dir.Path))
 	}
 	return code
+}
+
+// isTerminal reports whether w is a terminal (a variable for tests).
+var isTerminal = func(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	return ok && term.IsTerminal(int(f.Fd())) //nolint:gosec // G115: a file descriptor fits in int
+}
+
+// exitSummary explains a run's exit code in a sentence, as migrate.sh did (OC-181).
+func exitSummary(code int, state string) string {
+	switch code {
+	case 0:
+		return "completed"
+	case 2:
+		return "completed with errors: see " + filepath.Join(state, "errors.jsonl") + " and report.json"
+	case 3:
+		return "failed: see " + filepath.Join(state, "report.json") + "; fix the cause, then run odb resume"
+	case 4:
+		return "not started: a preflight or configuration problem (above)"
+	case 5:
+		return "cancelled after saving the checkpoint: odb resume continues"
+	}
+	return fmt.Sprintf("odb exited with %d", code)
+}
+
+// runInspect is `odb inspect [FILE]`: what mappings.json (found as odb run finds it) migrates.
+func runInspect(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 1 {
+		fmt.Fprintln(stderr, "usage: odb inspect [FILE]")
+		return exitUsage
+	}
+	flagVal := ""
+	if len(args) == 1 {
+		flagVal = args[0]
+	}
+	p, ok := mappingsFile.resolve(flagVal)
+	if !ok {
+		fmt.Fprintln(stderr, mappingsFile.missing())
+		return exitUsage
+	}
+	return runBundle([]string{"inspect", p}, stdout, stderr)
+}
+
+// absPath is p made absolute, for messages and the start event; p itself if that fails.
+func absPath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
 }
 
 func asConfig(err error) *headless.ConfigError {

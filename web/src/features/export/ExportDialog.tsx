@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Download, FileJson, Lock, TriangleAlert } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -19,6 +19,24 @@ import { saveFile, useCreateExport, useExportOptions, type ExportFile, type Expo
 
 const STEPS = ['project', 'options'] as const
 type StepName = (typeof STEPS)[number]
+
+/**
+ * The machines odb can be added for (OC-182, OC-185), in the order the dialog lists them: one
+ * macOS binary for every Mac. A server with only a per-architecture Mac build (a development
+ * server's own odb) lists that instead.
+ */
+export function machines(embeddable: string[]): string[] {
+  const mac = embeddable.includes('darwin_universal') ? ['darwin_universal'] : embeddable.filter((p) => p === 'darwin_amd64' || p === 'darwin_arm64')
+  return [...(mac.length > 0 ? mac : ['darwin_universal']), 'windows_amd64', 'linux_amd64', 'linux_arm64']
+}
+
+/** The exporter's own OS as a machine (OC-185): the default, when this server has odb for it. */
+export function ownMachine(nav: { platform?: string; userAgent?: string; userAgentData?: { platform?: string } } = navigator): string {
+  const os = `${nav.userAgentData?.platform ?? ''} ${nav.platform ?? ''} ${nav.userAgent ?? ''}`.toLowerCase()
+  if (/mac|darwin/.test(os)) return 'darwin_universal'
+  if (/\bwin(dows|32|64)\b/.test(os)) return 'windows_amd64'
+  return 'linux_amd64'
+}
 
 /** The bundled node of the all-in-one image (OC-072): unreachable outside its container. */
 const BUNDLED = 'Bundled Couchbase'
@@ -46,7 +64,7 @@ export function toRequest(v: ExportValues): ExportRequest {
       errorPolicy: { maxErrors: v.maxErrors, maxErrorRatio: 1, minRowsForRatio: 0 },
     },
   }
-  if (v.includeOdb && os && arch) req.includeOdb = { os: os as 'linux' | 'darwin', arch: arch as 'amd64' | 'arm64' }
+  if (v.includeOdb && os && arch) req.includeOdb = { os: os as 'linux' | 'darwin' | 'windows', arch: arch as 'amd64' | 'arm64' | 'universal' }
   return req
 }
 
@@ -67,9 +85,10 @@ function Part({ title, to, change, children }: { title: string; to: string; chan
 /**
  * The guided export (OC-055). It exports the project as configured — its source, target, saved
  * credentials and every ready mapping — with no passphrase or password prompt (OC-154). Every
- * export is the same folder: the generic migrate.sh, config.json (where, OC-155) and
- * mappings.json (what, OC-158); the only choice is whether to include odb (OC-160). To change
- * the project, users go back to its steps (user decision, 2026-10-02).
+ * export is the same folder, with nothing OS-specific: config.json (where, OC-155) and
+ * mappings.json (what, OC-158), run by the odb installed on each machine (OC-182). The only
+ * choice is whether to add odb for a machine without internet access. To change the project,
+ * users go back to its steps (user decision, 2026-10-02).
  */
 export function ExportDialog({ project, open, onOpenChange }: { project: Project; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
@@ -90,6 +109,27 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
   const set = <K extends keyof ExportValues>(k: K, val: ExportValues[K]) => form.setValue(k, val as never, { shouldDirty: true })
   const name: StepName = STEPS[step] ?? 'project'
   const opts = options.data
+  const embeddable = opts?.embeddable ?? []
+  const list = machines(embeddable)
+  // What this server can do for each machine (OC-188): now, downloaded on first use, or not (why).
+  const machineState = new Map((opts?.machines ?? []).map((m) => [m.platform, m]))
+  const chosen = machineState.get(v.platform)
+  const unavailable = list.map((p) => machineState.get(p)).filter((m) => m?.state === 'unavailable')
+  const reasons = [...new Set(unavailable.map((m) => m!.reason ?? ''))].map((reason) => ({
+    reason,
+    names: unavailable.filter((m) => (m!.reason ?? '') === reason).map((m) => t(`export.platforms.${m!.platform}`)),
+  }))
+  // The machine defaults to the exporter's own OS, else the first this server has odb for
+  // (OC-182, OC-185).
+  useEffect(() => {
+    if (!opts) return
+    const have = opts.embeddable ?? []
+    const mine = ownMachine()
+    const own = have.includes(mine) ? mine : machines(have).find((p) => p.startsWith(mine.split('_')[0] + '_') && have.includes(p))
+    const pick = own ?? machines(have).find((p) => have.includes(p))
+    if (pick && pick !== form.getValues().platform) form.setValue('platform', pick)
+  }, [opts, form])
+  const unsigned = v.includeOdb && !(opts?.signed ?? []).includes(v.platform) && (v.platform.startsWith('darwin_') || v.platform.startsWith('windows_'))
   const all = mappings.data ?? []
   const ready = all.filter((m) => m.status === 'ready')
   const bundled = project.target?.name === BUNDLED
@@ -102,7 +142,7 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
         if (bundled) return t('export.err.bundled')
         return ready.length === 0 ? t('export.err.noMappings') : null
       case 'options':
-        return v.includeOdb && !(opts?.embeddable ?? []).includes(v.platform) ? t('export.err.platform') : null
+        return v.includeOdb && !embeddable.includes(v.platform) ? t('export.err.platform') : null
     }
   }
 
@@ -152,10 +192,11 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
           </DialogHeader>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]" aria-label={t('export.filesLabel')}>
             {[
-              ['migrate.sh', t('export.files.script')],
               ['config.json', t('export.files.config')],
               ['mappings.json', t('export.files.mappings')],
-              ...(done.includedOdb ? [['odb', t('export.files.odb', { platform: done.includedOdb.replace('_', ' / ') })]] : []),
+              ...(done.includedOdb
+                ? [[done.includedOdb.startsWith('windows_') ? 'bin/odb.exe' : 'bin/odb', t('export.files.odb', { platform: t(`export.platforms.${done.includedOdb}`) })]]
+                : []),
               ['README.md', t('export.files.readme')],
             ].map(([file, what]) => (
               <div key={file} className="contents">
@@ -236,25 +277,40 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
 
           {name === 'options' ? (
             <div className="flex flex-col gap-2">
-              <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2 text-[13px]">
-                <input type="checkbox" checked={v.includeOdb} onChange={(e) => set('includeOdb', e.target.checked)} className="mt-0.5" />
+              <label className={cn('flex items-start gap-2.5 rounded-md border border-border px-3 py-2 text-[13px]', embeddable.length > 0 ? 'cursor-pointer' : 'opacity-70')}>
+                <input type="checkbox" checked={v.includeOdb} disabled={embeddable.length === 0} onChange={(e) => set('includeOdb', e.target.checked)} className="mt-0.5" />
                 <span className="flex flex-col">
                   <span className="font-medium">{t('export.run.includeOdb')}</span>
-                  <span className="text-xs text-muted">{t('export.run.includeOdbHint')}</span>
+                  <span className="text-xs text-muted">{t(embeddable.length > 0 ? 'export.run.includeOdbHint' : 'export.run.includeOdbNone')}</span>
                 </span>
               </label>
               {v.includeOdb ? (
                 <div className="pl-6">
                   <FormField id="export-platform" label={t('export.run.platform')}>
                     <select id="export-platform" value={v.platform} onChange={(e) => set('platform', e.target.value)} className="h-9 rounded-md border border-border bg-surface px-2 text-[13px]">
-                      {['linux_amd64', 'linux_arm64', 'darwin_amd64', 'darwin_arm64'].map((p) => (
-                        <option key={p} value={p} disabled={!(opts?.embeddable ?? []).includes(p)}>{p.replace('_', ' / ')}</option>
+                      {list.map((p) => (
+                        <option key={p} value={p} disabled={!embeddable.includes(p)}>
+                          {t(`export.platforms.${p}`)}
+                          {machineState.get(p)?.state === 'onDemand' ? ` — ${t('export.run.onDemandShort')}` : ''}
+                        </option>
                       ))}
                     </select>
                   </FormField>
+                  {chosen?.state === 'onDemand' ? (
+                    <p className="mt-1 text-xs text-muted">{t('export.run.onDemand', { machine: t(`export.platforms.${v.platform}`) })}</p>
+                  ) : null}
+                  {reasons.map((r) => (
+                    <p key={r.reason} className="mt-1 text-xs text-muted" data-testid="machine-unavailable">
+                      {t('export.run.unavailable', { machines: r.names.join(', '), reason: r.reason })}
+                    </p>
+                  ))}
+                  {unsigned ? (
+                    <p className="mt-1 flex items-start gap-1.5 text-xs text-warning">
+                      <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                      {t(v.platform.startsWith('windows_') ? 'export.run.unsignedWindows' : 'export.run.unsignedMac')}
+                    </p>
+                  ) : null}
                 </div>
-              ) : opts?.autoEmbed ? (
-                <p className="text-xs text-muted">{t('export.run.autoEmbed', { platform: opts.autoEmbed.replace('_', ' / ') })}</p>
               ) : null}
               <fieldset className="mt-1 grid grid-cols-5 gap-2">
                 <legend className="mb-1 text-xs font-medium text-muted">{t('export.run.options')}</legend>
@@ -293,7 +349,9 @@ export function ExportDialog({ project, open, onOpenChange }: { project: Project
           ) : (
             <Button loading={create.isPending} onClick={() => void submit()}>
               <Download aria-hidden />
-              {t('export.export')}
+              {create.isPending && v.includeOdb && chosen?.state === 'onDemand'
+                ? t('export.run.fetching', { machine: t(`export.platforms.${v.platform}`) })
+                : t('export.export')}
             </Button>
           )}
         </DialogFooter>

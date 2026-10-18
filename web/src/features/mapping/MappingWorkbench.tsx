@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Eye, PanelRight, PanelTopClose, PanelTopOpen, Redo2, ShieldCheck, Undo2 } from 'lucide-react'
+import { ArrowLeft, Eye, Filter as FilterIcon, PanelRight, PanelTopClose, PanelTopOpen, Redo2, ShieldCheck, Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useOutletContext, useParams } from 'react-router'
@@ -77,6 +77,7 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
   const mode = useWorkbench((s) => s.mode)
   const setMode = useWorkbench((s) => s.setMode)
   const setFilter = useWorkbench((s) => s.setFilter)
+  const filter = useWorkbench((s) => s.filter)
   const search = useWorkbench((s) => s.search)
   const setSearch = useWorkbench((s) => s.setSearch)
   const conflict = useWorkbench((s) => s.conflict)
@@ -342,6 +343,22 @@ function WorkbenchBody({ project, store }: { project: Project; store: StoreApi<W
             aria-label={t('workbench.search')}
             className="h-8 w-64 rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]"
           />
+          {/* A filter set from the score header (Show them, a bar segment, the required chip) stays
+              visible here, with the way back to every field. */}
+          {filter !== 'all' ? (
+            <span role="status" className="flex items-center gap-1.5 rounded-full bg-primary-soft py-0.5 pl-2.5 pr-1 text-xs text-primary-soft-foreground">
+              <FilterIcon aria-hidden className="size-3" />
+              {t('workbench.filtered', { what: t(`workbench.filterName.${filter}`) })}
+              <button
+                type="button"
+                className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium hover:bg-primary/10"
+                onClick={() => setFilter('all')}
+              >
+                <X aria-hidden className="size-3" />
+                {t('workbench.showAll')}
+              </button>
+            </span>
+          ) : null}
         </div>
       ) : null}
       {showComposerHint ? (

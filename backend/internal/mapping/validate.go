@@ -1,7 +1,9 @@
 package mapping
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -19,11 +21,15 @@ const (
 
 // Issue codes (OC-015, OC-016, OC-019, OC-022).
 const (
-	CodeTypeFieldCollision    = "TYPE_FIELD_COLLISION"
-	CodeTypeFieldInvalid      = "TYPE_FIELD_INVALID"
-	CodeUnknownTargetField    = "UNKNOWN_TARGET_FIELD"
-	CodeSourceColumnMissing   = "SOURCE_COLUMN_MISSING"
-	CodeDuplicateTarget       = "DUPLICATE_TARGET"
+	CodeTypeFieldCollision  = "TYPE_FIELD_COLLISION"
+	CodeTypeFieldInvalid    = "TYPE_FIELD_INVALID"
+	CodeUnknownTargetField  = "UNKNOWN_TARGET_FIELD"
+	CodeSourceColumnMissing = "SOURCE_COLUMN_MISSING"
+	CodeDuplicateTarget     = "DUPLICATE_TARGET"
+	// CodeLookupUnused: a lookup ("values only") that no field reads (OC-177).
+	CodeLookupUnused = "LOOKUP_UNUSED"
+	// CodeNowFormatType: a now step\'s format doesn\'t suit its field\'s type (OC-179).
+	CodeNowFormatType         = "NOW_FORMAT_TYPE"
 	CodeRequiredFieldUnmapped = "REQUIRED_FIELD_UNMAPPED"
 	CodeSuggestionsPending    = "SUGGESTIONS_PENDING"
 	CodeLossyConversion       = "LOSSY_CONVERSION"
@@ -38,7 +44,7 @@ const (
 
 // Fix is a one-click remedy the UI can apply (OC-022 AC2).
 type Fix struct {
-	Kind  string `json:"kind"`  // mark-optional | accept-suggestions | add-transform | enable-create | repoint-source | combine-rows | add-to-design | restore-field | map-field
+	Kind  string `json:"kind"`  // mark-optional | accept-suggestions | add-transform | enable-create | repoint-source | combine-rows | add-to-design | restore-field | map-field | remove-relation | replace-step
 	Label string `json:"label"` // e.g. "Mark optional"
 	Step  *Step  `json:"step,omitempty"`
 	// RelationID: repoint-source reads the column from this relation instead (OC-065).
@@ -209,6 +215,17 @@ func Validate(s *Spec, ctx Context) []Issue {
 			})
 			continue
 		}
+		if m.State == StateNotPopulated {
+			// Left empty on purpose (OC-166): nothing to check but that it's the field's only decision.
+			if prev, dup := activeTargets[m.TargetFieldID]; dup {
+				add(Issue{
+					Severity: SeverityError, Code: CodeDuplicateTarget, Path: path, FieldID: m.TargetFieldID, FieldMappingID: m.ID,
+					Message: duplicateMessage(s, t, path, prev, &m),
+				})
+			}
+			activeTargets[m.TargetFieldID] = m.ID
+			continue
+		}
 		if m.State != StateActive && m.State != StatePending && m.State != StateRejected {
 			add(Issue{Severity: SeverityError, Code: CodeInvalidMapping, Path: path, FieldMappingID: m.ID, Message: "Unknown mapping state '" + m.State + "'."})
 		}
@@ -239,10 +256,13 @@ func Validate(s *Spec, ctx Context) []Issue {
 		if prev, dup := activeTargets[m.TargetFieldID]; dup {
 			add(Issue{
 				Severity: SeverityError, Code: CodeDuplicateTarget, Path: path, FieldID: m.TargetFieldID, FieldMappingID: m.ID,
-				Message: "Field " + path + " has two mappings (" + prev + ", " + m.ID + "); keep one.",
+				Message: duplicateMessage(s, t, path, prev, &m),
 			})
 		}
 		activeTargets[m.TargetFieldID] = m.ID
+		if is := nowFormatIssue(s, path, &m); is != nil {
+			add(*is)
+		}
 		if missing || len(m.Sources) != 1 || len(m.Transforms) > 0 {
 			continue // multi-source and transformed mappings are type-checked by the compiler
 		}
@@ -327,6 +347,13 @@ func Validate(s *Spec, ctx Context) []Issue {
 			Message: fmt.Sprintf("%d source column(s) aren't mapped and won't be migrated.", st.UnmappedSource),
 		})
 	}
+	for _, r := range unusedLookups(s) {
+		add(Issue{
+			Severity: SeverityInfo, Code: CodeLookupUnused, Path: "relations." + r.ID,
+			Message: "Lookup " + r.Table.Name + " (values only) isn't read by any field. Remove it, or map a field from it.",
+			Fix:     &Fix{Kind: "remove-relation", Label: "Remove lookup", RelationID: r.ID},
+		})
+	}
 	issues = append(issues, validateReference(s, ctx)...)
 	SortIssues(issues)
 	return issues
@@ -344,6 +371,187 @@ func SortIssues(issues []Issue) {
 		}
 		return a.Code < b.Code
 	})
+}
+
+// DescribeNow says what a now step writes: "the current date and time (when the run started,
+// epoch ms)" (OC-179).
+func DescribeNow(args map[string]any) string {
+	at := "when the run started"
+	if a, _ := args["at"].(string); a == "write" {
+		at = "when each document is written"
+	}
+	format, _ := args["format"].(string)
+	switch format {
+	case "", "iso8601":
+		format = "ISO 8601"
+	case "epoch_ms":
+		format = "epoch ms"
+	case "epoch_s":
+		format = "epoch seconds"
+	case "custom":
+		format, _ = args["pattern"].(string)
+	}
+	if tz, _ := args["timezone"].(string); tz != "" && !strings.HasPrefix(format, "epoch") {
+		format += ", " + tz
+	}
+	return "the current date and time (" + at + ", " + format + ")"
+}
+
+// nowFormatIssue reports a now step whose format doesn't suit the field (OC-179): a number
+// field takes an epoch, a text or date field a written-out date. The fix switches the format.
+func nowFormatIssue(s *Spec, path string, m *FieldMapping) *Issue {
+	var step *Step
+	for i := range m.Transforms {
+		if m.Transforms[i].Op == "now" {
+			step = &m.Transforms[i]
+		}
+	}
+	f := s.DocSchema.Find(m.TargetFieldID)
+	if step == nil || f == nil {
+		return nil
+	}
+	format, _ := step.Args["format"].(string)
+	epoch := format == "epoch_ms" || format == "epoch_s"
+	var want, label string
+	switch f.Type {
+	case docschema.Integer, docschema.Number:
+		if epoch {
+			return nil
+		}
+		want, label = "epoch_ms", "Use epoch milliseconds"
+	case docschema.String, docschema.Datetime:
+		if !epoch {
+			return nil
+		}
+		want, label = "iso8601", "Use ISO 8601"
+	case docschema.Any:
+		return nil
+	default:
+		return &Issue{
+			Severity: SeverityError, Code: CodeNowFormatType, Path: path, FieldID: f.ID, FieldMappingID: m.ID, Op: "now",
+			Message: "Field " + path + " is " + string(f.Type) + ": it can't hold the current date and time. Use a text, number or date field.",
+		}
+	}
+	args := map[string]any{"format": want}
+	if at, ok := step.Args["at"]; ok {
+		args["at"] = at
+	}
+	if tz, ok := step.Args["timezone"]; ok && want != "epoch_ms" {
+		args["timezone"] = tz
+	}
+	written := "written-out text"
+	if epoch {
+		written = "an epoch number"
+	}
+	return &Issue{
+		Severity: SeverityError, Code: CodeNowFormatType, Path: path, FieldID: f.ID, FieldMappingID: m.ID, Op: "now",
+		Message: "Field " + path + " is " + string(f.Type) + ", but the current date and time is written as " + written + ". " + label + ".",
+		Fix:     &Fix{Kind: "replace-step", Label: label, Step: &Step{Op: "now", Args: args}},
+	}
+}
+
+// unusedLookups are the lookup-only relations nothing reads (OC-177): no mapping's source, no
+// expression naming it (its id or table, then "."), no total, no relation under it.
+func unusedLookups(s *Spec) []*Relation {
+	used := map[string]bool{}
+	var exprs []string
+	for _, m := range s.FieldMappings {
+		if m.State == StateRejected {
+			continue
+		}
+		for _, src := range m.Sources {
+			used[src.Relation] = true
+		}
+		for _, st := range m.Transforms {
+			if e, ok := st.Args["expr"].(string); ok && st.Op == "expression" {
+				exprs = append(exprs, e)
+			}
+		}
+	}
+	for _, a := range s.Aggregates {
+		used[a.RelationID] = true
+	}
+	for i := range s.Relations {
+		used[s.Relations[i].Parent()] = true
+	}
+	named := func(name string) bool {
+		re := regexp.MustCompile(`(^|[^\w.$])` + regexp.QuoteMeta(name) + `\s*\.`)
+		for _, e := range exprs {
+			if re.MatchString(e) {
+				return true
+			}
+		}
+		return false
+	}
+	var out []*Relation
+	for i := range s.Relations {
+		r := &s.Relations[i]
+		if r.LookupOnly && !used[r.ID] && !named(r.ID) && !named(r.Table.Name) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// duplicateMessage says what each of a field's two mappings fills it from, so the user can tell
+// them apart: "Field customer.userID is filled twice: from customers.user_id and from
+// carts.customer_id. Keep one."
+func duplicateMessage(s *Spec, t *schema.Table, path, prevID string, m *FieldMapping) string {
+	first := prevID
+	for i := range s.FieldMappings {
+		if s.FieldMappings[i].ID == prevID {
+			first = DescribeMapping(s, t, &s.FieldMappings[i])
+			break
+		}
+	}
+	return "Field " + path + " is filled twice: " + first + " and " + DescribeMapping(s, t, m) + ". Keep one."
+}
+
+// DescribeMapping says in words what fills a field: "from carts.total", "from customers.first_name
+// + customers.last_name", "the constant \"web\"", "a computed value", "not populated".
+func DescribeMapping(s *Spec, t *schema.Table, m *FieldMapping) string {
+	switch {
+	case m.State == StateNotPopulated:
+		return "not populated"
+	case m.Computed != nil:
+		return "a computed value"
+	}
+	if len(m.Sources) > 0 {
+		cols := make([]string, 0, len(m.Sources))
+		for _, src := range m.Sources {
+			table := ""
+			if t != nil {
+				table = t.Name
+			}
+			if src.Relation != "" {
+				table = src.Relation
+				if r := s.RelationByID(src.Relation); r != nil {
+					table = r.Table.Name
+					if src.From == FromVia && r.Via != nil {
+						table = r.Via.Table.Name
+					}
+				}
+			}
+			if table != "" {
+				cols = append(cols, table+"."+src.Column)
+			} else {
+				cols = append(cols, src.Column)
+			}
+		}
+		return "from " + strings.Join(cols, " + ")
+	}
+	for _, st := range m.Transforms {
+		switch st.Op {
+		case "constant":
+			v, _ := json.Marshal(st.Args["value"])
+			return "the constant " + string(v)
+		case "expression":
+			return "an expression"
+		case "now":
+			return DescribeNow(st.Args)
+		}
+	}
+	return "mapping " + m.ID
 }
 
 func columnNames(t *schema.Table) []string {

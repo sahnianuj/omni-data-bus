@@ -19,6 +19,7 @@ export const opArgs: Record<OpName, ArgDef[]> = {
   parseBoolean: [{ name: 'strict', kind: 'bool' }],
   toDatetime: [{ name: 'inputFormat', kind: 'text' }, { name: 'timezone', kind: 'text' }, { name: 'strict', kind: 'bool' }],
   formatDatetime: [{ name: 'format', kind: 'select', options: ['iso8601', 'date', 'epoch_ms', 'epoch_s', 'custom'] }, { name: 'pattern', kind: 'text' }, { name: 'timezone', kind: 'text' }],
+  now: [{ name: 'at', kind: 'select', options: ['run', 'write'] }, { name: 'format', kind: 'select', options: ['iso8601', 'date', 'epoch_ms', 'epoch_s', 'custom'] }, { name: 'pattern', kind: 'text' }, { name: 'timezone', kind: 'text' }],
   trim: [],
   lower: [],
   upper: [],

@@ -12,6 +12,7 @@ import type { DocField, DocSchema } from '@/features/mapping/types'
 import { ApiError } from '@/lib/api/client'
 import { importDesign, nodeOf, OpError } from './composerOps'
 import { ReimportStep } from './ReimportDialog'
+import { HelpLink } from '@/components/HelpLink'
 
 type Inferred = { schema: DocSchema; warnings: string[] }
 
@@ -33,40 +34,69 @@ const optionalCount = (fs: DocField[] = []): number =>
  * documents (one object, an array or NDJSON) or a JSON Schema. The server infers the design
  * (the same engine as the Design tab), then a report says what will change before it's applied.
  */
-export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | null; initial?: { text: string; fileName?: string }; onClose: () => void }) {
+export function ImportDialog({ nodeId, initial, onClose, onPropose, proposeByDefault }: {
+  nodeId: string | null
+  initial?: { text: string; fileName?: string }
+  onClose: () => void
+  /** Propose the mapping from the connected source after the import (OC-163); base keeps what's mapped. */
+  onPropose?: (base: boolean) => void
+  /** Propose after the import even though the mapping has work in it (New mapping from a design, OC-170). */
+  proposeByDefault?: boolean
+}) {
   const { t } = useTranslation()
   const spec = useWorkbench((s) => s.history.present)
   const apply = useWorkbench((s) => s.apply)
   const [text, setText] = useState(initial?.text ?? '')
   const [fileName, setFileName] = useState(initial?.fileName)
   const [inferred, setInferred] = useState<Inferred | null>(null)
+  // A design split across files (OC-171): the document's other files.
+  const [extra, setExtra] = useState<{ name: string; content: string }[]>([])
+  const dirRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [reconciling, setReconciling] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const textId = useId()
+  const proposeId = useId()
   const replaceAll = nodeId === null
+  // On by default for a mapping with nothing bound or mapped yet (OC-163).
+  const [propose, setPropose] = useState(() => replaceAll && (!!proposeByDefault || (spec.relations.length === 0 && !spec.fieldMappings.some((m) => m.state === 'active'))))
   const name = nodeId ? (nodeOf(spec, nodeId)?.name ?? '$') : '$'
   const sniff = useMemo(() => (text.trim() ? sniffJson(text) : null), [text])
 
   const load = async (file: File) => {
     setText(await file.text())
     setFileName(file.name)
+    setExtra([])
+    setInferred(null)
+  }
+  // Several files or a folder: the shallowest file is the document, the others its parts.
+  const loadAll = async (list: FileList | File[]) => {
+    const files = [...list].filter((f) => /\.(json|ndjson|jsonl)$/i.test(f.name))
+    if (files.length <= 1) return files[0] ? load(files[0]) : undefined
+    const named = await Promise.all(files.map(async (f) => ({ name: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, content: await f.text() })))
+    const top = named.every((f) => f.name.includes('/')) ? named[0]!.name.split('/')[0] + '/' : ''
+    const rel = named.map((f) => ({ ...f, name: top && f.name.startsWith(top) ? f.name.slice(top.length) : f.name }))
+    rel.sort((a, b) => a.name.split('/').length - b.name.split('/').length || a.name.localeCompare(b.name))
+    const [main, ...rest] = rel
+    setText(main!.content)
+    setFileName(main!.name)
+    setExtra(rest)
     setInferred(null)
   }
   const onDrop = (e: DragEvent) => {
-    const file = e.dataTransfer.files?.[0]
+    const files = e.dataTransfer.files
     setDragging(false)
-    if (!file) return
+    if (!files?.length) return
     e.preventDefault()
-    void load(file)
+    void loadAll(files)
   }
 
   const read = async () => {
     if (!sniff?.kind) return
     setBusy(true)
     try {
-      const res = await inferDocSchema(sniff.kind, text, fileName)
+      const res = await inferDocSchema(sniff.kind, text, fileName, sniff.kind === 'json-schema' ? extra : undefined)
       setInferred({ schema: res.docSchema, warnings: res.warnings })
     } catch (e) {
       toast.error(e instanceof ApiError ? (e.detail ?? e.title) : String(e))
@@ -91,6 +121,7 @@ export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | nu
     apply((s) => importDesign(s, inferred.schema, nodeId).spec)
     toast.success(t('composer.import.done', { count: outcome.added }))
     onClose()
+    if (propose && replaceAll) onPropose?.(false)
   }
 
   const imported = inferred?.schema.imported
@@ -104,11 +135,21 @@ export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | nu
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{replaceAll ? t('composer.import.titleAll') : t('composer.import.title', { name })}</DialogTitle>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle>{replaceAll ? t('composer.import.titleAll') : t('composer.import.title', { name })}</DialogTitle>
+            {replaceAll ? <HelpLink topic="designFirst" /> : null}
+          </div>
           <DialogDescription>{t(replaceAll ? 'composer.import.bodyAll' : 'composer.import.body')}</DialogDescription>
         </DialogHeader>
         {inferred && reconciling ? (
-          <ReimportStep incoming={inferred.schema} onBack={() => setReconciling(false)} onDone={onClose} />
+          <ReimportStep
+            incoming={inferred.schema}
+            onBack={() => setReconciling(false)}
+            onDone={() => {
+              onClose()
+              if (propose) onPropose?.(true)
+            }}
+          />
         ) : inferred ? (
           <section role="status" aria-live="polite" aria-label={t('composer.import.report.title')} className="flex flex-col gap-2 text-[13px]">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{t('composer.import.report.title')}</h3>
@@ -167,6 +208,7 @@ export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | nu
               onChange={(e) => {
                 setText(e.target.value)
                 setFileName(undefined)
+                setExtra([])
               }}
               className="rounded-[var(--radius-control)] border border-border-strong bg-surface p-2 font-mono text-xs"
             />
@@ -178,13 +220,29 @@ export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | nu
               <input
                 ref={fileRef}
                 type="file"
+                multiple
                 accept=".json,.ndjson,.jsonl,application/json"
                 aria-label={t('composer.import.fileLabel')}
                 className="sr-only"
                 tabIndex={-1}
                 onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) void load(f)
+                  if (e.target.files?.length) void loadAll(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+              <Button type="button" size="sm" variant="ghost" onClick={() => dirRef.current?.click()}>
+                {t('composer.import.chooseFolder')}
+              </Button>
+              <input
+                ref={dirRef}
+                type="file"
+                // A folder of design files (OC-171).
+                {...({ webkitdirectory: '' } as Record<string, string>)}
+                aria-label={t('composer.import.folderLabel')}
+                className="sr-only"
+                tabIndex={-1}
+                onChange={(e) => {
+                  if (e.target.files?.length) void loadAll(e.target.files)
                   e.target.value = ''
                 }}
               />
@@ -195,6 +253,11 @@ export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | nu
                   {fileName}
                 </span>
               ) : null}
+              {extra.length ? (
+                <span title={extra.map((f) => f.name).join('\n')} data-testid="import-extra">
+                  {t('composer.import.withFiles', { count: extra.length, names: extra.map((f) => f.name).join(', ') })}
+                </span>
+              ) : null}
               {sniff ? (
                 <Badge className="ml-auto" tone={sniff.error ? 'danger' : 'primary'}>
                   {sniff.error ? t('composer.import.kind.invalid') : sniff.kind === 'json-schema' ? t('composer.import.kind.schema') : t('composer.import.kind.samples', { count: sampleCount(text) })}
@@ -203,6 +266,15 @@ export function ImportDialog({ nodeId, initial, onClose }: { nodeId: string | nu
             </div>
           </div>
         )}
+        {replaceAll && onPropose && !(inferred && reconciling) ? (
+          <label htmlFor={proposeId} className="flex items-start gap-2 text-[13px]">
+            <input id={proposeId} type="checkbox" className="mt-0.5" checked={propose} onChange={(e) => setPropose(e.target.checked)} />
+            <span>
+              {t('composer.import.propose')}
+              <span className="block text-xs text-muted">{t('composer.import.proposeHint')}</span>
+            </span>
+          </label>
+        ) : null}
         {inferred && reconciling ? null : (
           <DialogFooter>
             {inferred ? (

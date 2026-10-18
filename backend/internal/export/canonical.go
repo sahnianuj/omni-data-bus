@@ -1,5 +1,5 @@
 // Package export builds portable migration bundles (OC-050), seals their credentials (OC-052),
-// and wraps them in an executable migrate.sh (OC-053) for the headless runner (OC-051).
+// and packages them in an export folder (OC-182) for the headless runner (OC-051).
 package export
 
 import (

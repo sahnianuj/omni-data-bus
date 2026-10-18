@@ -20,7 +20,7 @@ test('AC3: orders embedded as array', async ({ page }) => {
   await expect(dialog).toBeHidden()
   await expect(page.getByText('orders → orders[] (array)')).toBeVisible()
   await expect(related.getByRole('listitem').filter({ hasText: /orders via customer_id/ }).getByText('Embedded')).toBeVisible()
-  await expect(page.getByText(/\d+ of \d+ embedded columns mapped/)).toBeVisible()
+  await expect(page.getByText(/\d+ of \d+ embedded\)/)).toBeVisible()
   await expect(page.getByText('All changes saved')).toBeVisible()
 
   // The preview builds documents with the array.

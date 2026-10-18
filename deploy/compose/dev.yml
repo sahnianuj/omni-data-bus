@@ -54,6 +54,9 @@ services:
       POSTGRES_PASSWORD: shop_owner
     volumes:
       - ./seed/source:/docker-entrypoint-initdb.d:ro
+      # The design-first fixtures (OC-162, OC-171), loaded by seed/source/05-pos.sh after the
+      # shop seeds. Not mounted inside the read-only seed folder: a nested mount can't be made there.
+      - ../../backend/internal/fixtures/pos:/seed/pos:ro
       - source-pg-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shop_owner -d shop"]

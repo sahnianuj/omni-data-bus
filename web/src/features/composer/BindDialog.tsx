@@ -14,7 +14,7 @@ import { useWorkbench, useWorkbenchStore } from '@/features/mapping/store'
 import type { RelationFilter } from '@/features/mapping/types'
 import { VirtualRelationshipDialog } from '@/features/mapping/VirtualRelationshipDialog'
 import { kindOf, prefill, scopeTable, type BindOption, type JoinPair } from './bindPrefill'
-import { addLookup, bind, containerOf, lookupScope, nodeOf, OpError, type BindInput, type TableRef } from './composerOps'
+import { addLookup, bind, containerOf, lookupScope, nodeOf, OpError, repeatsTable, type BindInput, type TableRef } from './composerOps'
 
 const selectCls = 'h-8 w-full rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]'
 const joinText = (join: JoinPair[]) => join.map((j) => `${j.parent} = ${j.child}`).join(', ')
@@ -83,6 +83,7 @@ export function BindDialog({ nodeId, table, lookup, onClose, onCancel }: Props) 
   const many = kind !== undefined && kind !== 'many-to-one'
   const join = opt?.type === 'direct' ? (joins[choice] ?? opt.join) : []
   const tableCols = cols.data?.columns ?? []
+  const repeat = lookup && opt?.type === 'direct' ? repeatsTable(spec, nodeId, table, join) : null
 
   const label = (o: BindOption) => {
     if (o.type === 'm2m') return t('composer.bind.m2m', { via: o.via.name })
@@ -296,6 +297,12 @@ export function BindDialog({ nodeId, table, lookup, onClose, onCancel }: Props) 
             {error ? <ErrorState error={error} /> : null}
           </div>
         )}
+        {repeat ? (
+          // OC-177: a lookup that repeats a table the node reads already is never used.
+          <p role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+            {t(repeat === 'bound' ? 'composer.bind.repeatBound' : 'composer.bind.repeatLookup', { node: node?.name ?? '', table: table.name })}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button variant="secondary" onClick={onCancel ?? onClose}>
             {t('common.cancel')}

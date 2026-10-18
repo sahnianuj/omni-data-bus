@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
 import type { MappingSpec } from '@/features/mapping/types'
 import { mockComposer, mockOrdersMapping } from '@/test/composer'
+import { mockPOS, openCart } from '@/test/designFirst'
 import { server, setupMswServer } from '@/test/msw'
 import { makeProject, mockProject, repo } from '@/test/projects'
 import { renderRoutes } from '@/test/render'
@@ -122,4 +123,19 @@ describe('Composer accessibility', () => {
     expect(report).toHaveTextContent('mixed types')
     expect(await seriousViolations()).toEqual([])
   })
+
+  it('OC-168 AC4: review mode', async () => {
+    mockPOS()
+    openCart()
+    renderRoutes(routes, '/projects/p1/mappings/m1')
+    await userEvent.click(await screen.findByRole('button', { name: 'Propose mapping' }, { timeout: 8000 }))
+    const banner = await screen.findByRole('region', { name: 'Proposed mapping' }, { timeout: 8000 })
+    expect(within(banner).getByRole('status')).toHaveTextContent('need review')
+    // The chips have text: the confidence is in each row's name.
+    expect(within(tree()).getAllByRole('treeitem', { name: /high confidence/ }).length).toBeGreaterThan(10)
+    await userEvent.click(within(banner).getByRole('radio', { name: /Needs review/ }))
+    expect(within(banner).getByRole('radio', { name: /Needs review/ })).toHaveAttribute('aria-checked', 'true')
+    expect(await seriousViolations()).toEqual([])
+  }, 20_000)
 })
+

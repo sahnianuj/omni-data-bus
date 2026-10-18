@@ -3,6 +3,9 @@
 schemaVersion: 2.0.0
 
 metadataTest:
+  labels:
+    - key: org.opencontainers.image.licenses
+      value: Apache-2.0
   user: "65532:65532"
   entrypoint: ["/usr/local/bin/odb"]
   exposedPorts: ["8080", "9090"]
@@ -28,6 +31,18 @@ fileExistenceTests:
   - name: no shell
     path: /bin/sh
     shouldExist: false
+  - name: "OC-189: LICENSE"
+    path: /usr/share/doc/omni-data-bus/LICENSE
+    shouldExist: true
+  - name: "OC-189: NOTICE"
+    path: /usr/share/doc/omni-data-bus/NOTICE
+    shouldExist: true
+  - name: "OC-189: third-party notices"
+    path: /usr/share/doc/omni-data-bus/THIRD_PARTY_NOTICES.md
+    shouldExist: true
+  - name: "OC-188: the folder for the release's odb checksums"
+    path: /usr/local/share/odb
+    shouldExist: true
 
 commandTests:
   - name: "AC1: image reports version"

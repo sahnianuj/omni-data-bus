@@ -7,13 +7,15 @@
 #   scripts/appliance.sh push  <registry>                 both platforms as one multi-arch image
 #
 # Settings come from the environment (the Makefile passes them): VERSION, COMMIT, BUILD_TIME,
-# CHANNEL, APPLIANCE (image name, default omni-data-bus-appliance), DIST (default dist/appliance).
+# CHANNEL, BUILD, DIRTY (OC-172), APPLIANCE (image name, default omni-data-bus-appliance), DIST (default dist/appliance).
 set -euo pipefail
 
 VERSION=${VERSION:-dev}
 COMMIT=${COMMIT:-none}
 BUILD_TIME=${BUILD_TIME:-}
 CHANNEL=${CHANNEL:-}
+BUILD=${BUILD:-}
+DIRTY=${DIRTY:-}
 APPLIANCE=${APPLIANCE:-omni-data-bus-appliance}
 DIST=${DIST:-dist/appliance}
 KIT=deploy/appliance
@@ -26,7 +28,8 @@ die() {
 
 build_args() {
   printf '%s\n' --build-arg "VERSION=$VERSION" --build-arg "COMMIT=$COMMIT" \
-    --build-arg "BUILD_TIME=$BUILD_TIME" --build-arg "CHANNEL=$CHANNEL"
+    --build-arg "BUILD_TIME=$BUILD_TIME" --build-arg "CHANNEL=$CHANNEL" \
+    --build-arg "BUILD=$BUILD" --build-arg "DIRTY=$DIRTY"
 }
 
 # need_platform ARCH: the builder can build linux/ARCH (QEMU for the other CPU).

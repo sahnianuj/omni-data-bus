@@ -187,6 +187,26 @@ func compileToDatetime(args map[string]any, _ *compileEnv) (opFunc, error) {
 }
 
 func compileFormatDatetime(args map[string]any, _ *compileEnv) (opFunc, error) {
+	format, err := dateFormatter(args)
+	if err != nil {
+		return nil, err
+	}
+	return func(v any, ctx *stepCtx) (any, error) {
+		if v == nil {
+			return nil, nil
+		}
+		t, ok := asTime(v, "", time.UTC)
+		if !ok {
+			ctx.warn(CodeParseFailed, fmt.Sprintf("can't read %q as a date/time; wrote null", String(v)))
+			return nil, nil
+		}
+		return format(t), nil
+	}, nil
+}
+
+// dateFormatter writes an instant as formatDatetime's args say: format iso8601 (default),
+// date, epoch_ms, epoch_s or custom (pattern), in timezone (default UTC).
+func dateFormatter(args map[string]any) (func(time.Time) any, error) {
 	format, _ := argString(args, "format")
 	if format == "" {
 		format = "iso8601"
@@ -209,28 +229,48 @@ func compileFormatDatetime(args map[string]any, _ *compileEnv) (opFunc, error) {
 	default:
 		return nil, fmt.Errorf("format must be iso8601, date, epoch_ms, epoch_s or custom")
 	}
-	return func(v any, ctx *stepCtx) (any, error) {
-		if v == nil {
-			return nil, nil
-		}
-		t, ok := asTime(v, "", time.UTC)
-		if !ok {
-			ctx.warn(CodeParseFailed, fmt.Sprintf("can't read %q as a date/time; wrote null", String(v)))
-			return nil, nil
-		}
+	return func(t time.Time) any {
 		t = t.In(loc)
 		switch format {
 		case "date":
-			return t.Format("2006-01-02"), nil
+			return t.Format("2006-01-02")
 		case "epoch_ms":
-			return t.UnixMilli(), nil
+			return t.UnixMilli()
 		case "epoch_s":
-			return t.Unix(), nil
+			return t.Unix()
 		case "custom":
-			return t.Format(layout), nil
+			return t.Format(layout)
 		}
-		return ISO(t), nil
+		return ISO(t)
 	}, nil
+}
+
+// Now's times (OC-179): when the run started (every document the same) or when each
+// document is written.
+const (
+	NowAtRun   = "run"
+	NowAtWrite = "write"
+)
+
+// compileNow fills a field with the current date and time (OC-179), formatted as
+// formatDatetime: at "run" (default) the job's start, the same for every document, as the
+// expressions' now(); at "write" the clock when each document is built.
+func compileNow(args map[string]any, env *compileEnv) (opFunc, error) {
+	at, _ := argString(args, "at")
+	switch at {
+	case "", NowAtRun, NowAtWrite:
+	default:
+		return nil, fmt.Errorf("at must be run or write")
+	}
+	format, err := dateFormatter(args)
+	if err != nil {
+		return nil, err
+	}
+	if at == NowAtWrite {
+		return func(any, *stepCtx) (any, error) { return format(time.Now()), nil }, nil
+	}
+	v := format(env.opts.Now)
+	return func(any, *stepCtx) (any, error) { return v, nil }, nil
 }
 
 func formatDatetimeType(_ docschema.FieldType, args map[string]any) docschema.FieldType {

@@ -4,7 +4,7 @@ The composer designs the document first and binds tables to it — useful when y
 
 ## Starting from a design
 
-Design & map → **Composer**. Start from the generated design, or **Import** a JSON sample, an NDJSON file or a JSON Schema. The imported fields become the *contract*; the composer keeps example values next to fields (they are never written) and offers to keep fields that look constant as constants.
+Design & map → **Composer**. Start from the generated design, or **Import** a JSON sample, an NDJSON file or a JSON Schema — and let the tool propose the whole mapping from it ([Start from the customer's design](design-first.md)). The imported fields become the *contract*; the composer keeps example values next to fields (they are never written) and offers to keep fields that look constant as constants.
 
 ## Binding tables
 

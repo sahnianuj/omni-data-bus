@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentDocument (CASH)",
+  "description": "Cash.",
+  "type": "object",
+  "required": [
+    "paymentType",
+    "id",
+    "amountChargedInCents",
+    "tipInCents",
+    "status"
+  ],
+  "properties": {
+    "paymentType": {
+      "type": "string",
+      "const": "CASH"
+    },
+    "id": {
+      "type": "string",
+      "examples": [
+        "9c1d2e3f-0000-4000-8000-000000000003"
+      ]
+    },
+    "amountTenderedInCents": {
+      "type": "integer",
+      "examples": [
+        2000
+      ]
+    },
+    "changeInCents": {
+      "type": "integer",
+      "examples": [
+        0
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "examples": [
+        "USD"
+      ]
+    },
+    "amountChargedInCents": {
+      "type": "integer",
+      "examples": [
+        795
+      ]
+    },
+    "tipInCents": {
+      "type": "integer",
+      "examples": [
+        0
+      ]
+    },
+    "transactionID": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "5e6f7a8b-0000-4000-8000-000000000004"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "const": "completed"
+    },
+    "voided": {
+      "type": "boolean",
+      "description": "Not populated.",
+      "examples": [
+        false
+      ]
+    },
+    "voidedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "createdAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "examples": [
+        "2026-07-19T10:29:58Z"
+      ]
+    }
+  }
+}

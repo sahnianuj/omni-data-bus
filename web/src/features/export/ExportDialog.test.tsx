@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,7 @@ import { server, setupMswServer } from '@/test/msw'
 import { makeProject, repo } from '@/test/projects'
 import { renderUI } from '@/test/render'
 import { mockSession } from '@/test/session'
-import { ExportDialog } from './ExportDialog'
+import { ExportDialog, ownMachine } from './ExportDialog'
 
 type MappingSummary = components['schemas']['MappingSummary']
 
@@ -23,7 +23,7 @@ const summary = (id: string, table: string, over: Partial<MappingSummary> = {}):
 
 const options = {
   version: '2.0.0', allowPlaintext: true, image: 'ghcr.io/x/omni-data-bus:2.0.0', downloadUrl: 'https://example.com', downloadable: ['linux_amd64'],
-  embeddable: ['linux_amd64'], maxPerHour: 10,
+  embeddable: ['linux_amd64'], signed: [], maxPerHour: 10,
 }
 
 let saved: string[]
@@ -36,14 +36,14 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-function setup(project = makeProject({ id: 'p1', name: 'Shop', source: repo('postgres'), target: repo('couchbase') }), headers: Record<string, string> = {}) {
+function setup(project = makeProject({ id: 'p1', name: 'Shop', source: repo('postgres'), target: repo('couchbase') }), headers: Record<string, string> = {}, opts: Record<string, unknown> = options) {
   mockSession('editor')
   const requests: Record<string, unknown>[] = []
   server.use(
     http.get('*/api/v1/projects/p1/mappings', () =>
       HttpResponse.json({ items: [summary('m1', 'orders'), summary('m2', 'customers'), summary('m3', 'refunds', { status: 'draft', errors: 1, firstError: { code: 'X', message: 'Key template uses a missing column' } })] }),
     ),
-    http.get('*/api/v1/exports/options', () => HttpResponse.json(options)),
+    http.get('*/api/v1/exports/options', () => HttpResponse.json(opts)),
     http.post('*/api/v1/projects/p1/exports', async ({ request }) => {
       requests.push((await request.json()) as Record<string, unknown>)
       return new HttpResponse(new Blob(['zip']), {
@@ -66,13 +66,14 @@ describe('ExportDialog', () => {
     expect(within(maps).getByText('public.refunds').closest('li')).toHaveTextContent('Not ready — not exported')
     expect(within(maps).getByRole('link', { name: 'Change in Design & map' })).toHaveAttribute('href', '/projects/p1/mappings')
     expect(within(screen.getByRole('region', { name: 'Target' })).getByRole('link', { name: /Change in/ })).toHaveAttribute('href', '/projects/p1/target')
-    expect(screen.getByRole('region', { name: 'Credentials' })).toHaveTextContent('in config.json beside the script')
+    expect(screen.getByRole('region', { name: 'Credentials' })).toHaveTextContent('in config.json in the export folder')
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    // 2. Options: no bundle-or-script choice, odb not included by default; Export downloads at once.
+    // 2. Options: no bundle-or-script choice, no odb unless asked (OC-182); Export downloads at once.
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /Include odb/ })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /Add odb for a machine without internet access/ })).not.toBeChecked()
+    expect(screen.queryByLabelText('Machine')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/passphrase/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Export' }))
 
@@ -83,24 +84,123 @@ describe('ExportDialog', () => {
     for (const k of ['passphrase', 'mappingIds', 'targetOverride', 'credentialMode', 'refs', 'runtime', 'script', 'includeOdb']) expect(requests[0]).not.toHaveProperty(k)
     expect(saved).toEqual(['odb-export-shop-20261001.zip'])
     const files = screen.getByLabelText('Files in the export')
-    expect(within(files).getAllByRole('term').map((d) => d.textContent)).toEqual(['migrate.sh', 'config.json', 'mappings.json', 'README.md'])
+    // OC-182 AC1: nothing OS-specific, no script.
+    expect(within(files).getAllByRole('term').map((d) => d.textContent)).toEqual(['config.json', 'mappings.json', 'README.md'])
     expect(screen.getByRole('note')).toHaveTextContent('config.json holds the database credentials')
   })
 
-  it('OC-160 AC1: one download with an optional odb', async () => {
+  it('OC-182 AC4: odb for a machine without internet access, on request', async () => {
     const user = userEvent.setup()
     const { requests } = setup(undefined, { 'X-Odb-Included': 'linux_amd64' })
     await screen.findByRole('region', { name: /Mappings/ })
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    await user.click(screen.getByRole('checkbox', { name: /Include odb/ }))
-    // Only platforms this server has can be picked.
+    await user.click(screen.getByRole('checkbox', { name: /Add odb for a machine without internet access/ }))
+    // Only machines this server has odb for can be picked.
     const machine = screen.getByLabelText('Machine')
-    expect(within(machine).getByRole('option', { name: 'linux / amd64' })).toBeEnabled()
-    expect(within(machine).getByRole('option', { name: 'darwin / arm64' })).toBeDisabled()
+    expect(within(machine).getByRole('option', { name: 'Linux x86-64' })).toBeEnabled()
+    expect(within(machine).getByRole('option', { name: 'macOS (Intel or Apple silicon)' })).toBeDisabled()
+    expect(within(machine).getAllByRole('option').map((o) => o.textContent)).toEqual(['macOS (Intel or Apple silicon)', 'Windows x86-64', 'Linux x86-64', 'Linux ARM64'])
     await user.click(screen.getByRole('button', { name: 'Export' }))
     await screen.findByText('Export downloaded')
     expect(requests[0]).toMatchObject({ includeOdb: { os: 'linux', arch: 'amd64' } })
-    expect(within(screen.getByLabelText('Files in the export')).getAllByRole('term').map((d) => d.textContent)).toContain('odb')
+    const files = screen.getByLabelText('Files in the export')
+    expect(within(files).getAllByRole('term').map((d) => d.textContent)).toContain('bin/odb')
+    expect(files).toHaveTextContent('odb for Linux x86-64, for a machine without internet access')
+  })
+
+  it('OC-182 AC4: the machine defaults to one this server has odb for', async () => {
+    const user = userEvent.setup()
+    const { requests } = setup(undefined, {}, { ...options, downloadable: [], embeddable: ['darwin_amd64'] })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('checkbox', { name: /Add odb/ }))
+    await waitFor(() => expect(screen.getByLabelText('Machine')).toHaveValue('darwin_amd64'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await screen.findByText('Export downloaded')
+    expect(requests[0]).toMatchObject({ includeOdb: { os: 'darwin', arch: 'amd64' } })
+  })
+
+  it('OC-185 AC3: one choice for every Mac, defaulted to my OS', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15')
+    const { requests } = setup(undefined, {}, { ...options, embeddable: ['linux_amd64', 'darwin_universal'], signed: ['darwin_universal'] })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('checkbox', { name: /Add odb/ }))
+    await waitFor(() => expect(screen.getByLabelText('Machine')).toHaveValue('darwin_universal'))
+    expect(screen.queryByText(/isn't signed/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await screen.findByText('Export downloaded')
+    expect(requests[0]).toMatchObject({ includeOdb: { os: 'darwin', arch: 'universal' } })
+  })
+
+  it("OC-185 AC4: a development build's unsigned macOS odb is flagged", async () => {
+    const user = userEvent.setup()
+    setup(undefined, {}, { ...options, embeddable: ['darwin_amd64'], signed: [] })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('checkbox', { name: /Add odb/ }))
+    // A dev server's own Mac build stands in for the universal one.
+    await waitFor(() => expect(screen.getByLabelText('Machine')).toHaveValue('darwin_amd64'))
+    expect(screen.getByText(/odb isn't signed, so macOS will block it/)).toBeInTheDocument()
+  })
+
+  it('OC-186: odb.exe for a Windows machine', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+    const { requests } = setup(undefined, { 'X-Odb-Included': 'windows_amd64' }, { ...options, embeddable: ['linux_amd64', 'windows_amd64'], signed: ['windows_amd64'] })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('checkbox', { name: /Add odb/ }))
+    await waitFor(() => expect(screen.getByLabelText('Machine')).toHaveValue('windows_amd64'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await screen.findByText('Export downloaded')
+    expect(requests[0]).toMatchObject({ includeOdb: { os: 'windows', arch: 'amd64' } })
+    expect(within(screen.getByLabelText('Files in the export')).getAllByRole('term').map((d) => d.textContent)).toContain('bin/odb.exe')
+  })
+
+  it('OC-188 AC4: each machine says whether this server has its odb, gets it on first use, or why not', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (X11; Linux x86_64)')
+    const why = "This build doesn't know the release's checksum for this machine. An admin can set OC_EXPORT_DIST_DIR to the release's odb files."
+    setup(undefined, {}, {
+      ...options,
+      embeddable: ['darwin_amd64', 'linux_amd64'],
+      machines: [
+        { platform: 'darwin_universal', state: 'unavailable', reason: why },
+        { platform: 'darwin_amd64', state: 'available' },
+        { platform: 'windows_amd64', state: 'unavailable', reason: why },
+        { platform: 'linux_amd64', state: 'onDemand' },
+        { platform: 'linux_arm64', state: 'unavailable', reason: why },
+      ],
+    })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('checkbox', { name: /Add odb/ }))
+    const machine = screen.getByLabelText('Machine')
+    await waitFor(() => expect(machine).toHaveValue('linux_amd64'))
+    expect(within(machine).getByRole('option', { name: 'Linux x86-64 — downloaded on first export' })).toBeEnabled()
+    expect(within(machine).getByRole('option', { name: 'Linux ARM64' })).toBeDisabled()
+    expect(screen.getByText(/gets odb for Linux x86-64 from the release the first time/)).toBeInTheDocument()
+    expect(screen.getByTestId('machine-unavailable')).toHaveTextContent(`Not available on this server: Windows x86-64, Linux ARM64. ${why}`)
+  })
+
+  it('OC-185: the own machine comes from the browser', () => {
+    expect(ownMachine({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)' })).toBe('darwin_universal')
+    expect(ownMachine({ userAgentData: { platform: 'Windows' } })).toBe('windows_amd64')
+    expect(ownMachine({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64)' })).toBe('linux_amd64')
+    expect(ownMachine({ platform: 'darwin' })).toBe('darwin_universal')
+  })
+
+  it('OC-182 AC4: with no odb on the server, the checkbox is disabled and says why', async () => {
+    const user = userEvent.setup()
+    setup(undefined, {}, { ...options, embeddable: [] })
+    await screen.findByRole('region', { name: /Mappings/ })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    const box = await screen.findByRole('checkbox', { name: /Add odb/ })
+    await waitFor(() => expect(box).toBeDisabled())
+    expect(box).not.toBeChecked()
+    expect(screen.getByText(/This server has no odb binaries to add/)).toBeInTheDocument()
   })
 
   it('shows a failed export in the dialog', async () => {

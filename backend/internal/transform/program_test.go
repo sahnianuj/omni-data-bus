@@ -245,3 +245,31 @@ func TestAppendString_Escapes(t *testing.T) {
 	}
 	require.Equal(t, `{"a":[1,2.5,true,null,"x"],"b":{"c":"1e3"}}`, string(appendJSON(nil, map[string]any{"b": map[string]any{"c": "1e3"}, "a": []any{int64(1), 2.5, true, nil, "x"}})))
 }
+
+// OC-166: an object whose every field is left empty on purpose is written as null (left out
+// with OmitUnmapped), not as an object of nulls; one with a field still mapped keeps its shape.
+func TestApply_OC166_NotPopulatedObject(t *testing.T) {
+	notPopulated := func(s *mapping.Spec, targets ...string) {
+		for i := range s.FieldMappings {
+			for _, id := range targets {
+				if s.FieldMappings[i].TargetFieldID == id {
+					s.FieldMappings[i].State = mapping.StateNotPopulated
+				}
+			}
+		}
+	}
+	s := baseSpec()
+	notPopulated(s, "f_city", "f_zip")
+	_, doc, _, rerr := compile(t, s).Apply(row(1, "a", "b", "c", "d"), nil)
+	require.Nil(t, rerr)
+	require.Contains(t, string(doc), `"address":null`)
+
+	s.OmitUnmapped = true
+	_, doc, _, _ = compile(t, s).Apply(row(1, "a", "b", "c", "d"), nil)
+	require.NotContains(t, string(doc), "address")
+
+	s = baseSpec()
+	notPopulated(s, "f_city")
+	_, doc, _, _ = compile(t, s).Apply(row(1, "a", "b", "c", "d"), nil)
+	require.Contains(t, string(doc), `"address":{"city":null,"zip":"d"}`)
+}

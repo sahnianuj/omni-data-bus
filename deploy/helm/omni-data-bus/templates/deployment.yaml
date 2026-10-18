@@ -63,6 +63,14 @@ spec:
             - name: OC_EXPORT_DOWNLOAD_URL
               value: {{ . | quote }}
             {{- end }}
+            - name: OC_EXPORT_FETCH
+              value: {{ $.Values.exports.fetch | quote }}
+            - name: OC_EXPORT_CACHE_DIR
+              value: /var/cache/odb
+            {{- if $.Values.exports.distDir.existingClaim }}
+            - name: OC_EXPORT_DIST_DIR
+              value: {{ $.Values.exports.distDir.mountPath | quote }}
+            {{- end }}
             {{- include "odb.env" $ | nindent 12 }}
           ports:
             - { name: http, containerPort: 8080, protocol: TCP }
@@ -86,6 +94,10 @@ spec:
           volumeMounts:
             - { name: secrets, mountPath: /etc/odb/secrets, readOnly: true }
             - { name: tmp, mountPath: /tmp }
+            - { name: odb-cache, mountPath: /var/cache/odb }
+            {{- if $.Values.exports.distDir.existingClaim }}
+            - { name: odb-dist, mountPath: {{ $.Values.exports.distDir.mountPath }}, readOnly: true }
+            {{- end }}
             {{- if $.Values.directoryTarget.enabled }}
             - { name: odb-out, mountPath: {{ $.Values.directoryTarget.mountPath }} }
             {{- end }}
@@ -99,6 +111,14 @@ spec:
               - { key: meta-password, path: meta-password }
         - name: tmp
           emptyDir: { sizeLimit: 64Mi }
+        - name: odb-cache
+          emptyDir: { sizeLimit: {{ $.Values.exports.cacheSize }} }
+        {{- if $.Values.exports.distDir.existingClaim }}
+        - name: odb-dist
+          persistentVolumeClaim:
+            claimName: {{ $.Values.exports.distDir.existingClaim }}
+            readOnly: true
+        {{- end }}
         {{- if $.Values.directoryTarget.enabled }}
         - name: odb-out
           persistentVolumeClaim:

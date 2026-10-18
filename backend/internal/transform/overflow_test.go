@@ -9,6 +9,7 @@ import (
 	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/pathcodec"
+	"omnidatabus/internal/schema"
 )
 
 type overflowDoc struct {
@@ -115,4 +116,40 @@ func TestOverflow_AC4_SplitKeysAndPaths(t *testing.T) {
 	_, _, _, rerr = p.ApplyWith([]any{int64(1001), string(long), int32(1)}, source.Related{"rel_items": lineRows(1001)}, nil)
 	require.NotNil(t, rerr)
 	require.Equal(t, mapping.CodeKeyTooLong, rerr.Code)
+}
+
+// The size guard halves an array whose overflow policy is truncate (with DOC_SIZE_TRUNCATED)
+// until the document fits; with fail it's DOC_TOO_LARGE.
+func TestOverflow_SizeGuardShrinks(t *testing.T) {
+	compileMax := func(policy string) *Program {
+		spec := linesSpec(false)
+		spec.Relations[0].Overflow = policy
+		orders, rel := shopTables()
+		items := *rel["rel_items"]
+		items.Columns = append([]schema.Column(nil), items.Columns...)
+		items.Columns[5] = col("line_total", "numeric", "number")
+		rel["rel_items"] = &items
+		p, issues := Compile(spec, orders, Options{Related: rel, MaxDocBytes: 2000})
+		require.NotNil(t, p, "%v", issues)
+		return p
+	}
+	row := []any{int64(1001), "x", int32(1)}
+	rel := source.Related{"rel_items": lineRows(500)}
+
+	_, doc, warnings, rerr := compileMax(mapping.OverflowTruncate).ApplyWith(row, rel, nil)
+	require.Nil(t, rerr)
+	require.LessOrEqual(t, len(doc), 2000)
+	var got overflowDoc
+	require.NoError(t, json.Unmarshal(doc, &got))
+	require.NotEmpty(t, got.Items)
+	require.Less(t, len(got.Items), 500)
+	var codes []string
+	for _, w := range warnings {
+		codes = append(codes, w.Code)
+	}
+	require.Contains(t, codes, CodeDocSizeTruncated)
+
+	_, _, _, rerr = compileMax(mapping.OverflowFail).ApplyWith(row, rel, nil)
+	require.NotNil(t, rerr)
+	require.Equal(t, CodeDocTooLarge, rerr.Code)
 }

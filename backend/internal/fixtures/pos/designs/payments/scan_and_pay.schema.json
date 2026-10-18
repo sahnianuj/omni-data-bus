@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentDocument (SCAN_AND_PAY)",
+  "description": "A scan-and-pay QR code from the mobile app.",
+  "type": "object",
+  "required": [
+    "paymentType",
+    "id",
+    "amountChargedInCents",
+    "tipInCents",
+    "status"
+  ],
+  "properties": {
+    "paymentType": {
+      "type": "string",
+      "const": "SCAN_AND_PAY"
+    },
+    "id": {
+      "type": "string",
+      "examples": [
+        "9c1d2e3f-0000-4000-8000-000000000003"
+      ]
+    },
+    "qrCode": {
+      "type": "string",
+      "examples": [
+        "qr-4"
+      ]
+    },
+    "accountID": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "7a8b9c0d-0000-4000-8000-000000000006"
+      ]
+    },
+    "encryptionKeyID": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "2b3c4d5e-0000-4000-8000-000000000005"
+      ]
+    },
+    "amountChargedInCents": {
+      "type": "integer",
+      "examples": [
+        795
+      ]
+    },
+    "tipInCents": {
+      "type": "integer",
+      "examples": [
+        0
+      ]
+    },
+    "transactionID": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "examples": [
+        "5e6f7a8b-0000-4000-8000-000000000004"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "const": "completed"
+    },
+    "voided": {
+      "type": "boolean",
+      "description": "Not populated.",
+      "examples": [
+        false
+      ]
+    },
+    "voidedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "createdAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "examples": [
+        "2026-07-19T10:29:58Z"
+      ]
+    }
+  }
+}

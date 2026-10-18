@@ -49,3 +49,15 @@ func TestLocation_AC4_Validate(t *testing.T) {
 	require.Equal(t, "location.bucket", field(ValidateLocation(Location{Kind: "directory", Folder: "x", Bucket: "b"}, "")))
 	require.Equal(t, "location.folder", field(ValidateLocation(Location{Kind: "couchbase", Bucket: "b", Scope: "s", Collection: "c", Folder: "x"}, "")))
 }
+
+// OC-186 AC3: folders Windows can't create are refused on every OS, so a test run on one
+// machine writes the same folders as the run on another. Document file names are already
+// encoded the same way everywhere (pathcodec, OC-039).
+func TestValidateFolder_OC186_AC3_WindowsNames(t *testing.T) {
+	for _, bad := range []string{"con", "CON", "orders/Nul", "aux.json", "com1", "lpt9/x", "orders.", "a/b."} {
+		require.Error(t, ValidateFolder(bad), bad)
+	}
+	for _, ok := range []string{"orders", "console", "com10", "contacts.v2", "a/b.c", "lpt"} {
+		require.NoError(t, ValidateFolder(ok), ok)
+	}
+}

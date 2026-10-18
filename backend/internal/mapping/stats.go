@@ -21,6 +21,14 @@ type Stats struct {
 	AutoMapRatio           float64 `json:"autoMapRatio"`
 	CoverageRatio          float64 `json:"coverageRatio"`
 	AverageConfidence      float64 `json:"averageConfidence"`
+	// The document's fields, and those done: filled, or left empty on purpose (OC-178).
+	TargetFields     int     `json:"targetFields"`
+	TargetFieldsDone int     `json:"targetFieldsDone"`
+	DoneRatio        float64 `json:"doneRatio"`
+	// Done, split (OC-187): filled with data by a mapping, a total or a relation, or left empty
+	// on purpose (the field, or a container above it, marked not populated).
+	TargetFieldsFilled       int `json:"targetFieldsFilled"`
+	TargetFieldsNotPopulated int `json:"targetFieldsNotPopulated"`
 	// Embedded counts the embedded tables' columns separately (OC-021 AC2).
 	Embedded *EmbeddedStats `json:"embedded,omitempty"`
 	// ByNode is the score per bound scope, root first (OC-049): "root 8/10 · items 5/6".
@@ -91,6 +99,8 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 			for _, src := range m.Sources {
 				suggested[own(src)] = true
 			}
+		case StateNotPopulated:
+			mappedTargets[m.TargetFieldID] = true // left empty on purpose: done (OC-166)
 		}
 	}
 	carried := embeddedForeignKeys(s)
@@ -162,6 +172,13 @@ func ComputeStatsWith(s *Spec, columns []string, embedded map[string][]string) S
 	if confN > 0 {
 		st.AverageConfidence = confSum / float64(confN)
 	}
+	var filled, notPopulated int
+	filled, notPopulated, st.TargetFields = fieldsDone(s)
+	st.TargetFieldsDone = filled + notPopulated
+	st.TargetFieldsFilled, st.TargetFieldsNotPopulated = filled, notPopulated
+	if st.TargetFields > 0 {
+		st.DoneRatio = float64(st.TargetFieldsDone) / float64(st.TargetFields)
+	}
 	if len(s.Relations) > 0 {
 		st.ByNode = ByNode(s)
 	}
@@ -179,6 +196,56 @@ func embeddedForeignKeys(s *Spec) map[string]bool {
 		}
 	}
 	return out
+}
+
+// fieldsDone counts the design's fields and those done (OC-178). A field holds a value: a
+// scalar, an array of scalars, an empty object or array; objects and arrays of objects are
+// containers, counted through their fields (arrays' items and variants included). A field is
+// done when an active mapping, a total or a relation fills it, or it's marked not populated;
+// under a container marked not populated, every field is done. A done field counts as filled
+// when something fills it, else as not populated (OC-187).
+func fieldsDone(s *Spec) (filled, notPopulated, total int) {
+	fills, empty := map[string]bool{}, map[string]bool{}
+	for _, m := range s.FieldMappings {
+		switch m.State {
+		case StateActive:
+			fills[m.TargetFieldID] = true
+		case StateNotPopulated:
+			empty[m.TargetFieldID] = true
+		}
+	}
+	for _, a := range s.Aggregates {
+		fills[a.TargetFieldID] = true
+	}
+	for _, r := range s.Relations {
+		if !r.LookupOnly && r.TargetFieldID != "" {
+			fills[r.TargetFieldID] = true
+		}
+	}
+	var visit func(f *docschema.DocField, left bool)
+	visit = func(f *docschema.DocField, left bool) {
+		left = left || empty[f.ID]
+		switch {
+		case f.Type == docschema.Object && len(f.Children) > 0:
+			for i := range f.Children {
+				visit(&f.Children[i], left)
+			}
+		case f.Type == docschema.Array && f.Items != nil && !f.Items.Type.Scalar() && (f.Items.Type == docschema.Array || len(f.Items.Children) > 0):
+			visit(f.Items, left)
+		default:
+			total++
+			switch {
+			case fills[f.ID]:
+				filled++
+			case left:
+				notPopulated++
+			}
+		}
+	}
+	for i := range s.DocSchema.Root.Children {
+		visit(&s.DocSchema.Root.Children[i], false)
+	}
+	return filled, notPopulated, total
 }
 
 // ByNode scores each bound scope (the root, then every relation that fills a node, parents

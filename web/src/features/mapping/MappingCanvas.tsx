@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronRight, CornerDownRight, EyeOff, KeyRound, Plus, X } from 'lucide-react'
+import { ChevronRight, Clock, CornerDownRight, EyeOff, KeyRound, Plus, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type UIEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -12,7 +12,10 @@ import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } f
 import { cn } from '@/lib/utils'
 import { buildEdges, parentMap, type Edge } from './buildEdges'
 import { canConnect } from './canConnect'
-import { canvasLeaves, embedColumns, embedContainer, fieldsById, removeEmbed } from './embeds'
+import { canvasLeaves, embedColumns, embedContainer, fieldsById, removeEmbed, srcKey } from './embeds'
+import { describeNowText, formatLabel, nowOf } from './nowSource'
+import { mappingReads, unusedLookups } from './reads'
+import { designOrder, orderSources, type SourceOrder, type SourceRow } from './sourceOrder'
 import { addSource, connect, createFieldAndMap, disconnect, OpError, replaceSource, setComputed } from './mappingOps'
 import { RelatedTree } from './RelatedTree'
 import { selectVisible, type SourceState, type TargetState } from './selectVisible'
@@ -30,6 +33,28 @@ const kidsOf = (f: DocField): DocField[] | null => {
   if (f.type === 'object' && (f.children?.length ?? 0) > 0) return f.children ?? []
   if (f.type === 'array' && f.items?.type === 'object' && (f.items.children?.length ?? 0) > 0) return f.items.children ?? []
   return null
+}
+
+const ORDER_KEY = 'odb.canvas.sourceOrder'
+
+/** The source panel's order, remembered in this browser (OC-175); document order by default. */
+function useSourceOrder(): [SourceOrder, (o: SourceOrder) => void] {
+  const [order, setOrder] = useState<SourceOrder>(() => {
+    try {
+      return localStorage.getItem(ORDER_KEY) === 'table' ? 'table' : 'document'
+    } catch {
+      return 'document'
+    }
+  })
+  const set = (o: SourceOrder) => {
+    setOrder(o)
+    try {
+      localStorage.setItem(ORDER_KEY, o)
+    } catch {
+      // Storage blocked: the choice lasts this visit.
+    }
+  }
+  return [order, set]
 }
 
 /** Flattened target tree honouring collapsed containers and the visible leaves (embeds' items included). */
@@ -52,8 +77,6 @@ export function targetRows(spec: MappingSpec, visibleLeaves: ReadonlySet<string>
   return out
 }
 
-/** A source panel row: a column, or the header of an embedded table's columns. */
-type SourceRow = { kind: 'column'; column: CanvasColumn } | { kind: 'embed'; embed: Embed }
 
 const stateDot: Record<SourceState | TargetState, string> = {
   auto: 'bg-[var(--map-auto)]',
@@ -138,19 +161,21 @@ export function MappingCanvas() {
   const ls = useMemo(() => canvasLeaves(spec), [spec])
   const fields = useMemo(() => fieldsById(spec), [spec])
   const vis = useMemo(() => selectVisible(spec, columns, ls, filter, search, issues), [spec, columns, ls, filter, search, issues])
+  // In the document's order (OC-175), or the table's; remembered per browser.
+  const [order, setOrder] = useSourceOrder()
+  // A lookup nothing reads shows only its header until opened (OC-177).
+  const unused = useMemo(() => unusedLookups(spec), [spec])
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set())
   const srcRows = useMemo<SourceRow[]>(() => {
-    const shown = new Set(vis.sources)
-    const rows: SourceRow[] = tableColumns.filter((c) => shown.has(c.name)).map((c) => ({ kind: 'column', column: c }))
-    for (const e of spec.relations) {
-      const cols = columns.filter((c) => c.embed === e.id && shown.has(c.name))
-      if (cols.length === 0 && filtered(filter, search)) continue
-      rows.push({ kind: 'embed', embed: e }, ...cols.map((c) => ({ kind: 'column' as const, column: c })))
-    }
-    return rows
-  }, [tableColumns, columns, spec.relations, vis.sources, filter, search])
+    const rows = orderSources(spec, tableColumns, columns, new Set(vis.sources), !filtered(filter, search), order)
+    const folded = (id: string | undefined) => !!id && unused.has(id) && !opened.has(id)
+    return rows.filter((r) => (r.kind === 'column' ? !folded(r.column.embed) : r.kind === 'divider' ? !folded(r.scope) : true))
+  }, [spec, tableColumns, columns, vis.sources, filter, search, order, unused, opened])
   const isFiltered = filtered(filter, search)
   const tRows = useMemo(() => targetRows(spec, isFiltered ? new Set(vis.targets) : null, collapsed), [spec, isFiltered, vis.targets, collapsed])
-  const edges = useMemo(() => buildEdges(spec, collapsed, parentMap(spec), issues), [spec, collapsed, issues])
+  // Columns an expression reads draw a line too (concat(row.first_name, …)).
+  const reads = useMemo(() => mappingReads(spec, new Set(columns.map((c) => c.name))), [spec, columns])
+  const edges = useMemo(() => buildEdges(spec, collapsed, parentMap(spec), issues, reads), [spec, collapsed, issues, reads])
   const srcIndex = useMemo(() => new Map(srcRows.flatMap((r, i) => (r.kind === 'column' ? [[r.column.name, i] as const] : []))), [srcRows])
   const tgtIndex = useMemo(() => new Map(tRows.map((r, i) => [r.field.id, i])), [tRows])
   const shownEdges = edges.filter((e) => srcIndex.has(e.from) && tgtIndex.has(e.to))
@@ -226,6 +251,11 @@ export function MappingCanvas() {
   const [naming, setNaming] = useState<string | null>(null)
   const addTarget = insertionPoint(spec.docSchema, selection?.kind === 'field' ? selection.id : null)
   const computedExpr = new Map(spec.fieldMappings.filter((m) => m.state === 'active' && m.computed).map((m) => [m.targetFieldId, m.computed!.expr]))
+  // Fields filled with the current date and time (OC-179): no column, so no line; a clock badge instead.
+  const nowFields = new Map(spec.fieldMappings.flatMap((m) => {
+    const a = m.state === 'active' && !m.sources.length ? nowOf(spec, m.targetFieldId) : undefined
+    return a ? [[m.targetFieldId, a] as const] : []
+  }))
   // computed: the new field is a template (OC-138), selected so the Inspector opens on it.
   const onAddField = (computed = false) => {
     let id = ''
@@ -263,6 +293,101 @@ export function MappingCanvas() {
     const i = naming ? tRows.findIndex((r) => r.field.id === naming) : -1
     if (i >= 0) tv.scrollToIndex(i)
   }, [naming, tRows, tv])
+  // Selecting one end of a mapping brings the other into view (OC-174): its row is scrolled to
+  // after the render that expands its collapsed parents.
+  const setFilter = useWorkbench((s) => s.setFilter)
+  const setSearch = useWorkbench((s) => s.setSearch)
+  const pendingReveal = useRef<{ tgt?: string; src?: string } | null>(null)
+  const cycle = useRef<{ name: string; i: number } | null>(null)
+  const [cycleInfo, setCycleInfo] = useState<{ name: string; i: number; n: number } | null>(null)
+  const [hiddenEnd, setHiddenEnd] = useState<string | null>(null)
+  const [, setRevealTick] = useState(0) // a render to scroll in, even when nothing else changed
+  const docPos = useMemo(() => designOrder(spec), [spec])
+  const parents = useMemo(() => parentMap(spec), [spec])
+  const pathOf = (id: string) => targetRows(spec, null, new Set()).find((r) => r.field.id === id)?.path ?? fields.get(id)?.name ?? id
+  /** The fields a column fills, in document order. */
+  const filledBy = (key: string): string[] => {
+    const ids = new Set<string>()
+    for (const m of spec.fieldMappings) if ((m.state === 'active' || m.state === 'pending') && reads(m).includes(key)) ids.add(m.targetFieldId)
+    for (const a of spec.aggregates ?? []) if (a.column && srcKey({ column: a.column, relation: a.relationId }) === key) ids.add(a.targetFieldId)
+    return [...ids].sort((a, b) => (docPos.get(a) ?? 0) - (docPos.get(b) ?? 0))
+  }
+  /** The column a field reads (its first source, or its expression's first column). */
+  const readBy = (fieldId: string): string | undefined => {
+    const m = spec.fieldMappings.find((x) => x.targetFieldId === fieldId && (x.state === 'active' || x.state === 'pending') && reads(x).length > 0)
+    if (m) return reads(m)[0]
+    const a = (spec.aggregates ?? []).find((x) => x.targetFieldId === fieldId && x.column)
+    return a ? srcKey({ column: a.column!, relation: a.relationId }) : undefined
+  }
+  const revealTarget = (fieldId: string) => {
+    if (isFiltered && !vis.targets.includes(fieldId)) {
+      setHiddenEnd(pathOf(fieldId))
+      return
+    }
+    for (let p = parents.get(fieldId); p; p = parents.get(p)) if (collapsed.has(p)) toggleCollapsed(p)
+    pendingReveal.current = { ...pendingReveal.current, tgt: fieldId }
+    setRevealTick((n) => n + 1)
+  }
+  const revealSource = (key: string) => {
+    if (isFiltered && !vis.sources.includes(key)) {
+      setHiddenEnd(colByName.get(key)?.column ?? key)
+      return
+    }
+    pendingReveal.current = { ...pendingReveal.current, src: key }
+    setRevealTick((n) => n + 1)
+  }
+  const onSourceClick = (name: string) => {
+    select({ kind: 'column', name })
+    setHiddenEnd(null)
+    const ids = filledBy(name)
+    if (ids.length === 0) {
+      cycle.current = null
+      setCycleInfo(null)
+      return
+    }
+    // Clicking the same column again moves to its next field.
+    const i = cycle.current?.name === name ? (cycle.current.i + 1) % ids.length : 0
+    cycle.current = { name, i }
+    setCycleInfo(ids.length > 1 ? { name, i, n: ids.length } : null)
+    revealTarget(ids[i]!)
+  }
+  const onTargetClick = (fieldId: string) => {
+    select({ kind: 'field', id: fieldId })
+    setHiddenEnd(null)
+    cycle.current = null
+    setCycleInfo(null)
+    const key = readBy(fieldId)
+    if (key) revealSource(key)
+  }
+  const onEdgeClick = (mappingId: string) => {
+    select({ kind: 'mapping', id: mappingId })
+    setHiddenEnd(null)
+    const m = spec.fieldMappings.find((x) => x.id === mappingId)
+    if (!m) return
+    revealTarget(m.targetFieldId)
+    const first = reads(m)[0]
+    if (first) revealSource(first)
+  }
+  // A field revealed from the Issues panel (OC-176): its parents are open already; scroll to it.
+  const reveal = useWorkbench((s) => s.reveal)
+  const revealIdx = reveal ? tgtIndex.get(reveal.id) : undefined
+  useEffect(() => {
+    if (revealIdx != null) tv.scrollToIndex(revealIdx, { align: 'auto' })
+    // Once per ask: a later edit that moves the row doesn't scroll again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal?.seq])
+  useEffect(() => {
+    const want = pendingReveal.current
+    if (!want) return
+    pendingReveal.current = null
+    const ti = want.tgt ? tgtIndex.get(want.tgt) : undefined
+    if (ti != null) tv.scrollToIndex(ti, { align: 'auto' })
+    const si = want.src ? srcIndex.get(want.src) : undefined
+    if (si != null) sv.scrollToIndex(si, { align: 'auto' })
+  })
+  /** A mapping's steps in words, for its ƒ marker: "Expression → Format datetime". */
+  const stepsOf = (mappingId: string) =>
+    (spec.fieldMappings.find((m) => m.id === mappingId)?.transforms ?? []).map((st) => t(`transform.op.${st.op}`, { defaultValue: st.op })).join(' → ')
   const isContainer = (f: DocField) => f.type === 'object' || (f.type === 'array' && f.items?.type === 'object')
   const onTargetDragOver = (e: DragEvent, row: TargetRow) => {
     const col = colByName.get(dragging.current ?? '')
@@ -346,7 +471,45 @@ export function MappingCanvas() {
     <div className="relative flex min-h-0 flex-1 outline-none" tabIndex={0} onKeyDown={onKeyDown} aria-label={t('mapping.canvas')} role="application">
       {/* Source panel */}
       <div className="relative flex min-w-[200px] shrink flex-col border-r border-border" style={{ width: sourcePane.size }}>
-        <div className="flex h-9 items-center border-b border-border bg-surface-muted px-3 text-xs font-medium text-muted">{t('mapping.sourcePanel', { count: srcRows.filter((r) => r.kind === 'column').length })}</div>
+        <div className="flex h-9 items-center gap-2 border-b border-border bg-surface-muted px-3 text-xs font-medium text-muted">
+          <span className="truncate">{t('mapping.sourcePanel', { count: srcRows.filter((r) => r.kind === 'column').length })}</span>
+          <div role="radiogroup" aria-label={t('mapping.sourceOrder')} title={t('mapping.sourceOrderHint')} className="ml-auto flex shrink-0 items-center gap-0.5 rounded border border-border bg-surface p-0.5">
+            {(['document', 'table'] as const).map((o) => (
+              <button
+                key={o}
+                type="button"
+                role="radio"
+                aria-checked={order === o}
+                onClick={() => setOrder(o)}
+                className={cn('rounded px-1.5 py-0.5 text-[11px]', order === o ? 'bg-primary-soft text-foreground' : 'text-subtle hover:text-foreground')}
+              >
+                {t(o === 'document' ? 'mapping.sourceOrderDocument' : 'mapping.sourceOrderTable')}
+              </button>
+            ))}
+          </div>
+        </div>
+        {cycleInfo || hiddenEnd ? (
+          <div role="status" className="flex items-center gap-2 border-b border-border bg-surface px-3 py-1 text-[11px] text-muted">
+            {hiddenEnd ? (
+              <>
+                <span className="truncate">{t('mapping.revealHidden', { name: hiddenEnd })}</span>
+                <button
+                  type="button"
+                  className="ml-auto shrink-0 text-primary hover:underline"
+                  onClick={() => {
+                    setHiddenEnd(null)
+                    setFilter('all')
+                    setSearch('')
+                  }}
+                >
+                  {t('mapping.revealShow')}
+                </button>
+              </>
+            ) : cycleInfo ? (
+              <span className="truncate">{t('mapping.revealCycle', { field: colByName.get(cycleInfo.name)?.column ?? cycleInfo.name, i: cycleInfo.i + 1, n: cycleInfo.n })}</span>
+            ) : null}
+          </div>
+        ) : null}
         {/* Focusable so keyboard users can scroll it (axe: scrollable-region-focusable). */}
         <div
           ref={srcRef}
@@ -370,6 +533,26 @@ export function MappingCanvas() {
                   >
                     <CornerDownRight className="size-3.5 shrink-0" style={{ color: embedVar(colorOf(e.id) ?? 0) }} aria-hidden />
                     <span className="truncate" style={{ paddingLeft: depthOf(e.id) * 10 }}>{groupLabel(e)}</span>
+                    {unused.has(e.id) ? (
+                      <button
+                        type="button"
+                        className="flex shrink-0 items-center gap-0.5 rounded px-1 font-normal text-subtle hover:bg-surface hover:text-foreground"
+                        aria-expanded={opened.has(e.id)}
+                        aria-label={t(opened.has(e.id) ? 'embed.hideColumns' : 'embed.showColumns', { table: e.table.name })}
+                        title={t('embed.notUsedHint')}
+                        onClick={() =>
+                          setOpened((o) => {
+                            const next = new Set(o)
+                            if (next.has(e.id)) next.delete(e.id)
+                            else next.add(e.id)
+                            return next
+                          })
+                        }
+                      >
+                        {t('embed.notUsed')}
+                        <ChevronRight className={cn('size-3.5 transition-transform', opened.has(e.id) && 'rotate-90')} aria-hidden />
+                      </button>
+                    ) : null}
                     <Can role="editor">
                       <button
                         type="button"
@@ -380,6 +563,13 @@ export function MappingCanvas() {
                         <X className="size-3.5" />
                       </button>
                     </Can>
+                  </div>
+                )
+              }
+              if (row.kind === 'divider') {
+                return (
+                  <div key={`divider-${row.scope}`} data-testid={`divider-${row.scope || 'root'}`} className="absolute left-0 right-0 flex items-end px-3 pb-1 text-[11px] uppercase tracking-wide text-subtle" style={{ top: v.start, height: ROW }}>
+                    {t('mapping.notMapped')}
                   </div>
                 )
               }
@@ -402,7 +592,7 @@ export function MappingCanvas() {
                   }}
                   onMouseEnter={() => setHover({ kind: 'source', id: c.name })}
                   onMouseLeave={() => setHover(null)}
-                  onClick={() => select({ kind: 'column', name: c.name })}
+                  onClick={() => onSourceClick(c.name)}
                   className={cn(
                     'absolute left-0 right-0 flex cursor-grab items-center gap-2 px-3 text-[13px] hover:bg-surface-muted',
                     dim && 'opacity-40',
@@ -448,15 +638,18 @@ export function MappingCanvas() {
           const d = `M0,${y1} C${GUTTER / 2},${y1} ${x2 / 2},${y2} ${x2},${y2}`
           return (
             <g key={e.id} data-testid={`edge-${e.id}`} data-state={e.state} className={cn('pointer-events-auto cursor-pointer', related(e) && 'edge-related', hover && !related(e) ? 'opacity-25' : offscreen && 'opacity-40')}>
-              <path d={d} fill="none" stroke="transparent" strokeWidth={12} onClick={() => select({ kind: 'mapping', id: e.mappingId })} />
-              <path d={d} fill="none" stroke={st.stroke} strokeWidth={selected || related(e) ? 3 : 1.75} strokeDasharray={st.dash} onClick={() => select({ kind: 'mapping', id: e.mappingId })} />
+              <path d={d} fill="none" stroke="transparent" strokeWidth={12} onClick={() => onEdgeClick(e.mappingId)} />
+              <path d={d} fill="none" stroke={st.stroke} strokeWidth={selected || related(e) ? 3 : 1.75} strokeDasharray={st.dash} onClick={() => onEdgeClick(e.mappingId)} />
               {e.multi ? <circle cx={x2} cy={y2} r={3.5} fill={st.stroke} /> : null}
               {e.multi ? <path d={`M${x2},${y2} L${GUTTER},${y2}`} stroke={st.stroke} strokeWidth={1.75} /> : null}
-              {e.transformCount > 0 ? (
-                <g transform={`translate(${GUTTER / 2}, ${(y1 + y2) / 2})`} data-testid={`badge-${e.id}`}>
-                  <rect x={-22} y={-9} width={44} height={18} rx={9} fill="var(--surface)" stroke={st.stroke} />
-                  <text textAnchor="middle" dominantBaseline="central" fontSize={10} fill="currentColor">
-                    {`ⓕ ${e.firstOp?.slice(0, 5) ?? ''}`}
+              {/* A mapping with transforms: a small ƒ on its line, only while it's hovered or selected;
+                  its title names the steps ("Expression → Format datetime"). */}
+              {e.transformCount > 0 && (selected || related(e)) ? (
+                <g transform={`translate(${GUTTER / 2}, ${(y1 + y2) / 2})`} data-testid={`badge-${e.id}`} className="pointer-events-auto" onClick={() => onEdgeClick(e.mappingId)}>
+                  <title>{stepsOf(e.mappingId)}</title>
+                  <circle r={8} fill="var(--surface)" stroke={st.stroke} />
+                  <text textAnchor="middle" dominantBaseline="central" fontSize={10} fontStyle="italic" fill="currentColor">
+                    ƒ
                   </text>
                 </g>
               ) : null}
@@ -506,7 +699,8 @@ export function MappingCanvas() {
               const dim = hover && !(hover.kind === 'target' && hover.id === r.field.id) && !edges.some((e) => e.to === r.field.id && related(e))
               return (
                 <div
-                  key={r.field.id}
+                  // A new key on each reveal restarts the flash.
+                  key={reveal?.id === r.field.id ? `${r.field.id}#${reveal.seq}` : r.field.id}
                   data-testid={`target-${r.path}`}
                   title={over && !dragOver?.ok ? dragOver?.reason : undefined}
                   draggable={naming !== r.field.id}
@@ -539,7 +733,7 @@ export function MappingCanvas() {
                   }}
                   onMouseEnter={() => setHover({ kind: 'target', id: r.field.id })}
                   onMouseLeave={() => setHover(null)}
-                  onClick={() => select({ kind: 'field', id: r.field.id })}
+                  onClick={() => onTargetClick(r.field.id)}
                   onDoubleClick={() => setNaming(r.field.id)}
                   className={cn(
                     'absolute left-0 right-0 flex items-center gap-2 pr-3 text-[13px] hover:bg-surface-muted',
@@ -547,6 +741,7 @@ export function MappingCanvas() {
                     over && (dragOver?.ok ? 'ring-2 ring-inset ring-primary' : 'ring-2 ring-inset ring-danger'),
                     dropAt?.id === r.field.id && dropIndicator[dropAt.pos],
                     isSel && 'bg-primary-soft',
+                    reveal?.id === r.field.id && 'odb-reveal',
                   )}
                   style={{ top: v.start, height: ROW, paddingLeft: 8 + r.depth * 16, ...embedAccent(embedColor.byField.get(r.field.id), !(over || isSel)) }}
                 >
@@ -586,6 +781,12 @@ export function MappingCanvas() {
                   {computedExpr.has(r.field.id) ? (
                     <span className="rounded border border-border px-1 font-mono text-[10px] text-muted" title={t('computed.badge', { expr: computedExpr.get(r.field.id)!.slice(0, 120) })}>
                       {t('computed.fx')}
+                    </span>
+                  ) : null}
+                  {nowFields.has(r.field.id) ? (
+                    <span data-testid={`now-${r.path}`} className="flex items-center gap-0.5 rounded border border-border px-1 font-mono text-[10px] text-muted" title={describeNowText(nowFields.get(r.field.id)!)}>
+                      <Clock className="size-2.5" aria-hidden />
+                      {t('now.badge', { format: formatLabel(nowFields.get(r.field.id)!) })}
                     </span>
                   ) : null}
                   {embedTargets.has(r.field.id) ? (

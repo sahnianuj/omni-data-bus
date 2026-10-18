@@ -1,7 +1,7 @@
 name: Release
 # On a v* tag: test, build and push a signed multi-arch image with an SBOM, scan it, push the Helm
-# chart, build the all-in-one image (app + Couchbase CE, OC-073), build the odb runner binaries with
-# a signed SHA256SUMS (OC-051), and publish a GitHub release with the chart, the all-in-one archives
+# chart, build the all-in-one image (app + Couchbase CE, OC-073), build the odb runner binaries
+# (the macOS one universal, signed and notarized, OC-185) with a signed SHA256SUMS (OC-051), and publish a GitHub release with the chart, the all-in-one archives
 # and the binaries. On a PR labelled release-check: the same steps as a dry
 # run (nothing is pushed, signed or published).
 on:
@@ -24,18 +24,26 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       channel: ${{ steps.v.outputs.channel }}
       build_time: ${{ steps.v.outputs.build_time }}
+      build: ${{ steps.v.outputs.build }}
       registry: ${{ steps.v.outputs.registry }}
       publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
       - id: v
         run: |
+          # The release is the VERSION file (OC-172); a tag must say the same release.
+          release="$(cat VERSION)"
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             version="${GITHUB_REF_NAME#v}"; echo "publish=true" >> "$GITHUB_OUTPUT"
+            base="${version%%-*}"
+            if [ "$base" != "$release" ]; then
+              echo "::error::tag $GITHUB_REF_NAME doesn't match VERSION $release"; exit 1
+            fi
           else
-            version="0.0.0-pr${{ github.event.pull_request.number }}"; echo "publish=false" >> "$GITHUB_OUTPUT"
+            version="$release-pr${{ github.event.pull_request.number }}"; echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=${GITHUB_SHA::7}+$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
           # Build info (OC-058): channel from the tag; build time = SOURCE_DATE_EPOCH (the commit
           # time), so rebuilding the same tag is reproducible.
           if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then channel=release
@@ -72,13 +80,11 @@ jobs:
           fi
 
   # The odb runner for exported migrations (OC-051): static binaries for linux and darwin,
-  # SHA256SUMS signed with cosign (keyless); migrate.sh downloads and checks them (OC-053).
+  # unsigned here. odb-macos turns the darwin pair into one signed, notarized binary (OC-185) and
+  # odb-sums writes and signs SHA256SUMS; export READMEs link the archives (OC-182).
   binaries:
     needs: [meta, test]
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # keyless cosign signing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -87,10 +93,160 @@ jobs:
         run: >-
           make dist VERSION=${{ needs.meta.outputs.version }} COMMIT=${{ github.sha }}
           BUILD_TIME=${{ needs.meta.outputs.build_time }} CHANNEL=${{ needs.meta.outputs.channel }}
+          BUILD=${{ needs.meta.outputs.build }} DIRTY=false
       - name: Smoke test (linux/amd64)
         run: |
           tar -xzf "dist/odb/odb_${{ needs.meta.outputs.version }}_linux_amd64.tar.gz" -C /tmp odb
           /tmp/odb version --json | grep -q '"version": "${{ needs.meta.outputs.version }}"'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: odb-unsigned
+          path: |
+            dist/odb/*.tar.gz
+            dist/odb/*.zip
+          compression-level: 0
+
+  # One macOS odb for Intel and Apple silicon (lipo), signed with the Developer ID and notarized,
+  # so a downloaded odb opens with no Gatekeeper prompt on any Mac (OC-185). The signing secrets
+  # are in the release environment: PR dry runs build and check the universal binary, unsigned.
+  odb-macos:
+    needs: [meta, binaries]
+    runs-on: macos-14
+    environment: ${{ needs.meta.outputs.publish == 'true' && 'release' || 'release-check' }}
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      PUBLISH: ${{ needs.meta.outputs.publish }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: odb-unsigned, path: unsigned }
+      - name: Universal binary
+        run: |
+          for a in amd64 arm64; do mkdir -p "$a" && tar -xzf "unsigned/odb_${VERSION}_darwin_$a.tar.gz" -C "$a"; done
+          mkdir -p universal
+          lipo -create -output universal/odb amd64/odb arm64/odb
+          cp amd64/LICENSE amd64/NOTICE amd64/THIRD_PARTY_NOTICES.md universal/ # OC-189
+          test "$(lipo -archs universal/odb)" = "x86_64 arm64"
+          for a in x86_64 arm64; do arch -$a universal/odb version --json | grep -q "\"version\": \"$VERSION\""; done
+      - name: Import the Developer ID certificate
+        if: env.PUBLISH == 'true'
+        env:
+          P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/odb.keychain-db"; pw="$(uuidgen)"
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          printf '%s' "$P12" | base64 --decode >"$RUNNER_TEMP/id.p12"
+          security import "$RUNNER_TEMP/id.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc" >/dev/null
+          existing=$(security list-keychains -d user | tr -d '"')
+          # shellcheck disable=SC2086 # one keychain path per word, kept after ours
+          security list-keychains -d user -s "$kc" $existing
+          rm -f "$RUNNER_TEMP/id.p12"
+      - name: Sign and notarize
+        if: env.PUBLISH == 'true'
+        env:
+          IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }} # "Developer ID Application: … (TEAMID)"
+          NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+        run: |
+          codesign --force --sign "$IDENTITY" --options runtime --timestamp universal/odb
+          codesign --verify --strict --verbose=2 universal/odb
+          printf '%s' "$NOTARY_KEY" >"$RUNNER_TEMP/notary.p8"
+          ditto -c -k universal/odb "$RUNNER_TEMP/odb.zip" # notarytool takes a zip, pkg or dmg
+          xcrun notarytool submit "$RUNNER_TEMP/odb.zip" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 30m
+          rm -f "$RUNNER_TEMP/notary.p8"
+      - name: Gatekeeper accepts it
+        if: env.PUBLISH == 'true'
+        # A bare command-line binary can't carry a stapled ticket: Gatekeeper checks the
+        # notarization online, as it will on the customer's Mac. A CLI tool is assessed as a file
+        # to open with its primary signature ("--type execute" only accepts app bundles).
+        run: spctl --assess --type open --context context:primary-signature -vv universal/odb 2>&1 | tee /dev/stderr | grep -q "source=Notarized Developer ID"
+      - name: Archive
+        run: |
+          mkdir -p out
+          tar -C universal --uid 0 --gid 0 -cf - odb LICENSE NOTICE THIRD_PARTY_NOTICES.md | gzip -n -9 >"out/odb_${VERSION}_darwin_universal.tar.gz"
+          if [ "$PUBLISH" = true ]; then echo "odb_${VERSION}_darwin_universal.tar.gz" >out/SIGNED.darwin; fi
+      - uses: actions/upload-artifact@v4
+        with: { name: odb-macos, path: out/, compression-level: 0 }
+
+  # odb.exe signed with Authenticode, so a downloaded odb runs without the SmartScreen warning
+  # (OC-186). The certificate is in the release environment: PR dry runs repackage unsigned.
+  # Code-signing keys issued since June 2023 live on an HSM: with a cloud HSM (Azure Trusted
+  # Signing, DigiCert KeyLocker, …) replace the "Sign" step with the provider's signtool setup.
+  odb-windows:
+    needs: [meta, binaries]
+    runs-on: windows-2022
+    environment: ${{ needs.meta.outputs.publish == 'true' && 'release' || 'release-check' }}
+    defaults: { run: { shell: pwsh } }
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      PUBLISH: ${{ needs.meta.outputs.publish }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: odb-unsigned, path: unsigned }
+      - name: Unpack and smoke test (amd64)
+        run: |
+          foreach ($a in 'amd64', 'arm64') { Expand-Archive "unsigned/odb_${env:VERSION}_windows_$a.zip" -DestinationPath $a }
+          $v = ./amd64/odb.exe version --json | ConvertFrom-Json
+          if ($v.version -ne $env:VERSION) { throw "odb.exe reports $($v.version), not $env:VERSION" }
+      - name: Sign
+        if: env.PUBLISH == 'true'
+        env:
+          PFX: ${{ secrets.WINDOWS_SIGNING_PFX }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'odb.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX))
+          $signtool = (Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          try {
+            foreach ($a in 'amd64', 'arm64') {
+              & $signtool sign /f $pfx /p $env:PFX_PASSWORD /fd sha256 /tr $env:TIMESTAMP_URL /td sha256 /d 'Omni-Data-Bus odb' "$a\odb.exe"
+              if ($LASTEXITCODE) { throw "signing $a failed" }
+              & $signtool verify /pa /v "$a\odb.exe"
+              if ($LASTEXITCODE) { throw "$a\odb.exe doesn't verify" }
+            }
+          } finally { Remove-Item $pfx -ErrorAction SilentlyContinue }
+      - name: Archive
+        run: |
+          New-Item -ItemType Directory out | Out-Null
+          foreach ($a in 'amd64', 'arm64') {
+            $zip = "odb_${env:VERSION}_windows_$a.zip"
+            Compress-Archive -Path "$a\*" -DestinationPath "out\$zip" # odb.exe with LICENSE, NOTICE, THIRD_PARTY_NOTICES.md (OC-189)
+            if ($env:PUBLISH -eq 'true') { Add-Content out\SIGNED.windows $zip }
+          }
+      - uses: actions/upload-artifact@v4
+        with: { name: odb-windows, path: out/, compression-level: 0 }
+
+  # SHA256SUMS over every archive, signed with cosign (keyless), and SIGNED: the archives signed
+  # for their OS, which the server reads to warn about unsigned development builds (OC-185, OC-186).
+  odb-sums:
+    needs: [meta, binaries, odb-macos, odb-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # keyless cosign signing
+    steps:
+      # The signed archives first; the unsigned build fills in the rest (linux, per-arch darwin)
+      # without replacing a signed one of the same name.
+      - uses: actions/download-artifact@v4
+        with: { name: odb-macos, path: dist/odb }
+      - uses: actions/download-artifact@v4
+        with: { name: odb-windows, path: dist/odb }
+      - uses: actions/download-artifact@v4
+        with: { name: odb-unsigned, path: unsigned }
+      - name: SHA256SUMS and SIGNED
+        working-directory: dist/odb
+        run: |
+          cp -n ../../unsigned/* .
+          shopt -s nullglob
+          sha256sum odb_*.tar.gz odb_*.zip >SHA256SUMS
+          cat SIGNED.* 2>/dev/null | sort >SIGNED || true
+          rm -f SIGNED.*
+          cat SHA256SUMS SIGNED
       - uses: sigstore/cosign-installer@v3
       - name: Sign SHA256SUMS
         if: needs.meta.outputs.publish == 'true'
@@ -99,7 +255,7 @@ jobs:
         with: { name: odb-binaries, path: dist/odb/, compression-level: 0 }
 
   image:
-    needs: [meta, test]
+    needs: [meta, test, odb-sums]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -109,6 +265,11 @@ jobs:
       REF: ${{ needs.meta.outputs.registry }}/omni-data-bus:${{ needs.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      # The release's checksums, built into the image: the server verifies each machine's odb it
+      # downloads for an export against them (OC-188).
+      - uses: actions/download-artifact@v4
+        with: { name: odb-binaries, path: odb-binaries }
+      - run: cp odb-binaries/SHA256SUMS odb-binaries/SIGNED deploy/docker/odb-sums/
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - if: needs.meta.outputs.publish == 'true'
@@ -128,6 +289,8 @@ jobs:
             COMMIT=${{ github.sha }}
             BUILD_TIME=${{ needs.meta.outputs.build_time }}
             CHANNEL=${{ needs.meta.outputs.channel }}
+            BUILD=${{ needs.meta.outputs.build }}
+            DIRTY=false
             SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -143,6 +306,8 @@ jobs:
             COMMIT=${{ github.sha }}
             BUILD_TIME=${{ needs.meta.outputs.build_time }}
             CHANNEL=${{ needs.meta.outputs.channel }}
+            BUILD=${{ needs.meta.outputs.build }}
+            DIRTY=false
           cache-from: type=gha
       - name: Vulnerability scan (fails on HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -195,6 +360,8 @@ jobs:
           COMMIT: ${{ github.sha }}
           BUILD_TIME: ${{ needs.meta.outputs.build_time }}
           CHANNEL: ${{ needs.meta.outputs.channel }}
+          BUILD: ${{ needs.meta.outputs.build }}
+          DIRTY: "false"
         run: scripts/appliance.sh save all
       - name: Structure test and smoke test (amd64)
         run: |
@@ -270,7 +437,7 @@ jobs:
         with: { name: helm-chart, path: dist/ }
 
   release:
-    needs: [meta, image, chart, appliance, binaries]
+    needs: [meta, image, chart, appliance, odb-sums]
     if: needs.meta.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:

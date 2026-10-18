@@ -1,0 +1,4869 @@
+{
+ "driving": [
+  {
+   "table": {
+    "schema": "pos",
+    "name": "carts"
+   },
+   "score": 0.83,
+   "reasons": [
+    "fields 16/22",
+    "reach 5/5 containers",
+    "key: cart::{uuid} ↔ carts.id",
+    "name: cart ~ carts (0.93)"
+   ]
+  },
+  {
+   "table": {
+    "schema": "pos",
+    "name": "cart_items"
+   },
+   "score": 0.39,
+   "reasons": [
+    "fields 2/22",
+    "reach 4/5 containers",
+    "key: a uuid primary key",
+    "name: cart ~ cart_items (0.73)"
+   ]
+  },
+  {
+   "table": {
+    "schema": "pos",
+    "name": "credit_cards"
+   },
+   "score": 0.32,
+   "reasons": [
+    "fields 2/22",
+    "reach 3/5 containers",
+    "key: a uuid primary key"
+   ]
+  }
+ ],
+ "spec": {
+  "specVersion": 2,
+  "mode": "composed",
+  "root": {
+   "table": {
+    "schema": "pos",
+    "name": "carts"
+   }
+  },
+  "docSchema": {
+   "root": {
+    "id": "fld_root",
+    "name": "$",
+    "type": "object",
+    "description": "A point-of-sale cart. Document ID: cart::{uuid}. Embedded payment variants: see payments/*.schema.json. Saved orders are folded onto status/savedAt/orderCollectionType below.",
+    "children": [
+     {
+      "id": "fld_d0a3e7f81a",
+      "name": "type",
+      "type": "string",
+      "required": true,
+      "example": "cart"
+     },
+     {
+      "id": "fld_87ea5dfc8b",
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "example": "cart::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"
+     },
+     {
+      "id": "fld_c692273deb",
+      "name": "version",
+      "type": "integer",
+      "required": true,
+      "example": 1
+     },
+     {
+      "id": "fld_48a3661d84",
+      "name": "status",
+      "type": "string",
+      "required": true,
+      "description": "'saved' is derived: the cart's status column stays 'open' while a saved_orders row exists for the cart.",
+      "example": "open",
+      "enum": [
+       "open",
+       "payment_pending",
+       "closed",
+       "abandoned",
+       "voided",
+       "queued",
+       "saved"
+      ]
+     },
+     {
+      "id": "fld_fbe7d7baac",
+      "name": "channel",
+      "type": "string",
+      "required": true,
+      "example": "cafe"
+     },
+     {
+      "id": "fld_849e5009f3",
+      "name": "skipFulfillment",
+      "type": "boolean",
+      "example": false
+     },
+     {
+      "id": "fld_cb3086079d",
+      "name": "submitAfterTipAbort",
+      "type": "boolean",
+      "example": false
+     },
+     {
+      "id": "fld_890c94d82f",
+      "name": "consumptionType",
+      "type": "string",
+      "required": true,
+      "example": "ConsumeInStore",
+      "enum": [
+       "ConsumeInStore",
+       "ConsumeOutOfStore"
+      ]
+     },
+     {
+      "id": "fld_ec9b0493d7",
+      "name": "storeNumber",
+      "type": "string",
+      "required": true,
+      "example": "11111"
+     },
+     {
+      "id": "fld_0abb4123cb",
+      "name": "partnerNumber",
+      "type": "string",
+      "required": true,
+      "example": "1000001"
+     },
+     {
+      "id": "fld_6af5b9adbc",
+      "name": "registerNumber",
+      "type": "integer",
+      "example": 41
+     },
+     {
+      "id": "fld_c87d1a18b6",
+      "name": "orderNotes",
+      "type": "string",
+      "example": "Extra hot, please"
+     },
+     {
+      "id": "fld_696b97b727",
+      "name": "customerNamePrompt",
+      "type": "boolean",
+      "description": "Not populated - no column.",
+      "example": false
+     },
+     {
+      "id": "fld_b39f008e31",
+      "name": "customer",
+      "type": "object",
+      "description": "The cart's customer: the first customers row of the cart.",
+      "children": [
+       {
+        "id": "fld_ec8b763913",
+        "name": "userID",
+        "type": "string",
+        "description": "Not populated."
+       },
+       {
+        "id": "fld_cc87c530c3",
+        "name": "firstName",
+        "type": "string",
+        "example": "John"
+       },
+       {
+        "id": "fld_65a30ab169",
+        "name": "lastName",
+        "type": "string",
+        "example": "Doe"
+       },
+       {
+        "id": "fld_3dba58f6ab",
+        "name": "starsEarned",
+        "type": "number",
+        "example": 25
+       },
+       {
+        "id": "fld_a8c804d222",
+        "name": "loyaltyID",
+        "type": "string",
+        "example": "loyalty-12"
+       },
+       {
+        "id": "fld_f38034b2ff",
+        "name": "alias",
+        "type": "string"
+       },
+       {
+        "id": "fld_10a2b4331d",
+        "name": "validPartner",
+        "type": "boolean",
+        "example": true
+       },
+       {
+        "id": "fld_37bbd7ef78",
+        "name": "partnerNumber",
+        "type": "string"
+       },
+       {
+        "id": "fld_bc4c5a2fd0",
+        "name": "partnerName",
+        "type": "string"
+       },
+       {
+        "id": "fld_c140dfe260",
+        "name": "partnerStatus",
+        "type": "string"
+       },
+       {
+        "id": "fld_908a56818b",
+        "name": "eligibleBenefits",
+        "type": "array",
+        "items": {
+         "id": "fld_0698976d6d",
+         "name": "[]",
+         "type": "string"
+        }
+       },
+       {
+        "id": "fld_e17f0ec363",
+        "name": "tierNumber",
+        "type": "integer"
+       }
+      ],
+      "binding": {
+       "relationId": "rel_26b4ff5fad",
+       "adapter": "first"
+      }
+     },
+     {
+      "id": "fld_3624db8830",
+      "name": "partner",
+      "type": "object",
+      "required": true,
+      "description": "A lightweight reference to the partner who rang up the cart.",
+      "children": [
+       {
+        "id": "fld_1755f270c2",
+        "name": "number",
+        "type": "string",
+        "example": "1000001"
+       },
+       {
+        "id": "fld_bc00ae5245",
+        "name": "name",
+        "type": "string",
+        "example": "Ana Lopez"
+       }
+      ],
+      "binding": {
+       "relationId": "rel_7d5a96fe6b"
+      }
+     },
+     {
+      "id": "fld_7316c8b2e7",
+      "name": "items",
+      "type": "array",
+      "required": true,
+      "items": {
+       "id": "fld_064ce51406",
+       "name": "[]",
+       "type": "object",
+       "children": [
+        {
+         "id": "fld_44a280b145",
+         "name": "id",
+         "type": "string",
+         "example": "2a6c0f4e-55aa-4c1b-8b3e-0e9a7d2c1b00"
+        },
+        {
+         "id": "fld_1732aaf596",
+         "name": "name",
+         "type": "string",
+         "example": "Latte"
+        },
+        {
+         "id": "fld_169dcb7497",
+         "name": "quantity",
+         "type": "integer",
+         "description": "Always 1 - cart_items has no quantity column, each unit is its own row.",
+         "example": 1
+        },
+        {
+         "id": "fld_332cafe88a",
+         "name": "sellableItemId",
+         "type": "integer",
+         "example": 5004
+        },
+        {
+         "id": "fld_54f0309c68",
+         "name": "menuProductId",
+         "type": "integer",
+         "example": 104
+        },
+        {
+         "id": "fld_6ffbe765d0",
+         "name": "formCode",
+         "type": "string",
+         "example": "HOT"
+        },
+        {
+         "id": "fld_10036f1afb",
+         "name": "sizeCode",
+         "type": "string",
+         "example": "GR"
+        },
+        {
+         "id": "fld_c8a672520f",
+         "name": "productTypeId",
+         "type": "integer",
+         "example": 1
+        },
+        {
+         "id": "fld_c4f5af5168",
+         "name": "servingSizeName",
+         "type": "string",
+         "example": "Grande"
+        },
+        {
+         "id": "fld_aa99a43191",
+         "name": "sequenceNumber",
+         "type": "integer",
+         "example": 1
+        },
+        {
+         "id": "fld_d41d5bef98",
+         "name": "displayIndex",
+         "type": "integer",
+         "example": 0
+        },
+        {
+         "id": "fld_c467c80b08",
+         "name": "basePrice",
+         "type": "integer",
+         "example": 495
+        },
+        {
+         "id": "fld_ddc527408b",
+         "name": "price",
+         "type": "integer",
+         "example": 495
+        },
+        {
+         "id": "fld_bb6aeac6e6",
+         "name": "priceOverride",
+         "type": "integer"
+        },
+        {
+         "id": "fld_9697bd4df4",
+         "name": "priceOverrideAuthorized",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_048f67ed7a",
+         "name": "priceOverrideAuthorizedBy",
+         "type": "string",
+         "description": "Not populated - only whether an override happened is tracked."
+        },
+        {
+         "id": "fld_c322d2bc9f",
+         "name": "priceOverrideReason",
+         "type": "string",
+         "description": "Not populated."
+        },
+        {
+         "id": "fld_b8e3a7e2c1",
+         "name": "redemptionTier",
+         "type": "string"
+        },
+        {
+         "id": "fld_688dd6e803",
+         "name": "isRefund",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_ce8928625e",
+         "name": "isAvailable",
+         "type": "boolean",
+         "example": true
+        },
+        {
+         "id": "fld_854371d446",
+         "name": "isImpulseItem",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_5d5af9c484",
+         "name": "isRefill",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_c0d0776c2f",
+         "name": "itemAvailabilityOverride",
+         "type": "boolean"
+        },
+        {
+         "id": "fld_829e2f5a64",
+         "name": "askMeInstructions",
+         "type": "string"
+        },
+        {
+         "id": "fld_66526cc8ea",
+         "name": "imageUrl",
+         "type": "string",
+         "example": "https://img.example/items/5004.png"
+        },
+        {
+         "id": "fld_bad5b9fe76",
+         "name": "voided",
+         "type": "boolean",
+         "example": false
+        },
+        {
+         "id": "fld_a6dd7f5ef7",
+         "name": "modifiers",
+         "type": "array",
+         "items": {
+          "id": "fld_4018216fcb",
+          "name": "[]",
+          "type": "object",
+          "description": "value/valueString mirror label - customizations has a single name column.",
+          "children": [
+           {
+            "id": "fld_6999dd648f",
+            "name": "id",
+            "type": "string",
+            "example": "6d1e2f3a-0000-4000-8000-000000000001"
+           },
+           {
+            "id": "fld_154685c33f",
+            "name": "label",
+            "type": "string",
+            "example": "Oat Milk"
+           },
+           {
+            "id": "fld_ea71d427fb",
+            "name": "value",
+            "type": "string",
+            "example": "Oat Milk"
+           },
+           {
+            "id": "fld_1db3b8b010",
+            "name": "valueString",
+            "type": "string",
+            "example": "Oat Milk"
+           },
+           {
+            "id": "fld_ed56200995",
+            "name": "menuProductId",
+            "type": "integer"
+           },
+           {
+            "id": "fld_68204482c8",
+            "name": "sellableItemId",
+            "type": "integer",
+            "example": 15001
+           },
+           {
+            "id": "fld_94b6b2237e",
+            "name": "formCode",
+            "type": "string",
+            "example": "ADD"
+           },
+           {
+            "id": "fld_203943b4b3",
+            "name": "sizeCode",
+            "type": "string",
+            "example": "STD"
+           },
+           {
+            "id": "fld_e43d41c88e",
+            "name": "quantity",
+            "type": "integer",
+            "example": 1
+           },
+           {
+            "id": "fld_09b324f680",
+            "name": "price",
+            "type": "integer",
+            "example": 70
+           },
+           {
+            "id": "fld_2622031777",
+            "name": "isAvailable",
+            "type": "boolean",
+            "example": true
+           },
+           {
+            "id": "fld_1453ce4718",
+            "name": "itemAvailabilityOverride",
+            "type": "boolean"
+           },
+           {
+            "id": "fld_c4868a825c",
+            "name": "voided",
+            "type": "boolean",
+            "example": false
+           }
+          ]
+         },
+         "binding": {
+          "relationId": "rel_61370d9900"
+         }
+        },
+        {
+         "id": "fld_f62bdc102c",
+         "name": "appliedRewards",
+         "type": "array",
+         "items": {
+          "id": "fld_7103f7d306",
+          "name": "[]",
+          "type": "object",
+          "description": "rewardType, accessibilityLabel and value are not populated - applied_rewards only tracks a code and description.",
+          "children": [
+           {
+            "id": "fld_5399aae54f",
+            "name": "id",
+            "type": "string",
+            "example": "9b8a7c6d-0000-4000-8000-000000000002"
+           },
+           {
+            "id": "fld_004fea09cc",
+            "name": "rewardCode",
+            "type": "string",
+            "example": "STARS-25"
+           },
+           {
+            "id": "fld_43bda393dc",
+            "name": "rewardType",
+            "type": "string",
+            "description": "Not populated.",
+            "example": "STAR_REDEMPTION"
+           },
+           {
+            "id": "fld_cd1f382b49",
+            "name": "description",
+            "type": "string",
+            "example": "25 Stars Reward"
+           },
+           {
+            "id": "fld_370008fb85",
+            "name": "accessibilityLabel",
+            "type": "string",
+            "description": "Not populated.",
+            "example": "25 stars applied"
+           },
+           {
+            "id": "fld_7d375334e8",
+            "name": "value",
+            "type": "integer",
+            "description": "Not populated.",
+            "example": -100
+           }
+          ]
+         },
+         "binding": {
+          "relationId": "rel_f21e3cc7a7",
+          "adapter": "wrap"
+         }
+        }
+       ]
+      },
+      "binding": {
+       "relationId": "rel_f47632f00a"
+      }
+     },
+     {
+      "id": "fld_00317b5e81",
+      "name": "pricing",
+      "type": "object",
+      "required": true,
+      "description": "tipInCents is the sum of payments[].tipInCents (collected_payments.tip_in_cents).",
+      "children": [
+       {
+        "id": "fld_41151cf207",
+        "name": "totalInCents",
+        "type": "integer",
+        "example": 395
+       },
+       {
+        "id": "fld_e1a68c7a43",
+        "name": "subTotalInCents",
+        "type": "integer",
+        "example": 495
+       },
+       {
+        "id": "fld_3480384e1e",
+        "name": "taxInCents",
+        "type": "integer",
+        "example": 0
+       },
+       {
+        "id": "fld_8d94c004c4",
+        "name": "discountInCents",
+        "type": "integer",
+        "example": 100
+       },
+       {
+        "id": "fld_507ec7e713",
+        "name": "tipInCents",
+        "type": "integer",
+        "description": "Sum of collected_payments.tip_in_cents.",
+        "example": 0
+       },
+       {
+        "id": "fld_f100cfa4f1",
+        "name": "totalToDisplay",
+        "type": "string",
+        "example": "3.95"
+       },
+       {
+        "id": "fld_d7c9d57089",
+        "name": "label",
+        "type": "string",
+        "description": "Not populated - no aggregation for item-level discount summaries.",
+        "example": "Total"
+       },
+       {
+        "id": "fld_8cd04847fe",
+        "name": "modifiers",
+        "type": "array",
+        "description": "Not populated.",
+        "items": {
+         "id": "fld_8935bb92c7",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "fld_c6b88c0ca1",
+           "name": "modifierName",
+           "type": "string",
+           "example": "Discount"
+          },
+          {
+           "id": "fld_8878bea23b",
+           "name": "label",
+           "type": "string",
+           "example": "Item Discounts"
+          },
+          {
+           "id": "fld_0d3ca043fc",
+           "name": "value",
+           "type": "string",
+           "example": "-$1.00"
+          }
+         ]
+        }
+       },
+       {
+        "id": "fld_0e50f5dd68",
+        "name": "taxLabels",
+        "type": "array",
+        "description": "Not populated - no itemized tax label aggregation.",
+        "items": {
+         "id": "fld_7e3fad31bb",
+         "name": "[]",
+         "type": "object",
+         "children": [
+          {
+           "id": "fld_b3b63c721f",
+           "name": "name",
+           "type": "string",
+           "example": "Sales Tax"
+          },
+          {
+           "id": "fld_3a0b2faaf4",
+           "name": "value",
+           "type": "integer",
+           "example": 0
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "fld_6add1d2283",
+      "name": "taxDataID",
+      "type": "string",
+      "description": "References the separate tax data document; nil if the cart has never been priced.",
+      "example": "tax_data::0f6b1c2e-1d3a-4c55-9a0e-6c1f2b3a4d5e"
+     },
+     {
+      "id": "fld_4a4631061e",
+      "name": "selectedPaymentID",
+      "type": "string",
+      "description": "Not populated - not tracked at the cart level."
+     },
+     {
+      "id": "fld_40c4770202",
+      "name": "payments",
+      "type": "array",
+      "description": "Payment entries - see payments/*.schema.json for the field set of each paymentType.",
+      "items": {
+       "id": "fld_ec21da83ad",
+       "name": "[]",
+       "type": "object"
+      }
+     },
+     {
+      "id": "fld_58a3847947",
+      "name": "associatedScan",
+      "type": "object",
+      "description": "Not populated - superseded by payments[].",
+      "children": [
+       {
+        "id": "fld_ace7353a54",
+        "name": "type",
+        "type": "string",
+        "example": "SVC"
+       },
+       {
+        "id": "fld_d67c212e91",
+        "name": "paymentID",
+        "type": "string",
+        "example": "9c1d2e3f-0000-4000-8000-000000000003"
+       }
+      ]
+     },
+     {
+      "id": "fld_14e60ace3d",
+      "name": "receipt",
+      "type": "object",
+      "description": "Not populated - receipts are generated per request, never stored.",
+      "children": [
+       {
+        "id": "fld_692b40f6b1",
+        "name": "id",
+        "type": "string",
+        "example": "receipt-1"
+       },
+       {
+        "id": "fld_94a91a143a",
+        "name": "data",
+        "type": "string",
+        "example": "base64-receipt"
+       },
+       {
+        "id": "fld_7604622ca5",
+        "name": "generationDate",
+        "type": "datetime",
+        "format": "iso8601",
+        "example": "2026-07-19T10:30:00Z"
+       },
+       {
+        "id": "fld_62b38fcea3",
+        "name": "messageType",
+        "type": "string",
+        "example": "RECEIPT"
+       }
+      ]
+     },
+     {
+      "id": "fld_0156631f50",
+      "name": "loyaltyTransactionID",
+      "type": "string"
+     },
+     {
+      "id": "fld_d7f892f37f",
+      "name": "savedAt",
+      "type": "datetime",
+      "description": "Set only when status is 'saved' - sourced from saved_orders.saved_at.",
+      "format": "iso8601"
+     },
+     {
+      "id": "fld_98c93a6982",
+      "name": "orderCollectionType",
+      "type": "string",
+      "description": "Set only when status is 'saved' - sourced from saved_orders.order_collection_type.",
+      "enum": [
+       "IN_STORE",
+       "DRIVE_THRU",
+       "CURBSIDE",
+       "OUTDOOR"
+      ]
+     },
+     {
+      "id": "fld_93a3c92732",
+      "name": "createdAt",
+      "type": "datetime",
+      "required": true,
+      "format": "iso8601",
+      "example": "2026-07-19T10:00:00Z"
+     },
+     {
+      "id": "fld_ecdd260189",
+      "name": "updatedAt",
+      "type": "datetime",
+      "required": true,
+      "format": "iso8601",
+      "example": "2026-07-19T10:30:00Z"
+     },
+     {
+      "id": "fld_4b2d38c421",
+      "name": "closedAt",
+      "type": "datetime",
+      "format": "iso8601"
+     },
+     {
+      "id": "fld_e282fba32c",
+      "name": "voidedAt",
+      "type": "datetime",
+      "format": "iso8601"
+     }
+    ]
+   },
+   "source": "json-schema",
+   "imported": {
+    "at": "2026-10-17T08:00:00Z",
+    "fileName": "cart.schema.json",
+    "format": "json-schema",
+    "samples": 0,
+    "fieldCount": 110,
+    "fields": [
+     {
+      "path": "type",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "id",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "version",
+      "type": "integer",
+      "required": true
+     },
+     {
+      "path": "status",
+      "type": "string",
+      "required": true,
+      "enum": [
+       "open",
+       "payment_pending",
+       "closed",
+       "abandoned",
+       "voided",
+       "queued",
+       "saved"
+      ]
+     },
+     {
+      "path": "channel",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "skipFulfillment",
+      "type": "boolean"
+     },
+     {
+      "path": "submitAfterTipAbort",
+      "type": "boolean"
+     },
+     {
+      "path": "consumptionType",
+      "type": "string",
+      "required": true,
+      "enum": [
+       "ConsumeInStore",
+       "ConsumeOutOfStore"
+      ]
+     },
+     {
+      "path": "storeNumber",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "partnerNumber",
+      "type": "string",
+      "required": true
+     },
+     {
+      "path": "registerNumber",
+      "type": "integer"
+     },
+     {
+      "path": "orderNotes",
+      "type": "string"
+     },
+     {
+      "path": "customerNamePrompt",
+      "type": "boolean"
+     },
+     {
+      "path": "customer",
+      "type": "object"
+     },
+     {
+      "path": "customer.userID",
+      "type": "string"
+     },
+     {
+      "path": "customer.firstName",
+      "type": "string"
+     },
+     {
+      "path": "customer.lastName",
+      "type": "string"
+     },
+     {
+      "path": "customer.starsEarned",
+      "type": "number"
+     },
+     {
+      "path": "customer.loyaltyID",
+      "type": "string"
+     },
+     {
+      "path": "customer.alias",
+      "type": "string"
+     },
+     {
+      "path": "customer.validPartner",
+      "type": "boolean"
+     },
+     {
+      "path": "customer.partnerNumber",
+      "type": "string"
+     },
+     {
+      "path": "customer.partnerName",
+      "type": "string"
+     },
+     {
+      "path": "customer.partnerStatus",
+      "type": "string"
+     },
+     {
+      "path": "customer.eligibleBenefits",
+      "type": "array"
+     },
+     {
+      "path": "customer.eligibleBenefits[]",
+      "type": "string"
+     },
+     {
+      "path": "customer.tierNumber",
+      "type": "integer"
+     },
+     {
+      "path": "partner",
+      "type": "object",
+      "required": true
+     },
+     {
+      "path": "partner.number",
+      "type": "string"
+     },
+     {
+      "path": "partner.name",
+      "type": "string"
+     },
+     {
+      "path": "items",
+      "type": "array",
+      "required": true
+     },
+     {
+      "path": "items[]",
+      "type": "object"
+     },
+     {
+      "path": "items[].id",
+      "type": "string"
+     },
+     {
+      "path": "items[].name",
+      "type": "string"
+     },
+     {
+      "path": "items[].quantity",
+      "type": "integer"
+     },
+     {
+      "path": "items[].sellableItemId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].menuProductId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].formCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].sizeCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].productTypeId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].servingSizeName",
+      "type": "string"
+     },
+     {
+      "path": "items[].sequenceNumber",
+      "type": "integer"
+     },
+     {
+      "path": "items[].displayIndex",
+      "type": "integer"
+     },
+     {
+      "path": "items[].basePrice",
+      "type": "integer"
+     },
+     {
+      "path": "items[].price",
+      "type": "integer"
+     },
+     {
+      "path": "items[].priceOverride",
+      "type": "integer"
+     },
+     {
+      "path": "items[].priceOverrideAuthorized",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].priceOverrideAuthorizedBy",
+      "type": "string"
+     },
+     {
+      "path": "items[].priceOverrideReason",
+      "type": "string"
+     },
+     {
+      "path": "items[].redemptionTier",
+      "type": "string"
+     },
+     {
+      "path": "items[].isRefund",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].isAvailable",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].isImpulseItem",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].isRefill",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].itemAvailabilityOverride",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].askMeInstructions",
+      "type": "string"
+     },
+     {
+      "path": "items[].imageUrl",
+      "type": "string"
+     },
+     {
+      "path": "items[].voided",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].modifiers",
+      "type": "array"
+     },
+     {
+      "path": "items[].modifiers[]",
+      "type": "object"
+     },
+     {
+      "path": "items[].modifiers[].id",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].label",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].value",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].valueString",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].menuProductId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].sellableItemId",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].formCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].sizeCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].modifiers[].quantity",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].price",
+      "type": "integer"
+     },
+     {
+      "path": "items[].modifiers[].isAvailable",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].modifiers[].itemAvailabilityOverride",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].modifiers[].voided",
+      "type": "boolean"
+     },
+     {
+      "path": "items[].appliedRewards",
+      "type": "array"
+     },
+     {
+      "path": "items[].appliedRewards[]",
+      "type": "object"
+     },
+     {
+      "path": "items[].appliedRewards[].id",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].rewardCode",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].rewardType",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].description",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].accessibilityLabel",
+      "type": "string"
+     },
+     {
+      "path": "items[].appliedRewards[].value",
+      "type": "integer"
+     },
+     {
+      "path": "pricing",
+      "type": "object",
+      "required": true
+     },
+     {
+      "path": "pricing.totalInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.subTotalInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.taxInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.discountInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.tipInCents",
+      "type": "integer"
+     },
+     {
+      "path": "pricing.totalToDisplay",
+      "type": "string"
+     },
+     {
+      "path": "pricing.label",
+      "type": "string"
+     },
+     {
+      "path": "pricing.modifiers",
+      "type": "array"
+     },
+     {
+      "path": "pricing.modifiers[]",
+      "type": "object"
+     },
+     {
+      "path": "pricing.modifiers[].modifierName",
+      "type": "string"
+     },
+     {
+      "path": "pricing.modifiers[].label",
+      "type": "string"
+     },
+     {
+      "path": "pricing.modifiers[].value",
+      "type": "string"
+     },
+     {
+      "path": "pricing.taxLabels",
+      "type": "array"
+     },
+     {
+      "path": "pricing.taxLabels[]",
+      "type": "object"
+     },
+     {
+      "path": "pricing.taxLabels[].name",
+      "type": "string"
+     },
+     {
+      "path": "pricing.taxLabels[].value",
+      "type": "integer"
+     },
+     {
+      "path": "taxDataID",
+      "type": "string"
+     },
+     {
+      "path": "selectedPaymentID",
+      "type": "string"
+     },
+     {
+      "path": "payments",
+      "type": "array"
+     },
+     {
+      "path": "payments[]",
+      "type": "object"
+     },
+     {
+      "path": "associatedScan",
+      "type": "object"
+     },
+     {
+      "path": "associatedScan.type",
+      "type": "string"
+     },
+     {
+      "path": "associatedScan.paymentID",
+      "type": "string"
+     },
+     {
+      "path": "receipt",
+      "type": "object"
+     },
+     {
+      "path": "receipt.id",
+      "type": "string"
+     },
+     {
+      "path": "receipt.data",
+      "type": "string"
+     },
+     {
+      "path": "receipt.generationDate",
+      "type": "datetime"
+     },
+     {
+      "path": "receipt.messageType",
+      "type": "string"
+     },
+     {
+      "path": "loyaltyTransactionID",
+      "type": "string"
+     },
+     {
+      "path": "savedAt",
+      "type": "datetime"
+     },
+     {
+      "path": "orderCollectionType",
+      "type": "string",
+      "enum": [
+       "IN_STORE",
+       "DRIVE_THRU",
+       "CURBSIDE",
+       "OUTDOOR"
+      ]
+     },
+     {
+      "path": "createdAt",
+      "type": "datetime",
+      "required": true
+     },
+     {
+      "path": "updatedAt",
+      "type": "datetime",
+      "required": true
+     },
+     {
+      "path": "closedAt",
+      "type": "datetime"
+     },
+     {
+      "path": "voidedAt",
+      "type": "datetime"
+     }
+    ]
+   },
+   "constantHints": [
+    {
+     "fieldId": "fld_d0a3e7f81a",
+     "value": "cart",
+     "reason": "schema-const"
+    },
+    {
+     "fieldId": "fld_c692273deb",
+     "value": 1,
+     "reason": "schema-const"
+    }
+   ]
+  },
+  "key": {
+   "template": "cart::{id}"
+  },
+  "typeField": {
+   "enabled": false,
+   "name": "",
+   "value": ""
+  },
+  "nullHandling": "include",
+  "fieldMappings": [
+   {
+    "id": "map_2534a8d267",
+    "targetFieldId": "fld_d0a3e7f81a",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": "cart"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_2d40ae1513",
+    "targetFieldId": "fld_87ea5dfc8b",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "concat('cart::', row.id)"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_252ca7be0b",
+    "targetFieldId": "fld_c692273deb",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": 1
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_5bbbdbf528",
+    "targetFieldId": "fld_696b97b727",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_025f2f3a79",
+    "targetFieldId": "fld_6add1d2283",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "concat('tax_data::', row.id)"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_cbeba3b812",
+    "targetFieldId": "fld_4a4631061e",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_e43ccd4dd0",
+    "targetFieldId": "fld_48a3661d84",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "saved_orders.cart_id != nil ? 'saved' : row.status"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_34ee3cd4e0",
+    "targetFieldId": "fld_fbe7d7baac",
+    "sources": [
+     {
+      "column": "channel"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7aa5455047",
+    "targetFieldId": "fld_849e5009f3",
+    "sources": [
+     {
+      "column": "skip_fulfillment"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b798bf1d11",
+    "targetFieldId": "fld_cb3086079d",
+    "sources": [
+     {
+      "column": "submit_after_tip_abort"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b0a11c904d",
+    "targetFieldId": "fld_890c94d82f",
+    "sources": [
+     {
+      "column": "consumption_type"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4695f59d17",
+    "targetFieldId": "fld_ec9b0493d7",
+    "sources": [
+     {
+      "column": "store_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f5d8215c68",
+    "targetFieldId": "fld_0abb4123cb",
+    "sources": [
+     {
+      "column": "partner_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_83d557eae8",
+    "targetFieldId": "fld_6af5b9adbc",
+    "sources": [
+     {
+      "column": "register_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_9ca7278108",
+    "targetFieldId": "fld_c87d1a18b6",
+    "sources": [
+     {
+      "column": "order_notes"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_45c7257b65",
+    "targetFieldId": "fld_0156631f50",
+    "sources": [
+     {
+      "column": "loyalty_transaction_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f808ab1635",
+    "targetFieldId": "fld_d7f892f37f",
+    "sources": [
+     {
+      "relation": "rel_lk_3cff795cd6",
+      "column": "saved_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_bdee8f3d16",
+    "targetFieldId": "fld_98c93a6982",
+    "sources": [
+     {
+      "relation": "rel_lk_3cff795cd6",
+      "column": "order_collection_type"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.95,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1fa057f82b",
+    "targetFieldId": "fld_93a3c92732",
+    "sources": [
+     {
+      "column": "created_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a0dce3e4f5",
+    "targetFieldId": "fld_4b2d38c421",
+    "sources": [
+     {
+      "column": "closed_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7d38888aac",
+    "targetFieldId": "fld_e282fba32c",
+    "sources": [
+     {
+      "column": "voided_at"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_e19e198087",
+    "targetFieldId": "fld_ec8b763913",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_478a6f1773",
+    "targetFieldId": "fld_cc87c530c3",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "first_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_9fb3c77446",
+    "targetFieldId": "fld_65a30ab169",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "last_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d1a23b322c",
+    "targetFieldId": "fld_3dba58f6ab",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "stars_earned"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_630491ba2b",
+    "targetFieldId": "fld_a8c804d222",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "loyalty_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_6dbde95b19",
+    "targetFieldId": "fld_f38034b2ff",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "alias"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_7c40365356",
+    "targetFieldId": "fld_10a2b4331d",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "valid_partner"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4739a898fe",
+    "targetFieldId": "fld_37bbd7ef78",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "partner_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c92e7dad65",
+    "targetFieldId": "fld_bc4c5a2fd0",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "partner_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_3e8874fe6f",
+    "targetFieldId": "fld_c140dfe260",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "partner_status"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_42e601e755",
+    "targetFieldId": "fld_908a56818b",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "eligible_benefits"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8b6f7cedb7",
+    "targetFieldId": "fld_e17f0ec363",
+    "sources": [
+     {
+      "relation": "rel_26b4ff5fad",
+      "column": "tier_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_ca206d21f5",
+    "targetFieldId": "fld_1755f270c2",
+    "sources": [
+     {
+      "relation": "rel_7d5a96fe6b",
+      "column": "number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8216668db6",
+    "targetFieldId": "fld_bc00ae5245",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "concat(row.first_name, ' ', row.last_name)"
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.7,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_6207c7816a",
+    "targetFieldId": "fld_169dcb7497",
+    "sources": [],
+    "transforms": [
+     {
+      "op": "constant",
+      "args": {
+       "value": 1
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.75,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_ae0830f2e6",
+    "targetFieldId": "fld_048f67ed7a",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_8c0ddcc48c",
+    "targetFieldId": "fld_c322d2bc9f",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_ca4019f721",
+    "targetFieldId": "fld_44a280b145",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_10dbcad1ff",
+    "targetFieldId": "fld_1732aaf596",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8e265654fa",
+    "targetFieldId": "fld_332cafe88a",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "sellable_item_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_790b8f0bd6",
+    "targetFieldId": "fld_54f0309c68",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "menu_product_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b37fde0ce4",
+    "targetFieldId": "fld_6ffbe765d0",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "form_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a9da566424",
+    "targetFieldId": "fld_10036f1afb",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "size_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_cc170dea43",
+    "targetFieldId": "fld_c8a672520f",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "product_type_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_0b66b12568",
+    "targetFieldId": "fld_c4f5af5168",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "serving_size_name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d18b20f8f1",
+    "targetFieldId": "fld_aa99a43191",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "sequence_number"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_fd1fe6bf1d",
+    "targetFieldId": "fld_d41d5bef98",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "display_index"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_5281fe54f2",
+    "targetFieldId": "fld_c467c80b08",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "base_price"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9409,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1ee2e782af",
+    "targetFieldId": "fld_ddc527408b",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "price"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b5a8619960",
+    "targetFieldId": "fld_bb6aeac6e6",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "price_override"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9409,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a6bdb6abc6",
+    "targetFieldId": "fld_9697bd4df4",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "price_override_authorized"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_426daa9907",
+    "targetFieldId": "fld_b8e3a7e2c1",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "redemption_tier"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a64c631a5d",
+    "targetFieldId": "fld_688dd6e803",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_refund"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_84e28130e5",
+    "targetFieldId": "fld_ce8928625e",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_available"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_75f500c9c7",
+    "targetFieldId": "fld_854371d446",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_impulse_item"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_2fdc724af7",
+    "targetFieldId": "fld_5d5af9c484",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "is_refill"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_b61d00dfe7",
+    "targetFieldId": "fld_c0d0776c2f",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "item_availability_override"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_4f88c8c7f5",
+    "targetFieldId": "fld_829e2f5a64",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "ask_me_instructions"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_49be8d9b3a",
+    "targetFieldId": "fld_66526cc8ea",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "image_url"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1317b5d0e9",
+    "targetFieldId": "fld_bad5b9fe76",
+    "sources": [
+     {
+      "relation": "rel_f47632f00a",
+      "column": "voided"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_0f6e815903",
+    "targetFieldId": "fld_6999dd648f",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_cf85c9f769",
+    "targetFieldId": "fld_154685c33f",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_bb8165b663",
+    "targetFieldId": "fld_ea71d427fb",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_727a57137c",
+    "targetFieldId": "fld_1db3b8b010",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "name"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.8,
+    "reason": "proposed",
+    "needsReview": true
+   },
+   {
+    "id": "map_66840f4bbf",
+    "targetFieldId": "fld_ed56200995",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "menu_product_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_6f0dea489f",
+    "targetFieldId": "fld_68204482c8",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "sellable_item_id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_20b9146b61",
+    "targetFieldId": "fld_94b6b2237e",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "form_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_f28f7f77d7",
+    "targetFieldId": "fld_203943b4b3",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "size_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1048b72d33",
+    "targetFieldId": "fld_e43d41c88e",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "quantity"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_75d9d9ed57",
+    "targetFieldId": "fld_09b324f680",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "price"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "expression",
+      "args": {
+       "expr": "value == nil ? nil : value * 100"
+      }
+     },
+     {
+      "op": "round",
+      "args": {
+       "digits": 0
+      }
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_d5e180c45a",
+    "targetFieldId": "fld_2622031777",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "is_available"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_ee545ea3af",
+    "targetFieldId": "fld_1453ce4718",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "item_availability_override"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_9098b97da7",
+    "targetFieldId": "fld_c4868a825c",
+    "sources": [
+     {
+      "relation": "rel_61370d9900",
+      "column": "voided"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_92d8a2f6fd",
+    "targetFieldId": "fld_43bda393dc",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_84beadd0a6",
+    "targetFieldId": "fld_370008fb85",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_a1fb12ad35",
+    "targetFieldId": "fld_7d375334e8",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_f43f1cddfc",
+    "targetFieldId": "fld_5399aae54f",
+    "sources": [
+     {
+      "relation": "rel_f21e3cc7a7",
+      "column": "id"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_135eb4f152",
+    "targetFieldId": "fld_004fea09cc",
+    "sources": [
+     {
+      "relation": "rel_f21e3cc7a7",
+      "column": "reward_code"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_a67f0273b4",
+    "targetFieldId": "fld_cd1f382b49",
+    "sources": [
+     {
+      "relation": "rel_f21e3cc7a7",
+      "column": "description"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 1,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_953b2be324",
+    "targetFieldId": "fld_d7c9d57089",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_c2573f36e2",
+    "targetFieldId": "fld_41151cf207",
+    "sources": [
+     {
+      "column": "total_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_1050f29e2d",
+    "targetFieldId": "fld_e1a68c7a43",
+    "sources": [
+     {
+      "column": "subtotal_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.85,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_712c6bc455",
+    "targetFieldId": "fld_3480384e1e",
+    "sources": [
+     {
+      "column": "tax_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_c5b35e0ee5",
+    "targetFieldId": "fld_8d94c004c4",
+    "sources": [
+     {
+      "column": "discount_in_cents"
+     }
+    ],
+    "transforms": [],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.97,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_60af79e785",
+    "targetFieldId": "fld_f100cfa4f1",
+    "sources": [
+     {
+      "column": "total_to_display"
+     }
+    ],
+    "transforms": [
+     {
+      "op": "toString"
+     }
+    ],
+    "origin": "auto",
+    "state": "active",
+    "confidence": 0.9409,
+    "reason": "proposed"
+   },
+   {
+    "id": "map_8d6b4f90e5",
+    "targetFieldId": "fld_c6b88c0ca1",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_e069c8cf7a",
+    "targetFieldId": "fld_8878bea23b",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_725cd5de8d",
+    "targetFieldId": "fld_0d3ca043fc",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_121acc4a8b",
+    "targetFieldId": "fld_b3b63c721f",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_4ce89050a4",
+    "targetFieldId": "fld_3a0b2faaf4",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_e936de42d3",
+    "targetFieldId": "fld_ace7353a54",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_f61501a30b",
+    "targetFieldId": "fld_d67c212e91",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_c2974f8876",
+    "targetFieldId": "fld_692b40f6b1",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_c354f938c1",
+    "targetFieldId": "fld_94a91a143a",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_995c8edef3",
+    "targetFieldId": "fld_7604622ca5",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   },
+   {
+    "id": "map_3f9ddb330a",
+    "targetFieldId": "fld_62b38fcea3",
+    "sources": [],
+    "transforms": [],
+    "origin": "auto",
+    "state": "notPopulated",
+    "confidence": 0.95,
+    "reason": "design: not populated"
+   }
+  ],
+  "relations": [
+   {
+    "id": "rel_lk_3cff795cd6",
+    "parentId": null,
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "saved_orders"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "lookupOnly": true
+   },
+   {
+    "id": "rel_26b4ff5fad",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "customers"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "targetFieldId": "fld_b39f008e31",
+    "orderBy": [
+     {
+      "column": "id"
+     }
+    ]
+   },
+   {
+    "id": "rel_7d5a96fe6b",
+    "parentId": null,
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "partners"
+    },
+    "join": [
+     {
+      "parent": "partner_number",
+      "child": "number"
+     }
+    ],
+    "targetFieldId": "fld_3624db8830"
+   },
+   {
+    "id": "rel_f47632f00a",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "cart_items"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ],
+    "targetFieldId": "fld_7316c8b2e7",
+    "limit": 1000
+   },
+   {
+    "id": "rel_61370d9900",
+    "parentId": "rel_f47632f00a",
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "customizations"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_item_id"
+     }
+    ],
+    "targetFieldId": "fld_a6dd7f5ef7",
+    "limit": 1000
+   },
+   {
+    "id": "rel_f21e3cc7a7",
+    "parentId": "rel_f47632f00a",
+    "kind": "many-to-one",
+    "table": {
+     "schema": "pos",
+     "name": "applied_rewards"
+    },
+    "join": [
+     {
+      "parent": "applied_reward_id",
+      "child": "id"
+     }
+    ],
+    "targetFieldId": "fld_f62bdc102c"
+   },
+   {
+    "id": "rel_ag_aa476df37d",
+    "parentId": null,
+    "kind": "one-to-many",
+    "table": {
+     "schema": "pos",
+     "name": "collected_payments"
+    },
+    "join": [
+     {
+      "parent": "id",
+      "child": "cart_id"
+     }
+    ]
+   }
+  ],
+  "aggregates": [
+   {
+    "id": "agg_3afb2f7574",
+    "relationId": "rel_ag_aa476df37d",
+    "fn": "sum",
+    "column": "tip_in_cents",
+    "targetFieldId": "fld_507ec7e713"
+   }
+  ],
+  "ignoredColumns": []
+ },
+ "items": [
+  {
+   "fieldId": "fld_d0a3e7f81a",
+   "path": "type",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= \"cart\"",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_2534a8d267"
+   ]
+  },
+  {
+   "fieldId": "fld_87ea5dfc8b",
+   "path": "id",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "= concat('cart::', row.id)",
+   "reasons": [
+    "the example is this document's key (cart::…)"
+   ],
+   "required": true,
+   "code": "REFERENCE_TEMPLATE",
+   "mappingIds": [
+    "map_2d40ae1513"
+   ],
+   "fix": "concat('cart::', row.id)"
+  },
+  {
+   "fieldId": "fld_c692273deb",
+   "path": "version",
+   "kind": "field",
+   "status": "constant",
+   "band": "high",
+   "score": 0.95,
+   "summary": "= 1",
+   "reasons": [
+    "the design fixes the value (const)"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_252ca7be0b"
+   ]
+  },
+  {
+   "fieldId": "fld_48a3661d84",
+   "path": "status",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.7,
+   "summary": " = saved_orders.cart_id != nil ? 'saved' : row.status",
+   "reasons": [
+    "the design allows 'saved', which carts.status can't hold",
+    "'saved' when a saved_orders row exists"
+   ],
+   "required": true,
+   "relationIds": [
+    "rel_lk_3cff795cd6"
+   ],
+   "mappingIds": [
+    "map_e43ccd4dd0"
+   ]
+  },
+  {
+   "fieldId": "fld_fbe7d7baac",
+   "path": "channel",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← carts.channel",
+   "reasons": [
+    "channel ~ carts.channel (100%): exact"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_34ee3cd4e0"
+   ]
+  },
+  {
+   "fieldId": "fld_849e5009f3",
+   "path": "skipFulfillment",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.skip_fulfillment",
+   "reasons": [
+    "skipFulfillment ~ carts.skip_fulfillment (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7aa5455047"
+   ]
+  },
+  {
+   "fieldId": "fld_cb3086079d",
+   "path": "submitAfterTipAbort",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.submit_after_tip_abort",
+   "reasons": [
+    "submitAfterTipAbort ~ carts.submit_after_tip_abort (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_b798bf1d11"
+   ]
+  },
+  {
+   "fieldId": "fld_890c94d82f",
+   "path": "consumptionType",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.consumption_type",
+   "reasons": [
+    "consumptionType ~ carts.consumption_type (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_b0a11c904d"
+   ]
+  },
+  {
+   "fieldId": "fld_ec9b0493d7",
+   "path": "storeNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.store_number",
+   "reasons": [
+    "storeNumber ~ carts.store_number (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_4695f59d17"
+   ]
+  },
+  {
+   "fieldId": "fld_0abb4123cb",
+   "path": "partnerNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.partner_number",
+   "reasons": [
+    "partnerNumber ~ carts.partner_number (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_f5d8215c68"
+   ]
+  },
+  {
+   "fieldId": "fld_6af5b9adbc",
+   "path": "registerNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.register_number",
+   "reasons": [
+    "registerNumber ~ carts.register_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_83d557eae8"
+   ]
+  },
+  {
+   "fieldId": "fld_c87d1a18b6",
+   "path": "orderNotes",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.order_notes",
+   "reasons": [
+    "orderNotes ~ carts.order_notes (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_9ca7278108"
+   ]
+  },
+  {
+   "fieldId": "fld_696b97b727",
+   "path": "customerNamePrompt",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_5bbbdbf528"
+   ]
+  },
+  {
+   "fieldId": "fld_b39f008e31",
+   "path": "customer",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.89,
+   "summary": "↙ customers 1:N · first",
+   "reasons": [
+    "name: customer ~ customers (0.93)",
+    "fields 11/11",
+    "object ← one-to-many: first row",
+    "first by id"
+   ],
+   "alternatives": [
+    {
+     "fromParent": true,
+     "score": 0.54,
+     "reasons": [
+      "fields 5/11 from carts",
+      "groups the parent's columns"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "stores"
+     },
+     "join": [
+      {
+       "parent": "store_number",
+       "child": "number"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "score": 0.41,
+     "reasons": [
+      "name: customer ~ stores (0.00)",
+      "fields 7/11",
+      "many-to-one ✓"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_26b4ff5fad"
+   ]
+  },
+  {
+   "fieldId": "fld_ec8b763913",
+   "path": "customer.userID",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e19e198087"
+   ]
+  },
+  {
+   "fieldId": "fld_cc87c530c3",
+   "path": "customer.firstName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.first_name",
+   "reasons": [
+    "firstName ~ customers.first_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_478a6f1773"
+   ]
+  },
+  {
+   "fieldId": "fld_65a30ab169",
+   "path": "customer.lastName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.last_name",
+   "reasons": [
+    "lastName ~ customers.last_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_9fb3c77446"
+   ]
+  },
+  {
+   "fieldId": "fld_3dba58f6ab",
+   "path": "customer.starsEarned",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.stars_earned",
+   "reasons": [
+    "starsEarned ~ customers.stars_earned (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d1a23b322c"
+   ]
+  },
+  {
+   "fieldId": "fld_a8c804d222",
+   "path": "customer.loyaltyID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.loyalty_id",
+   "reasons": [
+    "loyaltyID ~ customers.loyalty_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_630491ba2b"
+   ]
+  },
+  {
+   "fieldId": "fld_f38034b2ff",
+   "path": "customer.alias",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customers.alias",
+   "reasons": [
+    "alias ~ customers.alias (100%): exact"
+   ],
+   "mappingIds": [
+    "map_6dbde95b19"
+   ]
+  },
+  {
+   "fieldId": "fld_10a2b4331d",
+   "path": "customer.validPartner",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.valid_partner",
+   "reasons": [
+    "validPartner ~ customers.valid_partner (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7c40365356"
+   ]
+  },
+  {
+   "fieldId": "fld_37bbd7ef78",
+   "path": "customer.partnerNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.partner_number",
+   "reasons": [
+    "partnerNumber ~ customers.partner_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_4739a898fe"
+   ]
+  },
+  {
+   "fieldId": "fld_bc4c5a2fd0",
+   "path": "customer.partnerName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.partner_name",
+   "reasons": [
+    "partnerName ~ customers.partner_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c92e7dad65"
+   ]
+  },
+  {
+   "fieldId": "fld_c140dfe260",
+   "path": "customer.partnerStatus",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.partner_status",
+   "reasons": [
+    "partnerStatus ~ customers.partner_status (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_3e8874fe6f"
+   ]
+  },
+  {
+   "fieldId": "fld_908a56818b",
+   "path": "customer.eligibleBenefits[]",
+   "kind": "binding",
+   "status": "unresolved",
+   "band": "low",
+   "score": 0.39,
+   "summary": "no related table fits",
+   "reasons": [
+    "no relationship from customers reaches a table that fits"
+   ],
+   "code": "NO_PATH",
+   "candidates": [
+    "pos.carts"
+   ],
+   "alternatives": [
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     },
+     "join": [
+      {
+       "parent": "cart_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "shape": "scalars",
+     "valueColumn": "partner_number",
+     "score": 0.39,
+     "reasons": [
+      "name: eligibleBenefits ~ carts (0.00)",
+      "values from partner_number",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    }
+   ]
+  },
+  {
+   "fieldId": "fld_e17f0ec363",
+   "path": "customer.tierNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customers.tier_number",
+   "reasons": [
+    "tierNumber ~ customers.tier_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_8b6f7cedb7"
+   ]
+  },
+  {
+   "fieldId": "fld_3624db8830",
+   "path": "partner",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.91,
+   "summary": "↗ partners N:1",
+   "reasons": [
+    "name: partner ~ partners (0.93)",
+    "fields 2/2",
+    "many-to-one ✓"
+   ],
+   "alternatives": [
+    {
+     "fromParent": true,
+     "score": 0.77,
+     "reasons": [
+      "fields 2/2 from carts",
+      "groups the parent's columns"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "stores"
+     },
+     "join": [
+      {
+       "parent": "store_number",
+       "child": "number"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "score": 0.65,
+     "reasons": [
+      "name: partner ~ stores (0.00)",
+      "fields 2/2",
+      "many-to-one ✓"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_7d5a96fe6b"
+   ]
+  },
+  {
+   "fieldId": "fld_1755f270c2",
+   "path": "partner.number",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← partners.number",
+   "reasons": [
+    "number ~ partners.number (100%): exact"
+   ],
+   "mappingIds": [
+    "map_ca206d21f5"
+   ]
+  },
+  {
+   "fieldId": "fld_bc00ae5245",
+   "path": "partner.name",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.7,
+   "summary": " = concat(row.first_name, ' ', row.last_name)",
+   "reasons": [
+    "no name column: first_name and last_name combined"
+   ],
+   "mappingIds": [
+    "map_8216668db6"
+   ]
+  },
+  {
+   "fieldId": "fld_7316c8b2e7",
+   "path": "items[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "high",
+   "score": 0.95,
+   "summary": "↙ cart_items 1:N",
+   "reasons": [
+    "name: items ~ cart_items (0.95)",
+    "fields 25/26",
+    "one-to-many ✓"
+   ],
+   "alternatives": [
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "collected_payments"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "score": 0.23,
+     "reasons": [
+      "name: items ~ collected_payments (0.00)",
+      "fields 2/26",
+      "one-to-many ✓"
+     ]
+    },
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "customers"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "score": 0.23,
+     "reasons": [
+      "name: items ~ customers (0.00)",
+      "fields 2/26",
+      "one-to-many ✓"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_f47632f00a"
+   ]
+  },
+  {
+   "fieldId": "fld_44a280b145",
+   "path": "items[].id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← cart_items.id",
+   "reasons": [
+    "id ~ cart_items.id (100%): exact"
+   ],
+   "mappingIds": [
+    "map_ca4019f721"
+   ]
+  },
+  {
+   "fieldId": "fld_1732aaf596",
+   "path": "items[].name",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← cart_items.name",
+   "reasons": [
+    "name ~ cart_items.name (100%): exact"
+   ],
+   "mappingIds": [
+    "map_10dbcad1ff"
+   ]
+  },
+  {
+   "fieldId": "fld_169dcb7497",
+   "path": "items[].quantity",
+   "kind": "field",
+   "status": "constant",
+   "band": "medium",
+   "score": 0.75,
+   "summary": "= 1",
+   "reasons": [
+    "the design says it's always 1"
+   ],
+   "mappingIds": [
+    "map_6207c7816a"
+   ]
+  },
+  {
+   "fieldId": "fld_332cafe88a",
+   "path": "items[].sellableItemId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.sellable_item_id",
+   "reasons": [
+    "sellableItemId ~ cart_items.sellable_item_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_8e265654fa"
+   ]
+  },
+  {
+   "fieldId": "fld_54f0309c68",
+   "path": "items[].menuProductId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.menu_product_id",
+   "reasons": [
+    "menuProductId ~ cart_items.menu_product_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_790b8f0bd6"
+   ]
+  },
+  {
+   "fieldId": "fld_6ffbe765d0",
+   "path": "items[].formCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.form_code",
+   "reasons": [
+    "formCode ~ cart_items.form_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_b37fde0ce4"
+   ]
+  },
+  {
+   "fieldId": "fld_10036f1afb",
+   "path": "items[].sizeCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.size_code",
+   "reasons": [
+    "sizeCode ~ cart_items.size_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a9da566424"
+   ]
+  },
+  {
+   "fieldId": "fld_c8a672520f",
+   "path": "items[].productTypeId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.product_type_id",
+   "reasons": [
+    "productTypeId ~ cart_items.product_type_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_cc170dea43"
+   ]
+  },
+  {
+   "fieldId": "fld_c4f5af5168",
+   "path": "items[].servingSizeName",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.serving_size_name",
+   "reasons": [
+    "servingSizeName ~ cart_items.serving_size_name (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_0b66b12568"
+   ]
+  },
+  {
+   "fieldId": "fld_aa99a43191",
+   "path": "items[].sequenceNumber",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.sequence_number",
+   "reasons": [
+    "sequenceNumber ~ cart_items.sequence_number (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d18b20f8f1"
+   ]
+  },
+  {
+   "fieldId": "fld_d41d5bef98",
+   "path": "items[].displayIndex",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.display_index",
+   "reasons": [
+    "displayIndex ~ cart_items.display_index (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_fd1fe6bf1d"
+   ]
+  },
+  {
+   "fieldId": "fld_c467c80b08",
+   "path": "items[].basePrice",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.9409,
+   "summary": "← cart_items.base_price × 100",
+   "reasons": [
+    "basePrice ~ cart_items.base_price (94%): normalized equal",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_5281fe54f2"
+   ]
+  },
+  {
+   "fieldId": "fld_ddc527408b",
+   "path": "items[].price",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.price × 100",
+   "reasons": [
+    "price ~ cart_items.price (97%): exact",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_1ee2e782af"
+   ]
+  },
+  {
+   "fieldId": "fld_bb6aeac6e6",
+   "path": "items[].priceOverride",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.9409,
+   "summary": "← cart_items.price_override × 100",
+   "reasons": [
+    "priceOverride ~ cart_items.price_override (94%): normalized equal",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_b5a8619960"
+   ]
+  },
+  {
+   "fieldId": "fld_9697bd4df4",
+   "path": "items[].priceOverrideAuthorized",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.price_override_authorized",
+   "reasons": [
+    "priceOverrideAuthorized ~ cart_items.price_override_authorized (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a6bdb6abc6"
+   ]
+  },
+  {
+   "fieldId": "fld_048f67ed7a",
+   "path": "items[].priceOverrideAuthorizedBy",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_ae0830f2e6"
+   ]
+  },
+  {
+   "fieldId": "fld_c322d2bc9f",
+   "path": "items[].priceOverrideReason",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_8c0ddcc48c"
+   ]
+  },
+  {
+   "fieldId": "fld_b8e3a7e2c1",
+   "path": "items[].redemptionTier",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.redemption_tier",
+   "reasons": [
+    "redemptionTier ~ cart_items.redemption_tier (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_426daa9907"
+   ]
+  },
+  {
+   "fieldId": "fld_688dd6e803",
+   "path": "items[].isRefund",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_refund",
+   "reasons": [
+    "isRefund ~ cart_items.is_refund (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a64c631a5d"
+   ]
+  },
+  {
+   "fieldId": "fld_ce8928625e",
+   "path": "items[].isAvailable",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_available",
+   "reasons": [
+    "isAvailable ~ cart_items.is_available (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_84e28130e5"
+   ]
+  },
+  {
+   "fieldId": "fld_854371d446",
+   "path": "items[].isImpulseItem",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_impulse_item",
+   "reasons": [
+    "isImpulseItem ~ cart_items.is_impulse_item (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_75f500c9c7"
+   ]
+  },
+  {
+   "fieldId": "fld_5d5af9c484",
+   "path": "items[].isRefill",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.is_refill",
+   "reasons": [
+    "isRefill ~ cart_items.is_refill (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_2fdc724af7"
+   ]
+  },
+  {
+   "fieldId": "fld_c0d0776c2f",
+   "path": "items[].itemAvailabilityOverride",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.item_availability_override",
+   "reasons": [
+    "itemAvailabilityOverride ~ cart_items.item_availability_override (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_b61d00dfe7"
+   ]
+  },
+  {
+   "fieldId": "fld_829e2f5a64",
+   "path": "items[].askMeInstructions",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.ask_me_instructions",
+   "reasons": [
+    "askMeInstructions ~ cart_items.ask_me_instructions (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_4f88c8c7f5"
+   ]
+  },
+  {
+   "fieldId": "fld_66526cc8ea",
+   "path": "items[].imageUrl",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← cart_items.image_url",
+   "reasons": [
+    "imageUrl ~ cart_items.image_url (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_49be8d9b3a"
+   ]
+  },
+  {
+   "fieldId": "fld_bad5b9fe76",
+   "path": "items[].voided",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← cart_items.voided",
+   "reasons": [
+    "voided ~ cart_items.voided (100%): exact"
+   ],
+   "mappingIds": [
+    "map_1317b5d0e9"
+   ]
+  },
+  {
+   "fieldId": "fld_a6dd7f5ef7",
+   "path": "items[].modifiers[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "medium",
+   "score": 0.54,
+   "summary": "↙ customizations 1:N",
+   "reasons": [
+    "name: modifiers ~ customizations (0.00)",
+    "fields 10/13",
+    "one-to-many ✓"
+   ],
+   "alternatives": [
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     },
+     "join": [
+      {
+       "parent": "cart_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "score": 0.18,
+     "reasons": [
+      "name: modifiers ~ carts (0.00)",
+      "fields 2/13",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "applied_rewards"
+     },
+     "join": [
+      {
+       "parent": "applied_reward_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "score": 0.15,
+     "reasons": [
+      "name: modifiers ~ applied_rewards (0.00)",
+      "fields 1/13",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_61370d9900"
+   ]
+  },
+  {
+   "fieldId": "fld_6999dd648f",
+   "path": "items[].modifiers[].id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customizations.id",
+   "reasons": [
+    "id ~ customizations.id (100%): exact"
+   ],
+   "mappingIds": [
+    "map_0f6e815903"
+   ]
+  },
+  {
+   "fieldId": "fld_154685c33f",
+   "path": "items[].modifiers[].label",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.name",
+   "reasons": [
+    "label ~ customizations.name (97%)",
+    "the design names customizations.name"
+   ],
+   "mappingIds": [
+    "map_cf85c9f769"
+   ]
+  },
+  {
+   "fieldId": "fld_ea71d427fb",
+   "path": "items[].modifiers[].value",
+   "kind": "field",
+   "status": "mapped",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "← customizations.name",
+   "reasons": [
+    "the design says value mirrors label",
+    "same column as label"
+   ],
+   "mappingIds": [
+    "map_bb8165b663"
+   ]
+  },
+  {
+   "fieldId": "fld_1db3b8b010",
+   "path": "items[].modifiers[].valueString",
+   "kind": "field",
+   "status": "mapped",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "← customizations.name",
+   "reasons": [
+    "the design says valueString mirrors label",
+    "same column as label"
+   ],
+   "mappingIds": [
+    "map_727a57137c"
+   ]
+  },
+  {
+   "fieldId": "fld_ed56200995",
+   "path": "items[].modifiers[].menuProductId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.menu_product_id",
+   "reasons": [
+    "menuProductId ~ customizations.menu_product_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_66840f4bbf"
+   ]
+  },
+  {
+   "fieldId": "fld_68204482c8",
+   "path": "items[].modifiers[].sellableItemId",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.sellable_item_id",
+   "reasons": [
+    "sellableItemId ~ customizations.sellable_item_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_6f0dea489f"
+   ]
+  },
+  {
+   "fieldId": "fld_94b6b2237e",
+   "path": "items[].modifiers[].formCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.form_code",
+   "reasons": [
+    "formCode ~ customizations.form_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_20b9146b61"
+   ]
+  },
+  {
+   "fieldId": "fld_203943b4b3",
+   "path": "items[].modifiers[].sizeCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.size_code",
+   "reasons": [
+    "sizeCode ~ customizations.size_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_f28f7f77d7"
+   ]
+  },
+  {
+   "fieldId": "fld_e43d41c88e",
+   "path": "items[].modifiers[].quantity",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customizations.quantity",
+   "reasons": [
+    "quantity ~ customizations.quantity (100%): exact"
+   ],
+   "mappingIds": [
+    "map_1048b72d33"
+   ]
+  },
+  {
+   "fieldId": "fld_09b324f680",
+   "path": "items[].modifiers[].price",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.price × 100",
+   "reasons": [
+    "price ~ customizations.price (97%): exact",
+    "× 100: numeric amounts (2 decimals) → whole cents"
+   ],
+   "mappingIds": [
+    "map_75d9d9ed57"
+   ]
+  },
+  {
+   "fieldId": "fld_2622031777",
+   "path": "items[].modifiers[].isAvailable",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.is_available",
+   "reasons": [
+    "isAvailable ~ customizations.is_available (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_d5e180c45a"
+   ]
+  },
+  {
+   "fieldId": "fld_1453ce4718",
+   "path": "items[].modifiers[].itemAvailabilityOverride",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← customizations.item_availability_override",
+   "reasons": [
+    "itemAvailabilityOverride ~ customizations.item_availability_override (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_ee545ea3af"
+   ]
+  },
+  {
+   "fieldId": "fld_c4868a825c",
+   "path": "items[].modifiers[].voided",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← customizations.voided",
+   "reasons": [
+    "voided ~ customizations.voided (100%): exact"
+   ],
+   "mappingIds": [
+    "map_9098b97da7"
+   ]
+  },
+  {
+   "fieldId": "fld_f62bdc102c",
+   "path": "items[].appliedRewards[]",
+   "kind": "binding",
+   "status": "bound",
+   "band": "medium",
+   "score": 0.68,
+   "summary": "↗ applied_rewards N:1 · wrap",
+   "reasons": [
+    "name: appliedRewards ~ applied_rewards (0.97)",
+    "fields 3/6",
+    "array ← many-to-one: 0 or 1 item"
+   ],
+   "alternatives": [
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "customizations"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_item_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "score": 0.28,
+     "reasons": [
+      "name: appliedRewards ~ customizations (0.00)",
+      "fields 1/6",
+      "one-to-many ✓"
+     ]
+    },
+    {
+     "kind": "many-to-one",
+     "table": {
+      "schema": "pos",
+      "name": "carts"
+     },
+     "join": [
+      {
+       "parent": "cart_id",
+       "child": "id"
+      }
+     ],
+     "cardinality": "many-to-one",
+     "direction": "references",
+     "adapter": "wrap",
+     "score": 0.2,
+     "reasons": [
+      "name: appliedRewards ~ carts (0.00)",
+      "fields 1/6",
+      "array ← many-to-one: 0 or 1 item"
+     ]
+    }
+   ],
+   "relationIds": [
+    "rel_f21e3cc7a7"
+   ]
+  },
+  {
+   "fieldId": "fld_5399aae54f",
+   "path": "items[].appliedRewards[].id",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← applied_rewards.id",
+   "reasons": [
+    "id ~ applied_rewards.id (100%): exact"
+   ],
+   "mappingIds": [
+    "map_f43f1cddfc"
+   ]
+  },
+  {
+   "fieldId": "fld_004fea09cc",
+   "path": "items[].appliedRewards[].rewardCode",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← applied_rewards.reward_code",
+   "reasons": [
+    "rewardCode ~ applied_rewards.reward_code (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_135eb4f152"
+   ]
+  },
+  {
+   "fieldId": "fld_43bda393dc",
+   "path": "items[].appliedRewards[].rewardType",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_92d8a2f6fd"
+   ]
+  },
+  {
+   "fieldId": "fld_cd1f382b49",
+   "path": "items[].appliedRewards[].description",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 1,
+   "summary": "← applied_rewards.description",
+   "reasons": [
+    "description ~ applied_rewards.description (100%): exact"
+   ],
+   "mappingIds": [
+    "map_a67f0273b4"
+   ]
+  },
+  {
+   "fieldId": "fld_370008fb85",
+   "path": "items[].appliedRewards[].accessibilityLabel",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_84beadd0a6"
+   ]
+  },
+  {
+   "fieldId": "fld_7d375334e8",
+   "path": "items[].appliedRewards[].value",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_a1fb12ad35"
+   ]
+  },
+  {
+   "fieldId": "fld_00317b5e81",
+   "path": "pricing",
+   "kind": "binding",
+   "status": "fromParent",
+   "band": "medium",
+   "score": 0.73,
+   "summary": "fields of carts",
+   "reasons": [
+    "fields 6/7 from carts",
+    "groups the parent's columns"
+   ],
+   "alternatives": [
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "collected_payments"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "adapter": "first",
+     "score": 0.34,
+     "reasons": [
+      "name: pricing ~ collected_payments (0.00)",
+      "fields 4/7",
+      "object ← one-to-many: first row"
+     ]
+    },
+    {
+     "kind": "one-to-many",
+     "table": {
+      "schema": "pos",
+      "name": "cash_tenders"
+     },
+     "join": [
+      {
+       "parent": "id",
+       "child": "cart_id"
+      }
+     ],
+     "cardinality": "one-to-many",
+     "direction": "referencedBy",
+     "adapter": "first",
+     "score": 0.33,
+     "reasons": [
+      "name: pricing ~ cash_tenders (0.00)",
+      "fields 4/7",
+      "object ← one-to-many: first row"
+     ]
+    }
+   ]
+  },
+  {
+   "fieldId": "fld_41151cf207",
+   "path": "pricing.totalInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.total_in_cents",
+   "reasons": [
+    "totalInCents ~ carts.total_in_cents (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c2573f36e2"
+   ]
+  },
+  {
+   "fieldId": "fld_e1a68c7a43",
+   "path": "pricing.subTotalInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.85,
+   "summary": "← carts.subtotal_in_cents",
+   "reasons": [
+    "subTotalInCents ~ carts.subtotal_in_cents (85%): fuzzy"
+   ],
+   "mappingIds": [
+    "map_1050f29e2d"
+   ]
+  },
+  {
+   "fieldId": "fld_3480384e1e",
+   "path": "pricing.taxInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.tax_in_cents",
+   "reasons": [
+    "taxInCents ~ carts.tax_in_cents (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_712c6bc455"
+   ]
+  },
+  {
+   "fieldId": "fld_8d94c004c4",
+   "path": "pricing.discountInCents",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.discount_in_cents",
+   "reasons": [
+    "discountInCents ~ carts.discount_in_cents (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_c5b35e0ee5"
+   ]
+  },
+  {
+   "fieldId": "fld_507ec7e713",
+   "path": "pricing.tipInCents",
+   "kind": "field",
+   "status": "aggregate",
+   "band": "medium",
+   "score": 0.8,
+   "summary": "= sum(collected_payments.tip_in_cents)",
+   "reasons": [
+    "the design says it's the sum of collected_payments.tip_in_cents"
+   ],
+   "relationIds": [
+    "rel_ag_aa476df37d"
+   ],
+   "aggregateIds": [
+    "agg_3afb2f7574"
+   ]
+  },
+  {
+   "fieldId": "fld_f100cfa4f1",
+   "path": "pricing.totalToDisplay",
+   "kind": "field",
+   "status": "converted",
+   "band": "high",
+   "score": 0.9409,
+   "summary": "← carts.total_to_display toString",
+   "reasons": [
+    "totalToDisplay ~ carts.total_to_display (94%): normalized equal",
+    "numeric → text (\"3.95\")"
+   ],
+   "mappingIds": [
+    "map_60af79e785"
+   ]
+  },
+  {
+   "fieldId": "fld_d7c9d57089",
+   "path": "pricing.label",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_953b2be324"
+   ]
+  },
+  {
+   "fieldId": "fld_8cd04847fe",
+   "path": "pricing.modifiers[]",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_c6b88c0ca1",
+   "path": "pricing.modifiers[].modifierName",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_8d6b4f90e5"
+   ]
+  },
+  {
+   "fieldId": "fld_8878bea23b",
+   "path": "pricing.modifiers[].label",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e069c8cf7a"
+   ]
+  },
+  {
+   "fieldId": "fld_0d3ca043fc",
+   "path": "pricing.modifiers[].value",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_725cd5de8d"
+   ]
+  },
+  {
+   "fieldId": "fld_0e50f5dd68",
+   "path": "pricing.taxLabels[]",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_b3b63c721f",
+   "path": "pricing.taxLabels[].name",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_121acc4a8b"
+   ]
+  },
+  {
+   "fieldId": "fld_3a0b2faaf4",
+   "path": "pricing.taxLabels[].value",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_4ce89050a4"
+   ]
+  },
+  {
+   "fieldId": "fld_6add1d2283",
+   "path": "taxDataID",
+   "kind": "field",
+   "status": "computed",
+   "band": "medium",
+   "score": 0.7,
+   "summary": "= concat('tax_data::', row.id)",
+   "reasons": [
+    "the example looks like a tax_data document key"
+   ],
+   "code": "REFERENCE_TEMPLATE",
+   "mappingIds": [
+    "map_025f2f3a79"
+   ],
+   "fix": "concat('tax_data::', row.id)"
+  },
+  {
+   "fieldId": "fld_4a4631061e",
+   "path": "selectedPaymentID",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_cbeba3b812"
+   ]
+  },
+  {
+   "fieldId": "fld_40c4770202",
+   "path": "payments[]",
+   "kind": "binding",
+   "status": "unresolved",
+   "band": "low",
+   "score": 0,
+   "summary": "items have no fields",
+   "reasons": [
+    "the design gives the items no fields: import their designs (variants)"
+   ],
+   "code": "UNTYPED_ITEMS"
+  },
+  {
+   "fieldId": "fld_58a3847947",
+   "path": "associatedScan",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_ace7353a54",
+   "path": "associatedScan.type",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_e936de42d3"
+   ]
+  },
+  {
+   "fieldId": "fld_d67c212e91",
+   "path": "associatedScan.paymentID",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_f61501a30b"
+   ]
+  },
+  {
+   "fieldId": "fld_14e60ace3d",
+   "path": "receipt",
+   "kind": "binding",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 1,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ]
+  },
+  {
+   "fieldId": "fld_692b40f6b1",
+   "path": "receipt.id",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_c2974f8876"
+   ]
+  },
+  {
+   "fieldId": "fld_94a91a143a",
+   "path": "receipt.data",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_c354f938c1"
+   ]
+  },
+  {
+   "fieldId": "fld_7604622ca5",
+   "path": "receipt.generationDate",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_995c8edef3"
+   ]
+  },
+  {
+   "fieldId": "fld_62b38fcea3",
+   "path": "receipt.messageType",
+   "kind": "field",
+   "status": "notPopulated",
+   "band": "high",
+   "score": 0.95,
+   "summary": "not populated (design)",
+   "reasons": [
+    "the design says it isn't populated"
+   ],
+   "mappingIds": [
+    "map_3f9ddb330a"
+   ]
+  },
+  {
+   "fieldId": "fld_0156631f50",
+   "path": "loyaltyTransactionID",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.loyalty_transaction_id",
+   "reasons": [
+    "loyaltyTransactionID ~ carts.loyalty_transaction_id (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_45c7257b65"
+   ]
+  },
+  {
+   "fieldId": "fld_d7f892f37f",
+   "path": "savedAt",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.95,
+   "summary": "← saved_orders.saved_at",
+   "reasons": [
+    "savedAt ~ saved_orders.saved_at (95%): normalized equal",
+    "the design names saved_orders.saved_at",
+    "looked up in saved_orders (1:1)"
+   ],
+   "relationIds": [
+    "rel_lk_3cff795cd6"
+   ],
+   "mappingIds": [
+    "map_f808ab1635"
+   ]
+  },
+  {
+   "fieldId": "fld_98c93a6982",
+   "path": "orderCollectionType",
+   "kind": "field",
+   "status": "lookup",
+   "band": "high",
+   "score": 0.95,
+   "summary": "← saved_orders.order_collection_type",
+   "reasons": [
+    "orderCollectionType ~ saved_orders.order_collection_type (95%): normalized equal",
+    "the design names saved_orders.order_collection_type",
+    "looked up in saved_orders (1:1)"
+   ],
+   "relationIds": [
+    "rel_lk_3cff795cd6"
+   ],
+   "mappingIds": [
+    "map_bdee8f3d16"
+   ]
+  },
+  {
+   "fieldId": "fld_93a3c92732",
+   "path": "createdAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.created_at",
+   "reasons": [
+    "createdAt ~ carts.created_at (97%): normalized equal"
+   ],
+   "required": true,
+   "mappingIds": [
+    "map_1fa057f82b"
+   ]
+  },
+  {
+   "fieldId": "fld_ecdd260189",
+   "path": "updatedAt",
+   "kind": "field",
+   "status": "unresolved",
+   "band": "low",
+   "score": 0,
+   "summary": "unresolved",
+   "reasons": [
+    "no column in carts or the tables next to it fits updatedAt"
+   ],
+   "required": true,
+   "code": "NO_COLUMN",
+   "candidates": [
+    "carts.last_priced_at"
+   ]
+  },
+  {
+   "fieldId": "fld_4b2d38c421",
+   "path": "closedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.closed_at",
+   "reasons": [
+    "closedAt ~ carts.closed_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_a0dce3e4f5"
+   ]
+  },
+  {
+   "fieldId": "fld_e282fba32c",
+   "path": "voidedAt",
+   "kind": "field",
+   "status": "mapped",
+   "band": "high",
+   "score": 0.97,
+   "summary": "← carts.voided_at",
+   "reasons": [
+    "voidedAt ~ carts.voided_at (97%): normalized equal"
+   ],
+   "mappingIds": [
+    "map_7d38888aac"
+   ]
+  }
+ ],
+ "coverage": {
+  "fields": 98,
+  "proposed": 77,
+  "needsReview": 8,
+  "notPopulated": 20,
+  "unresolved": 1,
+  "containers": 12,
+  "bound": 6
+ }
+}

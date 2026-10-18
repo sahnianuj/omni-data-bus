@@ -69,6 +69,15 @@
   }
 }
 
+/* A field revealed from the Issues panel flashes green once (OC-176). */
+@keyframes odb-reveal {
+  from { background-color: var(--success-soft); box-shadow: inset 3px 0 0 var(--success); }
+  to { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+.odb-reveal {
+  animation: odb-reveal 1.5s ease-out;
+}
+
 /* Job progress bar shimmer while running (OC-028); still when paused or finished. */
 @keyframes odb-stripes {
   from { background-position: 0 0; }

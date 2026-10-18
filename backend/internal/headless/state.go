@@ -107,7 +107,7 @@ func writeAtomic(path string, data []byte) error {
 		_ = os.Remove(tmp.Name())
 		return err
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	if err := rename(tmp.Name(), path); err != nil {
 		_ = os.Remove(tmp.Name())
 		return err
 	}

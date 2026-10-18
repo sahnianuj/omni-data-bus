@@ -389,3 +389,22 @@ func TestStateJobs_WarningsGoToStdout(t *testing.T) {
 	require.Contains(t, out.String(), `"event":"warning","jobId":"run-1","read":0,"written":0,"skipped":0,"failed":0,"docsPerSec":0,"etaSec":null,"message":"careful"`)
 	require.NotContains(t, out.String(), "quiet")
 }
+
+// OC-181: on a terminal each event is a line in words, with the same facts as the JSON.
+func TestEvent_OC181_Text(t *testing.T) {
+	eta, code := int64(130), 2
+	require.Equal(t, "start     odb 2.5.0, resuming from the checkpoint: 2 mapping(s): orders, customers\n          mappings: /x/mappings.json",
+		Event{Event: EventStart, Version: "2.5.0", Resumed: true, Mappings: []string{"orders", "customers"}, MappingsFile: "/x/mappings.json"}.Text())
+	require.Equal(t, "progress  12,345 read · 12,300 written · 45 failed · 4,100 docs/s · about 2m10s left",
+		Event{Event: EventProgress, Read: 12345, Written: 12300, Failed: 45, DocsPerSec: 4100.4, EtaSec: &eta}.Text())
+	require.Equal(t, "mapping   orders done: 1,000 read · 990 written · 10 skipped · 0 failed",
+		Event{Event: EventMappingDone, Mapping: "orders", Read: 1000, Written: 990, Skipped: 10}.Text())
+	require.Equal(t, "done      completed with errors (exit 2): 5 read · 4 written · 1 failed",
+		Event{Event: EventDone, Status: "completed_with_errors", ExitCode: &code, Read: 5, Written: 4, Failed: 1}.Text())
+
+	var out bytes.Buffer
+	sink := NewProgressSink(&out, "run-1", 0, false, nil, time.Now)
+	sink.Text = true
+	sink.Emit(Event{Event: EventWarning, Message: "schema drift allowed"})
+	require.Equal(t, "warning   schema drift allowed\n", out.String())
+}
