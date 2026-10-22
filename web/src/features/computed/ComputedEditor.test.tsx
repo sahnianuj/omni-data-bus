@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
+import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Inspector } from '@/features/mapping/Inspector'
 import { MappingCanvas } from '@/features/mapping/MappingCanvas'
@@ -8,7 +9,7 @@ import { setComputed, valueSourceOf } from '@/features/mapping/mappingOps'
 import type { MappingPreview } from '@/features/mapping/types'
 import { mockPreview, renderWorkbench } from '@/test/mapping'
 import { withFixedLayout } from '@/test/layout'
-import { setupMswServer } from '@/test/msw'
+import { server, setupMswServer } from '@/test/msw'
 import { mockSession } from '@/test/session'
 import { valuesAt } from './ComputedEditor'
 
@@ -65,6 +66,37 @@ describe('Computed fields in the Inspector', () => {
     await waitFor(() => expect(result).toHaveTextContent('→ 30'))
     await user.click(within(result).getByRole('button', { name: /Next/ }))
     expect(result).toHaveTextContent('→ 41')
+  })
+
+  it('a template written like code offers the template it means', async () => {
+    const user = userEvent.setup()
+    mockPreview(docs([1]))
+    const view = (await import('@/test/mapping')).mappingView()
+    view.spec = setComputed(view.spec, 'f_age', { lang: 'template', expr: '' })
+    const { store } = renderWorkbench(<Inspector projectId="p1" />, view)
+    act(() => store.getState().select({ kind: 'field', id: 'f_age' }))
+    const editor = screen.getByRole('textbox', { name: 'Template' })
+    await user.type(editor, '"paid_in_out::" + ${{doc.customerId}')
+    await user.keyboard('{Escape}')
+    expect(screen.getByText(/the quotes and \+ would be in it/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Use paid_in_out::${doc.customerId}' }))
+    expect(editor).toHaveValue('paid_in_out::${doc.customerId}')
+    expect(screen.queryByText(/the quotes and \+ would be in it/)).toBeNull()
+  })
+
+  it("the server's reason shows when the preview can't run", async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('*/api/v1/projects/:pid/mappings/:mid/preview', () =>
+        HttpResponse.json({ status: 422, code: 'MAPPING_INVALID', title: 'Invalid mapping', fieldErrors: [{ field: 'age', message: 'age reads itself. To read the source row\'s age column, write ${row.age}.' }] }, { status: 422 }),
+      ),
+    )
+    const view = (await import('@/test/mapping')).mappingView()
+    view.spec = setComputed(view.spec, 'f_age', { lang: 'template', expr: '' })
+    const { store } = renderWorkbench(<Inspector projectId="p1" />, view)
+    act(() => store.getState().select({ kind: 'field', id: 'f_age' }))
+    await user.type(screen.getByRole('textbox', { name: 'Template' }), 'x')
+    expect(await screen.findByRole('alert')).toHaveTextContent('age reads itself. To read the source row\'s age column, write ${row.age}.')
   })
 
   it('a syntax error shows at once', async () => {

@@ -8,6 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"omnidatabus/internal/connectors"
+	"omnidatabus/internal/connectors/source"
+	"omnidatabus/internal/connectors/target"
 	"omnidatabus/internal/mapping"
 	"omnidatabus/internal/problem"
 	"omnidatabus/internal/store"
@@ -162,4 +165,71 @@ func TestPreflight_OC170_KeyOverlap(t *testing.T) {
 	require.Equal(t, CheckWarn, got[0].Status)
 	require.Equal(t, "KEY_OVERLAP", got[0].Code)
 	require.Contains(t, got[0].Detail, "carts and cart_view both write cart::{id} keys")
+}
+
+// downTarget makes the target's connection test fail as the Couchbase connector does: no
+// permissions reported, and a plain detail with a hint (OC-190).
+func downTarget(f *fixture) {
+	tgt := store.ConnectionID(f.project.ID, store.RoleTarget)
+	test := f.pre.TestConn
+	f.pre.TestConn = func(ctx context.Context, w store.WorkspaceID, u, id string) (connectors.TestResult, error) {
+		if id != tgt {
+			return test(ctx, w, u, id)
+		}
+		return connectors.TestResult{OK: false, Capabilities: json.RawMessage(`{"canWriteDocs":false}`), Steps: []connectors.TestStep{{
+			ID: "bootstrap", Status: connectors.StepFail, Code: "TARGET_TIMEOUT", Detail: "No answer from cb:11210 within 5s.",
+			Hint: "Check the host and port.", Cause: "unambiguous timeout",
+		}}}, nil
+	}
+}
+
+func TestPreflight_OC190_AC1_TargetDownSkipsTargetChecks(t *testing.T) {
+	f := newFixture(t)
+	downTarget(f)
+	f.pre.Target = func(context.Context, store.WorkspaceID, string, []target.PreflightLocation) ([]target.LocationPreflight, error) {
+		t.Fatal("the target can't be reached: its location checks must not connect again")
+		return nil, nil
+	}
+	res, err := f.pre.Run(ctx, ws, "u1", f.project.ID, DefaultOptions())
+	require.NoError(t, err)
+	require.False(t, res.OK)
+	tc := check(t, res, "target")
+	require.Equal(t, CheckFail, tc.Status)
+	require.Equal(t, "No answer from cb:11210 within 5s.", tc.Detail)
+	require.Equal(t, "Check the host and port.", tc.Hint)
+	require.Equal(t, "unambiguous timeout", tc.Cause)
+	ks := check(t, res, "mapping.shop.customer.keyspace")
+	require.Equal(t, CheckSkipped, ks.Status)
+	require.Equal(t, "Not checked: the target isn't reachable.", ks.Detail)
+}
+
+func TestPreflight_OC190_AC3_NoWriteCheckWhenUnreachable(t *testing.T) {
+	f := newFixture(t)
+	downTarget(f)
+	res, err := f.pre.Run(ctx, ws, "u1", f.project.ID, DefaultOptions())
+	require.NoError(t, err)
+	for _, c := range res.Checks {
+		require.NotEqual(t, "target.write", c.ID, "an unreachable target isn't a permission problem")
+	}
+
+	// Reachable, but the credential can't write: still reported.
+	g := newFixture(t)
+	g.pre.TestConn = func(context.Context, store.WorkspaceID, string, string) (connectors.TestResult, error) {
+		return connectors.TestResult{OK: true, Capabilities: json.RawMessage(`{"canWriteDocs":false}`)}, nil
+	}
+	res, err = g.pre.Run(ctx, ws, "u1", g.project.ID, DefaultOptions())
+	require.NoError(t, err)
+	require.Equal(t, "TARGET_PERMISSION_DENIED", check(t, res, "target.write").Code)
+}
+
+func TestPreflight_OC190_SourceDownSkipsSnapshot(t *testing.T) {
+	f := newFixture(t)
+	f.testFail[store.ConnectionID(f.project.ID, store.RoleSource)] = true
+	f.pre.OpenSource = func(context.Context, store.WorkspaceID, string) (source.Session, store.Connection, error) {
+		t.Fatal("the source can't be reached: the snapshot check must not connect again")
+		return nil, store.Connection{}, nil
+	}
+	res, err := f.pre.Run(ctx, ws, "u1", f.project.ID, DefaultOptions())
+	require.NoError(t, err)
+	require.Equal(t, CheckSkipped, check(t, res, "snapshot").Status)
 }

@@ -63,6 +63,8 @@ type TestStep struct {
 	Detail string     `json:"detail,omitempty"`
 	Hint   string     `json:"hint,omitempty"`
 	Code   string     `json:"code,omitempty"`
+	// Cause is the driver's own message, kept for details when Detail is a plain sentence (OC-190).
+	Cause string `json:"cause,omitempty"`
 }
 
 // TestResult is the full "Test connection" response.

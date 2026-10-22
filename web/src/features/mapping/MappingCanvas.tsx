@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ResizeHandle, usePaneSize } from '@/components/ui/resize-handle'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Can } from '@/features/auth/Can'
+import { deleteNode } from '@/features/composer/composerOps'
 import { addField, insertionPoint, moveRelative, rename, type DropPos } from '@/features/docschema/docschemaOps'
 import { DND_FIELD, dropIndicator, dropPosition, isFieldDrag, startFieldDrag } from '@/features/docschema/fieldDrag'
 import { cn } from '@/lib/utils'
@@ -275,6 +276,12 @@ export function MappingCanvas() {
     select({ kind: 'field', id })
     if (!computed) setNaming(id)
   }
+  // A field goes with everything under it: its mappings, and the embeds bound inside.
+  const onDeleteField = (id: string) => {
+    apply((s) => deleteNode(s, id))
+    if (naming === id) setNaming(null)
+    select(null)
+  }
   const onNamed = (id: string, draft: string) => {
     setNaming(null)
     const name = draft.trim()
@@ -412,6 +419,11 @@ export function MappingCanvas() {
       const id = selection.id
       apply((s) => disconnect(s, id))
       select(null)
+      e.preventDefault()
+      return
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selection?.kind === 'field' && !naming && selection.id !== spec.docSchema.root.id) {
+      onDeleteField(selection.id)
       e.preventDefault()
     }
   }
@@ -736,7 +748,7 @@ export function MappingCanvas() {
                   onClick={() => onTargetClick(r.field.id)}
                   onDoubleClick={() => setNaming(r.field.id)}
                   className={cn(
-                    'absolute left-0 right-0 flex items-center gap-2 pr-3 text-[13px] hover:bg-surface-muted',
+                    'group absolute left-0 right-0 flex items-center gap-2 pr-3 text-[13px] hover:bg-surface-muted',
                     dim && 'opacity-40',
                     over && (dragOver?.ok ? 'ring-2 ring-inset ring-primary' : 'ring-2 ring-inset ring-danger'),
                     dropAt?.id === r.field.id && dropIndicator[dropAt.pos],
@@ -795,6 +807,20 @@ export function MappingCanvas() {
                     </span>
                   ) : null}
                   <span className="ml-auto font-mono text-[11px] text-subtle">{r.field.type === 'array' ? `array<${r.field.items?.type ?? '?'}>` : r.field.type}</span>
+                  <button
+                    type="button"
+                    className={cn('shrink-0 rounded p-0.5 text-subtle hover:bg-surface hover:text-danger focus-visible:opacity-100 group-hover:opacity-100', !isSel && 'opacity-0')}
+                    aria-label={t('mapping.deleteField', { name: r.field.name })}
+                    title={t('mapping.deleteField', { name: r.field.name })}
+                    draggable={false}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteField(r.field.id)
+                    }}
+                  >
+                    <X className="size-3.5" />
+                  </button>
                 </div>
               )
             })}

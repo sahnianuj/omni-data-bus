@@ -17,6 +17,7 @@ import { parseLiteral, TransformPipelineEditor } from '@/features/mapping/Transf
 import type { CanvasColumn, DocField, FieldType, MappingSpec, SourceColumn } from '@/features/mapping/types'
 import { ApiError } from '@/lib/api/client'
 import { nodeOf, renameNode, setExpression, setNodeType, setOnNoMatch, setVariantRule, unbind } from './composerOps'
+import { expressionHint, useExpressionCheck } from './expressionCheck'
 import { boundRelations, expressionNames, scope, type ScopeEntry } from './scope'
 
 const selectCls = 'h-8 w-full rounded-[var(--radius-control)] border border-border-strong bg-surface px-2 text-[13px]'
@@ -107,6 +108,8 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
   const saved = typeof expr?.args?.expr === 'string' ? expr.args.expr : ''
   const exprText = draft?.node === nodeId ? draft.text : saved
   const setExprText = (fn: string | ((x: string) => string)) => setDraft({ node: nodeId, text: typeof fn === 'string' ? fn : fn(exprText) })
+  // The text as typed is checked by the server's compiler before it can be used.
+  const exprCheck = useExpressionCheck(view.projectId, view.id, spec, nodeId, exprText, exprText.trim() !== saved)
   const [busy, setBusy] = useState(false)
   const nameId = useId()
   const typeId = useId()
@@ -358,17 +361,28 @@ export function ComposerInspector({ focusSource, onBindTable, embedTable, embedB
                   {n}
                 </button>
               ))}
-              <Button size="sm" variant="secondary" className="ml-auto" disabled={!exprText.trim()} onClick={() => run((s) => setExpression(s, nodeId, exprText.trim()))}>
+              <Button size="sm" variant="secondary" className="ml-auto" disabled={!exprText.trim() || exprCheck.state === 'error'} onClick={() => run((s) => setExpression(s, nodeId, exprText.trim()))}>
                 {t('composer.setExpression')}
               </Button>
             </div>
+            {exprCheck.state === 'error' ? (
+              <p role="alert" className="text-xs text-danger">
+                {exprCheck.message}
+              </p>
+            ) : exprCheck.state === 'checking' ? (
+              <p className="text-xs text-subtle">{t('composer.exprChecking')}</p>
+            ) : exprCheck.state === 'ok' ? (
+              <p className="truncate font-mono text-xs text-muted" aria-label={t('composer.exprSample')}>
+                → {exprCheck.value === undefined ? '—' : JSON.stringify(exprCheck.value)}
+              </p>
+            ) : null}
           </div>
           {mapping && !expr && mapping.sources.length > 0 ? (
             <TransformPipelineEditor steps={mapping.transforms} onChange={(steps) => run((s) => setTransforms(s, mapping.id, steps))} issues={mappingIssues} />
           ) : null}
           {mappingIssues.map((i) => (
             <p key={`${i.code}:${i.message}`} role="alert" className="text-xs text-danger">
-              {i.message}
+              {i.op === 'expression' ? expressionHint(i.message) : i.message}
             </p>
           ))}
           {mapping ? (

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { projectKeys } from '@/features/projects/api'
+import { stripJsonc } from '@/features/docschema/stripJsonc'
 import { api, call } from '@/lib/api/client'
 import type { components } from '@/lib/api/schema'
 import type { DocSchema, MappingSpec, MappingTarget, MappingView } from './types'
@@ -185,9 +186,9 @@ export function proposeDesign(projectId: string, docSchema: DocSchema, drivingTa
   return call(api.POST('/api/v1/projects/{id}/mappings/propose', { params: { path: { id: projectId } }, body: { docSchema, ...(drivingTable ? { drivingTable } : {}) } }))
 }
 
-/** files: a JSON Schema's other files, for designs split across files (OC-171). */
+/** files: a JSON Schema's other files, for designs split across files (OC-171). JSONC is sent as plain JSON. */
 export function inferDocSchema(kind: 'json-sample' | 'json-schema', content: string, fileName?: string, files?: { name: string; content: string }[]): Promise<InferResult> {
-  return call(api.POST('/api/v1/doc-schemas/infer', { body: { kind, content, ...(fileName ? { fileName } : {}), ...(files?.length ? { files } : {}) } }))
+  return call(api.POST('/api/v1/doc-schemas/infer', { body: { kind, content: stripJsonc(content), ...(fileName ? { fileName } : {}), ...(files?.length ? { files: files.map((f) => ({ ...f, content: stripJsonc(f.content) })) } : {}) } }))
 }
 
 export function inferFromCollection(connId: string, target: MappingTarget): Promise<InferResult> {

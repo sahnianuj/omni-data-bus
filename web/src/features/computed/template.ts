@@ -85,3 +85,44 @@ export function resolve(from: DocField, segs: Seg[]): DocField | undefined {
   }
   return cur
 }
+
+/**
+ * A template written like code, "paid_in_out::" + ${doc.id}, as the template it means:
+ * paid_in_out::${doc.id}. The text is the value as written, so quotes and + would end up in it.
+ * null when the text isn't quoted parts joined with +.
+ */
+export function asTemplate(text: string): string | null {
+  const parts: string[] = []
+  let start = 0
+  let quote = ''
+  let inRef = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!
+    if (inRef) inRef = c !== '}'
+    else if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = ''
+    } else if (c === '"' || c === "'") quote = c
+    else if (text.startsWith('${', i)) inRef = true
+    else if (c === '+') {
+      parts.push(text.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(text.slice(start))
+  if (parts.length < 2) return null
+  let quoted = false
+  const out: string[] = []
+  for (const raw of parts.map((p) => p.trim())) {
+    if (/^"(?:[^"\\]|\\.)*"$/.test(raw)) {
+      out.push(JSON.parse(raw) as string)
+      quoted = true
+    } else if (/^'[^']*'$/.test(raw)) {
+      out.push(raw.slice(1, -1))
+      quoted = true
+    } else if (/^\$\{[^}]*\}$/.test(raw)) out.push(raw)
+    else if (ROOT.test(raw) && !parseTemplate('${' + raw + '}').error) out.push('${' + raw + '}')
+    else return null
+  }
+  return quoted ? out.join('') : null
+}

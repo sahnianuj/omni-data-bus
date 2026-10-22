@@ -7,10 +7,11 @@ import { fieldScopes } from '@/features/mapping/embeds'
 import { setComputed } from '@/features/mapping/mappingOps'
 import { useWorkbench } from '@/features/mapping/store'
 import type { ComputedRule, MappingPreview } from '@/features/mapping/types'
+import { ApiError } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import { completionsAt, type Completion } from './completions'
 import { usesAndUsedBy } from './refs'
-import { parseTemplate } from './template'
+import { asTemplate, parseTemplate } from './template'
 
 const SAMPLES = 20
 const LIVE_DEBOUNCE_MS = 300
@@ -100,6 +101,8 @@ export function ComputedEditor({ fieldId }: { fieldId: string }) {
 
   // The value for the sample documents, with the text as typed.
   const [preview, setPreview] = useState<MappingPreview | null>(null)
+  // Why the preview couldn't run, when the server names this field (a cycle, a type it can't fill).
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [index, setIndex] = useState(0)
   const override = useMemo(() => (rule ? setComputed(spec, fieldId, { ...rule, expr: text }) : spec), [spec, fieldId, rule, text])
   useEffect(() => {
@@ -107,19 +110,29 @@ export function ComputedEditor({ fieldId }: { fieldId: string }) {
     let current = true
     const timer = setTimeout(() => {
       previewMapping(view.projectId, view.id, { limit: SAMPLES, specOverride: override })
-        .then((r) => current && setPreview(r))
-        .catch(() => current && setPreview(null))
+        .then((r) => {
+          if (!current) return
+          setPreview(r)
+          setPreviewError(null)
+        })
+        .catch((e: unknown) => {
+          if (!current) return
+          setPreview(null)
+          setPreviewError((e instanceof ApiError ? e.fieldErrors.find((f) => f.field === path)?.message : undefined) ?? null)
+        })
     }, LIVE_DEBOUNCE_MS)
     return () => {
       current = false
       clearTimeout(timer)
     }
-  }, [override, view.projectId, view.id, rule, syntax])
+  }, [override, view.projectId, view.id, rule, syntax, path])
   const items = preview?.items ?? []
   const item = items[Math.min(index, Math.max(items.length - 1, 0))]
   const values = item?.document ? valuesAt(item.document, path) : []
   const rowError = item?.error && item.error.fieldPath === path ? item.error : undefined
 
+  // Written like code ("text" + ${doc.id}): the quotes and + would be in the value.
+  const meant = asTemplate(text)
   const links = usesAndUsedBy(spec, fieldId)
   const names = pathsById(spec.docSchema)
   if (!rule) return null
@@ -168,8 +181,18 @@ export function ComputedEditor({ fieldId }: { fieldId: string }) {
           </ul>
         ) : null}
       </div>
+      {meant ? (
+        <p className="flex flex-wrap items-center gap-x-1 text-xs text-warning">
+          {t('computed.codeStyle')}
+          <button type="button" onClick={() => setText(meant)} className="font-mono text-primary-soft-foreground hover:underline">
+            {t('computed.useMeant', { template: meant })}
+          </button>
+        </p>
+      ) : null}
       {syntax ? (
         <p role="alert" className="text-xs text-danger">{syntax.message}</p>
+      ) : previewError && !serverIssues.some((i) => previewError.endsWith(i.message)) ? (
+        <p role="alert" className="text-xs text-danger">{previewError}</p>
       ) : (
         serverIssues.map((i, n) => (
           <p key={n} role="alert" className="text-xs text-danger">

@@ -153,7 +153,7 @@ export function NewFromDesign({ project, mappings, onClose }: { project: Project
               <input
                 ref={fileRef}
                 type="file"
-                accept=".json,.ndjson,.jsonl,application/json"
+                accept=".json,.jsonc,.ndjson,.jsonl,application/json"
                 aria-label={t('composer.import.fileLabel')}
                 className="sr-only"
                 tabIndex={-1}

@@ -156,6 +156,16 @@ Set a variable for one shell with `export ODB_STATE_DIR=/data/state` (macOS, Lin
 
 If the source schema changed since the export, preflight stops with `SCHEMA_DRIFT` naming the columns; `--allow-drift` continues when every change is compatible.
 
+**When the source or target can't be reached**, preflight says so within about 5 seconds. It names the host and port, says what happened (the name doesn't resolve, the connection was refused, or there was no answer), and shows what to change under the line, with the `config.json` setting to check:
+
+```
+FAIL  Target repository reachable — No answer from cb.example.com:11210 within 5s.
+      → Check the host and port. If they're right, a firewall, security group or IP allow list is dropping the connection: allow this machine to reach that port. In config.json, check target.connectionString.
+SKIP  public.carts: target shop.oe.carts — Not checked: the target isn't reachable.
+```
+
+Checks that need the unreachable repository are shown as `SKIP`. `odb preflight --json` also gives the database driver's own message as `cause`.
+
 ## Importing the report
 
 On the Export page, choose **Import report** and select the run's `report.json` (in `odb-state`). It appears in the project's jobs as an **External** run with its counts, errors and verification. It's read-only, since it ran elsewhere.

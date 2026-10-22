@@ -165,6 +165,23 @@ describe('MappingCanvas', () => {
     expect(root().children![1]!.children!.map((f) => f.name)).toEqual(['first', 'last', 'newField'])
   })
 
+  it('the ✕ on a target field deletes it with its mappings; so does Delete', async () => {
+    const { store } = renderWorkbench(<MappingCanvas />)
+    const spec = () => store.getState().history.present
+    const names = () => spec().docSchema.root.children!.map((f) => f.name)
+    // A just-added field, still being named, has its ✕ right there.
+    await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete newField' }))
+    expect(names()).not.toContain('newField')
+    // A mapped object goes with what's mapped inside it.
+    await userEvent.click(screen.getByRole('button', { name: 'Delete name' }))
+    expect(names()).not.toContain('name')
+    expect(spec().fieldMappings.some((m) => m.id === 'm_first')).toBe(false)
+    await userEvent.click(screen.getByTestId('target-age'))
+    fireEvent.keyDown(screen.getByRole('application'), { key: 'Delete' })
+    expect(names()).not.toContain('age')
+  })
+
   it('OC-145: click, double-click or F2 renames a target field', async () => {
     const { store } = renderWorkbench(<MappingCanvas />)
     const names = () => store.getState().history.present.docSchema.root.children!.map((f) => f.name)

@@ -1688,6 +1688,8 @@ export interface components {
             detail?: string;
             hint?: string;
             code?: string;
+            /** @description The driver's own message behind a plain detail (OC-190). */
+            cause?: string;
         };
         TestResult: {
             ok: boolean;
@@ -3007,6 +3009,8 @@ export interface components {
             hint?: string;
             code?: string;
             mappingId?: string;
+            /** @description The driver's own message behind a plain detail (OC-190). */
+            cause?: string;
         };
         PlannedMapping: {
             mappingId: string;

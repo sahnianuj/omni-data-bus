@@ -195,9 +195,9 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	switch sub {
 	case "preflight":
 		rep, code := headless.Preflight(ctx, cfg)
-		printPreflight(stdout, rep, *asJSON)
+		printPreflight(stdout, rep, *asJSON, runConfig != nil)
 		if rep.Error != nil {
-			printConfigError(stderr, rep.Error)
+			printConfigError(stderr, withConfigField(rep.Error, runConfig != nil))
 		}
 		if code != exitOK && hint != "" {
 			fmt.Fprintln(stderr, "hint: "+hint)
@@ -228,7 +228,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	}
 	_, code, err := headless.Run(ctx, cfg)
 	if err != nil {
-		ce := asConfig(err)
+		ce := withConfigField(asConfig(err), runConfig != nil)
 		printConfigError(stderr, ce)
 		c := code
 		done := headless.Event{TS: time.Now().UTC(), Event: headless.EventDone, Status: "failed", ExitCode: &c, Message: ce.Code + ": " + ce.Message}
@@ -313,9 +313,55 @@ func printConfigError(w io.Writer, ce *headless.ConfigError) {
 	for _, d := range ce.Details {
 		fmt.Fprintf(w, "  - %s\n", d)
 	}
+	if ce.Hint != "" {
+		fmt.Fprintf(w, "  → %s\n", ce.Hint)
+	}
 }
 
-func printPreflight(w io.Writer, rep headless.PreflightReport, asJSON bool) {
+// withConfigField adds the config.json settings to check to a connection error's hint.
+func withConfigField(ce *headless.ConfigError, haveConfig bool) *headless.ConfigError {
+	if f := configField(ce.Code); haveConfig && f != "" {
+		c := *ce
+		c.Hint = strings.TrimSpace(c.Hint + " In config.json, check " + f + ".")
+		return &c
+	}
+	return ce
+}
+
+// configField names the config.json settings behind a failed connection, by its problem code
+// (SOURCE_DNS, TARGET_TIMEOUT, …), so the hint says where to make the fix (OC-190).
+func configField(code string) string {
+	role, kind, ok := strings.Cut(code, "_")
+	if !ok || (role != "SOURCE" && role != "TARGET") {
+		return ""
+	}
+	r := strings.ToLower(role)
+	switch kind {
+	case "DNS", "UNREACHABLE", "TIMEOUT":
+		if role == "TARGET" {
+			return "target.connectionString"
+		}
+		if kind == "DNS" {
+			return "source.host"
+		}
+		return "source.host and source.port"
+	case "AUTH_FAILED":
+		return r + ".username and " + r + ".password"
+	case "DB_NOT_FOUND":
+		return "source.database"
+	case "TLS":
+		if role == "TARGET" {
+			return "target.connectionString and target.caCertPem"
+		}
+		return "source.sslMode and source.caCertPem"
+	}
+	return ""
+}
+
+// checkMarks are the five-letter status column of odb preflight.
+var checkMarks = map[string]string{"ok": "OK", "warn": "WARN", "fail": "FAIL", "skipped": "SKIP"}
+
+func printPreflight(w io.Writer, rep headless.PreflightReport, asJSON, haveConfig bool) {
 	if asJSON {
 		_ = json.NewEncoder(w).Encode(rep)
 		return
@@ -324,11 +370,25 @@ func printPreflight(w io.Writer, rep headless.PreflightReport, asJSON bool) {
 		fmt.Fprintf(w, "WARN  schema drift: %s\n", d.String())
 	}
 	for _, c := range rep.Checks {
-		fmt.Fprintf(w, "%-5s %s", strings.ToUpper(c.Status), c.Label)
+		mark, ok := checkMarks[c.Status]
+		if !ok {
+			mark = strings.ToUpper(c.Status)
+		}
+		fmt.Fprintf(w, "%-5s %s", mark, c.Label)
 		if c.Detail != "" {
 			fmt.Fprintf(w, " — %s", c.Detail)
 		}
 		fmt.Fprintln(w)
+		// What to do, under the line it's about (OC-190).
+		if c.Status == "fail" || c.Status == "warn" {
+			hint := c.Hint
+			if f := configField(c.Code); haveConfig && f != "" && c.Status == "fail" {
+				hint = strings.TrimSpace(hint + " In config.json, check " + f + ".")
+			}
+			if hint != "" {
+				fmt.Fprintf(w, "      → %s\n", hint)
+			}
+		}
 	}
 	if rep.Error == nil {
 		verdict := "ready to run"

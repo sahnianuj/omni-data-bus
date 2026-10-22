@@ -249,6 +249,36 @@ func TestComposed_AC6_CrossScopeExpression(t *testing.T) {
 	require.Contains(t, issues[0].Message, `did you mean "order_no"?`)
 }
 
+// Text joined to a number with + compiles in expr and fails on every row; it's reported at
+// compile time with the concat that works.
+func TestComposed_ExpressionTextPlus(t *testing.T) {
+	issuesFor := func(e string) []mapping.Issue {
+		spec := composedSpec()
+		m := active("m_x", "f_no")
+		m.Transforms = []mapping.Step{{Op: "expression", Args: map[string]any{"expr": e}}}
+		spec.FieldMappings[0] = m
+		orders, rel := composedTables()
+		_, issues := Compile(spec, orders, Options{Related: rel})
+		return issues
+	}
+	for _, c := range []struct {
+		expr, want string
+		column     int
+	}{
+		{`"paid_in_out::" + $root.order_id`, `+ joins text only with text, and $root.order_id is an integer; use concat("paid_in_out::", $root.order_id) to join them`, 19},
+		{`"SO-" + order_id + "/" + customer_id`, `use concat("SO-", order_id, "/", customer_id)`, 9},
+		{`"SO-" + order_no`, `+ can't join text with the column order_no; use concat("SO-", order_no)`, 9},
+	} {
+		issues := issuesFor(c.expr)
+		require.Len(t, issues, 1, c.expr)
+		require.Contains(t, issues[0].Message, c.want, c.expr)
+		require.Equal(t, c.column, issues[0].Column, c.expr)
+	}
+	for _, ok := range []string{`concat("paid_in_out::", $root.order_id)`, `$root.order_id + 1`, `upper(order_no) + "-x"`} {
+		require.Empty(t, issuesFor(ok), ok)
+	}
+}
+
 func TestComposed_ExpressionNames(t *testing.T) {
 	spec := composedSpec()
 	orders, rel := composedTables()

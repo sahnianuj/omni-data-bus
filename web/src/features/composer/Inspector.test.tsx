@@ -1,9 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { composedView, mockComposer, ordersColumns } from '@/test/composer'
 import { renderWorkbench } from '@/test/mapping'
-import { setupMswServer } from '@/test/msw'
+import { server, setupMswServer } from '@/test/msw'
+import { pathsById } from '@/features/docschema/docschemaOps'
 import { mockSession } from '@/test/session'
 import { ComposerInspector } from './ComposerInspector'
 
@@ -55,6 +57,29 @@ describe('ComposerInspector', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Use expression' }))
     const m = store.getState().history.present.fieldMappings.find((x) => x.targetFieldId === 'f_line' && x.state === 'active')!
     expect(m.transforms).toEqual([{ op: 'expression', args: { expr: '$root.order_no' } }])
+  })
+
+  it('checks an expression as it is typed: the server says why, Use expression waits for a fix', async () => {
+    const { store } = renderWorkbench(<ComposerInspector focusSource={0} onBindTable={() => {}} />, composedView(), ordersColumns())
+    const path = pathsById(store.getState().history.present.docSchema).get('f_line')!
+    // The server's compiler, as preview reports it: a 422 naming the field, or the documents.
+    server.use(
+      http.post('*/api/v1/projects/:pid/mappings/:mid/preview', async ({ request }) => {
+        const body = (await request.json()) as { specOverride: { fieldMappings: { targetFieldId: string; transforms: { args?: { expr?: string } }[] }[] } }
+        const expr = body.specOverride.fieldMappings.find((m) => m.targetFieldId === 'f_line')?.transforms[0]?.args?.expr ?? ''
+        if (expr.includes('$doc')) return HttpResponse.json({ status: 422, code: 'MAPPING_INVALID', title: 'Invalid mapping', fieldErrors: [{ field: path, message: 'expression: unknown name $doc' }] }, { status: 422 })
+        return HttpResponse.json({ writeMode: 'upsert', items: [{ sourceRow: {}, sizeBytes: 10, warnings: [], error: null, document: { items: [{ lineNo: 'paid_in_out::1001' }] } }] })
+      }),
+    )
+    store.getState().select({ kind: 'field', id: 'f_line' })
+    const box = await screen.findByRole('textbox', { name: 'Expression' })
+    await userEvent.type(box, '"paid_in_out::" + $doc.id')
+    expect(await screen.findByRole('alert')).toHaveTextContent("unknown name $doc; the document's own row is $root")
+    expect(screen.getByRole('button', { name: 'Use expression' })).toBeDisabled()
+    await userEvent.clear(box)
+    await userEvent.type(box, 'concat("paid_in_out::", $root.order_id)')
+    expect(await screen.findByLabelText('Value for the first sample document')).toHaveTextContent('→ "paid_in_out::1001"')
+    expect(screen.getByRole('button', { name: 'Use expression' })).toBeEnabled()
   })
 
   it('OC-178 AC3: a field nothing fills can be marked not populated', async () => {

@@ -575,6 +575,30 @@ func TestValidate_OC179_NowFormatType(t *testing.T) {
 	require.Equal(t, "the current date and time (when each document is written, yyyy-MM-dd, UTC)", DescribeNow(map[string]any{"at": "write", "format": "custom", "pattern": "yyyy-MM-dd", "timezone": "UTC"}))
 }
 
+// OC-192: a template with words in it can't fill a number field; digits around a value can.
+func TestValidate_OC192_TemplateTextIntoNumber(t *testing.T) {
+	issues := func(fieldID, expr string) []Issue {
+		s := baseSpec()
+		s.FieldMappings = append(s.FieldMappings, FieldMapping{ID: "m_t", TargetFieldID: fieldID, Sources: []SourceRef{}, Transforms: []Step{}, Computed: &Computed{Lang: ComputedTemplate, Expr: expr}, Origin: OriginManual, State: StateActive})
+		var out []Issue
+		for _, is := range Validate(&s, Context{Table: custTable()}) {
+			if is.Code == CodeComputedTextType {
+				out = append(out, is)
+			}
+		}
+		return out
+	}
+	// f_age is an integer; f_desc a string.
+	got := issues("f_age", "paid_in_out::${row.id}")
+	require.Len(t, got, 1)
+	require.Equal(t, `The template's text "paid_in_out::" can't become integer, so every document would fail. Make age a string field.`, got[0].Message)
+	require.Len(t, issues("f_age", "${row.id} years"), 1, "text after the value")
+	require.Len(t, issues("f_age", `\${row.id}`), 1, "an escaped ${ is text")
+	require.Empty(t, issues("f_age", "${row.id}"))
+	require.Empty(t, issues("f_age", "-${row.id}0"), "digits and signs can still be a number")
+	require.Empty(t, issues("f_desc", "paid_in_out::${row.id}"))
+}
+
 // OC-179 AC4: the coverage sheet names the clock as the field's source.
 func TestSheet_OC179_Now(t *testing.T) {
 	s := baseSpec()

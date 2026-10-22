@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -450,3 +451,67 @@ func TestRoleSummary(t *testing.T) {
 	}
 	require.Contains(t, roleSummary(many), "+2 more")
 }
+
+// --- OC-190: an unreachable cluster is reported within ReachTimeout, in plain words ---
+
+type waitRecorder struct {
+	*fakeCluster
+	timeout time.Duration
+}
+
+func (w *waitRecorder) WaitReady(_ context.Context, d time.Duration) error {
+	w.timeout = d
+	return w.readyErr
+}
+
+func TestCouchbaseTest_OC190_AC1_UnreachableFast(t *testing.T) {
+	c := testWith(nil, nil)
+	c.connect = func(string, gocb.ClusterOptions) (cluster, error) {
+		panic("the SDK must not be called for an unreachable cluster")
+	}
+	var dialed []string
+	var mu sync.Mutex
+	c.dial = func(_ context.Context, _, addr string) (net.Conn, error) {
+		mu.Lock()
+		dialed = append(dialed, addr)
+		mu.Unlock()
+		return nil, context.DeadlineExceeded
+	}
+	res := c.Test(context.Background(), cfgJSON(nil), connectors.Credentials{})
+	require.False(t, res.OK)
+	require.Equal(t, map[string]connectors.StepStatus{"parse": "ok", "bootstrap": "fail", "services": "skipped", "version": "skipped", "permissions": "skipped"}, steps(res))
+	b := res.Steps[1]
+	require.Equal(t, "TARGET_TIMEOUT", b.Code)
+	require.Equal(t, "No answer from cb1.example.com:11210 within 5s.", b.Detail)
+	require.Contains(t, b.Hint, "firewall")
+	require.ElementsMatch(t, []string{"cb1.example.com:11210", "cb2.example.com:11210"}, dialed, "every bootstrap host, on the default KV port")
+
+	// Capella: the SRV record's nodes are probed, and the hint names the allowed IPs.
+	c.probe = authProber{lookupSRV: func(context.Context, string, string, string) (string, []*net.SRV, error) {
+		return "", []*net.SRV{{Target: "svc-node-1.cb.x.cloud.couchbase.com.", Port: 11207}}, nil
+	}}
+	dialed = nil
+	res = c.Test(context.Background(), cfgJSON(map[string]any{"deployment": "capella", "connectionString": "couchbases://cb.x.cloud.couchbase.com"}), connectors.Credentials{})
+	require.Equal(t, []string{"svc-node-1.cb.x.cloud.couchbase.com:11207"}, dialed)
+	require.Contains(t, res.Steps[1].Hint, "Allowed IP addresses")
+}
+
+func TestCouchbaseTest_OC190_AC5_TestCapsBootstrapOnly(t *testing.T) {
+	w := &waitRecorder{fakeCluster: healthy()}
+	c := testWith(nil, nil)
+	c.connect = func(string, gocb.ClusterOptions) (cluster, error) { return w, nil }
+	c.dial = func(context.Context, string, string) (net.Conn, error) { return nopConn{}, nil }
+	res := c.Test(context.Background(), cfgJSON(map[string]any{"connectTimeoutMs": 20000}), connectors.Credentials{})
+	require.True(t, res.OK, "%+v", res.Steps)
+	require.Equal(t, connectors.ReachTimeout, w.timeout, "the test waits at most ReachTimeout")
+
+	// A bootstrap failure after the network is fine: plain detail, the SDK's text kept as the cause.
+	w.readyErr = gocb.ErrUnambiguousTimeout
+	res = c.Test(context.Background(), cfgJSON(nil), connectors.Credentials{})
+	require.Equal(t, "Couchbase at cb1.example.com didn't finish connecting within 5s.", res.Steps[1].Detail)
+	require.Contains(t, res.Steps[1].Cause, "unambiguous timeout")
+}
+
+type nopConn struct{ net.Conn }
+
+func (nopConn) Close() error { return nil }

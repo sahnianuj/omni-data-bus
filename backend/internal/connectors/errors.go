@@ -62,8 +62,17 @@ func (e *ConnError) Code() string {
 	return strings.ToUpper(string(e.Role)) + "_" + kindInfo[e.Kind].code
 }
 
-// Hint is a user-facing suggestion.
-func (e *ConnError) Hint() string { return kindInfo[e.Kind].hint }
+// Hint is a user-facing suggestion: the reachability probe's when it found the cause (OC-190).
+func (e *ConnError) Hint() string {
+	var re *ReachError
+	if errors.As(e.Cause, &re) {
+		return re.Hint()
+	}
+	return kindInfo[e.Kind].hint
+}
+
+// Title is the kind in a few words, e.g. "Authentication failed".
+func (e *ConnError) Title() string { return kindInfo[e.Kind].title }
 
 // Problem implements problem.Problemer.
 func (e *ConnError) Problem() problem.Problem {
@@ -94,9 +103,12 @@ func kindOf(err error) Kind {
 	var hostErr x509.HostnameError
 	var certInvalid x509.CertificateInvalidError
 	var st sqlStater
+	var re *ReachError
 	switch {
 	case netguard.IsDenied(err):
 		return KindEgressDenied
+	case errors.As(err, &re):
+		return re.kind()
 	case errors.Is(err, context.DeadlineExceeded):
 		return KindTimeout
 	case errors.As(err, &dnsErr):

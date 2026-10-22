@@ -383,7 +383,12 @@ func compileComputed(spec *mapping.Spec, t *schema.Table, opts Options) ([]*comp
 				continue
 			}
 			if target.ID == f.ID {
-				issue(path, f.ID, m.ID, CodeComputedCycle, path+" reads itself.", r.line, r.column)
+				msg := path + " reads itself."
+				// A field named like a column usually means the column: the document's id from the row's id.
+				if scopes[f.ID] == "" && cols[target.Name] {
+					msg += " To read the source row's " + target.Name + " column, write ${row." + target.Name + "}."
+				}
+				issue(path, f.ID, m.ID, CodeComputedCycle, msg, r.line, r.column)
 				ok = false
 				continue
 			}

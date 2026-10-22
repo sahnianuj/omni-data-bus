@@ -37,6 +37,10 @@
   - as epoch ms or seconds, ISO 8601, a date or a pattern, or the same format as the document's other dates.
 
   A format that doesn't suit the field is flagged, with a fix.
+- **Expressions are checked as you type** (OC-191). The composer's Expression box shows the value for a sample document, or why the expression won't work and what to write instead; **Use expression** waits for a fix.
+  - Text joined to a number with `+` (`"paid_in_out::" + $root.order_id`) is reported when the mapping is checked, with the `concat(…)` that works, instead of failing on every row at Preview.
+  - `$doc` points to `$root`, and functions from other languages (`string(…)`) list the ones that exist.
+- **Templates say what's wrong while you write them** (OC-192). A template written like code (`"paid_in_out::" + ${doc.id}`) is offered as the one it means (`paid_in_out::${doc.id}`); when the preview can't run, the editor shows why; a field that reads itself is told to use `${row.…}`; and a template with words in it on a number field is flagged instead of failing every document.
 - **Run an export with the `odb` command alone, on macOS, Windows or Linux** (OC-180–OC-186).
   - An export is now `config.json`, `mappings.json` and `README.md`, with no script and nothing OS-specific: test it on your laptop, then copy the same folder to the server.
   - In the folder, `odb preflight`, `odb run`, `odb resume`, `odb status`, `odb verify` and `odb inspect` find their files themselves, keep the exit codes, and print readable progress on a terminal (JSON lines when piped).
@@ -55,6 +59,7 @@
 
 - **Exports no longer include `migrate.sh`** (OC-182). The export dialog's odb checkbox is unchecked by default, and a server without release downloads no longer adds its own odb to every export.
 - **Directory-target folder names** that Windows can't create (`con`, `aux.json`, a trailing `.`) are refused on every OS, so an export runs the same everywhere (OC-186).
+- **A source or target that can't be reached is reported within about 5 seconds** (it used to take 10–20), in a plain sentence that names the host and port. The line under it says what to change and which `config.json` setting to check. Checks that need that repository show as `SKIP`, and an unreachable target no longer also shows "can't write documents" (OC-190).
 
 - Discovery reports each table's CHECK constraints and exclusive arcs.
 - A field can be marked **not populated**: nothing is written for it, it counts as done, and an object whose every field is not populated is written as `null`.

@@ -1,8 +1,10 @@
+import { stripJsonc } from './stripJsonc'
+
 export type Sniff = { kind: 'json-schema' | 'json-sample'; error?: undefined } | { kind?: undefined; error: string }
 
-/** Classifies dropped JSON: a JSON Schema (has $schema, or type + properties) or sample documents. */
+/** Classifies dropped JSON (or JSONC): a JSON Schema (has $schema, or type + properties) or sample documents. */
 export function sniffJson(text: string): Sniff {
-  const trimmed = text.trim()
+  const trimmed = stripJsonc(text).trim()
   if (!trimmed) return { error: 'The file is empty.' }
   let value: unknown
   try {

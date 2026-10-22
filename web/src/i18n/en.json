@@ -722,6 +722,7 @@
     "requiredMark": "*",
     "dropToCreate": "Drop a column here to create a field",
     "incompatible": "Can't map {{from}} to {{to}}",
+    "deleteField": "Delete {{name}}",
     "lossyToast": "Added a {{op}} step; check the converted values.",
     "bundle_one": "{{count}} mapping",
     "bundle_other": "{{count}} mappings",
@@ -1729,6 +1730,8 @@
     "exprPlaceholder": "concat($root.order_no, \"-\", line_no)",
     "exprNames": "Names in scope",
     "setExpression": "Use expression",
+    "exprChecking": "Checking…",
+    "exprSample": "Value for the first sample document",
     "unmap": "Unmap",
     "outOfScope": "That column isn't in this field's scope: bind its table on the path to the field, or add a lookup.",
     "driving": "Driving table",
@@ -2130,7 +2133,9 @@
     "badge": "Computed: {{expr}}",
     "fx": "ƒx",
     "uses": "Uses:",
-    "usedBy": "Used by:"
+    "usedBy": "Used by:",
+    "codeStyle": "A template is the value as written, so the quotes and + would be in it.",
+    "useMeant": "Use {{template}}"
   },
   "newFromDesign": {
     "open": "New mapping from a design…",

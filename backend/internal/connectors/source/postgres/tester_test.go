@@ -144,3 +144,23 @@ func TestConnector_Descriptor(t *testing.T) {
 	require.Equal(t, "shop@db.example.com", name)
 	require.Contains(t, string(norm), `"sslMode":"require"`)
 }
+
+func TestPostgresTest_OC190_AC2_Refused(t *testing.T) {
+	c := testConnector(&fakeSession{}, nil)
+	c.dialTCP = func(context.Context, string) (net.Conn, error) {
+		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}
+	}
+	res := c.Test(context.Background(), cfgJSON(nil), creds)
+	step := res.Steps[1]
+	require.Equal(t, "SOURCE_UNREACHABLE", step.Code)
+	require.Contains(t, step.Detail, "refused the connection on port 5432: nothing is listening there.")
+	require.Contains(t, step.Hint, "Check the port")
+	require.Contains(t, step.Cause, "connection refused", "the driver's text is kept")
+
+	c = testConnector(&fakeSession{}, nil)
+	c.lookupHost = func(context.Context, string) ([]string, error) {
+		return nil, &net.DNSError{Err: "no such host", Name: "db.example.com", IsNotFound: true}
+	}
+	res = c.Test(context.Background(), cfgJSON(nil), creds)
+	require.Equal(t, "The host name db.example.com doesn't resolve.", res.Steps[0].Detail)
+}

@@ -152,6 +152,10 @@ RELEASES = {
              ["OC-180", "OC-181", "OC-182", "OC-185", "OC-186", "OC-183", "OC-184", "OC-188"]),
             ("Phase 8 — Open source (Apache-2.0)", "LICENSE, NOTICE and SPDX headers; third-party notices and a license gate in CI; every artifact (image, odb archives, exports with odb, the app's About) carries the licenses; the all-in-one image labeled honestly; a clean history before publishing",
              ["OC-189"]),
+            ("Phase 9 — Operator polish", "A source or target odb can't reach is reported within 5 seconds, in one plain sentence naming the host and port, with what to change in config.json; no misleading follow-on failures",
+             ["OC-190"]),
+            ("Phase 10 — Mapping assistance", "Expressions and templates are checked as they're written: the server says why one won't work and what to write instead (concat for expressions, the template a code-style one means, ${row.…} for a field that reads itself), the sample's value shows, and Use expression waits for a fix",
+             ["OC-191", "OC-192"]),
         ],
         "checklist": [
             "All P0 stories are Implemented (and P1 stories are Implemented or explicitly descoped with sign-off)",

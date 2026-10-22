@@ -3,6 +3,7 @@ package transform
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/expr-lang/expr/ast"
 	exprparser "github.com/expr-lang/expr/parser"
@@ -25,6 +26,7 @@ const (
 // scope are remembered to report SOURCE_OUT_OF_SCOPE rather than "unknown name".
 type exprScope struct {
 	current  []string
+	table    *schema.Table // the row's own table, for the types of bare columns
 	root     *schema.Table
 	parent   *schema.Table
 	parUp    int
@@ -44,7 +46,7 @@ type exprAlias struct {
 
 // newExprScope lists the names available to expressions in a (sub-)program's scope.
 func newExprScope(sc *compileScope, related map[string]*schema.Table, columns []string) *exprScope {
-	es := &exprScope{current: columns, aliases: map[string]exprAlias{}, outside: map[string]string{}, reserved: map[string]bool{"value": true, "row": true}}
+	es := &exprScope{current: columns, table: sc.table, aliases: map[string]exprAlias{}, outside: map[string]string{}, reserved: map[string]bool{"value": true, "row": true}}
 	for _, h := range ExprHelpers {
 		es.reserved[h] = true
 	}
@@ -164,8 +166,148 @@ func (es *exprScope) check(src string, names map[string]int) *ExprError {
 	if err == nil {
 		v := &memberRefs{es: es, report: report}
 		ast.Walk(&tree.Node, v)
+		tp := &textPlus{es: es}
+		ast.Walk(&tree.Node, tp)
+		tp.check(report)
 	}
 	return first
+}
+
+// textPlus reports + joining text with a column that isn't text ("paid::" + $root.id): expr
+// compiles it, as the column's type is only known per row, and every row then fails with
+// "invalid operation: string + int64". The message gives the concat that works.
+type textPlus struct {
+	es    *exprScope
+	plus  []*ast.BinaryNode
+	inner map[*ast.BinaryNode]bool // a + operand of another +: part of that chain
+}
+
+// Visit collects the + nodes; Walk visits children first, so chains are checked from their top after.
+func (v *textPlus) Visit(node *ast.Node) {
+	b, ok := (*node).(*ast.BinaryNode)
+	if !ok || b.Operator != "+" {
+		return
+	}
+	if v.inner == nil {
+		v.inner = map[*ast.BinaryNode]bool{}
+	}
+	for _, n := range []ast.Node{b.Left, b.Right} {
+		if x, ok := n.(*ast.BinaryNode); ok && x.Operator == "+" {
+			v.inner[x] = true
+		}
+	}
+	v.plus = append(v.plus, b)
+}
+
+func (v *textPlus) check(report func(at int, code, msg string)) {
+	for _, b := range v.plus {
+		if !v.inner[b] {
+			v.chain(b, report)
+		}
+	}
+}
+
+// chain reports a + chain (a + b + c) that joins text with a column that isn't text.
+func (v *textPlus) chain(b *ast.BinaryNode, report func(at int, code, msg string)) {
+	var ops []ast.Node
+	var flatten func(n ast.Node)
+	flatten = func(n ast.Node) {
+		if x, ok := n.(*ast.BinaryNode); ok && x.Operator == "+" {
+			flatten(x.Left)
+			flatten(x.Right)
+			return
+		}
+		ops = append(ops, n)
+	}
+	flatten(b)
+	text, other := false, ast.Node(nil)
+	otherType := ""
+	for _, n := range ops {
+		t := v.es.typeOf(n)
+		// A bare column has no type until the row is read, so expr can't + it to text at all.
+		_, bare := n.(*ast.IdentifierNode)
+		switch {
+		case t == schema.TypeString && !bare:
+			text = true
+		case t == "" || t == schema.TypeAny:
+		case other == nil:
+			other, otherType = n, t
+		}
+	}
+	if !text || other == nil {
+		return
+	}
+	args := make([]string, len(ops))
+	for i, n := range ops {
+		args[i] = n.String()
+	}
+	at := other.Location().From
+	if m, ok := other.(*ast.MemberNode); ok {
+		at = m.Node.Location().From // $root.id is reported at $root, not at .id
+	}
+	why := fmt.Sprintf("+ joins text only with text, and %s is %s", other.String(), article(otherType))
+	if otherType == schema.TypeString {
+		why = fmt.Sprintf("+ can't join text with the column %s", other.String())
+	}
+	report(at, "", fmt.Sprintf("%s; use concat(%s) to join them", why, strings.Join(args, ", ")))
+}
+
+// typeOf is the JSON type of a literal or of a column read by name ("" when not known).
+func (es *exprScope) typeOf(n ast.Node) string {
+	switch x := n.(type) {
+	case *ast.StringNode:
+		return schema.TypeString
+	case *ast.IntegerNode:
+		return schema.TypeInteger
+	case *ast.FloatNode:
+		return schema.TypeNumber
+	case *ast.BoolNode:
+		return schema.TypeBoolean
+	case *ast.CallNode:
+		if id, ok := x.Callee.(*ast.IdentifierNode); ok {
+			switch id.Value {
+			case "concat", "upper", "lower", "trim", "now":
+				return schema.TypeString
+			}
+		}
+	case *ast.IdentifierNode:
+		if es.table != nil && es.reserved[x.Value] {
+			return columnType(es.table, x.Value)
+		}
+	case *ast.MemberNode:
+		id, ok := x.Node.(*ast.IdentifierNode)
+		prop, ok2 := x.Property.(*ast.StringNode)
+		if !ok || !ok2 {
+			return ""
+		}
+		switch id.Value {
+		case exprRoot:
+			return columnType(es.root, prop.Value)
+		case exprParent:
+			return columnType(es.parent, prop.Value)
+		}
+		if a, ok := es.aliases[id.Value]; ok {
+			return columnType(a.table, prop.Value)
+		}
+	}
+	return ""
+}
+
+func columnType(t *schema.Table, name string) string {
+	if t == nil {
+		return ""
+	}
+	if i := columnIndex(t, name); i >= 0 {
+		return t.Columns[i].JSONType
+	}
+	return ""
+}
+
+func article(jsonType string) string {
+	if jsonType == schema.TypeInteger {
+		return "an integer"
+	}
+	return "a " + jsonType
 }
 
 type memberRefs struct {

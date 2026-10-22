@@ -571,7 +571,7 @@ export function DocDesigner({ projectId, targetConnId, header }: { projectId: st
           />
           <input
             type="file"
-            accept=".json,.ndjson,application/json"
+            accept=".json,.jsonc,.ndjson,application/json"
             aria-label={t('designer.chooseFile')}
             onChange={(e) => void e.target.files?.[0]?.text().then(setImportText)}
             className="text-xs"

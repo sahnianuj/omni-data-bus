@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sort"
@@ -68,6 +69,10 @@ func (p *Connector) Open(ctx context.Context, cfg json.RawMessage, creds connect
 	if err != nil {
 		return nil, err
 	}
+	return p.open(ctx, c, creds)
+}
+
+func (p *Connector) open(ctx context.Context, c Config, creds connectors.Credentials) (source.Session, error) {
 	cc, err := buildConnConfig(c, creds)
 	if err != nil {
 		return nil, err
@@ -87,6 +92,8 @@ func (p *Connector) Test(ctx context.Context, cfg json.RawMessage, creds connect
 		r.Run("config", "Check configuration", func() connectors.TestStep { return failStep(err) })
 		return r.Result()
 	}
+	// The test decides within ReachTimeout (OC-190); a run keeps the configured connect timeout.
+	c.ConnectTimeoutSec = min(c.ConnectTimeoutSec, int(connectors.ReachTimeout/time.Second))
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(c.ConnectTimeoutSec+5)*time.Second)
 	defer cancel()
 
@@ -94,25 +101,26 @@ func (p *Connector) Test(ctx context.Context, cfg json.RawMessage, creds connect
 		if ip := net.ParseIP(strings.Trim(c.Host, "[]")); ip != nil {
 			return connectors.TestStep{Status: connectors.StepOK, Detail: ip.String()}
 		}
-		addrs, err := p.lookupHost(ctx, c.Host)
+		rctx, cancel := context.WithTimeout(ctx, connectors.ReachTimeout)
+		defer cancel()
+		addrs, err := p.lookupHost(rctx, c.Host)
 		if err != nil {
-			return failStep(connectors.Classify(connectors.RoleSource, err))
+			return failStep(connectors.Classify(connectors.RoleSource, connectors.NewReachError(address(c), err)))
 		}
 		return connectors.TestStep{Status: connectors.StepOK, Detail: strings.Join(addrs, ", ")}
 	})
 	r.Run("connect", openLabel(c), func() connectors.TestStep {
-		conn, err := p.dialTCP(ctx, address(c))
-		if err != nil {
+		dial := func(ctx context.Context, _, addr string) (net.Conn, error) { return p.dialTCP(ctx, addr) }
+		if err := connectors.Reach(ctx, dial, []string{address(c)}); err != nil {
 			return failStep(connectors.Classify(connectors.RoleSource, err))
 		}
-		_ = conn.Close()
 		return connectors.TestStep{Status: connectors.StepOK}
 	})
 
 	var sess source.Session
 	r.Run("auth", "Authenticate as "+c.Username, func() connectors.TestStep {
 		var err error
-		sess, err = p.Open(ctx, cfg, creds)
+		sess, err = p.open(ctx, c, creds)
 		if err != nil {
 			return failStep(err)
 		}
@@ -145,10 +153,27 @@ func openLabel(c Config) string {
 	return "Open TLS connection"
 }
 
+// failStep is a failed step in plain words: what happened in Detail, what to do in Hint, and
+// the driver's own message in Cause (OC-190).
 func failStep(err error) connectors.TestStep {
 	s := connectors.TestStep{Status: connectors.StepFail, Detail: err.Error()}
-	if ce, ok := err.(*connectors.ConnError); ok {
-		s.Code, s.Hint, s.Detail = ce.Code(), ce.Hint(), ce.Cause.Error()
+	ce, ok := err.(*connectors.ConnError)
+	if !ok {
+		return s
+	}
+	s.Code, s.Hint, s.Cause = ce.Code(), ce.Hint(), ce.Cause.Error()
+	var re *connectors.ReachError
+	switch {
+	case errors.As(ce.Cause, &re):
+		s.Detail, s.Cause = re.Message(), re.Cause.Error()
+	case ce.Kind == connectors.KindAuth:
+		s.Detail = "PostgreSQL rejected the username or password."
+	case ce.Kind == connectors.KindDatabaseNotFound:
+		s.Detail = "The database doesn't exist on this server."
+	case ce.Kind == connectors.KindTimeout:
+		s.Detail = "PostgreSQL didn't finish connecting within " + connectors.ReachTimeout.String() + "."
+	default:
+		s.Detail = ce.Title() + "."
 	}
 	return s
 }

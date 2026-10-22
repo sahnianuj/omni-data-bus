@@ -72,7 +72,7 @@ export function ImportDialog({ nodeId, initial, onClose, onPropose, proposeByDef
   }
   // Several files or a folder: the shallowest file is the document, the others its parts.
   const loadAll = async (list: FileList | File[]) => {
-    const files = [...list].filter((f) => /\.(json|ndjson|jsonl)$/i.test(f.name))
+    const files = [...list].filter((f) => /\.(json|jsonc|ndjson|jsonl)$/i.test(f.name))
     if (files.length <= 1) return files[0] ? load(files[0]) : undefined
     const named = await Promise.all(files.map(async (f) => ({ name: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, content: await f.text() })))
     const top = named.every((f) => f.name.includes('/')) ? named[0]!.name.split('/')[0] + '/' : ''
@@ -221,7 +221,7 @@ export function ImportDialog({ nodeId, initial, onClose, onPropose, proposeByDef
                 ref={fileRef}
                 type="file"
                 multiple
-                accept=".json,.ndjson,.jsonl,application/json"
+                accept=".json,.jsonc,.ndjson,.jsonl,application/json"
                 aria-label={t('composer.import.fileLabel')}
                 className="sr-only"
                 tabIndex={-1}

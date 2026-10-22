@@ -23,8 +23,8 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 
 | Metric | Stories | Story points |
 |---|---|---|
-| **Total** | **28** | **126** |
-| ✅ Implemented | 28 | 126 |
+| **Total** | **31** | **134** |
+| ✅ Implemented | 31 | 134 |
 | 🚧 In progress | 0 | 0 |
 | ⬜ Not started | 0 | 0 |
 | Not yet implemented (in progress + not started) | 0 | 0 |
@@ -35,17 +35,17 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | Priority | Meaning | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|---|
 | P0 | Must have — release blocker | 15 | 73 | 15 / 73 |
-| P1 | Should have — ships in 2.5 unless explicitly descoped | 13 | 53 | 13 / 53 |
+| P1 | Should have — ships in 2.5 unless explicitly descoped | 16 | 61 | 16 / 61 |
 
 ### By epic
 
 | Epic | Stories | Points | Implemented (stories / points) |
 |---|---|---|---|
-| E14 Design-first Mapping | 10 | 60 | 10 / 60 |
+| E14 Design-first Mapping | 12 | 65 | 12 / 65 |
 | E7 Foundations 2.5 | 1 | 2 | 1 / 2 |
 | E12 Harden & Ship 2.5 | 3 | 14 | 3 / 14 |
 | E15 Mapping Canvas | 7 | 19 | 7 / 19 |
-| E11 Portable Runner | 7 | 31 | 7 / 31 |
+| E11 Portable Runner | 8 | 34 | 8 / 34 |
 
 ## Stories by priority
 
@@ -69,7 +69,7 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 14 | ~~[OC-186](OC-186-odb-on-windows.md)~~ | ~~odb on Windows: the same commands as on macOS and Linux~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
 | 15 | ~~[OC-189](OC-189-apache-2-0-licensed-and-ready-to-distribute.md)~~ | ~~Apache-2.0: licensed, and ready to distribute~~ | ~~E12 Harden & Ship 2.5~~ | ~~8~~ | ✅ Implemented |
 
-### P1 — Should have — ships in 2.5 unless explicitly descoped (13 stories, 53 points)
+### P1 — Should have — ships in 2.5 unless explicitly descoped (16 stories, 61 points)
 
 | # | ID | Story | Epic | Points | Status |
 |---|---|---|---|---|---|
@@ -86,6 +86,9 @@ Architecture, domain model, conventions, NFRs and the global Definition of Done:
 | 11 | ~~[OC-183](OC-183-run-the-export-with-docker-in-one-command.md)~~ | ~~Run the export with Docker in one command~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
 | 12 | ~~[OC-187](OC-187-the-wheel-separates-filled-from-not-populated.md)~~ | ~~The wheel separates fields filled with data from fields left empty~~ | ~~E15 Mapping Canvas~~ | ~~3~~ | ✅ Implemented |
 | 13 | ~~[OC-188](OC-188-every-machines-odb-on-every-server.md)~~ | ~~Every machine's odb on every server~~ | ~~E11 Portable Runner~~ | ~~5~~ | ✅ Implemented |
+| 14 | ~~[OC-190](OC-190-odb-preflight-connection-failures-fast-and-plain.md)~~ | ~~Connection failures: decided in 5 seconds, explained in plain words~~ | ~~E11 Portable Runner~~ | ~~3~~ | ✅ Implemented |
+| 15 | ~~[OC-191](OC-191-expressions-checked-as-you-type.md)~~ | ~~Expressions: checked as you type, with the fix in the message~~ | ~~E14 Design-first Mapping~~ | ~~3~~ | ✅ Implemented |
+| 16 | ~~[OC-192](OC-192-templates-say-why-before-preview.md)~~ | ~~Templates: what's wrong shows while you write, not at Preview~~ | ~~E14 Design-first Mapping~~ | ~~2~~ | ✅ Implemented |
 
 ## Delivery phases
 
@@ -102,6 +105,8 @@ Stories are delivered in phases; each phase ends with something usable in the ap
 | Phase 6 — Canvas usability | ~~OC-174~~, ~~OC-175~~, ~~OC-176~~, ~~OC-177~~, ~~OC-178~~, ~~OC-179~~, ~~OC-187~~ | 19 | 7/7 (19 pts) | ✅ Done | Selecting either end of a mapping brings the other into view; the source side follows the document, object by object, so lines run straight; an issue names its field in green and a click reveals it; unused lookups are flagged and folded; the wheel shows how much of the document is done, filled apart from left empty; a field can take the current date and time |
 | Phase 7 — Run with odb alone | ~~OC-180~~, ~~OC-181~~, ~~OC-182~~, ~~OC-185~~, ~~OC-186~~, ~~OC-183~~, ~~OC-184~~, ~~OC-188~~ | 34 | 8/8 (34 pts) | ✅ Done | The export is config.json and mappings.json with no script and nothing OS-specific, run by the same `odb preflight`, `odb run`, `odb resume`, `odb status` on macOS, Windows and Linux; odb finds its files, reads well on a terminal and keeps the exit codes; signed binaries that open with no prompt (one for any Mac, one for Windows); Docker in one command; 2.0 exports still run; every server can add any machine's odb (fetched once, verified, cached) |
 | Phase 8 — Open source (Apache-2.0) | ~~OC-189~~ | 8 | 1/1 (8 pts) | ✅ Done | LICENSE, NOTICE and SPDX headers; third-party notices and a license gate in CI; every artifact (image, odb archives, exports with odb, the app's About) carries the licenses; the all-in-one image labeled honestly; a clean history before publishing |
+| Phase 9 — Operator polish | ~~OC-190~~ | 3 | 1/1 (3 pts) | ✅ Done | A source or target odb can't reach is reported within 5 seconds, in one plain sentence naming the host and port, with what to change in config.json; no misleading follow-on failures |
+| Phase 10 — Mapping assistance | ~~OC-191~~, ~~OC-192~~ | 5 | 2/2 (5 pts) | ✅ Done | Expressions and templates are checked as they're written: the server says why one won't work and what to write instead (concat for expressions, the template a code-style one means, ${row.…} for a field that reads itself), the sample's value shows, and Use expression waits for a fix |
 
 ## Stories by phase
 
@@ -197,6 +202,23 @@ _LICENSE, NOTICE and SPDX headers; third-party notices and a license gate in CI;
 | # | ID | Story | Priority | Epic | Points | Depends on | Status |
 |---|---|---|---|---|---|---|---|
 | 1 | [OC-189](OC-189-apache-2-0-licensed-and-ready-to-distribute.md) | Apache-2.0: licensed, and ready to distribute | P0 | E12 Harden & Ship 2.5 | 8 |  | ✅ Implemented |
+
+### Phase 9 — Operator polish — ✅ Done (1/1 stories, 3/3 points)
+
+_A source or target odb can't reach is reported within 5 seconds, in one plain sentence naming the host and port, with what to change in config.json; no misleading follow-on failures._
+
+| # | ID | Story | Priority | Epic | Points | Depends on | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | [OC-190](OC-190-odb-preflight-connection-failures-fast-and-plain.md) | Connection failures: decided in 5 seconds, explained in plain words | P1 | E11 Portable Runner | 3 | OC-181, OC-182 | ✅ Implemented |
+
+### Phase 10 — Mapping assistance — ✅ Done (2/2 stories, 5/5 points)
+
+_Expressions and templates are checked as they're written: the server says why one won't work and what to write instead (concat for expressions, the template a code-style one means, ${row.…} for a field that reads itself), the sample's value shows, and Use expression waits for a fix._
+
+| # | ID | Story | Priority | Epic | Points | Depends on | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | [OC-191](OC-191-expressions-checked-as-you-type.md) | Expressions: checked as you type, with the fix in the message | P1 | E14 Design-first Mapping | 3 | OC-047, OC-138 | ✅ Implemented |
+| 2 | [OC-192](OC-192-templates-say-why-before-preview.md) | Templates: what's wrong shows while you write, not at Preview | P1 | E14 Design-first Mapping | 2 | OC-138, OC-191 | ✅ Implemented |
 
 ## Release checklist
 

@@ -1823,6 +1823,7 @@ components:
         detail: { type: string }
         hint: { type: string }
         code: { type: string }
+        cause: { type: string, description: "The driver's own message behind a plain detail (OC-190)." }
     TestResult:
       type: object
       required: [ok, latencyMs, steps]
@@ -3261,6 +3262,7 @@ components:
         hint: { type: string }
         code: { type: string }
         mappingId: { type: string }
+        cause: { type: string, description: "The driver's own message behind a plain detail (OC-190)." }
     PlannedMapping:
       type: object
       required: [mappingId, table, target, location, rowEstimate]

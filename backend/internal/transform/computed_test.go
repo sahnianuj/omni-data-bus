@@ -112,6 +112,24 @@ func TestCompile_AC3_ComputedCycle(t *testing.T) {
 	require.Contains(t, issues[0].Message, "a → b → a")
 }
 
+// OC-192: a field that reads itself, named like a column of the row, is told to read the column.
+func TestCompile_OC192_ReadsItselfSuggestsRow(t *testing.T) {
+	p, issues := computedFixture(t, func(s *mapping.Spec) {
+		var keep []mapping.FieldMapping
+		for _, m := range s.FieldMappings {
+			if m.TargetFieldID != "f_id" {
+				keep = append(keep, m)
+			}
+		}
+		s.FieldMappings = append(keep, tmpl("c", "f_id", "paid_in_out::${doc.customer_id}"))
+		s.DocSchema.Root.Children[0].Name = "customer_id" // the row has a customer_id column
+	})
+	require.Nil(t, p)
+	require.Len(t, issues, 1)
+	require.Equal(t, CodeComputedCycle, issues[0].Code)
+	require.Equal(t, "customer_id reads itself. To read the source row's customer_id column, write ${row.customer_id}.", issues[0].Message)
+}
+
 // AC4: static checks with positions.
 func TestCompile_AC4_ComputedIssues(t *testing.T) {
 	for _, c := range []struct {

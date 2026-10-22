@@ -18,8 +18,9 @@ import (
 // enforced around it: the bootstrap hosts are checked before connecting, and every node the
 // cluster reports is checked once it's ready. A violation closes the connection.
 
-// checkBootstrap resolves and checks each host in the connection string.
-func checkBootstrap(ctx context.Context, guard *netguard.Dialer, connStr string) error {
+// bootstrapAddrs are the host:port pairs the SDK bootstraps from: each host in the connection
+// string, on its port or the scheme's default (11210, 11207 for couchbases://).
+func bootstrapAddrs(connStr string) []string {
 	spec, err := gocbconnstr.Parse(connStr)
 	if err != nil {
 		return nil // ParseConfig already validated it; the SDK reports anything else
@@ -33,13 +34,35 @@ func checkBootstrap(ctx context.Context, guard *netguard.Dialer, connStr string)
 	case "https":
 		def = 18091
 	}
+	out := make([]string, 0, len(spec.Addresses))
 	for _, a := range spec.Addresses {
 		port := a.Port
 		if port <= 0 {
 			port = def
 		}
-		host := strings.Trim(a.Host, "[]")
-		err := guard.Check(ctx, net.JoinHostPort(host, strconv.Itoa(port)))
+		out = append(out, net.JoinHostPort(strings.Trim(a.Host, "[]"), strconv.Itoa(port)))
+	}
+	return out
+}
+
+// srvName is the DNS SRV service and name the SDK looks up first: for a couchbase[s]:// string
+// with a single host and no port.
+func srvName(connStr string) (service, host string, ok bool) {
+	spec, err := gocbconnstr.Parse(connStr)
+	if err != nil || len(spec.Addresses) != 1 || spec.Addresses[0].Port > 0 {
+		return "", "", false
+	}
+	switch s := strings.ToLower(spec.Scheme); s {
+	case "couchbase", "couchbases":
+		return s, spec.Addresses[0].Host, true
+	}
+	return "", "", false
+}
+
+// checkBootstrap resolves and checks each host in the connection string.
+func checkBootstrap(ctx context.Context, guard *netguard.Dialer, connStr string) error {
+	for _, addr := range bootstrapAddrs(connStr) {
+		err := guard.Check(ctx, addr)
 		var dnsErr *net.DNSError
 		if errors.As(err, &dnsErr) {
 			// Not resolvable now: the SDK reports it as it can't connect either, and whatever it

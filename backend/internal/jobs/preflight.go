@@ -47,6 +47,8 @@ type Check struct {
 	Hint      string `json:"hint,omitempty"`
 	Code      string `json:"code,omitempty"`
 	MappingID string `json:"mappingId,omitempty"`
+	// Cause is the driver's own message behind a plain Detail (OC-190).
+	Cause string `json:"cause,omitempty"`
 }
 
 // PlannedMapping is a mapping the job will migrate, with what the Review step shows.
@@ -164,23 +166,28 @@ func (p *Preflighter) Run(ctx context.Context, ws store.WorkspaceID, userID, pro
 	}
 	var snap *schema.Snapshot
 	var canWrite *bool
+	targetDown := false
 
-	wg.Add(3)
+	// A repository that can't be reached is checked once: the checks that would connect to it
+	// again are skipped, so the verdict comes within the connection test's budget (OC-190).
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		add(p.connCheck(ctx, ws, userID, srcID, "source", "Source repository reachable"))
+		src := p.connCheck(ctx, ws, userID, srcID, "source", "Source repository reachable")
+		add(src)
+		if src.Status == CheckFail {
+			add(Check{ID: "snapshot", Label: "Consistent snapshot export", Status: CheckSkipped, Detail: notChecked("source")})
+			return
+		}
+		add(p.snapshotCheck(ctx, ws, srcID))
 	}()
 	go func() {
 		defer wg.Done()
 		c, caps := p.targetCheck(ctx, ws, userID, tgtID)
 		add(c)
 		mu.Lock()
-		canWrite = caps
+		canWrite, targetDown = caps, c.Status == CheckFail
 		mu.Unlock()
-	}()
-	go func() {
-		defer wg.Done()
-		add(p.snapshotCheck(ctx, ws, srcID))
 	}()
 	if p.Latest != nil {
 		_, s, err := p.Latest(ctx, ws, srcID)
@@ -199,7 +206,11 @@ func (p *Preflighter) Run(ctx context.Context, ws store.WorkspaceID, userID, pro
 		}()
 	}
 	wg.Wait()
-	add(p.targetChecks(ctx, ws, tgtID, maps, plan, opts)...)
+	if targetDown {
+		add(skippedTargetChecks(maps, plan)...)
+	} else {
+		add(p.targetChecks(ctx, ws, tgtID, maps, plan, opts)...)
+	}
 	add(keyOverlapChecks(maps)...)
 
 	if canWrite != nil && !*canWrite {
@@ -283,7 +294,8 @@ func (p *Preflighter) targetCheck(ctx context.Context, ws store.WorkspaceID, use
 	var caps struct {
 		CanWriteDocs *bool `json:"canWriteDocs"`
 	}
-	if err == nil && len(res.Capabilities) > 0 {
+	// A failed test reports no permissions at all: that's not "can't write" (OC-190).
+	if err == nil && c.Status != CheckFail && len(res.Capabilities) > 0 {
 		_ = json.Unmarshal(res.Capabilities, &caps)
 	}
 	return c, caps.CanWriteDocs
@@ -299,7 +311,7 @@ func testToCheck(id, label string, res connectors.TestResult, err error) Check {
 		c.Status = CheckFail
 		for _, s := range res.Steps {
 			if s.Status == connectors.StepFail {
-				c.Detail, c.Hint, c.Code = s.Detail, s.Hint, s.Code
+				c.Detail, c.Hint, c.Code, c.Cause = s.Detail, s.Hint, s.Code, s.Cause
 				break
 			}
 		}
@@ -473,6 +485,22 @@ func (p *Preflighter) targetChecks(ctx context.Context, ws store.WorkspaceID, tg
 		plan[i].TargetEmpty = r.Empty
 		for _, c := range r.Checks {
 			out = append(out, prefix(i, c))
+		}
+	}
+	return out
+}
+
+// notChecked is the detail of a check skipped because the repository can't be reached.
+func notChecked(role string) string { return "Not checked: the " + role + " isn't reachable." }
+
+// skippedTargetChecks stands in for targetChecks when the target can't be reached: one skipped
+// line per mapping, without connecting again.
+func skippedTargetChecks(maps []store.Mapping, plan []PlannedMapping) []Check {
+	out := make([]Check, len(maps))
+	for i, m := range maps {
+		out[i] = Check{
+			ID: "mapping." + plan[i].Table + ".keyspace", Label: plan[i].Table + ": target " + m.Where().String(),
+			Status: CheckSkipped, Detail: notChecked("target"), MappingID: m.ID,
 		}
 	}
 	return out

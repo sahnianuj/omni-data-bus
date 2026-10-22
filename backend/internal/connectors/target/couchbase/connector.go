@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 
 	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/target"
+	"omnidatabus/internal/netguard"
 )
 
 // CodeVersionUnsupported is reported for servers without collections (< 7.0).
@@ -26,11 +29,18 @@ type Connector struct {
 	now     func() time.Time
 	pool    *Pool
 	probe   authProber
+	// dial opens the reachability probe's connections (OC-190); nil skips the probe.
+	dial connectors.DialFunc
 }
 
 // New returns the Couchbase connector.
 func New() *Connector {
-	return &Connector{connect: connectGocb, now: time.Now, pool: NewPool(10*time.Minute, time.Now), probe: newAuthProber()}
+	return &Connector{
+		connect: connectGocb, now: time.Now, pool: NewPool(10*time.Minute, time.Now), probe: newAuthProber(),
+		dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return netguard.Default().DialContext(ctx, network, addr) // the egress policy applies (OC-033)
+		},
+	}
 }
 
 // Descriptor implements target.Connector.
@@ -117,12 +127,16 @@ func (c *Connector) Test(ctx context.Context, raw json.RawMessage, creds connect
 	if cfg.ConnectionString == "" {
 		return r.Result()
 	}
-	timeout := time.Duration(cfg.ConnectTimeoutMs) * time.Millisecond
+	// The test decides within ReachTimeout (OC-190); a run keeps the configured connect timeout.
+	timeout := min(time.Duration(cfg.ConnectTimeoutMs)*time.Millisecond, connectors.ReachTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout+10*time.Second)
 	defer cancel()
 
 	var cl cluster
 	r.Run("bootstrap", "Connect and authenticate", func() connectors.TestStep {
+		if err := c.reach(ctx, cfg); err != nil {
+			return failStep(connectors.Classify(connectors.RoleTarget, err), cfg)
+		}
 		var err error
 		if cl, err = c.open(ctx, cfg, opts, timeout); err != nil {
 			ce := classify(err)
@@ -222,10 +236,50 @@ func classify(err error) *connectors.ConnError {
 	return connectors.Classify(connectors.RoleTarget, err)
 }
 
+// reach checks that a bootstrap node accepts a TCP connection, so an unreachable cluster is
+// reported within ReachTimeout with its cause, instead of after the SDK's connect timeout. A
+// single host without a port is looked up as a DNS SRV record first, as the SDK does (Capella).
+func (c *Connector) reach(ctx context.Context, cfg Config) error {
+	if c.dial == nil {
+		return nil
+	}
+	addrs := bootstrapAddrs(cfg.ConnectionString)
+	if service, host, ok := srvName(cfg.ConnectionString); ok && c.probe.lookupSRV != nil {
+		srvCtx, cancel := context.WithTimeout(ctx, connectors.ReachTimeout)
+		_, srvs, err := c.probe.lookupSRV(srvCtx, service, "tcp", host)
+		cancel()
+		if err == nil && len(srvs) > 0 {
+			addrs = addrs[:0]
+			for _, s := range srvs {
+				addrs = append(addrs, net.JoinHostPort(strings.TrimSuffix(s.Target, "."), strconv.Itoa(int(s.Port))))
+			}
+		}
+	}
+	return connectors.Reach(ctx, c.dial, addrs)
+}
+
+// failStep is a failed step in plain words: what happened in Detail, what to do in Hint, and
+// the SDK's own message in Cause (OC-190).
 func failStep(ce *connectors.ConnError, cfg Config) connectors.TestStep {
 	hint := ce.Hint()
 	if cfg.Deployment == Capella && (ce.Kind == connectors.KindUnreachable || ce.Kind == connectors.KindTimeout) {
 		hint += " " + capellaIPHint
 	}
-	return connectors.TestStep{Status: connectors.StepFail, Code: ce.Code(), Detail: ce.Cause.Error(), Hint: hint}
+	return connectors.TestStep{Status: connectors.StepFail, Code: ce.Code(), Detail: plainDetail(ce, cfg), Hint: hint, Cause: ce.Cause.Error()}
+}
+
+func plainDetail(ce *connectors.ConnError, cfg Config) string {
+	var re *connectors.ReachError
+	if errors.As(ce.Cause, &re) {
+		return re.Message()
+	}
+	switch ce.Kind {
+	case connectors.KindAuth:
+		return "Couchbase rejected the username or password (" + cfg.Username + ")."
+	case connectors.KindUnreachable, connectors.KindTimeout:
+		return "Couchbase at " + cfg.FirstHost() + " didn't finish connecting within " + connectors.ReachTimeout.String() + "."
+	case connectors.KindEgressDenied:
+		return ce.Hint()
+	}
+	return ce.Title() + "."
 }

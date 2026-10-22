@@ -29,7 +29,10 @@ const (
 	// CodeLookupUnused: a lookup ("values only") that no field reads (OC-177).
 	CodeLookupUnused = "LOOKUP_UNUSED"
 	// CodeNowFormatType: a now step\'s format doesn\'t suit its field\'s type (OC-179).
-	CodeNowFormatType         = "NOW_FORMAT_TYPE"
+	CodeNowFormatType = "NOW_FORMAT_TYPE"
+	// CodeComputedTextType: a template with words in it fills a number or boolean field, so
+	// every document would fail to convert (OC-192).
+	CodeComputedTextType      = "COMPUTED_TEXT_TYPE"
 	CodeRequiredFieldUnmapped = "REQUIRED_FIELD_UNMAPPED"
 	CodeSuggestionsPending    = "SUGGESTIONS_PENDING"
 	CodeLossyConversion       = "LOSSY_CONVERSION"
@@ -263,6 +266,9 @@ func Validate(s *Spec, ctx Context) []Issue {
 		if is := nowFormatIssue(s, path, &m); is != nil {
 			add(*is)
 		}
+		if is := templateTextIssue(s, path, &m); is != nil {
+			add(*is)
+		}
 		if missing || len(m.Sources) != 1 || len(m.Transforms) > 0 {
 			continue // multi-source and transformed mappings are type-checked by the compiler
 		}
@@ -395,6 +401,54 @@ func DescribeNow(args map[string]any) string {
 		format += ", " + tz
 	}
 	return "the current date and time (" + at + ", " + format + ")"
+}
+
+// templateTextIssue reports a template whose own text can't be part of a number or a boolean
+// ("paid_in_out::${row.id}") on a field of that type (OC-192). The compiler allows text into a
+// number field, as "42" converts; this text never does, so every document would fail.
+func templateTextIssue(s *Spec, path string, m *FieldMapping) *Issue {
+	if m.Computed == nil || m.Computed.Lang != ComputedTemplate || len(m.Transforms) > 0 {
+		return nil
+	}
+	f := s.DocSchema.Find(m.TargetFieldID)
+	if f == nil || (f.Type != docschema.Integer && f.Type != docschema.Number && f.Type != docschema.Boolean) {
+		return nil
+	}
+	lit := templateWords(m.Computed.Expr)
+	if lit == "" {
+		return nil
+	}
+	return &Issue{
+		Severity: SeverityError, Code: CodeComputedTextType, Path: path, FieldID: f.ID, FieldMappingID: m.ID,
+		Message: fmt.Sprintf("The template's text %q can't become %s, so every document would fail. Make %s a string field.", lit, f.Type, path),
+	}
+}
+
+// templateWords is the first run of a template's own text (outside ${…}) that has more than
+// digits, signs and spaces, or "".
+func templateWords(expr string) string {
+	for len(expr) > 0 {
+		at := strings.Index(expr, "${")
+		if at > 0 && expr[at-1] == '\\' {
+			at = -1 // \${ is literal text: the whole rest is text
+		}
+		lit := expr
+		if at >= 0 {
+			lit = expr[:at]
+		}
+		if strings.Trim(lit, "0123456789+-.eE ") != "" {
+			return lit
+		}
+		if at < 0 {
+			return ""
+		}
+		end := strings.Index(expr[at:], "}")
+		if end < 0 {
+			return ""
+		}
+		expr = expr[at+end+1:]
+	}
+	return ""
 }
 
 // nowFormatIssue reports a now step whose format doesn't suit the field (OC-179): a number

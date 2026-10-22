@@ -21,6 +21,7 @@ import (
 
 	"omnidatabus/internal/buildinfo"
 	"omnidatabus/internal/connections"
+	"omnidatabus/internal/connectors"
 	"omnidatabus/internal/connectors/source"
 	"omnidatabus/internal/connectors/source/postgres"
 	"omnidatabus/internal/connectors/target"
@@ -249,6 +250,19 @@ func setup(ctx context.Context, cfg *Config) (*env, error) {
 // discover reads the referenced schemas into the store's latest snapshot and checks drift.
 func (e *env) discover(ctx context.Context) error {
 	srcID := store.ConnectionID(e.project.ID, store.RoleSource)
+	// Test first: a source that can't be reached is reported within the test's budget and in
+	// plain words, instead of after the driver's connect timeout (OC-190).
+	if res, err := e.conns.TestStored(ctx, ws, user, srcID); err == nil && !res.OK {
+		for _, s := range res.Steps {
+			if s.Status == connectors.StepFail {
+				ce := &ConfigError{Code: s.Code, Message: "Can't connect to the source: " + s.Detail, Hint: s.Hint}
+				if ce.Code == "" {
+					ce.Code = "SOURCE_UNREACHABLE"
+				}
+				return ce
+			}
+		}
+	}
 	sess, conn, err := e.conns.OpenSource(ctx, ws, srcID)
 	if err != nil {
 		return &ConfigError{Code: errCode(err, "SOURCE_UNREACHABLE"), Message: "Can't connect to the source: " + errText(err)}
@@ -426,7 +440,7 @@ func Run(ctx context.Context, cfg *Config) (Report, int, error) {
 		ce := &ConfigError{Code: CodePreflightFailed, Message: "Pre-flight checks failed."}
 		for _, c := range pre.Checks {
 			if c.Status == jobs.CheckFail {
-				ce.Details = append(ce.Details, c.Label+": "+c.Detail)
+				ce.Details = append(ce.Details, strings.TrimSpace(c.Label+": "+c.Detail+" "+c.Hint))
 			}
 		}
 		return Report{}, ExitPreflight, ce

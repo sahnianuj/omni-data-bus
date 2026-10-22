@@ -36,6 +36,8 @@ type ConfigError struct {
 	Code    string
 	Message string
 	Details []string
+	// Hint says what to do, when there's one thing to do (OC-190).
+	Hint string `json:",omitempty"`
 }
 
 func (e *ConfigError) Error() string { return e.Code + ": " + e.Message }

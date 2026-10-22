@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"omnidatabus/internal/export/exporttest"
+	"omnidatabus/internal/headless"
+	"omnidatabus/internal/jobs"
 )
 
 // exportFolder writes an export's two files into a new folder: a directory target writing to
@@ -344,4 +347,45 @@ func TestMounted_OC183(t *testing.T) {
 	require.False(t, mounted("/workshop"), "a prefix of a name is not a parent")
 	require.False(t, mounted("/data/out"))
 	require.False(t, mounted("/"))
+}
+
+func TestCLI_OC190_AC4_PreflightHints(t *testing.T) {
+	rep := headless.PreflightReport{
+		Checks: []jobs.Check{
+			{ID: "source", Label: "Source repository reachable", Status: "warn", Detail: "This user can modify data. A read-only role is safer for migrations."},
+			{
+				ID: "target", Label: "Target repository reachable", Status: "fail", Code: "TARGET_TIMEOUT",
+				Detail: "No answer from cb.example.com:11210 within 5s.", Hint: "Allow this machine to reach that port.", Cause: "unambiguous timeout",
+			},
+			{ID: "snapshot", Label: "Consistent snapshot export", Status: "ok"},
+			{ID: "mapping.public.carts.keyspace", Label: "public.carts: target target.oe.carts", Status: "skipped", Detail: "Not checked: the target isn't reachable."},
+		},
+		Mappings: make([]jobs.PlannedMapping, 1), TotalRows: 200,
+	}
+	var out bytes.Buffer
+	printPreflight(&out, rep, false, true)
+	require.Equal(t, `WARN  Source repository reachable — This user can modify data. A read-only role is safer for migrations.
+FAIL  Target repository reachable — No answer from cb.example.com:11210 within 5s.
+      → Allow this machine to reach that port. In config.json, check target.connectionString.
+OK    Consistent snapshot export
+SKIP  public.carts: target target.oe.carts — Not checked: the target isn't reachable.
+1 mapping(s), about 200 rows: NOT ready: fix the failed checks
+`, out.String())
+
+	// Without config.json the connection came from mappings.json: no field to point at.
+	out.Reset()
+	printPreflight(&out, rep, false, false)
+	require.Contains(t, out.String(), "      → Allow this machine to reach that port.\n")
+	require.NotContains(t, out.String(), "config.json")
+
+	// --json keeps the hint and the driver's own message.
+	out.Reset()
+	printPreflight(&out, rep, true, true)
+	require.Contains(t, out.String(), `"hint":"Allow this machine to reach that port."`)
+	require.Contains(t, out.String(), `"cause":"unambiguous timeout"`)
+
+	// A source that can't be reached before the checks start (schema drift check).
+	var errOut bytes.Buffer
+	printConfigError(&errOut, withConfigField(&headless.ConfigError{Code: "SOURCE_DNS", Message: "Can't connect to the source: The host name db doesn't resolve.", Hint: "Check the host name for typos."}, true))
+	require.Equal(t, "SOURCE_DNS: Can't connect to the source: The host name db doesn't resolve.\n  → Check the host name for typos. In config.json, check source.host.\n", errOut.String())
 }
