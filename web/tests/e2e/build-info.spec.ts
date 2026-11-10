@@ -8,7 +8,8 @@ test('AC6: build footer visible, canvas not overlapped', { tag: '@smoke' }, asyn
   await page.goto('/signin')
   const footer = page.getByRole('contentinfo', { name: 'Build information' })
   // Anonymous: the release only, no build details to open.
-  await expect(footer).toContainText(/v\d\S* /)
+  await expect(footer).toContainText(/v\d/)
+  await expect(footer).not.toContainText('build')
   await expect(footer.getByRole('button')).toHaveCount(0)
 
   const api = await Api.signUp()

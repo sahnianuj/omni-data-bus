@@ -70,15 +70,22 @@ func (s *Subscription) Drain() []Event {
 	return append(out, done...)
 }
 
-func (s *Subscription) push(e Event) {
+// push adds a batch of events under one lock and signals once, so a reader woken mid-batch
+// can't drain half of it (e.g. "status" without the "progress" and "completed" behind it).
+func (s *Subscription) push(evs ...Event) {
+	if len(evs) == 0 {
+		return
+	}
 	s.mu.Lock()
-	if e.Type == TypeProgress {
-		s.latest = &e
-	} else {
-		if len(s.queue) >= 16 {
-			s.queue = s.queue[1:]
+	for _, e := range evs {
+		if e.Type == TypeProgress {
+			s.latest = &e
+		} else {
+			if len(s.queue) >= 16 {
+				s.queue = s.queue[1:]
+			}
+			s.queue = append(s.queue, e)
 		}
-		s.queue = append(s.queue, e)
 	}
 	s.mu.Unlock()
 	select {
@@ -134,9 +141,7 @@ func (h *Hub) SubscribeWith(jobID string, notify chan struct{}) *Subscription {
 		go h.poll(ctx, jobID)
 	}
 	p.subs[s] = true
-	for _, e := range p.replay {
-		s.push(e)
-	}
+	s.push(p.replay...)
 	return s
 }
 
@@ -208,9 +213,7 @@ func (h *Hub) poll(ctx context.Context, jobID string) {
 			if p := h.jobs[jobID]; p != nil {
 				p.replay = replay
 				for s := range p.subs {
-					for _, e := range evs {
-						s.push(e)
-					}
+					s.push(evs...)
 				}
 			}
 			h.mu.Unlock()

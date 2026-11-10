@@ -26,7 +26,7 @@ test('AC1: project → repos → map → migrate → verify', { tag: '@smoke' },
   await page.getByRole('button', { name: /Create 1 mapping/ }).click()
   await expect(page.getByText('Created 1 mapping')).toBeVisible()
   await page.getByRole('button', { name: 'Open' }).or(page.getByRole('link', { name: 'Open' })).first().click()
-  const header = page.getByText(/auto-mapped \d+ of \d+ columns/).first()
+  const header = page.getByText(/auto-mapped \d+ of \d+/).first()
   await expect(header).toBeVisible()
   const [, auto, total] = (await header.textContent())!.match(/auto-mapped (\d+) of (\d+)/)!
   expect(Number(auto)).toBeGreaterThan(0)

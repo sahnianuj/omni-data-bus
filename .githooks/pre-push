@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Runs the quick CI checks before every push (scripts/ci-local.sh --fast, ~2 min).
+# Skip once with: git push --no-verify     The full set: make ci-local
+# Installed by `make hooks` (or `make setup`).
+cd "$(git rev-parse --show-toplevel)" || exit 1
+echo "pre-push: running the quick CI checks (skip with git push --no-verify)"
+if ! scripts/ci-local.sh --fast; then
+  echo
+  echo "pre-push: push stopped, a CI check would fail. Fix it, or push anyway with --no-verify."
+  exit 1
+fi

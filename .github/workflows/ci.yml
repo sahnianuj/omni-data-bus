@@ -169,12 +169,12 @@ jobs:
           load: true
           tags: omni-data-bus:ci
           build-args: |
-            VERSION=ci
+            VERSION=0.0.0-ci
             COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Structure test and size (< 40 MB)
-        run: make image-test IMAGE=omni-data-bus:ci VERSION=ci
+        run: make image-test IMAGE=omni-data-bus:ci VERSION=0.0.0-ci
       - name: Vulnerability scan (fails on HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

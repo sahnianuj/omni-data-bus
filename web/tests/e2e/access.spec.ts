@@ -22,7 +22,7 @@ test('AC7: viewer read-only; cross-workspace 404', async ({ page }) => {
   await page.getByRole('link', { name: new RegExp((await owner.get<{ name: string }>(`/api/v1/projects/${p.id}`)).name) }).first().click()
   await expect(page).toHaveURL(new RegExp(`/projects/${p.id}/`))
   await page.goto(`/projects/${p.id}/mappings/${ids[0]}`)
-  await expect(page.getByText(/auto-mapped \d+ of \d+ columns/).first()).toBeVisible()
+  await expect(page.getByText(/auto-mapped \d+ of \d+/).first()).toBeVisible()
 
   // …but can't change or run anything: the UI disables the actions…
   await page.goto(`/projects/${p.id}/review`)

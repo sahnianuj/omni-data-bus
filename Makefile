@@ -29,15 +29,28 @@ DEV_ENV = ODB_LDFLAGS="$(DEV_LDFLAGS)" VITE_ODB_VERSION=$(VERSION)
 HELM_IMAGE := alpine/helm:3.18.4
 HELM_UNITTEST_IMAGE := helmunittest/helm-unittest:latest
 
-.PHONY: help setup dev dev-force dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e e2e-smoke bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist verify-dist notices notices-check test-scripts verify-version dev-seed propose-score
+.PHONY: help setup dev dev-force dev-stack dev-stack-down dev-reset run-backend run-web gen check-gen lint test test-backend test-budgets test-web test-integration test-integration-ce test-bench coverage build image image-test helm-test e2e e2e-smoke ci-local ci-fast hooks print-golangci bench bench-gate bench-smoke index appliance appliance-save appliance-push appliance-test dist verify-dist notices notices-check test-scripts verify-version dev-seed propose-score
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-setup: ## Install Go modules, golangci-lint and web dependencies
+setup: ## Install Go modules, golangci-lint and web dependencies, and the pre-push hook
 	cd backend && go mod download
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
 	cd web && npm ci
+	$(MAKE) hooks
+
+hooks: ## Run the quick CI checks before every git push (.githooks/pre-push)
+	git config core.hooksPath .githooks
+
+ci-local: ## Run CI's checks here before pushing: everything that can run locally (needs Docker; ~6 min)
+	scripts/ci-local.sh
+
+ci-fast: ## The quick CI checks the pre-push hook runs (~2 min)
+	scripts/ci-local.sh --fast
+
+print-golangci:
+	@echo $(GOLANGCI_VERSION)
 
 dev: ## Start the dev stack, the API on :8080 and the web app on :5173 (FORCE=1 rescans saved schemas)
 	FORCE=$(FORCE) $(DEV_ENV) ./scripts/dev.sh
