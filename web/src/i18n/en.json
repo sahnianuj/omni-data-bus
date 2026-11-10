@@ -1477,7 +1477,6 @@
     "label": "Build information",
     "summary": "v{{version}}",
     "build": "build {{commit}}",
-    "badge": "v{{version}}",
     "bundled": "{{store}} (bundled)",
     "dev": "DEV",
     "rc": "RC",
@@ -1522,7 +1521,6 @@
     "pathHint": "The folder on the server where the files go. Choose one in your home folder or /data.",
     "pathHintShared": "Choose a folder in {{path}}: that's {{host}} on your computer.",
     "onComputer": "on your computer: {{host}}",
-    "createIfMissing": "Create the folder if it's missing",
     "layout": "File layout",
     "layouts": {
       "flat": "Flat",
@@ -1556,7 +1554,7 @@
     "pretty": "Pretty-print JSON",
     "manifest": "Write a manifest of the files",
     "errors": {
-      "path": "Enter an absolute path, such as /data/odb-out",
+      "path": "Enter an absolute path, such as /data/odb-out (or C:\\exports on Windows)",
       "fileMode": "An octal mode from 0600 to 0666",
       "maxDoc": "Between 0.001 and 1024 MiB"
     },

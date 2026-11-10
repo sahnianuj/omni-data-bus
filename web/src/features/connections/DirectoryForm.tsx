@@ -15,7 +15,6 @@ import type { ConnectionFormProps, ConnectionPayload } from './types'
 
 type Values = {
   path: string
-  createIfMissing: boolean
   layout: 'flat' | 'sharded' | 'key-path'
   pretty: boolean
   compression: 'none' | 'gzip'
@@ -39,8 +38,8 @@ export function DirectoryForm({ existing, testing, saving, onTest, onSave, onCan
   const cfg = (existing?.config ?? {}) as Record<string, unknown>
   const [advanced, setAdvanced] = useState(false)
   const schema = z.object({
-    path: z.string().trim().regex(/^\//, t('dir.errors.path')),
-    createIfMissing: z.boolean(),
+    // Absolute on the server's OS: /data/out, or C:\exports or \\server\share on Windows.
+    path: z.string().trim().regex(/^(\/|[A-Za-z]:[\\/]|\\\\)/, t('dir.errors.path')),
     layout: z.enum(['flat', 'sharded', 'key-path']),
     pretty: z.boolean(),
     compression: z.enum(['none', 'gzip']),
@@ -53,7 +52,6 @@ export function DirectoryForm({ existing, testing, saving, onTest, onSave, onCan
     resolver: zodResolver(schema),
     defaultValues: {
       path: String(cfg.path ?? ''),
-      createIfMissing: cfg.createIfMissing === true,
       layout: (cfg.layout as Values['layout']) ?? 'flat',
       pretty: cfg.pretty === true,
       compression: (cfg.compression as Values['compression']) ?? 'none',
@@ -71,7 +69,7 @@ export function DirectoryForm({ existing, testing, saving, onTest, onSave, onCan
   const compression = useWatch({ control: form.control, name: 'compression' })
   const toPayload = (v: Values): ConnectionPayload => ({
     config: {
-      path: v.path.trim(), createIfMissing: v.createIfMissing, layout: v.layout, pretty: v.pretty, compression: v.compression,
+      path: v.path.trim(), layout: v.layout, pretty: v.pretty, compression: v.compression,
       fileMode: v.fileMode, durability: v.durability, manifest: v.manifest, maxDocBytes: Math.round(Number(v.maxDocMiB) * 1048576),
     },
     secrets: {},
@@ -139,10 +137,6 @@ export function DirectoryForm({ existing, testing, saving, onTest, onSave, onCan
             <Input id="dir-max" inputMode="decimal" invalid={!!errors.maxDocMiB} {...form.register('maxDocMiB')} />
           </FormField>
           <div className="col-span-2 flex flex-col gap-2 text-sm">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" {...form.register('createIfMissing')} />
-              {t('dir.createIfMissing')}
-            </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" {...form.register('pretty')} />
               {t('dir.pretty')}

@@ -67,12 +67,13 @@ describe('AppShell', () => {
     expect(within(about).getByRole('button', { name: 'Copy build info' })).toBeInTheDocument()
   })
 
-  it('OC-172 AC3: while maximized, the release stays visible and opens the build details', async () => {
+  it('OC-172 AC3: while maximized, the build footer stays, centered, and opens the build details', async () => {
     renderRoutes(routes, '/projects')
     await screen.findByRole('contentinfo', { name: 'Build information' })
     act(() => maximizeStore.setState({ active: true, maximized: true }))
-    expect(screen.queryByRole('contentinfo', { name: 'Build information' })).not.toBeInTheDocument()
-    await userEvent.click(await screen.findByRole('button', { name: 'About this build: v2.0.0' }))
+    const footer = screen.getByRole('contentinfo', { name: 'Build information' })
+    expect(footer).toHaveClass('justify-center')
+    await userEvent.click(within(footer).getByRole('button', { name: /v2\.0\.0/ }))
     expect(await screen.findByRole('dialog', { name: 'About this build' })).toHaveTextContent('3f2a9c1e0b')
     act(() => maximizeStore.setState({ active: false, maximized: false }))
   })

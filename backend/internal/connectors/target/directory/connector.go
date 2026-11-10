@@ -175,11 +175,11 @@ func (c *Connector) Test(_ context.Context, raw json.RawMessage, _ connectors.Cr
 			return ok("")
 		case !errors.Is(err, os.ErrNotExist):
 			return fail(CodeNotFound, err.Error(), "")
-		case !cfg.CreateIfMissing:
-			return fail(CodeNotFound, abs+" doesn't exist.", "Create it, or turn on \"Create the folder if it's missing\".")
 		}
-		if err := os.Mkdir(abs, cfg.DirMode()); err != nil {
-			return fail(CodeNotFound, "Couldn't create "+abs+": "+err.Error(), "The parent folder must exist and be writable.")
+		// A missing folder is created, with any missing parents (the "path" step has already
+		// checked it's inside an allowed folder).
+		if err := os.MkdirAll(abs, cfg.DirMode()); err != nil {
+			return fail(CodeNotFound, "Couldn't create "+abs+": "+err.Error(), "Give the server's user write access to the parent folder, or create the folder yourself.")
 		}
 		return ok("Created " + abs + ".")
 	})

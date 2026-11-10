@@ -14,8 +14,8 @@ interface MaximizeState {
 }
 
 /**
- * Give the workbench the full height: the app's top bar, the project header and the build footer
- * step aside while it is open and maximized. Other pages always keep their chrome.
+ * Give the workbench the full height: the app's top bar and the project header step aside while
+ * it is open and maximized (the build footer stays on every page). Other pages keep their chrome.
  */
 export const maximizeStore = createStore<MaximizeState>()((set, get) => ({
   maximized: storage.get(MAXIMIZE_KEY) === 'true',

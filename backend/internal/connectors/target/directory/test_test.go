@@ -40,12 +40,24 @@ func TestTest_AC2_Writable(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, left, "no probe file remains")
 
-	// createIfMissing creates a missing folder whose parent exists.
-	res = c.Test(context.Background(), cfgJSON(t, map[string]any{"path": filepath.Join(root, "new"), "createIfMissing": true}), connectors.Credentials{})
-	require.True(t, res.OK)
+	// A missing folder is created, with its missing parents, without any setting.
+	res = c.Test(context.Background(), cfgJSON(t, map[string]any{"path": filepath.Join(root, "new")}), connectors.Credentials{})
+	require.True(t, res.OK, "%+v", res.Steps)
 	require.DirExists(t, filepath.Join(root, "new"))
-	res = c.Test(context.Background(), cfgJSON(t, map[string]any{"path": filepath.Join(root, "missing")}), connectors.Credentials{})
-	require.Equal(t, CodeNotFound, steps(res)["exists"].Code)
+	require.Contains(t, steps(res)["exists"].Detail, "Created ")
+	res = c.Test(context.Background(), cfgJSON(t, map[string]any{"path": filepath.Join(root, "a", "b", "c")}), connectors.Credentials{})
+	require.True(t, res.OK, "%+v", res.Steps)
+	require.DirExists(t, filepath.Join(root, "a", "b", "c"))
+	// The old setting is still accepted.
+	res = c.Test(context.Background(), cfgJSON(t, map[string]any{"path": filepath.Join(root, "old"), "createIfMissing": false}), connectors.Credentials{})
+	require.True(t, res.OK, "%+v", res.Steps)
+
+	// Outside the allowed folders, nothing is created.
+	outside := filepath.Join(t.TempDir(), "elsewhere")
+	res = c.Test(context.Background(), cfgJSON(t, map[string]any{"path": outside}), connectors.Credentials{})
+	require.False(t, res.OK)
+	require.Equal(t, connectors.StepSkipped, steps(res)["exists"].Status)
+	require.NoDirExists(t, outside)
 }
 
 func TestTest_AC2_ReadOnly(t *testing.T) {

@@ -7,7 +7,7 @@ import { useMaximized } from '@/lib/maximize'
 import { storage } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import { Breadcrumbs } from './Breadcrumbs'
-import { BuildInfoBadge, BuildInfoFooter } from './BuildInfoFooter'
+import { BuildInfoFooter } from './BuildInfoFooter'
 import { CommandPalette } from './CommandPalette'
 import { Logo } from './Logo'
 import { ThemeMenu } from './ThemeMenu'
@@ -21,7 +21,7 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
   const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState(() => storage.get(SIDEBAR_KEY) === 'true')
   const [paletteOpen, setPaletteOpen] = useState(false)
-  // A maximized workbench takes the top bar's and footer's height.
+  // A maximized workbench takes the top bar's height (the build footer stays).
   const maximized = useMaximized()
 
   const toggle = () => {
@@ -114,7 +114,8 @@ export function AppShell({ userSlot, workspaceName }: { userSlot?: ReactNode; wo
         <main id="main" className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
-        {maximized ? <BuildInfoBadge /> : <BuildInfoFooter />}
+        {/* On every page, the maximized workbench too: the release is always in sight. */}
+        <BuildInfoFooter />
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>

@@ -43,7 +43,8 @@ type Config struct {
 	Durability  string `json:"durability"`
 	Manifest    bool   `json:"manifest"`
 	MaxDocBytes int64  `json:"maxDocBytes"`
-	// CreateIfMissing creates the folder (when its parent exists) on test and save.
+	// CreateIfMissing is no longer used: a missing folder is always created. Still read, so
+	// saved connections that set it keep parsing.
 	CreateIfMissing bool `json:"createIfMissing"`
 }
 

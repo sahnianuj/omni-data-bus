@@ -57,29 +57,6 @@ function ChannelBadges({ v, details = false }: { v: VersionInfo; details?: boole
 const buildOf = (v: VersionInfo) => v.build || shortCommit(v.commit)
 
 /**
- * While a page is maximized (the footer is hidden), the release stays in the bottom-right
- * corner and opens the same details (OC-172 AC3).
- */
-export function BuildInfoBadge() {
-  const { t } = useTranslation()
-  const v = useBuildInfo().data
-  if (!v?.version) return null
-  const label = t('build.badge', { version: v.version })
-  const cls = 'fixed bottom-1 right-2 z-40 rounded bg-surface/90 px-1.5 text-[11px] text-muted shadow-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary'
-  if (v.commit === undefined) return <span className={cls}>{label}</span>
-  return (
-    <Popover>
-      <PopoverTrigger className={cls} aria-label={t('build.title') + ': ' + label}>
-        {label}
-      </PopoverTrigger>
-      <PopoverContent side="top" align="end" aria-label={t('build.title')} className="w-[380px] text-[13px]">
-        <BuildDetails v={v} />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/**
  * The release and build of the running server, at the bottom of every page (OC-058). Signed in,
  * it opens a popover with every field, the running nodes and "Copy build info"; on the sign-in
  * page it shows the release only. It also notices when the server was upgraded under an open tab.
@@ -106,7 +83,8 @@ export function BuildInfoFooter({ className }: { className?: string }) {
       role="contentinfo"
       aria-label={t('build.label')}
       className={cn(
-        'flex h-6 shrink-0 items-center gap-2 border-t border-border bg-surface px-4 text-[11px] text-muted',
+        // The release centered; the "new version" notice at the right edge doesn't move it.
+        'relative flex h-6 shrink-0 items-center justify-center gap-2 border-t border-border bg-surface px-4 text-[11px] text-muted',
         className,
       )}
     >
@@ -130,7 +108,7 @@ export function BuildInfoFooter({ className }: { className?: string }) {
         </span>
       )}
       {stale ? (
-        <span role="status" className="ml-auto flex items-center gap-2 text-foreground">
+        <span role="status" className="absolute right-4 flex items-center gap-2 text-foreground">
           {t('build.stale', { version: stale })}
           <button
             type="button"

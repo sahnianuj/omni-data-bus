@@ -39,15 +39,24 @@ describe('TargetKindPicker', () => {
     expect(document.getElementById('cb-password')).toBeNull()
     await userEvent.type(screen.getByLabelText('Folder path'), 'relative')
     await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
-    expect(await screen.findByText('Enter an absolute path, such as /data/odb-out')).toBeInTheDocument()
+    expect(await screen.findByText('Enter an absolute path, such as /data/odb-out (or C:\\exports on Windows)')).toBeInTheDocument()
     await userEvent.clear(screen.getByLabelText('Folder path'))
     await userEvent.type(screen.getByLabelText('Folder path'), '/data/odb-out')
     await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
     await waitFor(() => expect(testBody).toBeDefined())
     expect(testBody).toEqual({
       role: 'target', type: 'directory', secrets: {},
-      config: { path: '/data/odb-out', createIfMissing: false, layout: 'flat', pretty: false, compression: 'none', fileMode: '0640', durability: 'none', manifest: true, maxDocBytes: 20971520 },
+      config: { path: '/data/odb-out', layout: 'flat', pretty: false, compression: 'none', fileMode: '0640', durability: 'none', manifest: true, maxDocBytes: 20971520 },
     })
+    // A missing folder is always created: there's no setting for it.
+    expect(screen.queryByLabelText(/Create the folder/)).not.toBeInTheDocument()
+    // A Windows server's absolute path is accepted too.
+    testBody = undefined
+    await userEvent.clear(screen.getByLabelText('Folder path'))
+    await userEvent.type(screen.getByLabelText('Folder path'), 'C:\\exports')
+    await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+    await waitFor(() => expect(testBody).toBeDefined())
+    expect(testBody).toMatchObject({ config: { path: 'C:\\exports' } })
     // The Couchbase-only capabilities card isn't shown for a directory.
     expect(screen.queryByRole('region', { name: 'What you can do here' })).not.toBeInTheDocument()
   })
