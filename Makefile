@@ -73,8 +73,8 @@ dev-seed: ## (Re)load the point-of-sale fixture schema "pos" into the dev source
 	$(COMPOSE) exec -T source-pg psql -v ON_ERROR_STOP=1 -q -U shop_owner -d shop < backend/internal/fixtures/pos/schema.sql
 
 propose-score: ## Score the design-first proposal on the pos fixture and write the G10 result (OC-162, OC-173; needs make dev-stack)
-	@mkdir -p bench/results/2.5.0
-	cd backend && OC_IT_PG_HOST=localhost OC_IT_PG_PORT=5434 OC_PROPOSE_SCORE_OUT=$(CURDIR)/bench/results/2.5.0/propose-quality.json \
+	@mkdir -p bench/results/$(RELEASE)
+	cd backend && OC_IT_PG_HOST=localhost OC_IT_PG_PORT=5434 OC_PROPOSE_SCORE_OUT=$(CURDIR)/bench/results/$(RELEASE)/propose-quality.json \
 		go test -tags integration -count=1 -run 'TestProposeScore|TestProposeGate' -v ./internal/automap/ | grep -v '^=== RUN'
 
 run-backend: ## Run the Go server (reads .env; without one, uses the local dev stack)
