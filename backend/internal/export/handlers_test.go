@@ -182,7 +182,7 @@ func TestExportsAPI_OC160_AC2_OlderRequests(t *testing.T) {
 	}
 	rec := a.export(Input{Runtime: RuntimeScript, Script: Script{Runtime: "embedded", OS: runtime.GOOS, Arch: runtime.GOARCH}})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	require.Contains(t, unzip(t, rec.Body.Bytes()), "bin/odb")
+	require.Contains(t, unzip(t, rec.Body.Bytes()), OdbPath(selfPlatform()))
 }
 
 func TestExportsAPI_AC4_Authorization(t *testing.T) {

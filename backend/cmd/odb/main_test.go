@@ -99,5 +99,8 @@ func TestMain(m *testing.M) {
 	if os.Getenv("ODB_TEST_AS_ODB") == "1" {
 		os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 	}
+	// The tests behave the same when run inside a container (a dev container, CI in Docker);
+	// the ones about containers turn this on with inDocker.
+	inContainer = func() bool { return false }
 	os.Exit(m.Run())
 }

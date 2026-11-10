@@ -111,7 +111,7 @@ jobs:
   # are in the release environment: PR dry runs build and check the universal binary, unsigned.
   odb-macos:
     needs: [meta, binaries]
-    runs-on: macos-14
+    runs-on: macos-15
     environment: ${{ needs.meta.outputs.publish == 'true' && 'release' || 'release-check' }}
     env:
       VERSION: ${{ needs.meta.outputs.version }}

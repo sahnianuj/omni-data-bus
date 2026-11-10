@@ -29,7 +29,12 @@ func testScriptConfig(t *testing.T) ScriptConfig {
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  odb_2.0.0_darwin_arm64.tar.gz\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "SHA256SUMS"), []byte(sums), 0o600))
 	// A small stand-in for this platform's release tarball (only its bytes are embedded).
-	writeTarball(t, filepath.Join(dir, "odb_2.0.0_"+runtime.GOOS+"_"+runtime.GOARCH+".tar.gz"), "#!/bin/sh\necho fake odb\n")
+	// Windows releases are a .zip holding odb.exe; the others a .tar.gz.
+	if self := selfPlatform(); isWindows(self) {
+		writeZip(t, filepath.Join(dir, Archive("2.0.0", self)), "odb.exe", "#!/bin/sh\necho fake odb\n")
+	} else {
+		writeTarball(t, filepath.Join(dir, Archive("2.0.0", self)), "#!/bin/sh\necho fake odb\n")
+	}
 	return ScriptConfig{
 		Image: "ghcr.io/example/omni-data-bus@sha256:" + strings.Repeat("c", 64), DownloadURL: "https://example.com/releases/v2.0.0/",
 		CosignIdentity: "^https://github.com/example/omni-data-bus/", Dist: Dist{Dir: dir, Version: "2.0.0"},
@@ -174,11 +179,14 @@ func TestExport_OC182_AC3_OfflineBinary(t *testing.T) {
 	require.Equal(t, self, art.IncludedOdb)
 	files, modes := unzipExport(t, art)
 	require.True(t, modes["bin/"].IsDir())
-	require.Equal(t, os.FileMode(0o755), modes["bin/odb"])
-	require.Equal(t, "#!/bin/sh\necho fake odb\n", string(files["bin/odb"]), "the binary itself, not compressed")
+	bin := OdbPath(self) // bin/odb.exe on Windows
+	require.Equal(t, os.FileMode(0o755), modes[bin])
+	require.Equal(t, "#!/bin/sh\necho fake odb\n", string(files[bin]), "the binary itself, not compressed")
 	readme := string(files["README.md"])
-	require.Contains(t, readme, "| `bin/odb` | odb 2.0.0 for "+PlatformLabel(self)+", for a machine without internet access |")
-	require.Contains(t, readme, "`bin/odb preflight`")
+	require.Contains(t, readme, "| `"+bin+"` | odb 2.0.0 for "+PlatformLabel(self)+", for a machine without internet access |")
+	if !isWindows(self) { // the Windows README's PowerShell commands: TestExport_OC186_WindowsZip
+		require.Contains(t, readme, "`bin/odb preflight`")
+	}
 
 	_, err = RenderScript(context.Background(), built.Bundle, encode(t, built.Bundle), built.RunConfig, "windows_arm64", cfg, "2.0.0")
 	require.ErrorContains(t, err, "no odb binary for windows_arm64")
