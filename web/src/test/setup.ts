@@ -1,8 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 afterEach(() => cleanup())
+
+// findBy*/waitFor wait 1s by default: too short on a busy CI runner.
+configure({ asyncUtilTimeout: 3000 })
 import "@/i18n"
 import { installMatchMedia } from './matchMedia'
 import { beforeEach } from 'vitest'

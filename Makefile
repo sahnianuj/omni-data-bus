@@ -40,13 +40,13 @@ setup: ## Install Go modules, golangci-lint and web dependencies, and the pre-pu
 	cd web && npm ci
 	$(MAKE) hooks
 
-hooks: ## Run the quick CI checks before every git push (.githooks/pre-push)
+hooks: ## Run CI's checks (make ci-local) before every git push (.githooks/pre-push)
 	git config core.hooksPath .githooks
 
-ci-local: ## Run CI's checks here before pushing: everything that can run locally (needs Docker; ~6 min)
+ci-local: ## Run CI's checks here: everything that can run locally; git push runs this (needs Docker; ~6 min)
 	scripts/ci-local.sh
 
-ci-fast: ## The quick CI checks the pre-push hook runs (~2 min)
+ci-fast: ## The quick CI checks, while working (~2 min)
 	scripts/ci-local.sh --fast
 
 print-golangci:

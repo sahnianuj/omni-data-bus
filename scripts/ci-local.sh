@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs CI's checks (.github/workflows/ci.yml) on this machine, so failures show up before a push.
-#   scripts/ci-local.sh          # everything CI runs that can run here (needs Docker; ~6 min)
-#   scripts/ci-local.sh --fast   # the quick checks the pre-push hook runs (~2 min)
+#   scripts/ci-local.sh          # everything CI runs that can run here; the pre-push hook (needs Docker; ~6 min)
+#   scripts/ci-local.sh --fast   # the quick checks, while working (~2 min)
 #   scripts/ci-local.sh lint e2e # only the named steps (see the list below)
 # Every step runs even after a failure; the summary at the end lists what failed and where its log is.
 # Not covered here: the real Windows and macOS runners (Windows is compile-checked) and the secret scan.

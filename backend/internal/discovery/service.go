@@ -127,13 +127,16 @@ func (s *Service) Discover(ctx context.Context, ws store.WorkspaceID, userID, co
 	}
 	if n > s.threshold {
 		bg, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncTimeout)
+		// Snapshot before the goroutine starts: a fast source could otherwise finish first and
+		// the 202 would already say "completed".
+		st := s.snapshotOf(r)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
 			defer cancel()
 			_ = s.execute(bg, r, sess, conn, userID, opts)
 		}()
-		return Result{Async: true, Status: s.snapshotOf(r)}, nil
+		return Result{Async: true, Status: st}, nil
 	}
 	if err := s.execute(ctx, r, sess, conn, userID, opts); err != nil {
 		return Result{}, err
