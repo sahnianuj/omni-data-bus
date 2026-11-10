@@ -1,9 +1,7 @@
 package export
 
 import (
-	"math"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -50,31 +48,44 @@ func TestSeal_AC1_WrongPassphrase(t *testing.T) {
 	_, err = Unseal(&bad, passphrase, "aad")
 	require.ErrorIs(t, err, ErrPassphrase)
 
-	// No timing difference beyond the KDF: both paths derive the key once.
-	slow := KDF{Alg: "argon2id", T: 2, M: 16 * 1024, P: 1}
-	c, _ = Seal(Secrets{"password": "x"}, passphrase, "aad", slow)
+	// No timing difference beyond the KDF: every failure derives the key exactly once, as a
+	// right passphrase does, so a wrong passphrase can't be told from a corrupt block by its time.
+	// (Counted, not timed: a timing ratio of two 16 MB derivations is noise on CI runners.)
+	derived := 0
+	prev := deriveKey
+	deriveKey = func(p string, salt []byte, k KDF) []byte { derived++; return prev(p, salt, k) }
+	t.Cleanup(func() { deriveKey = prev })
 	corrupt := *c
 	corrupt.Ciphertext = "AAAA"
-	measure := func(cr *Credentials, pass string) time.Duration {
-		start := time.Now()
-		_, _ = Unseal(cr, pass, "aad")
-		return time.Since(start)
+	notB64 := *c
+	notB64.Ciphertext = "!!not base64"
+	badNonce := *c
+	badNonce.Nonce = "!!not base64"
+	shortNonce := *c
+	shortNonce.Nonce = "AAAA"
+	badSalt, saltKDF := *c, *c.KDF
+	saltKDF.Salt = "!!not base64"
+	badSalt.KDF = &saltKDF
+	for name, tc := range map[string]struct {
+		cr   *Credentials
+		pass string
+	}{
+		"right": {c, passphrase}, "wrong passphrase": {c, "wrong"}, "corrupt ciphertext": {&corrupt, passphrase},
+		"ciphertext not base64": {&notB64, passphrase},
+		"nonce not base64":      {&badNonce, passphrase}, "short nonce": {&shortNonce, passphrase}, "salt not base64": {&badSalt, passphrase},
+	} {
+		derived = 0
+		_, _ = Unseal(tc.cr, tc.pass, "aad")
+		require.Equal(t, 1, derived, name)
 	}
-	// The fastest of a few alternating runs each: one run is noisy on a busy CI machine, and the
-	// first one pays for warm-up (allocation, CPU clock), which isn't the property under test.
-	wrong, broken := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
-	for range 5 {
-		wrong = min(wrong, measure(c, "wrong"))
-		broken = min(broken, measure(&corrupt, passphrase))
-	}
-	ratio := float64(wrong) / float64(broken)
-	require.InDelta(t, 1, ratio, 0.6, "wrong %v vs corrupt %v", wrong, broken)
 
 	// Unsupported or abusive KDF settings are refused before deriving.
 	huge := *c
 	huge.KDF = &KDF{Alg: "argon2id", T: 3, M: 1 << 30, P: 1, Salt: c.KDF.Salt}
+	derived = 0
 	_, err = Unseal(&huge, passphrase, "aad")
 	require.ErrorContains(t, err, CodeInvalid)
+	require.Zero(t, derived, "refused before deriving")
 }
 
 func TestSeal_AC2_AADBinding(t *testing.T) {

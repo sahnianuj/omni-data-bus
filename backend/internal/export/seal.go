@@ -87,7 +87,8 @@ func Unseal(c *Credentials, passphrase, aad string) (Secrets, error) {
 	return s, nil
 }
 
-func deriveKey(passphrase string, salt []byte, k KDF) []byte {
+// deriveKey is argon2id with the block's settings (a variable so tests can count the calls).
+var deriveKey = func(passphrase string, salt []byte, k KDF) []byte {
 	return argon2.IDKey([]byte(passphrase), salt, k.T, k.M, k.P, keyLen)
 }
 

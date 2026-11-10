@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 ROOT=$PWD
 
 FAST_STEPS=(actionlint lint unit-tests windows-compile govulncheck npm-audit notices check-gen web-tests)
-FULL_STEPS=(actionlint lint backend-test windows-compile govulncheck npm-audit notices check-gen web
+FULL_STEPS=(actionlint lint backend-test windows-compile runner-e2e govulncheck npm-audit notices check-gen web
   bench helm runner-compat integration image e2e)
 
 case "${1:-}" in
@@ -45,6 +45,22 @@ step_backend-test() { # backend-test
 step_windows-compile() { # runner-e2e (windows-2022): the same packages, compiled for Windows
   local pkgs=(./cmd/odb/ ./internal/headless/ ./internal/export/ ./internal/mapping/ ./internal/pathcodec/)
   (cd backend && GOOS=windows GOARCH=amd64 go vet "${pkgs[@]}" && GOOS=windows GOARCH=amd64 go vet -tags integration ./cmd/odb/)
+}
+step_runner-e2e() { # runner-e2e, as the macOS runner runs it: its unit tests, then odb alone against the shop seed
+  docker_up || { skip "Docker isn't running"; return; }
+  make dev-stack &&
+    (cd backend && go test -count=1 -skip 'TestScriptTemplate|TestMigrateScript_Bats' \
+      ./cmd/odb/ ./internal/headless/ ./internal/export/ ./internal/mapping/ ./internal/pathcodec/) &&
+    runner_e2e_against_dev_pg
+}
+# The dev stack's PostgreSQL (port 5434) has CI's shop seed and login. A skipped test fails the step.
+runner_e2e_against_dev_pg() {
+  local out
+  out=$(cd backend && OC_IT_PG_HOST=localhost OC_IT_PG_PORT=5434 \
+    go test -tags integration -count=1 -run 'TestRunner_' -v ./cmd/odb/ 2>&1)
+  local rc=$?
+  echo "$out"
+  [ $rc -eq 0 ] && grep -q -- '--- PASS: TestRunner_' <<<"$out"
 }
 step_govulncheck() { # dependency-scan
   (cd backend && go run golang.org/x/vuln/cmd/govulncheck@latest ./...)
