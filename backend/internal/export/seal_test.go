@@ -1,6 +1,7 @@
 package export
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -59,7 +60,13 @@ func TestSeal_AC1_WrongPassphrase(t *testing.T) {
 		_, _ = Unseal(cr, pass, "aad")
 		return time.Since(start)
 	}
-	wrong, broken := measure(c, "wrong"), measure(&corrupt, passphrase)
+	// The fastest of a few alternating runs each: one run is noisy on a busy CI machine, and the
+	// first one pays for warm-up (allocation, CPU clock), which isn't the property under test.
+	wrong, broken := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
+	for range 5 {
+		wrong = min(wrong, measure(c, "wrong"))
+		broken = min(broken, measure(&corrupt, passphrase))
+	}
 	ratio := float64(wrong) / float64(broken)
 	require.InDelta(t, 1, ratio, 0.6, "wrong %v vs corrupt %v", wrong, broken)
 
