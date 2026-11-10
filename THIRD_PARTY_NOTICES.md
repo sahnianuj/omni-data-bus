@@ -55,11 +55,11 @@ edit by hand. Their licence texts follow the tables.
 | go.opentelemetry.io/proto/otlp | v1.11.0 | Apache-2.0 | https://pkg.go.dev/go.opentelemetry.io/proto/otlp |
 | go.uber.org/multierr | v1.11.0 | MIT | https://pkg.go.dev/go.uber.org/multierr |
 | go.uber.org/zap | v1.27.1 | MIT | https://pkg.go.dev/go.uber.org/zap |
-| golang.org/x/crypto | v0.57.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/crypto |
-| golang.org/x/net | v0.60.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/net |
-| golang.org/x/sys | v0.48.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
-| golang.org/x/term | v0.46.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/term |
-| golang.org/x/text | v0.42.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/text |
+| golang.org/x/crypto | v0.58.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/crypto |
+| golang.org/x/net | v0.62.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/net |
+| golang.org/x/sys | v0.49.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
+| golang.org/x/term | v0.47.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/term |
+| golang.org/x/text | v0.43.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/text |
 | google.golang.org/genproto/googleapis/api | v0.0.0-20260803160001-6ac0973c030d | Apache-2.0 | https://pkg.go.dev/google.golang.org/genproto/googleapis/api |
 | google.golang.org/genproto/googleapis/rpc | v0.0.0-20260803160001-6ac0973c030d | Apache-2.0 | https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc |
 | google.golang.org/grpc | v1.83.2 | Apache-2.0 | https://pkg.go.dev/google.golang.org/grpc |
@@ -144,7 +144,7 @@ edit by hand. Their licence texts follow the tables.
 | use-callback-ref | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref/ |
 | use-sidecar | 1.1.3 | MIT | https://github.com/theKashey/use-sidecar |
 | use-sync-external-store | 1.7.0 | MIT | https://github.com/react/react |
-| zod | 4.6.5 | MIT | https://github.com/colinhacks/zod |
+| zod | 4.6.7 | MIT | https://github.com/colinhacks/zod |
 | zustand | 5.0.15 | MIT | https://github.com/pmndrs/zustand |
 
 ## Licence texts
@@ -1823,7 +1823,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### golang.org/x/crypto v0.57.0, golang.org/x/net v0.60.0, golang.org/x/sys v0.48.0, golang.org/x/term v0.46.0, golang.org/x/text v0.42.0
+### golang.org/x/crypto v0.58.0, golang.org/x/net v0.62.0, golang.org/x/sys v0.49.0, golang.org/x/term v0.47.0, golang.org/x/text v0.43.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -3150,7 +3150,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### zod 4.6.5
+### zod 4.6.7
 
 ```text
 MIT License

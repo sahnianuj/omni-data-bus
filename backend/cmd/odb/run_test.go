@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -280,6 +281,9 @@ func TestCLI_OC181_AC5_Help(t *testing.T) {
 // inDocker makes odb believe it runs in a container whose mounts are / and the given folders.
 func inDocker(t *testing.T, mounts ...string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("odb's container checks are for Linux containers; Windows paths can't be in a mountinfo")
+	}
 	prevIn, prevInfo := inContainer, mountInfo
 	inContainer = func() bool { return true }
 	info := "21 1 0:21 / / rw,relatime - overlay overlay rw\n"

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -107,7 +108,9 @@ func TestLoadRunConfig_WritesBackEncoded(t *testing.T) {
 	require.NotContains(t, string(raw), "n3w-pass")
 	st, err := os.Stat(path)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o600), st.Mode().Perm())
+	if runtime.GOOS != "windows" { // Windows has no Unix permission bits
+		require.Equal(t, os.FileMode(0o600), st.Mode().Perm())
+	}
 	entries, _ := os.ReadDir(filepath.Dir(path))
 	require.Len(t, entries, 1, "no temporary file left behind")
 

@@ -55,7 +55,7 @@ How to run Omni-Data-Bus locally, configure it, and test it. For building and de
 |---|---|---|
 | Couchbase Capella cluster | — | Omni-Data-Bus's metadata store (see below). Not needed with the Docker dev stack |
 | Docker Desktop *(optional)* | recent | Only for the offline dev stack: Couchbase 8.0.3 + sample PostgreSQL source. Give it **≥ 4 GB RAM** |
-| Go | 1.21 or newer installed | `go.mod` pins **go1.26.9**; Go downloads that toolchain on first use (`GOTOOLCHAIN=auto`) |
+| Go | 1.21 or newer installed | `go.mod` pins **go1.26.10**; Go downloads that toolchain on first use (`GOTOOLCHAIN=auto`) |
 | Node.js | 20+ (tested with 24) | npm (no pnpm needed) |
 | make, git, python3 | any recent | `python3` for the story index and the third-party notices |
 
@@ -214,7 +214,7 @@ Coverage gates: Go packages ≥ 80% (≥ 90% for automap/transform/pipeline), we
 |---|---|
 | `Cannot connect to the Docker daemon` | Start Docker Desktop and wait until it reports *running* (`docker info` works). If you have two Docker apps installed, open the one you normally use |
 | `make dev-stack` hangs on couchbase | First start pulls ~1.5 GB; check `docker compose -f deploy/compose/dev.yml logs couchbase`. Ensure Docker has ≥ 4 GB RAM |
-| `go: downloading go1.26.9` on first build | Expected: Go fetches the pinned toolchain once |
+| `go: downloading go1.26.10` on first build | Expected: Go fetches the pinned toolchain once |
 | Server exits with `missing required environment variables` | Set the `OC_META_*` and `OC_MASTER_KEY` variables, or `OC_DEV=true` for local development |
 | `/readyz` returns 503 `metadata: unavailable` | Couchbase isn't reachable: check the dev stack or Capella Allowed IPs / credentials |
 | Port already in use | Stop the other process or change `OC_HTTP_ADDR` / the compose port mapping |

@@ -157,10 +157,16 @@ func TestExportsAPI_AC1_ZipContents(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	files = unzip(t, rec.Body.Bytes())
 	require.Len(t, files, 9, "bin/, bin/odb and bin/LICENSES/ with its three files (OC-189)")
-	require.Equal(t, os.FileMode(0o755), files["bin/odb"].Mode().Perm())
+	require.Contains(t, files, OdbPath(self.String()))
+	require.Equal(t, os.FileMode(0o755), files[OdbPath(self.String())].Mode().Perm())
 	require.Equal(t, self.String(), rec.Header().Get("X-Odb-Included"))
 
-	rec = a.export(Input{IncludeOdb: &Platform{OS: "windows", Arch: "amd64"}})
+	// A platform odb isn't available for here: not the one the test runs on.
+	other := Platform{OS: "windows", Arch: "amd64"}
+	if other == self {
+		other = Platform{OS: "linux", Arch: "amd64"}
+	}
+	rec = a.export(Input{IncludeOdb: &other})
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 

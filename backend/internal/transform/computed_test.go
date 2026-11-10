@@ -121,7 +121,8 @@ func TestCompile_OC192_ReadsItselfSuggestsRow(t *testing.T) {
 				keep = append(keep, m)
 			}
 		}
-		s.FieldMappings = append(keep, tmpl("c", "f_id", "paid_in_out::${doc.customer_id}"))
+		keep = append(keep, tmpl("c", "f_id", "paid_in_out::${doc.customer_id}"))
+		s.FieldMappings = keep
 		s.DocSchema.Root.Children[0].Name = "customer_id" // the row has a customer_id column
 	})
 	require.Nil(t, p)
